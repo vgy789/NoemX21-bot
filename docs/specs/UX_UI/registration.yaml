@@ -2,7 +2,7 @@ meta:
   feature_id: "REG-001"
   name: "Регистрация нового пользователя"
   description: "Процесс создания аккаунта с валидацией через S21 API и проверкой OTP в Rocket.Chat"
-  version: "1.0.0"
+  version: "1.1.0"
 
 initial_state: SELECT_LANGUAGE
 
@@ -45,10 +45,10 @@ states:
     description: "Ожидание ввода логина School21"
     interface:
       text:
-        ru: "Введите логин School21 (4-9 символов, только латиница):"
+        ru: "Введи логин School21 (4-9 символов, только латиница):"
         en: "Enter School21 login (4-9 chars, lowercase a-z):"
       error_invalid:
-        ru: "⚠️ Неверный формат! Попробуйте еще раз (например: jonnabin):"
+        ru: "⚠️ Неверный формат! Попробуй ещё раз (например: jonnabin):"
         en: "⚠️ Invalid format! Try again (example: jonnabin):"
     validation:
       regex: "^[a-z]{4,9}$"
@@ -61,9 +61,9 @@ states:
   # 4. Системное состояние (Чистая логика / API)
   VALIDATE_VIA_API:
     type: system
-    description: "Проверка существования пользователя в Core API"
+    description: "Проверка существования пользователя в системе Школы"
     logic:
-      request: "GET /v1/participants/{login}"
+      action: "validate_school21_user"
       payload: { login: "$context.last_input" }
     transitions:
       - condition: "api_status == 200 && user.status == 'ACTIVE' && user.parallelName == 'Core program'"
@@ -83,14 +83,12 @@ states:
     description: "Поиск пользователя в Rocket.Chat (с кэшированием)"
     logic:
       action: "find_rocket_user"
-      payload: { login: "$context.last_input", cache_ttl: 3600 } # 1 час кулдаун
+      payload: { login: "$context.last_input"}
     transitions:
       - condition: "rocket_user_found == true"
         next_state: AWAITING_OTP
-      - condition: "rocket_user_not_found == true && cache_updated == true"
+      - condition: "rocket_user_not_found == true"
         next_state: ROCKET_USER_NOT_FOUND
-      - condition: "rocket_user_not_found == true && cache_updated == false"
-        next_state: ROCKET_USER_CACHE_EXPIRED
       - condition: "rocket_api_error == true"
         next_state: ROCKET_API_ERROR
 
@@ -101,7 +99,7 @@ states:
       type: input
       interface:
         text:
-          ru: "🔐 Код отправлен в Rocket.Chat. Введите его:"
+          ru: "🔐 Код отправлен в Rocket.Chat. Введи его:"
           en: "🔐 OTP sent to Rocket.Chat. Enter it here:"
         footer:
           ru: "Осталось попыток: {attempts}"
@@ -130,7 +128,7 @@ states:
     description: "Неверная параллель обучения"
     interface:
       text:
-        ru: "❌ Вы не из программы Core. Регистрация доступна только для студентов Core."
+        ru: "❌ Ты не из программы Core. Регистрация доступна только для студентов основы."
         en: "❌ You are not in Core program. Registration available only for Core students."
       buttons:
         - id: retry
@@ -142,7 +140,7 @@ states:
     description: "Доступ запрещен"
     interface:
       text:
-        ru: "❌ Ваш статус не подходит для регистрации."
+        ru: "❌ Твой статус не подходит для регистрации."
         en: "❌ Your status does not allow registration."
       buttons:
         - id: retry
@@ -154,7 +152,7 @@ states:
     description: "Пользователь не найден"
     interface:
       text:
-        ru: "❌ Пользователь не найден в School21. Проверьте логин."
+        ru: "❌ Пользователь не найден в School21. Проверь логин."
         en: "❌ User not found in School21. Check your login."
       buttons:
         - id: retry
@@ -166,7 +164,7 @@ states:
     description: "Ошибка API School21"
     interface:
       text:
-        ru: "❌ Временная ошибка связи с School21. Попробуйте позже."
+        ru: "❌ Временная ошибка связи с School21. Попробуй позже."
         en: "❌ Temporary School21 API error. Try again later."
       buttons:
         - id: retry
@@ -178,20 +176,8 @@ states:
     description: "Пользователь не найден в Rocket.Chat"
     interface:
       text:
-        ru: "❌ Пользователь не найден в Rocket.Chat. Проверьте, зарегистрирован ли вы в системе School21."
+        ru: "❌ Пользователь не найден в Rocket.Chat. Проверь, зарегистрирован ли ты в системе School21."
         en: "❌ User not found in Rocket.Chat. Check if you are registered in School21 system."
-      buttons:
-        - id: retry
-          label: { ru: "Попробовать снова", en: "Try again" }
-          next_state: INPUT_LOGIN
-
-  ROCKET_USER_CACHE_EXPIRED:
-    type: interactive
-    description: "Кэш Rocket.Chat устарел"
-    interface:
-      text:
-        ru: "⚠️ Данные Rocket.Chat обновляются раз в час. Попробуйте через 5 минут."
-        en: "⚠️ Rocket.Chat data updates hourly. Try again in 5 minutes."
       buttons:
         - id: retry
           label: { ru: "Попробовать снова", en: "Try again" }
@@ -202,7 +188,7 @@ states:
     description: "Ошибка API Rocket.Chat"
     interface:
       text:
-        ru: "❌ Временная ошибка Rocket.Chat. Попробуйте через 1 минуту."
+        ru: "❌ Временная ошибка Rocket.Chat. Попробуй через 1 минуту."
         en: "❌ Temporary Rocket.Chat API error. Try again in 1 minute."
       buttons:
         - id: retry

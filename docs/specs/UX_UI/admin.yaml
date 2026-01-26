@@ -1,112 +1,221 @@
 meta:
   feature_id: "ADM-001"
-  name: "Администрирование и модерация"
-  description: "Рассылки и модерация чатов (Guard)"
-  version: "1.0.0"
+  name: "Администрирование"
+  description: "Управление рассылками, привязкой тем в группах и правилами входа (Guard)"
+  version: "1.1.0"
 
-initial_state: BROADCAST_INPUT
+initial_state: ADMIN_MENU
 
 states:
+  ADMIN_MENU:
+    type: interactive
+    description: "Главное меню администратора"
+    interface:
+      text:
+        ru: "🛠️ **Панель управления**\nЗдесь ты можешь настроить рассылки, привязать постинг запросов к треду или настроить охранника для чата."
+        en: "🛠️ **Admin Panel**\nHere you can configure broadcasts, link requests to threads, or setup a chat guard."
+      buttons:
+        - id: broadcast
+          label: { ru: "📢 Глобальная рассылка", en: "📢 Global broadcast" }
+          next_state: BROADCAST_INPUT
+          condition: "is_bot_owner == true"
+        - id: link_topic
+          label: { ru: "🔗 Привязать тему (Review)", en: "🔗 Link topic (Review)" }
+          next_state: SELECT_GROUP_FOR_TOPIC
+          condition: "is_group_owner == true"
+        - id: guard
+          label: { ru: "🛡️ Настроить Guard", en: "🛡️ Setup Guard" }
+          next_state: SELECT_GROUP_FOR_GUARD
+          condition: "is_group_owner == true"
+        - id: back
+          label: { ru: "🏠 Назад", en: "🏠 Back" }
+          next_state: "main_menu.yaml/MAIN_MENU"
+    on_enter: "check_admin_permissions"
+
+  # --- ФЛОУ РАССЫЛКИ (Только Bot Owner) ---
+
   BROADCAST_INPUT:
     type: input
     description: "Ввод текста для рассылки"
     interface:
       text:
-        ru: "📢 Введите текст рассылки:"
-        en: "📢 Enter broadcast message:"
+        ru: "📢 **Текст рассылки**\nВведите сообщение, которое получат ВСЕ пользователи бота:"
+        en: "📢 **Broadcast Message**\nEnter the message that ALL bot users will receive:"
       buttons:
         - id: cancel
-          label: { ru: "Отмена", en: "Cancel" }
-          next_state: "main_menu.yaml/MAIN_MENU"
-      error_invalid:
-        ru: "⚠️ Максимальная длина сообщения 4096 символов"
-        en: "⚠️ Max message length 4096 chars"
+          label: { ru: "Назад", en: "Back" }
+          next_state: ADMIN_MENU
     validation:
       regex: '^[\s\S]{1,4096}$'
     transitions:
       - trigger: "on_valid_input"
-        next_state: VALIDATE_OWNER
+        next_state: BROADCAST_CONFIRM
 
-  VALIDATE_OWNER:
-    type: system
-    description: "Проверка прав владельца"
-    logic:
-      request: "GET /v1/users/{user_id}/is_owner"
-      payload: { user_id: "$context.user_id" }
-    transitions:
-      - condition: "is_owner == true"
-        next_state: SEND_BROADCAST
-      - condition: "is_owner == false"
-        next_state: ERROR_FORBIDDEN
+  BROADCAST_CONFIRM:
+    type: interactive
+    description: "Подтверждение рассылки"
+    interface:
+      text:
+        ru: "⚠️ **Подтверди отправку!**\nСообщение будет отправлено всем пользователям.\n\nТекст:\n{last_input}"
+        en: "⚠️ **Confirm sending!**\nThe message will be sent to all users.\n\nText:\n{last_input}"
+      buttons:
+        - id: confirm
+          label: { ru: "✅ Отправить", en: "✅ Send" }
+          next_state: EXECUTE_BROADCAST
+        - id: cancel
+          label: { ru: "Отмена", en: "Cancel" }
+          next_state: ADMIN_MENU
 
-  SEND_BROADCAST:
+  EXECUTE_BROADCAST:
     type: system
-    description: "Отправка рассылки всем пользователям"
+    description: "Фоновая отправка рассылки"
     logic:
       action: "broadcast_message"
-      payload: { message: "$context.last_input" }
+      payload: { text: "$context.last_input" }
     transitions:
-      - next_state: BROADCAST_SUCCESS
+      - next_state: ADMIN_MENU
 
-  BROADCAST_SUCCESS:
+  # --- ФЛОУ ПРИВЯЗКИ ТЕМЫ (Review Posting) ---
+
+  SELECT_GROUP_FOR_TOPIC:
     type: interactive
-    description: "Рассылка отправлена"
+    description: "Выбор группы (только где пользователь — владелец)"
     interface:
       text:
-        ru: "✅ Рассылка успешно отправлена!"
-        en: "✅ Broadcast sent successfully!"
+        ru: "📋 **Выбери свою группу:**\nПоказаны только группы, в которых ты являешься владельцем:"
+        en: "📋 **Choose your group:**\nOnly groups where you are the owner are shown:"
       buttons:
+        - id: group_{chat_id}
+          label: "{chat_title}"
+          next_state: INPUT_THREAD_ID
         - id: back
           label: { ru: "Назад", en: "Back" }
-          next_state: "main_menu.yaml/MAIN_MENU"
+          next_state: ADMIN_MENU
+    on_enter: "fetch_managed_groups"
 
-  ERROR_FORBIDDEN:
-    type: interactive
-    description: "Нет прав для рассылки"
+  INPUT_THREAD_ID:
+    type: input
+    description: "Ввод message_thread_id для темы"
     interface:
       text:
-        ru: "⛔ У вас нет прав на рассылки. Обратитесь к администратору."
-        en: "⛔ You don't have permission to broadcast. Contact admin."
+        ru: "🔗 **Введите message_thread_id**\nУкажи ID темы в группе «{chat_title}», куда будут поститься запросы.\n\nТекущая привязка: {current_thread_info}"
+        en: "🔗 **Enter message_thread_id**\nSpecify the topic ID in the '{chat_title}' group where requests will be posted.\n\nCurrent link: {current_thread_info}"
+    validation:
+      regex: '^\d+$'
+    transitions:
+      - trigger: "on_valid_input"
+        next_state: CONFIGURE_TOPIC_FILTERS
+
+  CONFIGURE_TOPIC_FILTERS:
+    type: interactive
+    description: "Настройка фильтров темы (кампус, ветка)"
+    interface:
+      text:
+        ru: "⚙️ **Фильтры для темы ({chat_title})**\nТекущие фильтры: {current_filters_summary}\n\nВыбери какие запросы будут попадать сюда:"
+        en: "⚙️ **Topic Filters ({chat_title})**\nCurrent filters: {current_filters_summary}\n\nChoose which requests will be posted here:"
       buttons:
+        - id: campus_{campus_id}
+          label: "Кампус: {campus_name} {status_icon}"
+        - id: branch_{branch_id}
+          label: "Ветка проекта: {branch_name} {status_icon}"
+        - id: save
+          label: { ru: "✅ Сохранить", en: "✅ Save" }
+          next_state: SAVE_TOPIC_LINK
+    on_enter: "fetch_topic_filter_options"
+    transitions:
+      - trigger: "button_click"
+        condition: "id.startswith('campus_') || id.startswith('branch_')"
+        action: "toggle_topic_filter"
+        next_state: CONFIGURE_TOPIC_FILTERS
+
+  SAVE_TOPIC_LINK:
+    type: system
+    description: "Сохранение привязки в БД"
+    logic:
+      action: "link_group_topic"
+      payload: 
+        chat_id: "$context.selected_chat_id"
+        thread_id: "$context.thread_id"
+        filters: "$context.topic_filters"
+    transitions:
+      - next_state: ADMIN_MENU
+
+  # --- ФЛОУ НАСТРОЙКИ GUARD (Охранник) ---
+
+  SELECT_GROUP_FOR_GUARD:
+    type: interactive
+    description: "Выбор группы (только где пользователь — владелец)"
+    interface:
+      text:
+        ru: "🛡️ **Настройка охранника**\nВыбери свою группу для редактирования правил входа:"
+        en: "🛡️ **Guard Setup**\nChoose your group to edit entry rules:"
+      buttons:
+        - id: group_{chat_id}
+          label: "{chat_title}"
+          next_state: CONFIGURE_GUARD_RULES
         - id: back
           label: { ru: "Назад", en: "Back" }
-          next_state: "main_menu.yaml/MAIN_MENU"
+          next_state: ADMIN_MENU
+    on_enter: "fetch_managed_groups"
 
-  NEW_MEMBER:
-    type: system
-    description: "Обработка нового участника чата"
-    logic:
-      request: "GET /v1/guard_settings"
-      payload: { chat_id: "$context.chat_id" }
+  CONFIGURE_GUARD_RULES:
+    type: interactive
+    description: "Настройка условий пропуска"
+    interface:
+      text:
+        ru: "🛡️ **Правила Guard для {chat_title}**\nТекущие правила: {current_rules_summary}\n\nПользователь будет допущен, если выполнены условия:"
+        en: "🛡️ **Guard Rules for {chat_title}**\nCurrent rules: {current_rules_summary}\n\nUser will be allowed if conditions are met:"
+      buttons:
+        - id: toggle_school_member
+          label: { ru: "Любой участник Школы 21 {member_status_icon}", en: "Any School 21 member {member_status_icon}" }
+        - id: set_project
+          label: { ru: "📝 Проект: {project_condition}", en: "📝 Project: {project_condition}" }
+          next_state: INPUT_GUARD_PROJECT
+        - id: set_campus
+          label: { ru: "🏫 Кампус: {campus_condition}", en: "🏫 Campus: {campus_condition}" }
+          next_state: SELECT_GUARD_CAMPUS
+        - id: save
+          label: { ru: "✅ Сохранить правила", en: "✅ Save rules" }
+          next_state: SAVE_GUARD_RULES
+    on_enter: "fetch_current_guard_rules"
     transitions:
-      - next_state: CHECK_RULES
+      - trigger: "button_click"
+        condition: "id == 'toggle_school_member'"
+        action: "toggle_guard_school_member"
+        next_state: CONFIGURE_GUARD_RULES
 
-  CHECK_RULES:
-    type: system
-    description: "Проверка правил охранника"
-    logic:
-      action: "check_guard_rules"
-      payload: { user_id: "$context.user_id", chat_id: "$context.chat_id" }
+  INPUT_GUARD_PROJECT:
+    type: input
+    description: "Ввод проекта для Guard"
+    interface:
+      text:
+        ru: "Введите название проекта (или 'none' для сброса):"
+        en: "Enter project name (or 'none' to reset):"
     transitions:
-      - condition: "rules_passed == true"
-        next_state: ALLOW_MEMBER
-      - condition: "rules_passed == false"
-        next_state: KICK_MEMBER
+      - trigger: "on_valid_input"
+        next_state: CONFIGURE_GUARD_RULES
+        action: "set_guard_project"
 
-  ALLOW_MEMBER:
-    type: system
-    description: "Допуск пользователя в чат"
-    logic:
-      action: "allow_user_to_chat"
-      payload: { user_id: "$context.user_id", chat_id: "$context.chat_id" }
-    transitions:
-      - next_state: "[*]"
+  SELECT_GUARD_CAMPUS:
+    type: interactive
+    description: "Выбор кампуса для Guard"
+    interface:
+      text:
+        ru: "Выбери кампус (или 'Все' для сброса):"
+        en: "Choose campus (or 'All' to reset):"
+      buttons:
+        - id: campus_{campus_id}
+          label: "{campus_name}"
+          next_state: CONFIGURE_GUARD_RULES
+    on_enter: "fetch_available_campuses"
 
-  KICK_MEMBER:
+  SAVE_GUARD_RULES:
     type: system
-    description: "Удаление пользователя из чата"
+    description: "Сохранение правил Guard в БД"
     logic:
-      action: "kick_user_from_chat"
-      payload: { user_id: "$context.user_id", chat_id: "$context.chat_id" }
+      action: "update_chat_guard"
+      payload: 
+        chat_id: "$context.selected_chat_id"
+        rules: "$context.guard_rules"
     transitions:
-      - next_state: "[*]"
+      - next_state: ADMIN_MENU

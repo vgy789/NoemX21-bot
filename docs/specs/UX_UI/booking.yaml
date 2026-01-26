@@ -14,7 +14,7 @@ states:
       text:
         ru: "📅 **Бронирование переговорок**\nЗдесь ты можешь забронировать переговорку. Выбери свободный слот:\n\nСегодня {date} доступно:\n{free_slots_list}"
         en: "📅 **Room Booking**\nHere you can book a meeting room. Select an available slot:\n\nToday {date} available:\n{free_slots_list}"
-      image: "api/v1/rooms/schedule?date={date}&campus_id=$context.campus_id" # Генерируемое изображение расписания
+      image: "{schedule_image}" # Переиспользуемое изображение расписания из БД/кэша
       buttons:
         - id: slot_{room_id}_{time}
           label: "{time} - {room_name}"
@@ -34,7 +34,7 @@ states:
       text:
         ru: "📅 **Выберите дату для бронирования**\nСвободные слоты на {selected_date}:\n{free_slots_list}"
         en: "📅 **Select date for booking**\nAvailable slots on {selected_date}:\n{free_slots_list}"
-      image: "api/v1/rooms/schedule?date={selected_date}&campus_id=$context.campus_id"
+      image: "{schedule_image}"
       buttons:
         - id: slot_{room_id}_{time}
           label: "{time} - {room_name}"
@@ -80,14 +80,14 @@ states:
     description: "Подтверждение бронирования"
     interface:
       text:
-        ru: "✅ **Подтвердите бронирование**\n\n🏠 Комната: {room_name}\n📅 Дата: {date}\n🕐 Время: {time}\n⏳ Длительность: {duration} мин"
+        ru: "✅ **Подтверди бронирование**\n\n🏠 Комната: {room_name}\n📅 Дата: {date}\n🕐 Время: {time}\n⏳ Длительность: {duration} мин"
         en: "✅ **Confirm booking**\n\n🏠 Room: {room_name}\n📅 Date: {date}\n🕐 Time: {time}\n⏳ Duration: {duration} min"
       buttons:
         - id: confirm
           label: { ru: "Подтвердить", en: "Confirm" }
           next_state: COMPLETED
         - id: cancel
-          label: { ru: "Отмена", en: "Cancel" }
+          label: { ru: "Отменить", en: "Cancel" }
           next_state: BOOKING_MENU
 
   COMPLETED:

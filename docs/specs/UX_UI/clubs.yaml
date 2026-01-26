@@ -2,7 +2,7 @@ meta:
   feature_id: "CLB-001"
   name: "Клубы и группы"
   description: "Отображение списка доступных клубов и групп с фильтрацией по кампусу"
-  version: "1.0.0"
+  version: "1.1.0"
 
 initial_state: CLUBS_MENU
 
@@ -12,8 +12,8 @@ states:
     description: "Меню клубов"
     interface:
       text:
-        ru: "🎲 **Клубы и группы**\nВыберите категорию:"
-        en: "🎲 **Clubs and Groups**\nSelect a category:"
+        ru: "🎲 **Клубы и группы**\nВыбери категорию: \n\nЛокальные – сообщества твоего кампуса {campus}\nГлобальные – удалённые сообщества, группы по веткам/проектам"
+        en: "🎲 **Clubs and Groups**\nSelect a category: \n\nLocal – communities of your campus {campus}\nGlobal – remote communities, groups by branches/projects"
       buttons:
         - id: local
           label: { ru: "Локальные ({campus})", en: "Local ({campus})" }
@@ -21,25 +21,28 @@ states:
         - id: global
           label: { ru: "Глобальные", en: "Global" }
           next_state: FETCH_GLOBAL_CLUBS
+        - id: create_club
+          label: { ru: "🧩 Создать свой клуб", en: "🧩 Create your club" }
+          next_state: CREATE_CLUB_INFO
         - id: back
           label: { ru: "🏠 Назад", en: "🏠 Back" }
           next_state: "main_menu.yaml/MAIN_MENU"
 
   FETCH_LOCAL_CLUBS:
     type: system
-    description: "Получение локальных клубов"
+    description: "Загрузка списка локальных клубов из БД"
     logic:
-      request: "GET /v1/clubs"
-      payload: { campus_id: "$context.campus_id", type: "local" }
+      action: "get_clubs"
+      payload: { campus_id: "$context.campus_id", is_local: true }
     transitions:
       - next_state: DISPLAY_CLUBS
 
   FETCH_GLOBAL_CLUBS:
     type: system
-    description: "Получение глобальных групп"
+    description: "Загрузка списка глобальных сообществ из БД"
     logic:
-      request: "GET /v1/clubs"
-      payload: { type: "global" }
+      action: "get_clubs"
+      payload: { is_local: false }
     transitions:
       - next_state: DISPLAY_CLUBS
 
@@ -50,6 +53,18 @@ states:
       text:
         ru: "👥 **Доступные сообщества:**\n\n{clubs_list}"
         en: "👥 **Available communities:**\n\n{clubs_list}"
+      buttons:
+        - id: back
+          label: { ru: "Назад", en: "Back" }
+          next_state: CLUBS_MENU
+
+  CREATE_CLUB_INFO:
+    type: interactive
+    description: "Информация о создании клуба"
+    interface:
+      text:
+        ru: "🌟 **Хочешь организовать свой клуб?**\n\nЭто круто! В кампусе **{campus}** за это отвечает **{leader_name}**.\nЗаполни форму и с тобой свяжутся:\n\n{leader_form_link}"
+        en: "🌟 **Want to organize your own club?**\n\nThat's great! **{leader_name}** is responsible for this in the **{campus}** campus.\nFill out the form and you will be contacted:\n\n{leader_form_link}"
       buttons:
         - id: back
           label: { ru: "Назад", en: "Back" }

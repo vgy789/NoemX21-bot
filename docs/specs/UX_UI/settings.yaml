@@ -2,7 +2,7 @@ meta:
   feature_id: "SET-001"
   name: "Настройки пользователя"
   description: "Управление настройками профиля, API-токенами и данными Data-Provider"
-  version: "1.0.0"
+  version: "1.1.0"
 
 initial_state: SETTINGS_MENU
 
@@ -17,7 +17,7 @@ states:
       buttons:
         - id: searchable
           label:
-            ru: "Видимость профиля: {is_searchable_label_ru}"
+            ru: "Видимость Telegram-профиля (если выкл. остальные не смогут сопоставить твой ник в Школе и Телеграм аккаунт): {is_searchable_label_ru}"
             en: "Profile visibility: {is_searchable_label_en}"
           next_state: TOGGLE_SEARCHABLE
         - id: contact
@@ -41,7 +41,7 @@ states:
     description: "Альтернативный способ связи"
     interface:
       text:
-        ru: "Введите дополнительный способ связи (например, email или Telegram), либо удалите текущий способ связи."
+        ru: "Введи дополнительный способ связи (например, email или Telegram), либо удали текущий способ связи."
         en: "Enter additional contact (e.g., email or Telegram), or delete the current contact."
       error_invalid:
         ru: "⚠️ Слишком длинный текст! Максимум 30 символов."
@@ -98,8 +98,8 @@ states:
     description: "Управление API-токеном"
     interface:
       text:
-        ru: "🔑 **Ты разработал бота и тебе нужно проверка является ли Telegram пользователь учеником Школы 21? Получи API токен и отсылай реквесты на /v1/users/{tg_login}/permissions. Подробнее в документации.\nAPI-токен**\nТвой текущий токен: {token}\n\nНажмите 'Сгенерировать новый' для обновления."
-        en: "🔑 **You developed a bot and need to check if the user is a current student of School 21? Get an API token and send requests to /v1/users/{tg_login}/permissions. See documentation for details.\nAPI Token**\nYour current token: {token}\n\nClick 'Generate new' to update."
+        ru: "🔑 **Ты разработал бота и тебе нужно проверка является ли Telegram пользователь учеником Школы 21? Получи API токен и отсылай реквесты через системные действия. Подробнее в документации.\nAPI-токен**\nТвой текущий токен: {token}\n\nНажми 'Сгенерировать новый' для обновления."
+        en: "🔑 **You developed a bot and need to check if the user is a current student of School 21? Get an API token and send requests via system actions. See documentation for details.\nAPI Token**\nYour current token: {token}\n\nClick 'Generate new' to update."
       buttons:
         - id: regenerate
           label: { ru: "Сгенерировать новый", en: "Generate new" }
@@ -190,7 +190,7 @@ states:
     description: "Ввод данных Data-Provider"
     interface:
       text:
-        ru: "Введите данные Data-Provider (логин, пароль, токен):\n(можно ввести все или часть)"
+        ru: "Введи данные Data-Provider (логин, пароль, токен):\n(можно ввести все или часть)"
         en: "Enter Data-Provider credentials (login, password, token):\n(can enter all or part)"
       error_invalid:
         ru: "⚠️ Я не нашёл токен или логин. Попробуй снова."

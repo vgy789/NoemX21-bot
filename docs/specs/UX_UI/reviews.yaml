@@ -1,122 +1,215 @@
 meta:
   feature_id: "REV-001"
-  name: "Запрос на проверку проекта"
-  description: "Процесс отправки запроса на проверку проекта и согласование с пирами"
-  version: "1.0.0"
+  name: "Проверка проектов (Review)"
+  description: "Система запросов на проверку и откликов с фильтрацией по кампусам"
+  version: "1.1.0"
 
-initial_state: REVIEW_INPUT
+initial_state: REVIEW_MENU
 
 states:
-  REVIEW_INPUT:
-    type: input
-    description: "Ввод названия проекта для проверки"
-    interface:
-      text:
-        ru: "🔍 Введите название проекта для проверки:"
-        en: "🔍 Enter project name for review:"
-      error_invalid:
-        ru: "❌ Неверное название проекта. Макс. 60 символов, a-z, A-Z, 0-9, _, -"
-        en: "❌ Invalid project name. Max 60 chars, a-z, A-Z, 0-9, _, -"
-      buttons:
-        - id: cancel
-          label: { ru: "Отмена", en: "Cancel" }
-          next_state: "main_menu.yaml/MAIN_MENU"
-    validation:
-      regex: "^[a-zA-Z0-9_-]{1,60}$"
-    transitions:
-      - trigger: "on_valid_input"
-        next_state: VALIDATE_PROJECT
-      - trigger: "on_invalid_input"
-        next_state: REVIEW_INPUT
-
-  VALIDATE_PROJECT:
-    type: system
-    description: "Проверка наличия проекта в системе"
-    logic:
-      request: "GET /v1/projects/{name}"
-      payload: { name: "$context.last_input" }
-    transitions:
-      - condition: "project_exists == true"
-        next_state: CHECK_PROJECT_COMPLETION
-      - condition: "project_exists == false"
-        next_state: ERROR_INVALID
-
-  CHECK_PROJECT_COMPLETION:
-    type: system
-    description: "Проверка завершения проекта пользователем"
-    logic:
-      request: "GET /v1/users/{user_id}/projects/{project_name}/status"
-      payload: { user_id: "$context.user_id", project_name: "$context.project_name" }
-    transitions:
-      - condition: "project_completed == true"
-        next_state: CHECK_DUPLICATE
-      - condition: "project_completed == false"
-        next_state: ERROR_PROJECT_NOT_COMPLETED
-
-  CHECK_DUPLICATE:
-    type: system
-    description: "Проверка активных запросов"
-    logic:
-      request: "GET /v1/review_requests?project_name=$context.project_name"
-    transitions:
-      - condition: "active_requests == 0"
-        next_state: CREATE_REQUEST
-      - condition: "active_requests > 0"
-        next_state: ERROR_DUPLICATE
-
-  ERROR_INVALID:
+  REVIEW_MENU:
     type: interactive
-    description: "Проект не найден"
+    description: "Главное меню раздела Review"
     interface:
       text:
-        ru: "❌ Проект не найден в кэше. Проверьте название."
-        en: "❌ Project not found in cache. Check the name."
+        ru: "🎬 **Проверка проектов (Review)**\nЗдесь ты можешь попросить проверить твой проект или помочь другим, откликнувшись на их запрос."
+        en: "🎬 **Project Review**\nHere you can ask for a review or help others by responding to their requests."
       buttons:
-        - id: cancel
-          label: { ru: "Отмена", en: "Cancel" }
+        - id: request
+          label: { ru: "🛫 Попросить проверить", en: "🛫 Request review" }
+          next_state: FETCH_MY_PROJECTS_IN_REVIEW
+        - id: respond
+          label: { ru: "🤝 Откликнуться (Проверить)", en: "🤝 Respond (Review others)" }
+          next_state: FETCH_ALL_REVIEW_REQUESTS
+        - id: settings
+          label: { ru: "⚙️ Настройки уведомлений", en: "⚙️ Notification settings" }
+          next_state: MANAGE_NOTIFICATION_FILTERS
+        - id: back
+          label: { ru: "🏠 Назад", en: "🏠 Back" }
           next_state: "main_menu.yaml/MAIN_MENU"
-      
-  ERROR_PROJECT_NOT_COMPLETED:
+
+  # --- ФЛОУ ЗАПРОСА ---
+
+  FETCH_MY_PROJECTS_IN_REVIEW:
+    type: system
+    description: "Получение списка проектов пользователя со статусом IN_REVIEWS"
+    logic:
+      action: "get_user_projects"
+      payload: { user_id: "$context.user_id", status: "IN_REVIEWS" }
+    transitions:
+      - condition: "projects_count > 0"
+        next_state: SELECT_PROJECT
+      - condition: "projects_count == 0"
+        next_state: ERROR_NO_PROJECTS_IN_REVIEW
+
+  SELECT_PROJECT:
     type: interactive
-    description: "Проект не завершен"
+    description: "Выбор проекта для проверки"
     interface:
       text:
-        ru: "❌ Вы еще не завершили этот проект. Запрос на проверку доступен только для завершенных проектов."
-        en: "❌ You have not completed this project yet. Review request is only available for completed projects."
+        ru: "📋 **Выбери проект для проверки:**\nПроекты, готовые к сдаче:"
+        en: "📋 **Choose project for review:**\nProjects ready for submission:"
       buttons:
+        - id: project_{project_id}
+          label: "{project_name}"
+          next_state: INPUT_TIME_DESCRIPTION
         - id: back
           label: { ru: "Назад", en: "Back" }
-          next_state: "main_menu.yaml/MAIN_MENU"
+          next_state: REVIEW_MENU
 
-  ERROR_DUPLICATE:
-    type: interactive
-    description: "Дубликат запроса"
+  INPUT_TIME_DESCRIPTION:
+    type: input
+    description: "Ввод времени/описания для запроса"
     interface:
       text:
-        ru: "⚠️ У вас уже есть активный запрос на эту проверку."
-        en: "⚠️ You already have an active review request for this project."
-      buttons:
-        - id: my_requests
-          label: { ru: "Мои запросы", en: "My requests" }
-          next_state: "my_requests.yaml/MY_REQUESTS"
+        en: "🕒 **When are you free for review?**\nWrite briefly (e.g., 'in an hour' or '18:00 today').\n\n⚠️ Max 20 characters."
+      error_invalid:
+        ru: "❌ Слишком длинно! Пожалуйста, уложись в 20 символов."
+        en: "❌ Too long! Please stay within 20 characters."
+    validation:
+      regex: "^.{1,20}$"
+    transitions:
+      - trigger: "on_valid_input"
+        next_state: CREATE_REVIEW_REQUEST
+        action: "set_request_description"
 
-  CREATE_REQUEST:
+  CREATE_REVIEW_REQUEST:
     type: system
-    description: "Создание запроса на проверку"
+    description: "Создание запроса в БД"
     logic:
       action: "create_review_request"
-      payload: { project_name: "$context.project_name", student_id: "$context.user_id" }
+      payload: 
+        student_id: "$context.user_id"
+        project_name: "$context.selected_project_name"
+        description: "$context.last_input"
     transitions:
-      - next_state: REVIEW_SUCCESS
+      - next_state: REQUEST_SUCCESS_SUMMARY
 
-  REVIEW_SUCCESS:
+  REQUEST_SUCCESS_SUMMARY:
     type: interactive
     description: "Успешное создание запроса"
     interface:
       text:
-        ru: "✅ Запрос создан! Уведомление отправлено пирам."
-        en: "✅ Request created! Notifications sent to peers."
+        ru: "✅ **Запрос создан!**\n\nПроект: {project_name}\nВремя: {description}\n\nМы разошлём уведомления пирам в выбранных тобой кампусах."
+        en: "✅ **Request created!**\n\nProject: {project_name}\nTime: {description}\n\nWe will notify peers in your selected campuses."
+    transitions:
+      - next_state: REVIEW_MENU
+
+  # --- ФЛОУ ОТКЛИКА ---
+
+  FETCH_ALL_REVIEW_REQUESTS:
+    type: system
+    description: "Загрузка всех активных запросов с пагинацией"
+    logic:
+      action: "get_review_requests"
+      payload: { campus_filter: true, offset: "$context.requests_offset", limit: 5 }
+    transitions:
+      - next_state: DISPLAY_REQUESTS
+
+  DISPLAY_REQUESTS:
+    type: interactive
+    description: "Список активных запросов"
+    interface:
+      text:
+        ru: "🤝 **Доступные запросы на проверку:**\n\n{requests_list_numbered}"
+        en: "🤝 **Available review requests:**\n\n{requests_list_numbered}"
       buttons:
+        - id: req_{request_id}
+          label: "{index}" # Номерки для выбора
+        - id: prev_page
+          label: "⬅️"
+          next_state: FETCH_ALL_REVIEW_REQUESTS
+          condition: "current_page > 1"
+        - id: next_page
+          label: "➡️"
+          next_state: FETCH_ALL_REVIEW_REQUESTS
+          condition: "current_page < total_pages"
         - id: back
           label: { ru: "Назад", en: "Back" }
-          next_state: "main_menu.yaml/MAIN_MENU"
+          next_state: REVIEW_MENU
+    transitions:
+      - trigger: "button_click"
+        condition: "id.startswith('req_')"
+        next_state: VIEW_PEER_PROFILE
+
+  VIEW_PEER_PROFILE:
+    type: interactive
+    description: "Детальный профиль пира перед откликом"
+    interface:
+      text:
+        ru: "👤 **Информация о пире:**\n\nНик: {peer_login}\nУровень: {peer_level}\nКоалиция: {peer_coalition}\nКампус: {peer_campus}\n\n🕒 Время: {request_description}\n📞 Связь: {peer_contacts}"
+        en: "👤 **Peer information:**\n\nLogin: {peer_login}\nLevel: {peer_level}\nCoalition: {peer_coalition}\nCampus: {peer_campus}\n\n🕒 Time: {request_description}\n📞 Contacts: {peer_contacts}"
+      buttons:
+        - id: confirm_respond
+          label: { ru: "✅ Подтвердить отклик", en: "✅ Confirm response" }
+          next_state: COMPLETE_RESPOND
+        - id: back
+          label: { ru: "Назад", en: "Back" }
+          next_state: DISPLAY_REQUESTS
+    on_enter: "fetch_peer_profile"
+
+  COMPLETE_RESPOND:
+    type: system
+    description: "Финальная проверка актуальности и запись отклика"
+    logic:
+      action: "respond_to_review"
+      payload: { request_id: "$context.selected_request_id", responder_id: "$context.user_id" }
+    transitions:
+      - condition: "success == true"
+        next_state: RESPOND_SUCCESS
+      - condition: "success == false"
+        next_state: ERROR_REQUEST_TAKEN
+
+  RESPOND_SUCCESS:
+    type: interactive
+    description: "Успешный отклик"
+    interface:
+      text:
+        ru: "🎉 **Ты откликнулся на проверку!**\nПир получил уведомление с твоими контактами. Договоритесь о месте встречи."
+        en: "🎉 **You responded to the review!**\nThe peer received a notification with your contacts. Agree on a meeting place."
+    transitions:
+      - next_state: REVIEW_MENU
+
+  # --- НАСТРОЙКИ ---
+
+  MANAGE_NOTIFICATION_FILTERS:
+    type: interactive
+    description: "Настройка фильтров кампусов"
+    interface:
+      text:
+        ru: "⚙️ **Настройки уведомлений**\nВыбери кампусы, которые ты хочешь уведомлять о своих запросах (в этих группах будут публиковаться запросы):"
+        en: "⚙️ **Notification Settings**\nChoose campuses you want to notify about your requests (requests will be published in these groups):"
+      buttons:
+        - id: toggle_{campus_id}
+          label: "{campus_name} {status_icon}"
+        - id: back
+          label: { ru: "Назад", en: "Back" }
+          next_state: REVIEW_MENU
+    on_enter: "fetch_campus_filters"
+    transitions:
+      - trigger: "button_click"
+        condition: "id.startswith('toggle_')"
+        action: "toggle_campus_filter"
+        next_state: MANAGE_NOTIFICATION_FILTERS
+
+  # --- ОШИБКИ ---
+
+  ERROR_NO_PROJECTS_IN_REVIEW:
+    type: interactive
+    description: "Нет проектов для сдачи"
+    interface:
+      text:
+        ru: "😔 **У тебя сейчас нет проектов со статусом 'К сдаче'.**\nСначала заверши работу над проектом на платформе."
+        en: "😔 **You don't have any projects with 'In Review' status.**\nFinish your project on the platform first."
+    transitions:
+      - next_state: REVIEW_MENU
+
+  ERROR_REQUEST_TAKEN:
+    type: interactive
+    description: "Запрос уже занят"
+    interface:
+      text:
+        ru: "❌ **Опоздал!**\nКто-то другой уже откликнулся на этот запрос. Попробуй выбрать другой."
+        en: "❌ **Too late!**\nSomeone else already responded to this request. Try choosing another one."
+    transitions:
+      - next_state: DISPLAY_REQUESTS
