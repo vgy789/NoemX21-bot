@@ -1,0 +1,38 @@
+meta:
+  feature_id: "MAIN-001"
+  name: "Главное меню"
+  description: "Центральное меню бота для навигации между функциями"
+  version: "1.0.0"
+
+initial_state: MAIN_MENU
+
+states:
+  MAIN_MENU:
+    type: interactive
+    description: "Главное меню бота"
+    interface:
+      text:
+        ru: "📊 **Главное меню**\n\n👤 {s21_login} | Level {level} | {coalition}\n\nВыберите действие:"
+        en: "📊 **Main Menu**\n\n👤 {s21_login} | Level {level} | {coalition}\n\nSelect an action:"
+      buttons:
+        - id: stats
+          label: { ru: "📊 Статистика", en: "📊 Statistics" }
+          next_state: "statistics.yaml/STATS_MENU"
+        - id: review
+          label: { ru: "🔍 Попросить слот", en: "🔍 Request a slot" }
+          next_state: "reviews.yaml/REQUEST_SLOT"
+        - id: booking
+          label: { ru: "📅 Бронирование переговорки", en: "📅 Booking a meeting room" }
+          next_state: "booking.yaml/BOOKING_MENU"
+        - id: library
+          label: { ru: "📚 Библиотека", en: "📚 Library" }
+          next_state: "library.yaml/LIBRARY_MENU"
+        - id: search
+          label: { ru: "😎 Найти пира", en: "😎 Find a peer" }
+          next_state: "search.yaml/SEARCH_INPUT"
+        - id: clubs
+          label: { ru: "🎲 Клубы и группы", en: "🎲 Clubs and groups" }
+          next_state: "clubs.yaml/CLUBS_MENU"
+        - id: settings
+          label: { ru: "⚙️ Настройки", en: "⚙️ Settings" }
+          next_state: "settings.yaml/SETTINGS_MENU"

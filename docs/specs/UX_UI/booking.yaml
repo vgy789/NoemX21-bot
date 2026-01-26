@@ -1,0 +1,101 @@
+meta:
+  feature_id: "BOOK-001"
+  name: "Бронирование переговорок"
+  description: "Процесс бронирования переговорок в кампусах с визуальным обзором"
+  version: "1.1.0"
+
+initial_state: BOOKING_MENU
+
+states:
+  BOOKING_MENU:
+    type: interactive
+    description: "Начальный экран бронирования (обзор на сегодня)"
+    interface:
+      text:
+        ru: "📅 **Бронирование переговорок**\nЗдесь ты можешь забронировать переговорку. Выбери свободный слот:\n\nСегодня {date} доступно:\n{free_slots_list}"
+        en: "📅 **Room Booking**\nHere you can book a meeting room. Select an available slot:\n\nToday {date} available:\n{free_slots_list}"
+      image: "api/v1/rooms/schedule?date={date}&campus_id=$context.campus_id" # Генерируемое изображение расписания
+      buttons:
+        - id: slot_{room_id}_{time}
+          label: "{time} - {room_name}"
+          next_state: SELECT_DURATION
+        - id: tomorrow
+          label: { ru: "Завтра", en: "Tomorrow" }
+          next_state: SELECT_DATE
+        - id: back
+          label: { ru: "🏠 Назад", en: "🏠 Back" }
+          next_state: "main_menu.yaml/MAIN_MENU"
+    on_enter: "fetch_today_overview"
+
+  SELECT_DATE:
+    type: interactive
+    description: "Выбор даты"
+    interface:
+      text:
+        ru: "📅 **Выберите дату для бронирования**\nСвободные слоты на {selected_date}:\n{free_slots_list}"
+        en: "📅 **Select date for booking**\nAvailable slots on {selected_date}:\n{free_slots_list}"
+      image: "api/v1/rooms/schedule?date={selected_date}&campus_id=$context.campus_id"
+      buttons:
+        - id: slot_{room_id}_{time}
+          label: "{time} - {room_name}"
+          next_state: SELECT_DURATION
+        - id: next_day
+          label: { ru: "Следующий день", en: "Next day" }
+          next_state: SELECT_DATE
+        - id: prev_day
+          label: { ru: "Предыдущий день", en: "Previous day" }
+          next_state: SELECT_DATE
+        - id: back
+          label: { ru: "Назад", en: "Back" }
+          next_state: BOOKING_MENU
+    on_enter: "fetch_date_overview"
+
+  SELECT_DURATION:
+    type: interactive
+    description: "Выбор длительности бронирования"
+    interface:
+      text:
+        ru: "⏳ **{room_name}** ({time})\nНа сколько минут хочешь забронировать?\n\nℹ️ Конкретное место можно бронировать на {min_duration} - {max_duration} минут."
+        en: "⏳ **{room_name}** ({time})\nFor how many minutes do you want to book?\n\nℹ️ This room can be booked for {min_duration} - {max_duration} minutes."
+      buttons:
+        - id: duration_15
+          label: "15 мин"
+          next_state: CONFIRM_BOOKING
+        - id: duration_30
+          label: "30 мин"
+          next_state: CONFIRM_BOOKING
+        - id: duration_45
+          label: "45 мин"
+          next_state: CONFIRM_BOOKING
+        - id: duration_60
+          label: "60 мин"
+          next_state: CONFIRM_BOOKING
+        - id: back
+          label: { ru: "Назад", en: "Back" }
+          next_state: BOOKING_MENU
+    on_enter: "fetch_room_constraints"
+
+  CONFIRM_BOOKING:
+    type: interactive
+    description: "Подтверждение бронирования"
+    interface:
+      text:
+        ru: "✅ **Подтвердите бронирование**\n\n🏠 Комната: {room_name}\n📅 Дата: {date}\n🕐 Время: {time}\n⏳ Длительность: {duration} мин"
+        en: "✅ **Confirm booking**\n\n🏠 Room: {room_name}\n📅 Date: {date}\n🕐 Time: {time}\n⏳ Duration: {duration} min"
+      buttons:
+        - id: confirm
+          label: { ru: "Подтвердить", en: "Confirm" }
+          next_state: COMPLETED
+        - id: cancel
+          label: { ru: "Отмена", en: "Cancel" }
+          next_state: BOOKING_MENU
+
+  COMPLETED:
+    type: final
+    description: "Бронирование завершено"
+    interface:
+      text:
+        ru: "🎉 **Бронирование подтверждено!**\nЖдем тебя в {time} в переговорке {room_name}."
+        en: "🎉 **Booking confirmed!**\nWe look forward to seeing you at {time} in {room_name}."
+    transitions:
+      - next_state: "main_menu.yaml/MAIN_MENU"

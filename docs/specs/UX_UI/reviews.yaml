@@ -1,0 +1,122 @@
+meta:
+  feature_id: "REV-001"
+  name: "Запрос на проверку проекта"
+  description: "Процесс отправки запроса на проверку проекта и согласование с пирами"
+  version: "1.0.0"
+
+initial_state: REVIEW_INPUT
+
+states:
+  REVIEW_INPUT:
+    type: input
+    description: "Ввод названия проекта для проверки"
+    interface:
+      text:
+        ru: "🔍 Введите название проекта для проверки:"
+        en: "🔍 Enter project name for review:"
+      error_invalid:
+        ru: "❌ Неверное название проекта. Макс. 60 символов, a-z, A-Z, 0-9, _, -"
+        en: "❌ Invalid project name. Max 60 chars, a-z, A-Z, 0-9, _, -"
+      buttons:
+        - id: cancel
+          label: { ru: "Отмена", en: "Cancel" }
+          next_state: "main_menu.yaml/MAIN_MENU"
+    validation:
+      regex: "^[a-zA-Z0-9_-]{1,60}$"
+    transitions:
+      - trigger: "on_valid_input"
+        next_state: VALIDATE_PROJECT
+      - trigger: "on_invalid_input"
+        next_state: REVIEW_INPUT
+
+  VALIDATE_PROJECT:
+    type: system
+    description: "Проверка наличия проекта в системе"
+    logic:
+      request: "GET /v1/projects/{name}"
+      payload: { name: "$context.last_input" }
+    transitions:
+      - condition: "project_exists == true"
+        next_state: CHECK_PROJECT_COMPLETION
+      - condition: "project_exists == false"
+        next_state: ERROR_INVALID
+
+  CHECK_PROJECT_COMPLETION:
+    type: system
+    description: "Проверка завершения проекта пользователем"
+    logic:
+      request: "GET /v1/users/{user_id}/projects/{project_name}/status"
+      payload: { user_id: "$context.user_id", project_name: "$context.project_name" }
+    transitions:
+      - condition: "project_completed == true"
+        next_state: CHECK_DUPLICATE
+      - condition: "project_completed == false"
+        next_state: ERROR_PROJECT_NOT_COMPLETED
+
+  CHECK_DUPLICATE:
+    type: system
+    description: "Проверка активных запросов"
+    logic:
+      request: "GET /v1/review_requests?project_name=$context.project_name"
+    transitions:
+      - condition: "active_requests == 0"
+        next_state: CREATE_REQUEST
+      - condition: "active_requests > 0"
+        next_state: ERROR_DUPLICATE
+
+  ERROR_INVALID:
+    type: interactive
+    description: "Проект не найден"
+    interface:
+      text:
+        ru: "❌ Проект не найден в кэше. Проверьте название."
+        en: "❌ Project not found in cache. Check the name."
+      buttons:
+        - id: cancel
+          label: { ru: "Отмена", en: "Cancel" }
+          next_state: "main_menu.yaml/MAIN_MENU"
+      
+  ERROR_PROJECT_NOT_COMPLETED:
+    type: interactive
+    description: "Проект не завершен"
+    interface:
+      text:
+        ru: "❌ Вы еще не завершили этот проект. Запрос на проверку доступен только для завершенных проектов."
+        en: "❌ You have not completed this project yet. Review request is only available for completed projects."
+      buttons:
+        - id: back
+          label: { ru: "Назад", en: "Back" }
+          next_state: "main_menu.yaml/MAIN_MENU"
+
+  ERROR_DUPLICATE:
+    type: interactive
+    description: "Дубликат запроса"
+    interface:
+      text:
+        ru: "⚠️ У вас уже есть активный запрос на эту проверку."
+        en: "⚠️ You already have an active review request for this project."
+      buttons:
+        - id: my_requests
+          label: { ru: "Мои запросы", en: "My requests" }
+          next_state: "my_requests.yaml/MY_REQUESTS"
+
+  CREATE_REQUEST:
+    type: system
+    description: "Создание запроса на проверку"
+    logic:
+      action: "create_review_request"
+      payload: { project_name: "$context.project_name", student_id: "$context.user_id" }
+    transitions:
+      - next_state: REVIEW_SUCCESS
+
+  REVIEW_SUCCESS:
+    type: interactive
+    description: "Успешное создание запроса"
+    interface:
+      text:
+        ru: "✅ Запрос создан! Уведомление отправлено пирам."
+        en: "✅ Request created! Notifications sent to peers."
+      buttons:
+        - id: back
+          label: { ru: "Назад", en: "Back" }
+          next_state: "main_menu.yaml/MAIN_MENU"

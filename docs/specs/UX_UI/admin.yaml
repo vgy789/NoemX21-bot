@@ -1,0 +1,112 @@
+meta:
+  feature_id: "ADM-001"
+  name: "Администрирование и модерация"
+  description: "Рассылки и модерация чатов (Guard)"
+  version: "1.0.0"
+
+initial_state: BROADCAST_INPUT
+
+states:
+  BROADCAST_INPUT:
+    type: input
+    description: "Ввод текста для рассылки"
+    interface:
+      text:
+        ru: "📢 Введите текст рассылки:"
+        en: "📢 Enter broadcast message:"
+      buttons:
+        - id: cancel
+          label: { ru: "Отмена", en: "Cancel" }
+          next_state: "main_menu.yaml/MAIN_MENU"
+      error_invalid:
+        ru: "⚠️ Максимальная длина сообщения 4096 символов"
+        en: "⚠️ Max message length 4096 chars"
+    validation:
+      regex: '^[\s\S]{1,4096}$'
+    transitions:
+      - trigger: "on_valid_input"
+        next_state: VALIDATE_OWNER
+
+  VALIDATE_OWNER:
+    type: system
+    description: "Проверка прав владельца"
+    logic:
+      request: "GET /v1/users/{user_id}/is_owner"
+      payload: { user_id: "$context.user_id" }
+    transitions:
+      - condition: "is_owner == true"
+        next_state: SEND_BROADCAST
+      - condition: "is_owner == false"
+        next_state: ERROR_FORBIDDEN
+
+  SEND_BROADCAST:
+    type: system
+    description: "Отправка рассылки всем пользователям"
+    logic:
+      action: "broadcast_message"
+      payload: { message: "$context.last_input" }
+    transitions:
+      - next_state: BROADCAST_SUCCESS
+
+  BROADCAST_SUCCESS:
+    type: interactive
+    description: "Рассылка отправлена"
+    interface:
+      text:
+        ru: "✅ Рассылка успешно отправлена!"
+        en: "✅ Broadcast sent successfully!"
+      buttons:
+        - id: back
+          label: { ru: "Назад", en: "Back" }
+          next_state: "main_menu.yaml/MAIN_MENU"
+
+  ERROR_FORBIDDEN:
+    type: interactive
+    description: "Нет прав для рассылки"
+    interface:
+      text:
+        ru: "⛔ У вас нет прав на рассылки. Обратитесь к администратору."
+        en: "⛔ You don't have permission to broadcast. Contact admin."
+      buttons:
+        - id: back
+          label: { ru: "Назад", en: "Back" }
+          next_state: "main_menu.yaml/MAIN_MENU"
+
+  NEW_MEMBER:
+    type: system
+    description: "Обработка нового участника чата"
+    logic:
+      request: "GET /v1/guard_settings"
+      payload: { chat_id: "$context.chat_id" }
+    transitions:
+      - next_state: CHECK_RULES
+
+  CHECK_RULES:
+    type: system
+    description: "Проверка правил охранника"
+    logic:
+      action: "check_guard_rules"
+      payload: { user_id: "$context.user_id", chat_id: "$context.chat_id" }
+    transitions:
+      - condition: "rules_passed == true"
+        next_state: ALLOW_MEMBER
+      - condition: "rules_passed == false"
+        next_state: KICK_MEMBER
+
+  ALLOW_MEMBER:
+    type: system
+    description: "Допуск пользователя в чат"
+    logic:
+      action: "allow_user_to_chat"
+      payload: { user_id: "$context.user_id", chat_id: "$context.chat_id" }
+    transitions:
+      - next_state: "[*]"
+
+  KICK_MEMBER:
+    type: system
+    description: "Удаление пользователя из чата"
+    logic:
+      action: "kick_user_from_chat"
+      payload: { user_id: "$context.user_id", chat_id: "$context.chat_id" }
+    transitions:
+      - next_state: "[*]"

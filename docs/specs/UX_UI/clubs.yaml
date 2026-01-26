@@ -1,0 +1,56 @@
+meta:
+  feature_id: "CLB-001"
+  name: "Клубы и группы"
+  description: "Отображение списка доступных клубов и групп с фильтрацией по кампусу"
+  version: "1.0.0"
+
+initial_state: CLUBS_MENU
+
+states:
+  CLUBS_MENU:
+    type: interactive
+    description: "Меню клубов"
+    interface:
+      text:
+        ru: "🎲 **Клубы и группы**\nВыберите категорию:"
+        en: "🎲 **Clubs and Groups**\nSelect a category:"
+      buttons:
+        - id: local
+          label: { ru: "Локальные ({campus})", en: "Local ({campus})" }
+          next_state: FETCH_LOCAL_CLUBS
+        - id: global
+          label: { ru: "Глобальные", en: "Global" }
+          next_state: FETCH_GLOBAL_CLUBS
+        - id: back
+          label: { ru: "🏠 Назад", en: "🏠 Back" }
+          next_state: "main_menu.yaml/MAIN_MENU"
+
+  FETCH_LOCAL_CLUBS:
+    type: system
+    description: "Получение локальных клубов"
+    logic:
+      request: "GET /v1/clubs"
+      payload: { campus_id: "$context.campus_id", type: "local" }
+    transitions:
+      - next_state: DISPLAY_CLUBS
+
+  FETCH_GLOBAL_CLUBS:
+    type: system
+    description: "Получение глобальных групп"
+    logic:
+      request: "GET /v1/clubs"
+      payload: { type: "global" }
+    transitions:
+      - next_state: DISPLAY_CLUBS
+
+  DISPLAY_CLUBS:
+    type: interactive
+    description: "Отображение списка клубов"
+    interface:
+      text:
+        ru: "👥 **Доступные сообщества:**\n\n{clubs_list}"
+        en: "👥 **Available communities:**\n\n{clubs_list}"
+      buttons:
+        - id: back
+          label: { ru: "Назад", en: "Back" }
+          next_state: CLUBS_MENU

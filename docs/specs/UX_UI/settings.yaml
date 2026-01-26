@@ -1,0 +1,247 @@
+meta:
+  feature_id: "SET-001"
+  name: "Настройки пользователя"
+  description: "Управление настройками профиля, API-токенами и данными Data-Provider"
+  version: "1.0.0"
+
+initial_state: SETTINGS_MENU
+
+states:
+  SETTINGS_MENU:
+    type: interactive
+    description: "Меню настроек"
+    interface:
+      text:
+        ru: "⚙️ **Настройки**\n👤 Профиль\n└ /contact – добавь альтернативный способ связи (email, номер телефона).\n└ /searchable – разреши пользователям писать тебе в tg.\n\n🔑 API\n└ /provider – помоги получать боту данные из твоего кампуса (распродажа, ивенты).\n└ /api_token – сгенерируй токен для интеграций.\n🍧 Прочее\n└/language – язык бота {language_flag}"
+        en: "⚙️ **Settings**\nSelect an action:"
+      buttons:
+        - id: searchable
+          label:
+            ru: "Видимость профиля: {is_searchable_label_ru}"
+            en: "Profile visibility: {is_searchable_label_en}"
+          next_state: TOGGLE_SEARCHABLE
+        - id: contact
+          label: { ru: "Альтернативный способ связи", en: "Alternative Contact" }
+          next_state: SET_ALTERNATIVE_CONTACT
+        - id: language
+          label: { ru: "Язык бота: {language_flag}", en: "Bot language: {language_flag}" }
+          next_state: SET_LANGUAGE
+        - id: provider
+          label: { ru: "Data-Provider", en: "Data-Provider" }
+          next_state: CHECK_PROVIDER_CREDENTIALS
+        - id: api_token
+          label: { ru: "API-токен (для интеграций)", en: "API Token (for integrations)" }
+          next_state: MANAGE_API_TOKEN
+        - id: back
+          label: { ru: "🏠 Назад", en: "🏠 Back" }
+          next_state: "main_menu.yaml/MAIN_MENU"
+
+  SET_ALTERNATIVE_CONTACT:
+    type: input
+    description: "Альтернативный способ связи"
+    interface:
+      text:
+        ru: "Введите дополнительный способ связи (например, email или Telegram), либо удалите текущий способ связи."
+        en: "Enter additional contact (e.g., email or Telegram), or delete the current contact."
+      error_invalid:
+        ru: "⚠️ Слишком длинный текст! Максимум 30 символов."
+        en: "⚠️ Text too long! Max 30 characters."
+      validation:
+        regex: "^.{1,30}$"
+      transitions:
+        - trigger: "on_valid_input"
+          next_state: CONFIRM_ALTERNATIVE_CONTACT
+        - button: "delete"
+          next_state: DELETE_ALTERNATIVE_CONTACT
+        - button: "back"
+          next_state: SETTINGS_MENU
+
+  DELETE_ALTERNATIVE_CONTACT:
+    type: system
+    description: "Удаление альтернативного способа связи"
+    logic:
+      action: "delete_alternative_contact"
+      payload: { user_id: "$context.user_id" }
+    transitions:
+      - next_state: SETTINGS_MENU
+
+  CONFIRM_ALTERNATIVE_CONTACT:
+    type: interactive
+    description: "Подтверждение альтернативного способа связи"
+    interface:
+      text:
+        ru: "✅ Дополнительный контакт сохранен: {contact}"
+        en: "✅ Additional contact saved: {contact}"
+      buttons:
+        - id: back
+          label: { ru: "Назад", en: "Back" }
+          next_state: SETTINGS_MENU
+    
+  SET_LANGUAGE:
+    type: interactive
+    description: "Выбор языка бота"
+    interface:
+      text:
+        ru: "Выберите язык бота"
+        en: "Select bot language"
+      buttons:
+        - id: ru
+          label: { ru: "Русский", en: "Русский" }
+          next_state: SETTINGS_MENU
+        - id: en
+          label: { ru: "English", en: "English" }
+          next_state: SETTINGS_MENU
+
+# TODO: токен должен будет отзываться если пользователь покидает школу
+  MANAGE_API_TOKEN:
+    type: interactive
+    description: "Управление API-токеном"
+    interface:
+      text:
+        ru: "🔑 **Ты разработал бота и тебе нужно проверка является ли Telegram пользователь учеником Школы 21? Получи API токен и отсылай реквесты на /v1/users/{tg_login}/permissions. Подробнее в документации.\nAPI-токен**\nТвой текущий токен: {token}\n\nНажмите 'Сгенерировать новый' для обновления."
+        en: "🔑 **You developed a bot and need to check if the user is a current student of School 21? Get an API token and send requests to /v1/users/{tg_login}/permissions. See documentation for details.\nAPI Token**\nYour current token: {token}\n\nClick 'Generate new' to update."
+      buttons:
+        - id: regenerate
+          label: { ru: "Сгенерировать новый", en: "Generate new" }
+          next_state: GENERATE_API_TOKEN
+        - id: back
+          label: { ru: "Назад", en: "Back" }
+          next_state: SETTINGS_MENU
+
+  GENERATE_API_TOKEN:
+    type: system
+    description: "Генерация нового API-токена"
+    logic:
+      action: "generate_api_token"
+      payload: { user_id: "$context.user_id" }
+    transitions:
+      - next_state: SHOW_NEW_API_TOKEN
+
+  SHOW_NEW_API_TOKEN:
+    type: interactive
+    description: "Отображение нового API-токена"
+    interface:
+      text:
+        ru: "✅ Новый API-токен сгенерирован:\n`{token}`"
+        en: "✅ New API token generated:\n`{token}`"
+      buttons:
+        - id: back
+          label: { ru: "Назад", en: "Back" }
+          next_state: MANAGE_API_TOKEN
+
+# TODO: Определи какие конкретно данные нужно будет вводить (логин, пароль/токен?)
+  CHECK_PROVIDER_CREDENTIALS:
+    type: system
+    description: "Проверка наличия Data-Provider"
+    logic:
+      action: "is_provider_credentials"
+      payload: { user_id: "$context.user_id" }
+    transitions:
+      - condition: "provider_credentials != null"
+        next_state: ALREADY_PROVIDER_CREDENTIALS
+      - condition: "provider_credentials == null"
+        next_state: NEED_PROVIDER_CREDENTIALS
+
+  ALREADY_PROVIDER_CREDENTIALS:
+    type: interactive
+    description: "Пользователь уже стал провайдером"
+    interface:
+      text:
+        ru: "Ты действующий провайдер! Спасибо! 🌟"
+        en: "You are an active provider! Thank you! 🌟"
+      buttons:
+        - id: refuse
+          label: { ru: "Отказаться от провайдерства", en: "Refuse to be a provider" }
+          next_state: RESET_PROVIDER_CREDENTIALS
+        - id: back
+          label: { ru: "Назад", en: "Back" }
+          next_state: SETTINGS_MENU
+
+  RESET_PROVIDER_CREDENTIALS:
+    type: system
+    description: "Сброс данных Data-Provider"
+    interface:
+      text:
+        ru: "✅ Ты больше не провайдер!"
+        en: "✅ You are no longer a provider!"
+    logic:
+      action: "reset_provider_credentials"
+      payload: { user_id: "$context.user_id" }
+    transitions:
+      - next_state: SETTINGS_MENU
+
+  NEED_PROVIDER_CREDENTIALS:
+    type: interactive
+    description: "Необходимость ввода данных Data-Provider"
+    interface:
+      text:
+        ru: "ℹ️ **Помоги боту получать данные из твоего кампуса – стань провайдером 😎.**\nПровайдеров в {city} сейчас **{count}**.\n\n"
+        en: "ℹ️ **Help the bot get data from your campus – become a provider 😎.**\nThere are currently **{count}** providers in {city}.\n\n"
+      buttons:
+        - id: set_provider_credentials
+          label: { ru: "Стать провайдером", en: "Become a provider" }
+          next_state: SET_PROVIDER_CREDENTIALS
+        - id: back
+          label: { ru: "Назад", en: "Back" }
+          next_state: SETTINGS_MENU
+
+  SET_PROVIDER_CREDENTIALS:
+    type: input
+    description: "Ввод данных Data-Provider"
+    interface:
+      text:
+        ru: "Введите данные Data-Provider (логин, пароль, токен):\n(можно ввести все или часть)"
+        en: "Enter Data-Provider credentials (login, password, token):\n(can enter all or part)"
+      error_invalid:
+        ru: "⚠️ Я не нашёл токен или логин. Попробуй снова."
+        en: "⚠️ I didn't find a token or login. Try again."
+      validation:
+        regex: "\b(ey[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+)|(?<![a-zA-Z0-9-_])([a-zA-Z0-9-_]{3,})(?![a-zA-Z0-9._-])\b"
+        regex: "\b[A-Za-z]{4,9}\b"
+      transitions:
+        - trigger: "on_valid_input"
+          next_state: CONFIRM_PROVIDER_CREDENTIALS
+        - trigger: "on_invalid_input"
+          next_state: FAULT_PROVIDER_CREDENTIALS
+
+  FAULT_PROVIDER_CREDENTIALS:
+    type: interactive
+    description: "Неверные данные Data-Provider"
+    interface:
+      text:
+        ru: "❌ Не удалось обратиться к API Школы с твоими данными. Перепроверь и попробуй снова."
+        en: "❌ Failed to connect to School API with your credentials. Check and try again."
+      buttons:
+        - id: back
+          next_state: SET_PROVIDER_CREDENTIALS
+
+  CONFIRM_PROVIDER_CREDENTIALS:
+    type: interactive
+    description: "Подтверждение данных Data-Provider"
+    interface:
+      text:
+        ru: "✅ Спасибо! Теперь бот будет получать данные из твоего кампуса."
+        en: "✅ Thanks! Now the bot will receive data from your campus."
+      buttons:
+        - id: back
+          next_state: SETTINGS_MENU
+
+  TOGGLE_SEARCHABLE:
+    type: system
+    description: "Переключение видимости профиля"
+    logic:
+      action: "toggle_searchable"
+      payload: { user_id: "$context.user_id" }
+    transitions:
+      - next_state: SEARCHABLE_STATUS_NOTIFICATION
+
+  SEARCHABLE_STATUS_NOTIFICATION:
+    type: interactive
+    description: "Уведомление об изменении видимости"
+    interface:
+      text:
+        ru: "{status_icon} Видимость профиля: {is_searchable_label_ru}. {search_restriction_ru}"
+        en: "{status_icon} Profile visibility: {is_searchable_label_en}. {search_restriction_en}"
+      buttons:
+        - id: back
+          next_state: SETTINGS_MENU

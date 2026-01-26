@@ -1,0 +1,130 @@
+meta:
+  feature_id: "LIB-001"
+  name: "Управление библиотекой"
+  description: "Процесс поиска, выдачи и возврата книг"
+  version: "1.0.0"
+
+initial_state: LIBRARY_MENU
+
+states:
+  LIBRARY_MENU:
+    type: interactive
+    description: "Меню библиотеки"
+    interface:
+      text:
+        ru: "📚 **Библиотека**\nВыберите действие:"
+        en: "📚 **Library**\nSelect an action:"
+      buttons:
+        - id: list_books
+          label: { ru: "Список книг", en: "List books" }
+          next_state: LIST_BOOKS
+        - id: my_books
+          label: { ru: "Мои книги", en: "My books" }
+          next_state: MY_BOOKS
+        - id: back
+          label: { ru: "🏠 Назад", en: "🏠 Back" }
+          next_state: "main_menu.yaml/MAIN_MENU"
+    on_enter: "fetch_library_menu"
+
+  LIST_BOOKS:
+    type: interactive
+    description: "Список доступных книг"
+    interface:
+      text:
+        ru: "📚 Доступные книги:\n1. Clean Code\n2. Design Patterns"
+        en: "📚 Available books:\n1. Clean Code\n2. Design Patterns"
+      buttons:
+        - id: borrow_1
+          label: { ru: "Взять Clean Code", en: "Borrow Clean Code" }
+          next_state: BORROW_BOOK
+        - id: borrow_2
+          label: { ru: "Взять Design Patterns", en: "Borrow Design Patterns" }
+          next_state: BORROW_BOOK
+        - id: back
+          label: { ru: "Назад", en: "Back" }
+          next_state: LIBRARY_MENU
+    on_enter: "fetch_available_books"
+
+  BORROW_BOOK:
+    type: interactive
+    description: "Подтверждение взятия книги"
+    interface:
+      text:
+        ru: "📖 Взять \"Clean Code\"?"
+        en: "📖 Borrow \"Clean Code\"?"
+      buttons:
+        - id: yes
+          label: { ru: "Да", en: "Yes" }
+          next_state: CREATE_LOAN
+        - id: no
+          label: { ru: "Нет", en: "No" }
+          next_state: LIST_BOOKS
+
+  CREATE_LOAN:
+    type: system
+    description: "Создание записи о выдаче книги"
+    logic:
+      action: "create_loan"
+      payload: { book_id: "$context.book_id", student_id: "$context.user_id" }
+    transitions:
+      - next_state: LOAN_SUCCESS
+
+  LOAN_SUCCESS:
+    type: interactive
+    description: "Книга успешно взята"
+    interface:
+      text:
+        ru: "✅ Книга взята! Срок возврата: {due_date}"
+        en: "✅ Book borrowed! Due date: {due_date}"
+      buttons:
+        - id: back
+          label: { ru: "Назад", en: "Back" }
+          next_state: "main_menu.yaml/MAIN_MENU"
+
+  ERROR_UNAVAILABLE:
+    type: interactive
+    description: "Книга недоступна"
+    interface:
+      text:
+        ru: "❌ Книга сейчас недоступна."
+        en: "❌ Book currently unavailable."
+      buttons:
+        - id: back
+          label: { ru: "Назад", en: "Back" }
+          next_state: LIST_BOOKS
+
+  MY_BOOKS:
+    type: interactive
+    description: "Мои взятые книги"
+    interface:
+      text:
+        ru: "📚 Мои книги:\n- Clean Code (до 27.01.2024)"
+        en: "📚 My books:\n- Clean Code (due 27.01.2024)"
+      buttons:
+        - id: return
+          label: { ru: "Вернуть", en: "Return" }
+          next_state: RETURN_BOOK
+        - id: back
+          label: { ru: "Назад", en: "Back" }
+          next_state: LIBRARY_MENU
+
+  RETURN_BOOK:
+    type: system
+    description: "Возврат книги"
+    logic:
+      action: "return_book"
+      payload: { book_id: "$context.book_id" }
+    transitions:
+      - next_state: RETURN_SUCCESS
+
+  RETURN_SUCCESS:
+    type: interactive
+    description: "Книга возвращена"
+    interface:
+      text:
+        ru: "✅ Книга возвращена."
+        en: "✅ Book returned."
+      buttons:
+        - id: back
+          label: { ru: "Назад", en: "Back" }
+          next_state: "main_menu.yaml/MAIN_MENU"
