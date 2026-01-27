@@ -2,7 +2,7 @@ meta:
   feature_id: "REG-001"
   name: "Регистрация нового пользователя"
   description: "Процесс создания аккаунта с валидацией через S21 API и проверкой OTP в Rocket.Chat"
-  version: "1.1.0"
+  version: "1.2.0"
 
 initial_state: SELECT_LANGUAGE
 
@@ -77,16 +77,33 @@ states:
       - condition: "api_status != 200"
         next_state: ERROR_API
 
-  # 5. Поиск пользователя в Rocket.Chat (с кэшированием)
+  # 5. Поиск и верификация пользователя в Rocket.Chat
   FIND_ROCKET_USER:
     type: system
-    description: "Поиск пользователя в Rocket.Chat (с кэшированием)"
+    description: "Поиск пользователя в Rocket.Chat с проверкой email для защиты от подмены никнейма"
+    security_note: "Email verification защищает от race condition: злоумышленник может сменить nickname, но не может подделать verified email"
     logic:
-      action: "find_rocket_user"
+      action: "find_and_verify_rocket_user"
       payload: { login: "$context.last_input"}
+      checks:
+        - name: "User exists in RocketChat"
+          api_call: "GET /api/v1/users.info?username={login}"
+          required: true
+        - name: "Email verification (CRITICAL SECURITY CHECK)"
+          description: "Проверка что email совпадает с School21 email и verified"
+          steps:
+            - "Extract user.emails[0].address from RocketChat response"
+            - "Verify format: {login}@student.21-school.ru"
+            - "Verify user.emails[0].verified == true"
+          critical: true
+    
     transitions:
-      - condition: "rocket_user_found == true"
+      - condition: "rocket_user_found == true && email_verified == true"
         next_state: AWAITING_OTP
+        security_level: "SAFE"
+      - condition: "rocket_user_found == true && email_mismatch == true"
+        next_state: ERROR_EMAIL_MISMATCH
+        security_level: "CRITICAL_REJECT"
       - condition: "rocket_user_not_found == true"
         next_state: ROCKET_USER_NOT_FOUND
       - condition: "rocket_api_error == true"
@@ -190,6 +207,30 @@ states:
       text:
         ru: "❌ Временная ошибка Rocket.Chat. Попробуй через 1 минуту."
         en: "❌ Temporary Rocket.Chat API error. Try again in 1 minute."
+      buttons:
+        - id: retry
+          label: { ru: "Попробовать снова", en: "Try again" }
+          next_state: INPUT_LOGIN
+  
+  ERROR_EMAIL_MISMATCH:
+    type: interactive
+    description: "Email в RocketChat не совпадает с логином School21"
+    interface:
+      text:
+        ru: |
+          ❌ Ошибка верификации!
+          
+          Email в твоём профиле RocketChat не совпадает с {login}@student.21-school.ru
+          
+          Это защитный механизм от подмены личности.
+          Убедись что ты используешь правильный логин.
+        en: |
+          ❌ Verification failed!
+          
+          Email in your RocketChat profile doesn't match {login}@student.21-school.ru
+          
+          This is a security measure against identity theft.
+          Make sure you're using the correct login.
       buttons:
         - id: retry
           label: { ru: "Попробовать снова", en: "Try again" }

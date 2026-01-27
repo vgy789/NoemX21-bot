@@ -88,9 +88,17 @@ erDiagram
         uuid student_id FK
         uuid campus_id FK
         string project_name
+        string description "max 20 chars"
         string status "active | matched | closed"
         timestamp created_at
         timestamp updated_at
+    }
+
+    review_notification_filters {
+        bigserial id PK
+        uuid student_id FK
+        uuid campus_id FK
+        UNIQUE student_campus
     }
 
     sync_metadata {
@@ -106,7 +114,9 @@ erDiagram
         int id PK
         uuid campus_id FK
         string name
+        int min_duration_min
         int max_duration_min
+        boolean is_local
         boolean is_active
     }
 
@@ -136,6 +146,13 @@ erDiagram
         timestamp returned_at
     }
 
+    book_subscriptions {
+        bigserial id PK
+        int book_id FK
+        uuid student_id FK
+        timestamp created_at
+    }
+
     %% =======================================================
     %% 4. COMMUNITY & SOCIAL (Чаты, Клубы, Кофе)
     %% =======================================================
@@ -145,7 +162,10 @@ erDiagram
         uuid leader_id FK
         string name
         string description
+        string category
         string external_link
+        boolean is_local
+        boolean is_active
     }
 
     chats {
@@ -164,6 +184,16 @@ erDiagram
         string external_thread_id
         string name
         string type "intro | review | general"
+    }
+
+    chat_guard_rules {
+        bigserial id PK
+        bigint chat_id FK
+        uuid campus_id FK "nullable"
+        boolean is_school_member
+        string project_name "nullable"
+        string project_status "nullable: started | completed"
+        UNIQUE chat_rule
     }
 
     coffee_matches {
@@ -208,6 +238,16 @@ erDiagram
         string category
     }
 
+    room_schedule_images {
+        bigserial id PK
+        uuid campus_id FK
+        date target_date
+        string state_hash
+        string file_id
+        timestamp created_at
+        UNIQUE campus_date_state
+    }
+
     student_skills {
         uuid student_id PK, FK
         int skill_id PK, FK
@@ -236,12 +276,16 @@ erDiagram
     
     campuses ||--o{ books : "stocks"
     books ||--o{ book_loans : "lent"
+    books ||--o{ book_loans : "lent"
     students ||--o{ book_loans : "borrows"
+    books ||--o{ book_subscriptions : "watched_by"
+    students ||--o{ book_subscriptions : "subscribes_to"
     
     campuses ||--o{ clubs : "has"
     students ||--o{ clubs : "leads"
     clubs ||--o{ chats : "organized_in"
     chats ||--o{ group_topics : "contains"
+    chats ||--o{ chat_guard_rules : "guarded_by"
     campuses ||--o{ chats : "filters_by"
     
     students ||--o{ coffee_matches : "participant_1"
@@ -252,6 +296,9 @@ erDiagram
     
     campuses ||--o{ cached_events : "notifies"
     campuses ||--o{ cached_sales : "notifies"
+    campuses ||--o{ room_schedule_images : "caches"
+    students ||--o{ review_notification_filters : "configures"
+    campuses ||--o{ review_notification_filters : "filtered_in"
     
     %% =======================================================
     %% 6. USER SETTINGS (Настройки бота)
