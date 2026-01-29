@@ -2,7 +2,7 @@ meta:
   feature_id: "BOOK-001"
   name: "Бронирование переговорок"
   description: "Процесс бронирования переговорок в кампусах с визуальным обзором"
-  version: "1.1.0"
+  version: "1.2.0"
 
 initial_state: BOOKING_MENU
 
@@ -85,10 +85,48 @@ states:
       buttons:
         - id: confirm
           label: { ru: "Подтвердить", en: "Confirm" }
-          next_state: COMPLETED
+          # ВАЖНО: фактическое создание бронирования и проверка,
+          # что слот ещё свободен, происходит в системном состоянии COMMIT_BOOKING.
+          next_state: COMMIT_BOOKING
         - id: cancel
           label: { ru: "Отменить", en: "Cancel" }
           next_state: BOOKING_MENU
+
+  COMMIT_BOOKING:
+    type: system
+    description: "Проверка, что слот ещё свободен, и создание бронирования"
+    logic:
+      action: "create_booking"
+      payload:
+        room_id: "$context.room_id"
+        date: "$context.date"
+        time: "$context.time"
+        duration: "$context.duration"
+    transitions:
+      - condition: "success == true"
+        next_state: COMPLETED
+      - condition: "success == false"
+        next_state: ERROR_SLOT_ALREADY_TAKEN
+
+  ERROR_SLOT_ALREADY_TAKEN:
+    type: interactive
+    description: "Слот уже занят другим пользователем"
+    interface:
+      text:
+        ru: |
+          ❌ Слот уже недоступен.
+
+          Пока ты подтверждал бронирование, кто-то другой успел занять этот слот.
+
+          Пожалуйста, выбери другой слот в расписании.
+        en: |
+          ❌ Slot is no longer available.
+
+          While you were confirming, someone else booked this slot.
+
+          Please choose another time slot.
+    transitions:
+      - next_state: BOOKING_MENU
 
   COMPLETED:
     type: final

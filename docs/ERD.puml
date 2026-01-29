@@ -1,0 +1,434 @@
+@startuml
+!theme plain
+hide circle
+skinparam linetype ortho
+skinparam roundcorner 5
+skinparam class {
+    BackgroundColor White
+    ArrowColor #2688d4
+    BorderColor #2688d4
+}
+
+' =======================================================
+' 1. IDENTITY & AUTH
+' =======================================================
+package "Identity_Auth" {
+    entity "campuses" as campuses {
+        * id : uuid <<PK>>
+        --
+        * name : string <<UK>>
+        timezone : string
+        is_active : boolean
+        created_at : timestamp
+        updated_at : timestamp
+    }
+
+    entity "coalitions" as coalitions {
+        * id : smallint <<PK>>
+        --
+        * name : string <<UK>>
+        icon_url : string
+        color : string
+        created_at : timestamp
+    }
+
+    entity "students" as students {
+        * id : uuid <<PK>>
+        --
+        * s21_login : string <<UK>>
+        * rocketchat_id : string <<UK>>
+        campus_id : uuid <<FK>>
+        coalition_id : smallint <<FK>>
+        status : ENUM_STUDENT_STATUS
+        parallel_name : string
+        level : int
+        exp_value : int
+        prp : int
+        crp : int
+        coins : int
+        language_code : string
+        is_provider : boolean
+        is_searchable : boolean
+        has_coffee_ban : boolean
+        created_at : timestamp
+        updated_at : timestamp
+    }
+
+    entity "user_accounts" as user_accounts {
+        * id : bigserial <<PK>>
+        --
+        student_id : uuid <<FK>>
+        platform : ENUM_PLATFORM
+        external_id : string
+        username : string
+        alternative_contact : string
+        role : ENUM_USER_ROLE
+        linked_at : timestamp
+        created_at : timestamp
+        updated_at : timestamp
+    }
+
+    entity "user_bot_settings" as user_bot_settings {
+        * id : bigserial <<PK>>
+        --
+        user_account_id : bigint <<FK>> <<UK>>
+        language_code : string
+        notifications_enabled : boolean
+        review_post_campus_ids : jsonb
+        created_at : timestamp
+        updated_at : timestamp
+    }
+
+    entity "user_secrets" as user_secrets {
+        * student_id : uuid <<PK>> <<FK>>
+        --
+        payload_enc : bytea
+        nonce : bytea
+        updated_at : timestamp
+    }
+
+    entity "auth_verification_codes" as auth_verification_codes {
+        * id : bigserial <<PK>>
+        --
+        student_id : uuid <<FK>>
+        code : string
+        expires_at : timestamp
+        created_at : timestamp
+    }
+}
+
+' =======================================================
+' 2. OPERATIONAL CACHE
+' =======================================================
+package "Operational_Cache" {
+    entity "student_projects_cache" as student_projects_cache {
+        * id : bigserial <<PK>>
+        --
+        student_id : uuid <<FK>>
+        project_name : string
+        project_id : bigint
+        status : ENUM_PROJECT_STATUS
+        final_percentage : int
+        started_at : timestamp
+        completed_at : timestamp
+        updated_at : timestamp
+    }
+
+    entity "review_requests" as review_requests {
+        * id : bigserial <<PK>>
+        --
+        student_id : uuid <<FK>>
+        campus_id : uuid <<FK>>
+        matched_reviewer_id : uuid <<FK>>
+        project_name : string
+        description : string
+        status : ENUM_REVIEW_STATUS
+        created_at : timestamp
+        updated_at : timestamp
+        matched_at : timestamp
+        closed_at : timestamp
+    }
+
+    entity "review_notification_filters" as review_notification_filters {
+        * id : bigserial <<PK>>
+        --
+        student_id : uuid <<FK>>
+        campus_id : uuid <<FK>>
+        created_at : timestamp
+    }
+
+    entity "sync_metadata" as sync_metadata {
+        * service_name : string <<PK>>
+        --
+        last_run_at : timestamp
+        status : ENUM_SYNC_STATUS
+        error_message : string
+        updated_at : timestamp
+    }
+}
+
+' =======================================================
+' 3. RESOURCES
+' =======================================================
+package "Resources" {
+    entity "rooms" as rooms {
+        * id : int <<PK>>
+        --
+        campus_id : uuid <<FK>>
+        name : string
+        min_duration_min : int
+        max_duration_min : int
+        is_local : boolean
+        is_active : boolean
+        created_at : timestamp
+        updated_at : timestamp
+    }
+
+    entity "room_bookings" as room_bookings {
+        * id : bigserial <<PK>>
+        --
+        room_id : int <<FK>>
+        student_id : uuid <<FK>>
+        start_time : timestamp
+        end_time : timestamp
+        is_cancelled : boolean
+        cancelled_by_id : uuid <<FK>>
+        cancelled_at : timestamp
+        created_at : timestamp
+    }
+
+    entity "books" as books {
+        * id : int <<PK>>
+        --
+        title : string
+        author : string
+        campus_id : uuid <<FK>>
+        total_stock : int
+        available_stock : int
+        isbn : string
+        created_at : timestamp
+        updated_at : timestamp
+    }
+
+    entity "book_loans" as book_loans {
+        * id : bigserial <<PK>>
+        --
+        book_id : int <<FK>>
+        student_id : uuid <<FK>>
+        returned_by_id : uuid <<FK>>
+        borrowed_at : timestamp
+        due_at : timestamp
+        returned_at : timestamp
+    }
+
+    entity "book_subscriptions" as book_subscriptions {
+        * id : bigserial <<PK>>
+        --
+        book_id : int <<FK>>
+        student_id : uuid <<FK>>
+        created_at : timestamp
+    }
+}
+
+' =======================================================
+' 4. COMMUNITY & SOCIAL
+' =======================================================
+package "Community_Social" {
+    entity "club_categories" as club_categories {
+        * id : smallint <<PK>>
+        --
+        * name : string <<UK>>
+        created_at : timestamp
+    }
+
+    entity "clubs" as clubs {
+        * id : int <<PK>>
+        --
+        campus_id : uuid <<FK>>
+        leader_id : uuid <<FK>>
+        name : string
+        description : string
+        category_id : smallint <<FK>>
+        external_link : string
+        is_local : boolean
+        is_active : boolean
+        created_at : timestamp
+        updated_at : timestamp
+    }
+
+    entity "chats" as chats {
+        * id : bigserial <<PK>>
+        --
+        club_id : int <<FK>>
+        platform : ENUM_CHAT_PLATFORM
+        external_id : string
+        title : string
+        campus_filter_id : uuid <<FK>>
+        coalition_filter_id : smallint <<FK>>
+        created_at : timestamp
+        updated_at : timestamp
+    }
+
+    entity "group_topics" as group_topics {
+        * id : bigserial <<PK>>
+        --
+        chat_id : bigint <<FK>>
+        external_thread_id : string
+        name : string
+        type : ENUM_TOPIC_TYPE
+        created_at : timestamp
+    }
+
+    entity "chat_guard_rules" as chat_guard_rules {
+        * id : bigserial <<PK>>
+        --
+        chat_id : bigint <<FK>>
+        campus_id : uuid <<FK>>
+        is_school_member : boolean
+        project_name : string
+        project_status : string
+        created_at : timestamp
+        updated_at : timestamp
+    }
+
+    entity "coffee_matches" as coffee_matches {
+        * id : bigserial <<PK>>
+        --
+        student_1_id : uuid <<FK>>
+        student_2_id : uuid <<FK>>
+        match_date : date
+        status : ENUM_COFFEE_STATUS
+        created_at : timestamp
+        completed_at : timestamp
+    }
+}
+
+' =======================================================
+' 5. SYSTEM & STATS
+' =======================================================
+package "System_Stats" {
+    entity "cached_events" as cached_events {
+        * id : bigserial <<PK>>
+        --
+        campus_id : uuid <<FK>>
+        type : ENUM_EVENT_TYPE
+        event_name : string
+        payload : jsonb
+        start_time : timestamp
+        expires_at : timestamp
+        created_at : timestamp
+    }
+
+    entity "cached_sales" as cached_sales {
+        * id : bigserial <<PK>>
+        --
+        campus_id : uuid <<FK>>
+        sale_name : string
+        payload : jsonb
+        expires_at : timestamp
+        created_at : timestamp
+    }
+
+    entity "external_api_keys" as external_api_keys {
+        * id : bigserial <<PK>>
+        --
+        created_by_student_id : uuid <<FK>>
+        client_name : string
+        key_hash : string
+        is_active : boolean
+        rate_limit : int
+        last_used_at : timestamp
+        created_at : timestamp
+        expires_at : timestamp
+    }
+
+    entity "skills" as skills {
+        * id : int <<PK>>
+        --
+        name : string <<UK>>
+        category : string
+        created_at : timestamp
+        updated_at : timestamp
+    }
+
+    entity "student_skills" as student_skills {
+        * student_id : uuid <<PK>> <<FK>>
+        * skill_id : int <<PK>> <<FK>>
+        --
+        value : int
+        updated_at : timestamp
+    }
+
+    entity "room_schedule_images" as room_schedule_images {
+        * id : bigserial <<PK>>
+        --
+        campus_id : uuid <<FK>>
+        target_date : date
+        state_hash : string
+        file_id : string
+        created_at : timestamp
+    }
+}
+
+' =======================================================
+' 6. NOTIFICATIONS & 7. AUDIT
+' =======================================================
+package "Notifications_Audit" {
+    entity "notifications" as notifications {
+        * id : bigserial <<PK>>
+        --
+        student_id : uuid <<FK>>
+        type : ENUM_NOTIF_TYPE
+        message : string
+        metadata : jsonb
+        is_read : boolean
+        created_at : timestamp
+        read_at : timestamp
+        scheduled_for : timestamp
+    }
+
+    entity "audit_logs" as audit_logs {
+        * id : bigserial <<PK>>
+        --
+        event_code : string
+        actor_id : string
+        actor_type : ENUM_ACTOR_TYPE
+        target_id : string
+        details : jsonb
+        created_at : timestamp
+    }
+}
+
+' =======================================================
+' RELATIONSHIPS
+' =======================================================
+campuses ||--o{ students
+coalitions ||--o{ students
+students ||--o{ user_accounts
+students ||--o{ user_secrets
+students ||--o{ auth_verification_codes
+user_accounts ||--o| user_bot_settings
+
+students ||--o{ student_projects_cache
+students ||--o{ review_requests
+students ||--o{ review_requests
+campuses ||--o{ review_requests
+
+students ||--o{ review_notification_filters
+campuses ||--o{ review_notification_filters
+
+campuses ||--o{ rooms
+rooms ||--o{ room_bookings
+students ||--o{ room_bookings
+students ||--o{ room_bookings
+
+campuses ||--o{ books
+books ||--o{ book_loans
+students ||--o{ book_loans
+students ||--o{ book_loans
+books ||--o{ book_subscriptions
+students ||--o{ book_subscriptions
+
+campuses ||--o{ clubs
+students ||--o{ clubs
+club_categories ||--o{ clubs
+clubs ||--o{ chats
+chats ||--o{ group_topics
+chats ||--o{ chat_guard_rules
+campuses ||--o{ chats
+coalitions ||--o{ chats
+
+students ||--o{ coffee_matches
+students ||--o{ coffee_matches
+
+students ||--o{ student_skills
+skills ||--o{ student_skills
+
+campuses ||--o{ cached_events
+campuses ||--o{ cached_sales
+campuses ||--o{ room_schedule_images
+
+students ||--o{ external_api_keys
+students ||--o{ notifications
+
+@endum
