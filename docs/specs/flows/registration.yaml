@@ -2,7 +2,7 @@ meta:
   feature_id: "REG-001"
   name: "Регистрация нового пользователя"
   description: "Процесс создания аккаунта с валидацией через S21 API и проверкой OTP в Rocket.Chat"
-  version: "1.3.0"
+  version: "1.3.1"
 
 initial_state: SELECT_LANGUAGE
 
@@ -112,32 +112,32 @@ states:
   # 6. Состояние ожидания кода (Сложные переходы)
   AWAITING_OTP:
     requirement: "Безопасная обработка OTP-кодов в памяти и при передаче (см. security_policy.yaml)"
-    implementation:
-      type: input
-      interface:
-        text:
-          ru: "🔐 Код отправлен в Rocket.Chat. Введи его:"
-          en: "🔐 OTP sent to Rocket.Chat. Enter it here:"
-        footer:
-          ru: "Осталось попыток: {attempts}"
-          en: "Attempts left: {attempts}"
-      validation:
-        regex: "^[0-9]{6}$"
-      transitions:
-        # ВАЖНО: при успешном вводе кода мы повторно проверяем,
-        # что email ещё не занят другим зарегистрированным пользователем.
-        - trigger: "code_correct"
-          condition: "email_unique == true"
-          next_state: REGISTRATION_COMPLETE
-        - trigger: "code_correct"
-          condition: "email_unique == false"
-          next_state: ERROR_EMAIL_ALREADY_REGISTERED
-        - trigger: "code_incorrect"
-          condition: "attempts > 0"
-          next_state: AWAITING_OTP
-        - trigger: "code_expired"
-          next_state: INPUT_LOGIN
-          action: "notify: code_expired"
+    type: input
+    description: "Ввод OTP-кода, отправленного в Rocket.Chat"
+    interface:
+      text:
+        ru: "🔐 Код отправлен в Rocket.Chat. Введи его:"
+        en: "🔐 OTP sent to Rocket.Chat. Enter it here:"
+      footer:
+        ru: "Осталось попыток: {attempts}"
+        en: "Attempts left: {attempts}"
+    validation:
+      regex: "^[0-9]{6}$"
+    transitions:
+      # ВАЖНО: при успешном вводе кода мы повторно проверяем,
+      # что email ещё не занят другим зарегистрированным пользователем.
+      - trigger: "code_correct"
+        condition: "email_unique == true"
+        next_state: REGISTRATION_COMPLETE
+      - trigger: "code_correct"
+        condition: "email_unique == false"
+        next_state: ERROR_EMAIL_ALREADY_REGISTERED
+      - trigger: "code_incorrect"
+        condition: "attempts > 0"
+        next_state: AWAITING_OTP
+      - trigger: "code_expired"
+        next_state: INPUT_LOGIN
+        action: "notify: code_expired"
     verification: "Проверка отсутствия OTP в логах при тестах"
     risks:
       - "Утечка OTP через дампы памяти или логи"
