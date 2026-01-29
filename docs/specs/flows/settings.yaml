@@ -2,7 +2,7 @@ meta:
   feature_id: "SET-001"
   name: "Настройки пользователя"
   description: "Управление настройками профиля, API-токенами и данными Data-Provider"
-  version: "1.1.0"
+  version: "1.1.1"
 
 initial_state: SETTINGS_MENU
 
@@ -196,8 +196,11 @@ states:
         ru: "⚠️ Я не нашёл токен или логин. Попробуй снова."
         en: "⚠️ I didn't find a token or login. Try again."
       validation:
-        regex: "\b(ey[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+\.[a-zA-Z0-9-_]+)|(?<![a-zA-Z0-9-_])([a-zA-Z0-9-_]{3,})(?![a-zA-Z0-9._-])\b"
-        regex: "\b[A-Za-z]{4,9}\b"
+      # Accepts either a JWT-like token (starts with "ey...") or a School21 login (4-9 lowercase letters)
+      # anywhere in the input (user may paste multiple fields at once).
+      #
+      # NOTE: use single quotes to avoid YAML escape processing.
+      regex: '(?:ey[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+)|(?<![A-Za-z0-9\-_])[a-z]{4,9}(?![A-Za-z0-9\-_])'
       transitions:
         - trigger: "on_valid_input"
           next_state: CONFIRM_PROVIDER_CREDENTIALS
