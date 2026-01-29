@@ -1,0 +1,23 @@
+meta:
+  name: "Hardening"
+  version: "1.0.0"
+
+os:
+  distro: "Ubuntu 24.04 LTS"
+  updates: "Unattended-upgrades (security only)"
+  ssh:
+    port: 2233
+    auth: "Ed25519 Key Only (PasswordAuth=no)"
+    root_login: "no"
+
+firewall:
+  tool: "UFW"
+  default: "Inbound DENY, Outbound ALLOW"
+  allow:
+    - "2233/tcp (SSH)"
+    - "80/tcp (HTTP)"
+    - "443/tcp (HTTPS)"
+
+protection:
+  fail2ban: "Enabled for SSHd"
+  docker: "No --privileged, no --net=host"

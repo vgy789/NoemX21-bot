@@ -1,0 +1,26 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+
+title Component diagram for Public API Service (Go)
+
+ContainerDb(db, "Database", "PostgreSQL", "Хранит данные пользователей и выданные API-ключи.")
+Person_Ext(ext_dev, "Сторонний Dev", "Делает запросы к API.")
+
+Container_Boundary(api_service, "Public API Service") {
+    Component(api_router, "API Router", "Go: Gin / Fiber", "Обрабатывает HTTP запросы, ограничивает частоту (Rate Limiting).")
+    Component(token_auth, "API Auth Middleware", "Go: Middleware", "Проверяет валидность ключа доступа разработчика.")
+    Component(api_handler, "Status Handler", "Go: Handler", "Логика ответа: формирует JSON со статусом студента.")
+    
+    ' Слой данных общий с ботом
+    Component(repo, "Data Repository", "Go: pgx", "Выполняет только SELECT запросы для API.")
+}
+
+Rel(ext_dev, api_router, "GET /v1/verify/{tg_id}", "HTTPS/JSON")
+Rel(api_router, token_auth, "Пропускает через")
+Rel(token_auth, api_handler, "Передает запрос")
+Rel(api_handler, repo, "Запрашивает статус юзера")
+Rel(repo, db, "SQL SELECT", "TCP/5432")
+
+@enduml

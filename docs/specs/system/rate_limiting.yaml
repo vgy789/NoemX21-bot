@@ -1,0 +1,29 @@
+meta:
+  name: "Rate Limiting"
+  version: "1.0.0"
+
+internal_limits:
+  strategy: "Token Bucket (golang.org/x/time/rate)"
+  rules:
+    - cmd_general: "10 req/min (burst 3)"
+    - cmd_otp: "1 req/5min (burst 1)"
+    - api_stats: "5 req/min (burst 2)"
+
+external_api_limits:
+  school21:
+    limit: "1-2 req/sec"
+    strategy: "Queue + Retry (Exponential Backoff)"
+  telegram:
+    limit: "30 msg/sec (handled by gotgbot)"
+    broadcast: "25-30 msg/sec"
+  rocketchat:
+    limit: "OTP requests 1/5min per user"
+
+caching:
+  profile: "TTL 5min"
+  events: "TTL 15min"
+  storage: "In-memory / Redis"
+
+fallback:
+  school21_down: "Serve cached data or disable non-critical features"
+  db_slow: "Log slow queries, fail fast"

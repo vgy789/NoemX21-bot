@@ -1,0 +1,30 @@
+meta:
+  name: "CI/CD"
+  version: "1.0.0"
+
+ci_pipeline:
+  trigger: "Push/PR to main"
+  steps:
+    lint: "golangci-lint"
+    lint_yaml: "yamllint ."
+    test: "go test -race -cover ./..."
+    build: "go build ./cmd/bot"
+    security: "govulncheck"
+
+cd_pipeline:
+  trigger: "Merge to main (after CI)"
+  registry: "GHCR"
+  strategy: "SSH Deploy (docker-compose)"
+  steps:
+    - "Build & Push Docker image"
+    - "SSH to VPS"
+    - "Pull new image"
+    - "Apply migrations"
+    - "Rolling update (stop old, start new)"
+    - "Healthcheck verification"
+    - "Auto-rollback on failure"
+
+secrets:
+  - VPS_HOST
+  - VPS_USER
+  - VPS_SSH_KEY

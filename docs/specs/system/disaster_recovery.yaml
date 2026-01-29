@@ -1,0 +1,20 @@
+meta:
+  name: "Disaster Recovery"
+  version: "1.0.0"
+
+metrics:
+  RTO: "4 hours"
+  RPO: "24 hours (Last Daily Backup)"
+
+scenarios:
+  container_crash: "Automatic restart (docker)"
+  bad_deploy: "Rollback to previous image tag"
+  db_corruption: "Restore from S3 backup"
+  host_loss: "Provision new VPS -> Restore S3 backup -> Redeploy"
+  compromise: "Isolate -> Analyze -> Wipe & Restore -> Rotate Secrets"
+
+backup_procedure:
+  source: "pg_dump | gzip | openssl enc"
+  storage: "S3-compatible bucket"
+  recovery: "Decrypt -> gunzip -> psql restore"
+  testing: "Quarterly drill"

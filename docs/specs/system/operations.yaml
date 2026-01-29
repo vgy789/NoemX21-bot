@@ -1,0 +1,18 @@
+meta:
+  name: "Operations"
+  version: "1.0.0"
+
+backups:
+  schedule: "Daily 02:00 UTC"
+  tool: "pg_dump -> S3"
+  retention: "7d daily, 4w weekly, 3m monthly"
+
+database_indexes:
+  - idx_skills: "(skill_id, value DESC)"
+  - idx_projects: "UNIQUE (student_id, project_name)"
+  - idx_booking: "(room_id, start_time, end_time)"
+
+updates:
+  app: "Rolling update via CI/CD"
+  deps: "Monthly go get -u"
+  os: "Automatic security patches"

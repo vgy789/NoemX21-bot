@@ -1,0 +1,37 @@
+meta:
+  name: "Мониторинг"
+  version: "1.0.0"
+
+healthchecks:
+  requirement: "Эндпоинты Liveness/Readiness."
+  endpoints:
+    - path: "/health/live"
+    - path: "/health/ready"
+      checks: ["PostgreSQL", "Telegram API"]
+  docker_config:
+    test: ["CMD", "curl", "-f", "http://localhost:8080/health/live"]
+    interval: "30s"
+    retries: 3
+
+logging:
+  requirement: "Структурированный JSON лог (slog)."
+  levels: ["DEBUG", "INFO", "WARN", "ERROR"]
+  context_fields: ["request_id", "user_id", "operation", "duration_ms"]
+  output: "stdout (JSON)"
+  rotation:
+    driver: "json-file"
+    max_size: "10m"
+    max_files: 3
+
+alerting:
+  requirement: "Уведомления в Telegram администратору."
+  triggers:
+    - "Service Down (Healthcheck failed)"
+    - "High Error Rate (> 10/min)"
+    - "Disk Space Low (< 20%)"
+
+resource_monitoring:
+  requirement: "Базовый мониторинг хоста."
+  tools: ["htop", "ncdu", "docker stats"]
+  scripts:
+    disk_check: "Daily via cron, threshold 80%"

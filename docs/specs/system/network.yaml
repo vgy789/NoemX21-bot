@@ -1,0 +1,28 @@
+meta:
+  name: "Сеть"
+  version: "1.0.0"
+
+reverse_proxy:
+  requirement: "Caddy v2 (HTTPS Auto-TLS)."
+  config:
+    - "Route `/health/*` → localhost:8080"
+    - "Route `/api/*` → localhost:8080"
+    - "TLS 1.2+ only"
+
+docker_network:
+  requirement: "Bridge network `noemix-net`."
+  isolation:
+    - "App: expose 8080 only to localhost (via Caddy)"
+    - "Postgres: no external ports, internal access only"
+
+outbound_connections:
+  allowed:
+    - "api.telegram.org:443"
+    - "edu.21-school.ru:443"
+    - "*.rocket.chat:443"
+    - "S3 storage endpoint:443"
+
+dns:
+  records:
+    - "A: bot.example.com -> VPS_IP"
+    - "AAAA: bot.example.com -> VPS_IPv6"
