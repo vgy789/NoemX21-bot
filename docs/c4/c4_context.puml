@@ -1,0 +1,38 @@
+@startuml C4_Elements
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+LAYOUT_WITH_LEGEND()
+
+title System Context diagram (Multi-platform & Resource Management)
+
+Person(student, "Студент", "Основной пользователь: статистика, поиск проверок, бронирование переговорок и книг.")
+Person(owner, "Владелец", "Глобальный администратор: управление системой и рассылки.")
+Person(group_admin, "Админ группы", "Локальный администратор: настройка правил чата и 'Охранника'.")
+Person(provider, "Data Provider", "Волонтер: предоставляет доступ к API кампуса.")
+Person(ext_dev, "Сторонний Dev", "Разработчик других сервисов: проверяет статус студента через API бота.")
+
+System(bot_system, "Global Bot System", "Центральное ядро: управление профилями студентов, логика Random Coffee, бронирование ресурсов и агрегация данных S21.")
+
+System_Boundary(platforms, "Messaging Platforms") {
+    System_Ext(telegram, "Telegram", "Интерфейс взаимодействия.")
+    System_Ext(rocket_chat_ui, "Rocket.Chat (Maybe)", "Корпоративный интерфейс.")
+    System_Ext(max, "Max (Never) ′⌒`", "Дополнительный интерфейс.")
+    System_Ext(discord, "Discord (Bright future)", "Дополнительный интерфейс.")
+}
+
+System_Ext(s21_api, "School 21 API", "Источник данных о студентах, проектах и ивентах.")
+System_Ext(rocket_api, "Rocket.Chat API", "Используется системой для 2FA верификации.")
+
+' Связи
+Rel(student, platforms, "Взаимодействует через")
+Rel(group_admin, platforms, "Настраивает чаты")
+Rel(provider, platforms, "Авторизует доступ к кампусу")
+Rel(owner, platforms, "Управляет ботом и делает рассылки")
+
+Rel_D(platforms, bot_system, "Передают события (Webhooks/Long Polling)")
+Rel_U(bot_system, platforms, "Отправляет уведомления, отчеты, графики")
+
+Rel_R(bot_system, s21_api, "Запрашивает данные", "HTTPS/JSON")
+Rel_L(bot_system, rocket_api, "Отправляет коды 2FA", "HTTPS/REST")
+
+Rel(ext_dev, bot_system, "Проверяет статус студента", "HTTPS/REST API")
+@enduml

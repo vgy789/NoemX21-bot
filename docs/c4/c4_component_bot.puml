@@ -1,0 +1,45 @@
+@startuml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
+
+LAYOUT_WITH_LEGEND()
+title Component diagram for Bot Engine (Simplified)
+
+Container_Boundary(bot_engine, "Bot Application") {
+    Component(router, "Bot Router / Dispatcher", "gotgbot/v2", "Принимает команды, определяет платформу и язык")
+    
+    ' Группа бизнес-логики
+    Container_Boundary(bot_tools, "Business Logic (Core Services)") {
+        Component(booking_svc, "Booking & Library", "Go", "Ресурсы кампуса")
+        Component(review_svc, "Review & Coffee", "Go", "Взаимодействие пиров")
+        Component(auth_svc, "Auth & Guard", "Go", "Безопасность и регистрация")
+        Component(stats_svc, "Stats & Mermaid", "Go", "Визуализация")
+    }
+    
+    Component(repo, "Data Repository", "pgx", "Единый слой доступа к БД")
+    Component(i18n, "i18n Service", "Go-i18n", "Локализация")
+}
+
+ContainerDb(db, "Database", "PostgreSQL")
+System_Ext(messanger, "Messanger")
+System_Ext(s21, "School 21 API")
+System_Ext(rocket, "Rocket.Chat")
+
+' --- СВЯЗИ ---
+
+' Входящий поток
+Rel(messanger, router, "Updates")
+Rel(router, bot_tools, "Execute command")
+
+' Общие зависимости для всей бизнес-логики (рисуем одну стрелку от границы)
+Rel(bot_tools, repo, "CRUD Operations")
+Rel(bot_tools, i18n, "Get translations")
+
+' Специализированные внешние связи
+Rel(auth_svc, rocket, "Send OTP", "REST")
+Rel(stats_svc, s21, "Fetch raw data", "REST")
+
+' Инфраструктурные связи
+Rel(router, repo, "Identify student & lang")
+Rel(repo, db, "SQL")
+
+@enduml

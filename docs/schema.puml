@@ -390,8 +390,8 @@ students ||--o{ auth_verification_codes
 user_accounts ||--o| user_bot_settings
 
 students ||--o{ student_projects_cache
-students ||--o{ review_requests
-students ||--o{ review_requests
+students ||--o{ review_requests : "student_id"
+students ||--o{ review_requests : "matched_reviewer_id"
 campuses ||--o{ review_requests
 
 students ||--o{ review_notification_filters
@@ -399,13 +399,13 @@ campuses ||--o{ review_notification_filters
 
 campuses ||--o{ rooms
 rooms ||--o{ room_bookings
-students ||--o{ room_bookings
-students ||--o{ room_bookings
+students ||--o{ room_bookings : "student_id"
+students ||--o{ room_bookings : "cancelled_by_id"
 
 campuses ||--o{ books
 books ||--o{ book_loans
-students ||--o{ book_loans
-students ||--o{ book_loans
+students ||--o{ book_loans : "student_id"
+students ||--o{ book_loans : "returned_by_id"
 books ||--o{ book_subscriptions
 students ||--o{ book_subscriptions
 
@@ -418,8 +418,8 @@ chats ||--o{ chat_guard_rules
 campuses ||--o{ chats
 coalitions ||--o{ chats
 
-students ||--o{ coffee_matches
-students ||--o{ coffee_matches
+students ||--o{ coffee_matches : "student_1_id"
+students ||--o{ coffee_matches : "student_2_id"
 
 students ||--o{ student_skills
 skills ||--o{ student_skills
