@@ -1,0 +1,59 @@
+---
+# CI по образцу GitLab CI Utils:
+# - go-test: registry.gitlab.com/gitlab-ci-utils/container-images/go-test
+# - gitlab-ci-templates: шаблоны с образом go-test (без ubuntu-latest)
+# https://gitlab.com/gitlab-ci-utils/container-images/go-test
+# https://gitlab.com/gitlab-ci-utils/gitlab-ci-templates
+
+name: CI
+
+"on":
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  go:
+    runs-on: ubuntu-22.04
+    container:
+      image: registry.gitlab.com/gitlab-ci-utils/container-images/go-test:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download deps
+        run: go mod download
+
+      - name: Install golangci-lint
+        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+
+      - name: Lint
+        run: $(go env GOPATH)/bin/golangci-lint run ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test -race -cover ./...
+
+      - name: Build
+        run: go build -o /dev/null ./...
+
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest
+
+      - name: Security
+        run: $(go env GOPATH)/bin/govulncheck ./...
+        continue-on-error: true  # report only; job does not fail on vulns
+
+  yaml:
+    runs-on: ubuntu-22.04
+    container:
+      image: cytopia/yamllint:latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Lint YAML
+        run: yamllint .

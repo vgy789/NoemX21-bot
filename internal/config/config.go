@@ -8,7 +8,7 @@ import (
 )
 
 const (
-	envPath = ".env"
+	envPath = "env/.env"
 )
 
 // TelegramBot is a configuration for the telegram bot.
