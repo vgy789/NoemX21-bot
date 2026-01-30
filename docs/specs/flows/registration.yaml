@@ -1,267 +1,284 @@
+---
 meta:
-  feature_id: "REG-001"
-  name: "Регистрация нового пользователя"
-  description: "Процесс создания аккаунта с валидацией через S21 API и проверкой OTP в Rocket.Chat"
-  version: "1.3.1"
+  feature_id: REG-001
+  name: Регистрация нового пользователя
+  description: Процесс создания аккаунта с валидацией через S21 API и проверкой OTP в Rocket.Chat
+  version: 1.3.1
 
 initial_state: SELECT_LANGUAGE
-
-# --- ОПИСАНИЕ СОСТОЯНИЙ ---
 states:
-
-  # 1. Состояние с выбором (UI + Переходы)
   SELECT_LANGUAGE:
     type: interactive
-    description: "Первый экран после /start. Выбор локализации."
+    description: Первый экран после /start. Выбор локализации.
     interface:
       text:
-        en: "🈺 Choose your interface language:"
-        ru: "🈺 Язык интерфейса:"
+        en: '🈺 Choose your interface language:'
+        ru: '🈺 Язык интерфейса:'
       buttons:
         - id: set_ru
-          label: "🇷🇺 Русский"
+          label: 🇷🇺 Русский
           next_state: START
         - id: set_en
-          label: "🇺🇸 English"
+          label: 🇺🇸 English
           next_state: START
     on_enter:
-      action: "not_reset_user_context" # Не сбрасываем данные при рестарте
+      action: not_reset_user_context
 
-  # 2. Состояние проверки регистрации
   START:
     type: system
-    description: "Проверка статуса регистрации пользователя"
+    description: Проверка статуса регистрации пользователя
     logic:
-      check: "is_user_registered"
+      check: is_user_registered
     transitions:
-      - condition: "registered == true"
-        next_state: "main_menu.yaml/MAIN_MENU"
-      - condition: "registered == false"
+      - condition: registered == true
+        next_state: main_menu.yaml/MAIN_MENU
+      - condition: registered == false
         next_state: INPUT_LOGIN
 
-  # 3. Состояние ввода с валидацией (UI + Регулярные выражения)
   INPUT_LOGIN:
     type: input
-    description: "Ожидание ввода логина School21"
+    description: Ожидание ввода логина School21
     interface:
       text:
-        ru: "Введи логин School21 (4-9 символов, только латиница):"
-        en: "Enter School21 login (4-9 chars, lowercase a-z):"
+        ru: 'Введи логин School21 (4-9 символов, только латиница):'
+        en: 'Enter School21 login (4-9 chars, lowercase a-z):'
       error_invalid:
-        ru: "⚠️ Неверный формат! Попробуй ещё раз (например: jonnabin):"
-        en: "⚠️ Invalid format! Try again (example: jonnabin):"
+        ru: '⚠️ Неверный формат! Попробуй ещё раз (например: jonnabin):'
+        en: '⚠️ Invalid format! Try again (example: jonnabin):'
     validation:
-      regex: "^[a-z]{4,9}$"
+      regex: ^[a-z]{4,9}$
     transitions:
-      - trigger: "on_valid_input"
+      - trigger: on_valid_input
         next_state: VALIDATE_VIA_API
-      - trigger: "on_invalid_input"
+      - trigger: on_invalid_input
         next_state: INPUT_LOGIN
 
-  # 4. Системное состояние (Чистая логика / API)
   VALIDATE_VIA_API:
     type: system
-    description: "Проверка существования пользователя в системе Школы"
+    description: Проверка существования пользователя в системе Школы
     logic:
-      action: "validate_school21_user"
-      payload: { login: "$context.last_input" }
+      action: validate_school21_user
+      payload:
+        login: $context.last_input
     transitions:
-      - condition: "api_status == 200 && user.status == 'ACTIVE' && user.parallelName == 'Core program'"
+      - condition: api_status == 200 && user.status == 'ACTIVE' &&
+          user.parallelName == 'Core program'
         next_state: FIND_ROCKET_USER
-      - condition: "api_status == 200 && user.status == 'ACTIVE' && user.parallelName != 'Core program'"
+      - condition: api_status == 200 && user.status == 'ACTIVE' &&
+          user.parallelName != 'Core program'
         next_state: ERROR_WRONG_PARALLEL
-      - condition: "api_status == 404"
+      - condition: api_status == 404
         next_state: ERROR_NOT_FOUND
-      - condition: "user.status == 'EXPELLED' || user.status == 'BLOCKED'"
+      - condition: user.status == 'EXPELLED' || user.status == 'BLOCKED'
         next_state: ERROR_ACCESS_DENIED
-      - condition: "api_status != 200"
+      - condition: api_status != 200
         next_state: ERROR_API
 
-  # 5. Поиск и верификация пользователя в Rocket.Chat
   FIND_ROCKET_USER:
     type: system
-    description: "Поиск пользователя в Rocket.Chat с проверкой email для защиты от подмены никнейма"
-    security_note: "Email verification защищает от race condition: злоумышленник может сменить nickname, но не может подделать verified email"
+    description: Поиск пользователя в Rocket.Chat с проверкой email для защиты от подмены никнейма
+    security_note: 'Email verification защищает от race condition: злоумышленник может сменить nickname, но не может подделать verified email'
     logic:
-      action: "find_and_verify_rocket_user"
-      payload: { login: "$context.last_input"}
+      action: find_and_verify_rocket_user
+      payload:
+        login: $context.last_input
       checks:
-        - name: "User exists in RocketChat"
-          api_call: "GET /api/v1/users.info?username={login}"
+        - name: User exists in RocketChat
+          api_call: GET /api/v1/users.info?username={login}
           required: true
-        - name: "Email verification (CRITICAL SECURITY CHECK)"
-          description: "Проверка что email совпадает с School21 email и verified"
+        - name: Email verification (CRITICAL SECURITY CHECK)
+          description: Проверка что email совпадает с School21 email и verified
           steps:
-            - "Extract user.emails[0].address from RocketChat response"
-            - "Verify format: {login}@student.21-school.ru"
-            - "Verify user.emails[0].verified == true"
+            - Extract user.emails[0].address from RocketChat response
+            - 'Verify format: {login}@student.21-school.ru'
+            - Verify user.emails[0].verified == true
           critical: true
-    
     transitions:
-      - condition: "rocket_user_found == true && email_verified == true"
+      - condition: rocket_user_found == true && email_verified == true
         next_state: AWAITING_OTP
-        security_level: "SAFE"
-      - condition: "rocket_user_found == true && email_mismatch == true"
+        security_level: SAFE
+      - condition: rocket_user_found == true && email_mismatch == true
         next_state: ERROR_EMAIL_MISMATCH
-        security_level: "CRITICAL_REJECT"
-      - condition: "rocket_user_not_found == true"
+        security_level: CRITICAL_REJECT
+      - condition: rocket_user_not_found == true
         next_state: ROCKET_USER_NOT_FOUND
-      - condition: "rocket_api_error == true"
+      - condition: rocket_api_error == true
         next_state: ROCKET_API_ERROR
 
-  # 6. Состояние ожидания кода (Сложные переходы)
   AWAITING_OTP:
-    requirement: "Безопасная обработка OTP-кодов в памяти и при передаче (см. security_policy.yaml)"
+    requirement: Безопасная обработка OTP-кодов в памяти и при передаче
+      (см. security_policy.yaml)
     type: input
-    description: "Ввод OTP-кода, отправленного в Rocket.Chat"
+    description: Ввод OTP-кода, отправленного в Rocket.Chat
     interface:
       text:
-        ru: "🔐 Код отправлен в Rocket.Chat. Введи его:"
-        en: "🔐 OTP sent to Rocket.Chat. Enter it here:"
+        ru: '🔐 Код отправлен в Rocket.Chat. Введи его:'
+        en: '🔐 OTP sent to Rocket.Chat. Enter it here:'
       footer:
-        ru: "Осталось попыток: {attempts}"
-        en: "Attempts left: {attempts}"
+        ru: 'Осталось попыток: {attempts}'
+        en: 'Attempts left: {attempts}'
     validation:
-      regex: "^[0-9]{6}$"
+      regex: ^[0-9]{6}$
     transitions:
-      # ВАЖНО: при успешном вводе кода мы повторно проверяем,
-      # что email ещё не занят другим зарегистрированным пользователем.
-      - trigger: "code_correct"
-        condition: "email_unique == true"
+      - trigger: code_correct
+        condition: email_unique == true
         next_state: REGISTRATION_COMPLETE
-      - trigger: "code_correct"
-        condition: "email_unique == false"
+      - trigger: code_correct
+        condition: email_unique == false
         next_state: ERROR_EMAIL_ALREADY_REGISTERED
-      - trigger: "code_incorrect"
-        condition: "attempts > 0"
+      - trigger: code_incorrect
+        condition: attempts > 0
         next_state: AWAITING_OTP
-      - trigger: "code_expired"
+      - trigger: code_expired
         next_state: INPUT_LOGIN
-        action: "notify: code_expired"
-    verification: "Проверка отсутствия OTP в логах при тестах"
+        action: 'notify: code_expired'
+    verification: Проверка отсутствия OTP в логах при тестах
     risks:
-      - "Утечка OTP через дампы памяти или логи"
+      - Утечка OTP через дампы памяти или логи
     forbidden_practices:
-      - "Вывод OTP в логи"
-      - "Сохранение OTP в БД"
+      - Вывод OTP в логи
+      - Сохранение OTP в БД
 
-  # 7. Обработка ошибок
   ERROR_WRONG_PARALLEL:
     type: interactive
-    description: "Неверная параллель обучения"
+    description: Неверная параллель обучения
     interface:
       text:
-        ru: "❌ Ты не из программы Core. Регистрация доступна только для студентов основы."
-        en: "❌ You are not in Core program. Registration available only for Core students."
+        ru: ❌ Ты не из программы Core. Регистрация доступна только для студентов основы.
+        en: ❌ You are not in Core program. Registration available only for Core students.
       buttons:
         - id: retry
-          label: { ru: "Попробовать снова", en: "Try again" }
+          label:
+            ru: Попробовать снова
+            en: Try again
           next_state: INPUT_LOGIN
 
   ERROR_ACCESS_DENIED:
     type: interactive
-    description: "Доступ запрещен"
+    description: Доступ запрещен
     interface:
       text:
-        ru: "❌ Твой статус не подходит для регистрации."
-        en: "❌ Your status does not allow registration."
+        ru: ❌ Твой статус не подходит для регистрации.
+        en: ❌ Your status does not allow registration.
       buttons:
         - id: retry
-          label: { ru: "Попробовать снова", en: "Try again" }
+          label:
+            ru: Попробовать снова
+            en: Try again
           next_state: INPUT_LOGIN
 
   ERROR_NOT_FOUND:
     type: interactive
-    description: "Пользователь не найден"
+    description: Пользователь не найден
     interface:
       text:
-        ru: "❌ Пользователь не найден в School21. Проверь логин."
-        en: "❌ User not found in School21. Check your login."
+        ru: ❌ Пользователь не найден в School21. Проверь логин.
+        en: ❌ User not found in School21. Check your login.
       buttons:
         - id: retry
-          label: { ru: "Попробовать снова", en: "Try again" }
+          label:
+            ru: Попробовать снова
+            en: Try again
           next_state: INPUT_LOGIN
 
   ERROR_API:
     type: interactive
-    description: "Ошибка API School21"
+    description: Ошибка API School21
     interface:
       text:
-        ru: "❌ Временная ошибка связи с School21. Попробуй позже."
-        en: "❌ Temporary School21 API error. Try again later."
+        ru: ❌ Временная ошибка связи с School21. Попробуй позже.
+        en: ❌ Temporary School21 API error. Try again later.
       buttons:
         - id: retry
-          label: { ru: "Попробовать снова", en: "Try again" }
+          label:
+            ru: Попробовать снова
+            en: Try again
           next_state: INPUT_LOGIN
 
   ROCKET_USER_NOT_FOUND:
     type: interactive
-    description: "Пользователь не найден в Rocket.Chat"
+    description: Пользователь не найден в Rocket.Chat
     interface:
       text:
-        ru: "❌ Пользователь не найден в Rocket.Chat. Проверь, зарегистрирован ли ты в системе School21."
-        en: "❌ User not found in Rocket.Chat. Check if you are registered in School21 system."
+        ru: ❌ Пользователь не найден в Rocket.Chat. Проверь, зарегистрирован ли ты в системе School21.
+        en: ❌ User not found in Rocket.Chat. Check if you are registered in School21 system.
       buttons:
         - id: retry
-          label: { ru: "Попробовать снова", en: "Try again" }
+          label:
+            ru: Попробовать снова
+            en: Try again
           next_state: INPUT_LOGIN
 
   ROCKET_API_ERROR:
     type: interactive
-    description: "Ошибка API Rocket.Chat"
+    description: Ошибка API Rocket.Chat
     interface:
       text:
-        ru: "❌ Временная ошибка Rocket.Chat. Попробуй через 1 минуту."
-        en: "❌ Temporary Rocket.Chat API error. Try again in 1 minute."
+        ru: ❌ Временная ошибка Rocket.Chat. Попробуй через 1 минуту.
+        en: ❌ Temporary Rocket.Chat API error. Try again in 1 minute.
       buttons:
         - id: retry
-          label: { ru: "Попробовать снова", en: "Try again" }
-          next_state: INPUT_LOGIN
-  
-  ERROR_EMAIL_MISMATCH:
-    type: interactive
-    description: "Email в RocketChat не совпадает с логином School21"
-    interface:
-      text:
-        ru: |
-          ❌ Ошибка верификации!
-          
-          Email в твоём профиле RocketChat не совпадает с {login}@student.21-school.ru
-          
-          Это защитный механизм от подмены личности.
-          Убедись что ты используешь правильный логин.
-        en: |
-          ❌ Verification failed!
-          
-          Email in your RocketChat profile doesn't match {login}@student.21-school.ru
-          
-          This is a security measure against identity theft.
-          Make sure you're using the correct login.
-      buttons:
-        - id: retry
-          label: { ru: "Попробовать снова", en: "Try again" }
+          label:
+            ru: Попробовать снова
+            en: Try again
           next_state: INPUT_LOGIN
 
-  # 8. Коллизия email при финальной верификации (защита от race condition)
-  ERROR_EMAIL_ALREADY_REGISTERED:
+  ERROR_EMAIL_MISMATCH:
     type: interactive
-    description: "Этот email уже был использован для другого аккаунта"
+    description: Email в RocketChat не совпадает с логином School21
     interface:
       text:
-        ru: |
-          ❌ Email уже занят!
-        en: |
-          ❌ Email already in use!
+        ru: '❌ Ошибка верификации!
+
+
+          Email в твоём профиле RocketChat не совпадает с {login}@student.21-school.ru
+
+
+          Это защитный механизм от подмены личности.
+
+          Убедись что ты используешь правильный логин.
+
+          '
+        en: '❌ Verification failed!
+
+
+          Email in your RocketChat profile doesn''t match {login}@student.21-school.ru
+
+
+          This is a security measure against identity theft.
+
+          Make sure you''re using the correct login.
+
+          '
+      buttons:
+        - id: retry
+          label:
+            ru: Попробовать снова
+            en: Try again
+          next_state: INPUT_LOGIN
+
+  ERROR_EMAIL_ALREADY_REGISTERED:
+    type: interactive
+    description: Этот email уже был использован для другого аккаунта
+    interface:
+      text:
+        ru: '❌ Email уже занят!
+
+          '
+        en: '❌ Email already in use!
+
+          '
     transitions:
       - next_state: INPUT_LOGIN
 
-  # 9. Финальное состояние
   REGISTRATION_COMPLETE:
     type: final
     interface:
       text:
-        ru: "🎉 Регистрация завершена! Добро пожаловать, {name}."
-        en: "🎉 Registration successful! Welcome, {name}."
+        ru: 🎉 Регистрация завершена! Добро пожаловать, {name}.
+        en: 🎉 Registration successful! Welcome, {name}.
       buttons:
-        - label: { ru: "В меню", en: "To menu" }
-          next_state: "main_menu.yaml/MAIN_MENU" # Ссылка на MAIN_MENU в main_menu.yaml
+        - label:
+            ru: В меню
+            en: To menu
+          next_state: main_menu.yaml/MAIN_MENU

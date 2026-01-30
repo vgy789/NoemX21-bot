@@ -1,71 +1,122 @@
+---
 meta:
-  feature_id: "CLB-001"
-  name: "Клубы и группы"
-  description: "Отображение списка доступных клубов и групп с фильтрацией по кампусу"
-  version: "1.1.0"
+  feature_id: CLB-001
+  name: Клубы и группы
+  description: Отображение списка доступных клубов и групп с фильтрацией по кампусу
+  version: 1.1.0
 
 initial_state: CLUBS_MENU
-
 states:
   CLUBS_MENU:
     type: interactive
-    description: "Меню клубов"
+    description: Меню клубов
     interface:
       text:
-        ru: "🎲 **Клубы и группы**\nВыбери категорию: \n\nЛокальные – сообщества твоего кампуса {campus}\nГлобальные – удалённые сообщества, группы по веткам/проектам"
-        en: "🎲 **Clubs and Groups**\nSelect a category: \n\nLocal – communities of your campus {campus}\nGlobal – remote communities, groups by branches/projects"
+        ru: '🎲 **Клубы и группы**
+
+          Выбери категорию:
+
+
+          Локальные – сообщества твоего кампуса {campus}
+
+          Глобальные – удалённые сообщества, группы по веткам/проектам'
+        en: '🎲 **Clubs and Groups**
+
+          Select a category:
+
+
+          Local – communities of your campus {campus}
+
+          Global – remote communities, groups by branches/projects'
       buttons:
         - id: local
-          label: { ru: "Локальные ({campus})", en: "Local ({campus})" }
+          label:
+            ru: Локальные ({campus})
+            en: Local ({campus})
           next_state: FETCH_LOCAL_CLUBS
         - id: global
-          label: { ru: "Глобальные", en: "Global" }
+          label:
+            ru: Глобальные
+            en: Global
           next_state: FETCH_GLOBAL_CLUBS
         - id: create_club
-          label: { ru: "🧩 Создать свой клуб", en: "🧩 Create your club" }
+          label:
+            ru: 🧩 Создать свой клуб
+            en: 🧩 Create your club
           next_state: CREATE_CLUB_INFO
         - id: back
-          label: { ru: "🏠 Назад", en: "🏠 Back" }
-          next_state: "main_menu.yaml/MAIN_MENU"
+          label:
+            ru: 🏠 Назад
+            en: 🏠 Back
+          next_state: main_menu.yaml/MAIN_MENU
 
   FETCH_LOCAL_CLUBS:
     type: system
-    description: "Загрузка списка локальных клубов из БД"
+    description: Загрузка списка локальных клубов из БД
     logic:
-      action: "get_clubs"
-      payload: { campus_id: "$context.campus_id", is_local: true }
+      action: get_clubs
+      payload:
+        campus_id: $context.campus_id
+        is_local: true
     transitions:
       - next_state: DISPLAY_CLUBS
 
   FETCH_GLOBAL_CLUBS:
     type: system
-    description: "Загрузка списка глобальных сообществ из БД"
+    description: Загрузка списка глобальных сообществ из БД
     logic:
-      action: "get_clubs"
-      payload: { is_local: false }
+      action: get_clubs
+      payload:
+        is_local: false
     transitions:
       - next_state: DISPLAY_CLUBS
 
   DISPLAY_CLUBS:
     type: interactive
-    description: "Отображение списка клубов"
+    description: Отображение списка клубов
     interface:
       text:
-        ru: "👥 **Доступные сообщества:**\n\n{clubs_list}"
-        en: "👥 **Available communities:**\n\n{clubs_list}"
+        ru: '👥 **Доступные сообщества:**
+
+
+          {clubs_list}'
+        en: '👥 **Available communities:**
+
+
+          {clubs_list}'
       buttons:
         - id: back
-          label: { ru: "Назад", en: "Back" }
+          label:
+            ru: Назад
+            en: Back
           next_state: CLUBS_MENU
 
   CREATE_CLUB_INFO:
     type: interactive
-    description: "Информация о создании клуба"
+    description: Информация о создании клуба
     interface:
       text:
-        ru: "🌟 **Хочешь организовать свой клуб?**\n\nЭто круто! В кампусе **{campus}** за это отвечает **{leader_name}**.\nЗаполни форму и с тобой свяжутся:\n\n{leader_form_link}"
-        en: "🌟 **Want to organize your own club?**\n\nThat's great! **{leader_name}** is responsible for this in the **{campus}** campus.\nFill out the form and you will be contacted:\n\n{leader_form_link}"
+        ru: '🌟 **Хочешь организовать свой клуб?**
+
+
+          Это круто! В кампусе **{campus}** за это отвечает **{leader_name}**.
+
+          Заполни форму и с тобой свяжутся:
+
+
+          {leader_form_link}'
+        en: '🌟 **Want to organize your own club?**
+
+
+          That''s great! **{leader_name}** is responsible for this in the **{campus}** campus.
+
+          Fill out the form and you will be contacted:
+
+
+          {leader_form_link}'
       buttons:
         - id: back
-          label: { ru: "Назад", en: "Back" }
+          label:
+            ru: Назад
+            en: Back
           next_state: CLUBS_MENU
