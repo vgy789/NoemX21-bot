@@ -1,5 +1,6 @@
 # Binaries for programs and plugins
 noemx21-bot
+!cmd/noemx21-bot
 *.exe
 *.exe~
 *.dll
@@ -24,6 +25,7 @@ go.work.sum
 
 # env file
 .env
+env/*
 
 # Editor/IDE
 .idea/
