@@ -1,5 +1,6 @@
+---
 meta:
-  name: "Security Policy"
+  name: Security Policy
   version: "1.1.0"
 
 encryption:
@@ -8,18 +9,16 @@ encryption:
   scope: "Sensitive DB fields"
 
 otp_protection:
-  storage: "RAM only (5 min TTL)"
-  security: "Zeroing memory on use, specific Nonce"
-
+  storage: RAM only (5 min TTL)
+  security: Zeroing memory on use, specific Nonce
 identity_verification:
-  goal: "Prevent RocketChat nickname spoofing (Race Condition)"
-  method: "Verified Email Check"
+  goal: Prevent RocketChat nickname spoofing (Race Condition)
+  method: Verified Email Check
   logic:
-    - "GET /api/v1/users.info?username={login}"
-    - "Check 1: user.emails[0].address == '{login}@student.21-school.ru'"
-    - "Check 2: user.emails[0].verified == true"
-  action_on_fail: "Block registration (AUTH_EMAIL_MISMATCH)"
-
+    - GET /api/v1/users.info?username={login}
+    - 'Check 1: user.emails[0].address == ''{login}@student.21-school.ru'''
+    - 'Check 2: user.emails[0].verified == true'
+  action_on_fail: Block registration (AUTH_EMAIL_MISMATCH)
 safe_coding:
-  - "No secrets in logs (slog)"
-  - "Fail-fast on missing keys"
+  - No secrets in logs (slog)
+  - Fail-fast on missing keys

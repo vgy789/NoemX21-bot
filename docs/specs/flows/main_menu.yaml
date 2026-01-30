@@ -1,36 +1,59 @@
+---
 meta:
-  feature_id: "MAIN-001"
-  name: "Главное меню"
-  description: "Центральное меню бота для навигации между функциями"
-  version: "1.1.0"
+  feature_id: MAIN-001
+  name: Главное меню
+  description: Центральное меню бота для навигации между функциями
+  version: 1.1.0
 
 initial_state: MAIN_MENU
-
 states:
   MAIN_MENU:
     type: interactive
-    description: "Главное меню бота"
+    description: Главное меню бота
     interface:
       text:
-        ru: "📊 **Главное меню**\n\n👤 {s21_login} | Level {level} | {coalition}\n\nВыберите действие:"
-        en: "📊 **Main Menu**\n\n👤 {s21_login} | Level {level} | {coalition}\n\nSelect an action:"
+        ru: '📊 **Главное меню**
+
+
+          👤 {s21_login} | Level {level} | {coalition}
+
+
+          Выберите действие:'
+        en: '📊 **Main Menu**
+
+
+          👤 {s21_login} | Level {level} | {coalition}
+
+
+          Select an action:'
       buttons:
         - id: stats_search
-          label: { ru: "📊 Статистика и поиск", en: "📊 Stats & Search" }
-          next_state: "statistics.yaml/STATS_SEARCH_MENU"
+          label:
+            ru: 📊 Статистика и поиск
+            en: 📊 Stats & Search
+          next_state: statistics.yaml/STATS_SEARCH_MENU
         - id: review
-          label: { ru: "🛫 Запрос Review слота", en: "🛫 Request a slot" }
-          next_state: "reviews.yaml/REVIEW_MENU"
+          label:
+            ru: 🛫 Запрос Review слота
+            en: 🛫 Request a slot
+          next_state: reviews.yaml/REVIEW_MENU
         - id: booking
-          label: { ru: "📅 Бронирование переговорки", en: "📅 Booking a meeting room" }
-          next_state: "booking.yaml/BOOKING_MENU"
+          label:
+            ru: 📅 Бронирование переговорки
+            en: 📅 Booking a meeting room
+          next_state: booking.yaml/BOOKING_MENU
         - id: library
-          label: { ru: "📚 Библиотека", en: "📚 Library" }
-          next_state: "library.yaml/LIBRARY_MENU"
-
+          label:
+            ru: 📚 Библиотека
+            en: 📚 Library
+          next_state: library.yaml/LIBRARY_MENU
         - id: clubs
-          label: { ru: "🎲 Клубы и группы", en: "🎲 Clubs and groups" }
-          next_state: "clubs.yaml/CLUBS_MENU"
+          label:
+            ru: 🎲 Клубы и группы
+            en: 🎲 Clubs and groups
+          next_state: clubs.yaml/CLUBS_MENU
         - id: settings
-          label: { ru: "⚙️ Настройки", en: "⚙️ Settings" }
-          next_state: "settings.yaml/SETTINGS_MENU"
+          label:
+            ru: ⚙️ Настройки
+            en: ⚙️ Settings
+          next_state: settings.yaml/SETTINGS_MENU

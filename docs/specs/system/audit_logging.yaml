@@ -1,125 +1,209 @@
+---
 meta:
-  name: "Аудит и Compliance"
-  description: "Регистрация критических событий для отчётности и расследования инцидентов."
-  version: "1.0.0"
-
+  name: Аудит и Compliance
+  description: Регистрация критических событий для отчётности и расследования инцидентов.
+  version: 1.0.0
 audit_events:
-  requirement: "Логирование всех критических действий пользователей и администраторов."
+  requirement: Логирование всех критических действий пользователей и администраторов.
   implementation:
     categories:
       authentication:
         events:
-          - code: "AUTH_REGISTER_START"
-            description: "Начало регистрации"
-            fields: ["telegram_id", "claimed_login", "timestamp"]
-          - code: "AUTH_REGISTER_SUCCESS"
-            description: "Успешная регистрация"
-            fields: ["telegram_id", "login", "campus", "timestamp"]
-          - code: "AUTH_REGISTER_FAIL"
-            description: "Неудачная регистрация"
-            fields: ["telegram_id", "claimed_login", "reason", "timestamp"]
-          - code: "AUTH_OTP_SENT"
-            description: "OTP отправлен"
-            fields: ["telegram_id", "login", "timestamp"]
-            note: "НЕ логировать сам OTP код!"
-          - code: "AUTH_OTP_VERIFY_SUCCESS"
-            description: "OTP подтверждён"
-            fields: ["telegram_id", "login", "timestamp"]
-          - code: "AUTH_OTP_VERIFY_FAIL"
-            description: "Неверный OTP"
-            fields: ["telegram_id", "login", "attempt_count", "timestamp"]
-          - code: "AUTH_EMAIL_VERIFIED"
-            description: "Email успешно верифицирован"
-            fields: ["telegram_id", "login", "email", "timestamp"]
-          - code: "AUTH_EMAIL_MISMATCH"
-            description: "Email в RocketChat не совпадает с логином"
-            fields: ["telegram_id", "claimed_login", "actual_email", "timestamp"]
-            note: "Возможная попытка подмены личности!"
-          - code: "AUTH_EMAIL_NOT_VERIFIED"
-            description: "Email в RocketChat не верифицирован"
-            fields: ["telegram_id", "login", "email", "timestamp"]
-      
+          - code: AUTH_REGISTER_START
+            description: Начало регистрации
+            fields:
+              - telegram_id
+              - claimed_login
+              - timestamp
+          - code: AUTH_REGISTER_SUCCESS
+            description: Успешная регистрация
+            fields:
+              - telegram_id
+              - login
+              - campus
+              - timestamp
+          - code: AUTH_REGISTER_FAIL
+            description: Неудачная регистрация
+            fields:
+              - telegram_id
+              - claimed_login
+              - reason
+              - timestamp
+          - code: AUTH_OTP_SENT
+            description: OTP отправлен
+            fields:
+              - telegram_id
+              - login
+              - timestamp
+            note: НЕ логировать сам OTP код!
+          - code: AUTH_OTP_VERIFY_SUCCESS
+            description: OTP подтверждён
+            fields:
+              - telegram_id
+              - login
+              - timestamp
+          - code: AUTH_OTP_VERIFY_FAIL
+            description: Неверный OTP
+            fields:
+              - telegram_id
+              - login
+              - attempt_count
+              - timestamp
+          - code: AUTH_EMAIL_VERIFIED
+            description: Email успешно верифицирован
+            fields:
+              - telegram_id
+              - login
+              - email
+              - timestamp
+          - code: AUTH_EMAIL_MISMATCH
+            description: Email в RocketChat не совпадает с логином
+            fields:
+              - telegram_id
+              - claimed_login
+              - actual_email
+              - timestamp
+            note: Возможная попытка подмены личности!
+          - code: AUTH_EMAIL_NOT_VERIFIED
+            description: Email в RocketChat не верифицирован
+            fields:
+              - telegram_id
+              - login
+              - email
+              - timestamp
       booking:
         events:
-          - code: "BOOKING_CREATE"
-            description: "Бронирование переговорки"
-            fields: ["user_id", "room_id", "start_time", "end_time", "timestamp"]
-          - code: "BOOKING_CANCEL"
-            description: "Отмена бронирования"
-            fields: ["user_id", "booking_id", "reason", "timestamp"]
-          - code: "BOOKING_CONFLICT"
-            description: "Попытка забронировать занятый слот"
-            fields: ["user_id", "room_id", "requested_time", "timestamp"]
-      
+          - code: BOOKING_CREATE
+            description: Бронирование переговорки
+            fields:
+              - user_id
+              - room_id
+              - start_time
+              - end_time
+              - timestamp
+          - code: BOOKING_CANCEL
+            description: Отмена бронирования
+            fields:
+              - user_id
+              - booking_id
+              - reason
+              - timestamp
+          - code: BOOKING_CONFLICT
+            description: Попытка забронировать занятый слот
+            fields:
+              - user_id
+              - room_id
+              - requested_time
+              - timestamp
       library:
         events:
-          - code: "BOOK_BORROW"
-            description: "Книга взята"
-            fields: ["user_id", "book_id", "due_date", "timestamp"]
-          - code: "BOOK_RETURN"
-            description: "Книга возвращена"
-            fields: ["user_id", "book_id", "timestamp"]
-          - code: "BOOK_OVERDUE"
-            description: "Книга просрочена"
-            fields: ["user_id", "book_id", "days_overdue", "timestamp"]
-      
+          - code: BOOK_BORROW
+            description: Книга взята
+            fields:
+              - user_id
+              - book_id
+              - due_date
+              - timestamp
+          - code: BOOK_RETURN
+            description: Книга возвращена
+            fields:
+              - user_id
+              - book_id
+              - timestamp
+          - code: BOOK_OVERDUE
+            description: Книга просрочена
+            fields:
+              - user_id
+              - book_id
+              - days_overdue
+              - timestamp
       admin_actions:
         events:
-          - code: "ADMIN_BROADCAST"
-            description: "Массовая рассылка"
-            fields: ["admin_id", "message_preview", "recipient_count", "timestamp"]
-          - code: "ADMIN_USER_BAN"
-            description: "Блокировка пользователя"
-            fields: ["admin_id", "target_user_id", "reason", "timestamp"]
-          - code: "ADMIN_USER_UNBAN"
-            description: "Разблокировка пользователя"
-            fields: ["admin_id", "target_user_id", "timestamp"]
-          - code: "ADMIN_ROOM_CONFIG"
-            description: "Изменение настроек переговорки"
-            fields: ["admin_id", "room_id", "changes", "timestamp"]
-      
+          - code: ADMIN_BROADCAST
+            description: Массовая рассылка
+            fields:
+              - admin_id
+              - message_preview
+              - recipient_count
+              - timestamp
+          - code: ADMIN_USER_BAN
+            description: Блокировка пользователя
+            fields:
+              - admin_id
+              - target_user_id
+              - reason
+              - timestamp
+          - code: ADMIN_USER_UNBAN
+            description: Разблокировка пользователя
+            fields:
+              - admin_id
+              - target_user_id
+              - timestamp
+          - code: ADMIN_ROOM_CONFIG
+            description: Изменение настроек переговорки
+            fields:
+              - admin_id
+              - room_id
+              - changes
+              - timestamp
       security:
         events:
-          - code: "SEC_RATE_LIMIT_HIT"
-            description: "Достигнут лимит запросов"
-            fields: ["user_id", "endpoint", "limit_type", "timestamp"]
-          - code: "SEC_SUSPICIOUS_ACTIVITY"
-            description: "Подозрительная активность"
-            fields: ["user_id", "activity_type", "details", "timestamp"]
-          - code: "SEC_API_TOKEN_CREATED"
-            description: "Создан API токен"
-            fields: ["user_id", "token_hash", "timestamp"]
-          - code: "SEC_API_TOKEN_REVOKED"
-            description: "Отозван API токен"
-            fields: ["user_id", "token_hash", "timestamp"]
-
+          - code: SEC_RATE_LIMIT_HIT
+            description: Достигнут лимит запросов
+            fields:
+              - user_id
+              - endpoint
+              - limit_type
+              - timestamp
+          - code: SEC_SUSPICIOUS_ACTIVITY
+            description: Подозрительная активность
+            fields:
+              - user_id
+              - activity_type
+              - details
+              - timestamp
+          - code: SEC_API_TOKEN_CREATED
+            description: Создан API токен
+            fields:
+              - user_id
+              - token_hash
+              - timestamp
+          - code: SEC_API_TOKEN_REVOKED
+            description: Отозван API токен
+            fields:
+              - user_id
+              - token_hash
+              - timestamp
 audit_log_format:
-  requirement: "Унифицированный формат аудит-логов."
+  requirement: Унифицированный формат аудит-логов.
   implementation:
-    format: "JSON via slog"
+    format: JSON via slog
     required_fields:
-      - name: "event_code"
-        type: "string"
-        description: "Код события (AUTH_REGISTER_SUCCESS)"
-      - name: "timestamp"
-        type: "RFC3339"
-        description: "Время события"
-      - name: "actor_id"
-        type: "string"
-        description: "ID пользователя, совершившего действие"
-      - name: "actor_type"
-        type: "enum"
-        values: ["user", "admin", "system"]
-      - name: "target_id"
-        type: "string"
-        description: "ID объекта действия (опционально)"
-      - name: "details"
-        type: "object"
-        description: "Дополнительные данные события"
-      - name: "ip_address"
-        type: "string"
-        description: "IP (для API запросов, не для Telegram)"
-    example: |
+      - name: event_code
+        type: string
+        description: Код события (AUTH_REGISTER_SUCCESS)
+      - name: timestamp
+        type: RFC3339
+        description: Время события
+      - name: actor_id
+        type: string
+        description: ID пользователя, совершившего действие
+      - name: actor_type
+        type: enum
+        values:
+          - user
+          - admin
+          - system
+      - name: target_id
+        type: string
+        description: ID объекта действия (опционально)
+      - name: details
+        type: object
+        description: Дополнительные данные события
+      - name: ip_address
+        type: string
+        description: IP (для API запросов, не для Telegram)
+    example: |-
       {
         "level": "INFO",
         "msg": "audit",
@@ -134,16 +218,15 @@ audit_log_format:
         }
       }
   forbidden_fields:
-    - "Пароли, OTP коды"
-    - "Токены в открытом виде"
-    - "Полные персональные данные (маскировать при необходимости)"
-
+    - Пароли, OTP коды
+    - Токены в открытом виде
+    - Полные персональные данные (маскировать при необходимости)
 storage:
-  requirement: "Хранение аудит-логов отдельно от основных логов приложения."
+  requirement: Хранение аудит-логов отдельно от основных логов приложения.
   implementation:
-    method: "Отдельная таблица в PostgreSQL"
-    table_name: "audit_logs"
-    schema: |
+    method: Отдельная таблица в PostgreSQL
+    table_name: audit_logs
+    schema: |-
       CREATE TABLE audit_logs (
         id BIGSERIAL PRIMARY KEY,
         event_code VARCHAR(50) NOT NULL,
@@ -153,51 +236,58 @@ storage:
         details JSONB,
         created_at TIMESTAMPTZ DEFAULT NOW()
       );
-      
+
       CREATE INDEX idx_audit_actor ON audit_logs(actor_id, created_at DESC);
       CREATE INDEX idx_audit_event ON audit_logs(event_code, created_at DESC);
       CREATE INDEX idx_audit_time ON audit_logs(created_at DESC);
     retention:
-      policy: "90 дней в основной таблице"
-      archive: "Старые записи экспортировать в S3 ежемесячно"
-      deletion: "Удаление после экспорта (по желанию)"
+      policy: 90 дней в основной таблице
+      archive: Старые записи экспортировать в S3 ежемесячно
+      deletion: Удаление после экспорта (по желанию)
   verification:
-    - "SELECT COUNT(*) FROM audit_logs WHERE created_at > NOW() - INTERVAL '1 day'"
-    - "Проверить наличие индексов: \\di audit_logs*"
-
+    - SELECT COUNT(*) FROM audit_logs WHERE created_at > NOW() - INTERVAL
+      '1 day'
+    - 'Проверить наличие индексов: \di audit_logs*'
 access_control:
-  requirement: "Ограничение доступа к аудит-логам."
+  requirement: Ограничение доступа к аудит-логам.
   implementation:
     read_access:
-      - "Администраторы бота (через отдельный интерфейс)"
-      - "При запросе от School 21 (если потребуется)"
+      - Администраторы бота (через отдельный интерфейс)
+      - При запросе от School 21 (если потребуется)
     write_access:
-      - "Только приложение (сервисный аккаунт)"
+      - Только приложение (сервисный аккаунт)
     prohibited:
-      - "Удаление записей из приложения"
-      - "Модификация существующих записей"
-  db_permissions: |
-    -- Создать отдельного пользователя для аудита
-    CREATE USER audit_writer WITH PASSWORD 'xxx';
+      - Удаление записей из приложения
+      - Модификация существующих записей
+  db_permissions: '-- Создать отдельного пользователя для аудита
+
+    CREATE USER audit_writer WITH PASSWORD ''xxx'';
+
     GRANT INSERT ON audit_logs TO audit_writer;
+
     GRANT USAGE ON SEQUENCE audit_logs_id_seq TO audit_writer;
+
     -- Запретить UPDATE и DELETE
 
+    '
 compliance_reports:
-  requirement: "Возможность генерации отчётов по запросу."
+  requirement: Возможность генерации отчётов по запросу.
   implementation:
     report_types:
-      - name: "Активность пользователя"
-        description: "Все действия конкретного пользователя за период"
-        query: "SELECT * FROM audit_logs WHERE actor_id = $1 AND created_at BETWEEN $2 AND $3"
-      - name: "Регистрации за период"
-        description: "Статистика регистраций"
-        query: "SELECT DATE(created_at), COUNT(*) FROM audit_logs WHERE event_code LIKE 'AUTH_%' GROUP BY 1"
-      - name: "Подозрительная активность"
-        description: "События безопасности"
-        query: "SELECT * FROM audit_logs WHERE event_code LIKE 'SEC_%' ORDER BY created_at DESC"
-    format: "JSON или CSV"
-    access: "Через админ-команду в боте или отдельный скрипт"
+      - name: Активность пользователя
+        description: Все действия конкретного пользователя за период
+        query: SELECT * FROM audit_logs WHERE actor_id = $1 AND created_at
+          BETWEEN $2 AND $3
+      - name: Регистрации за период
+        description: Статистика регистраций
+        query: SELECT DATE(created_at), COUNT(*) FROM audit_logs
+          WHERE event_code LIKE 'AUTH_%' GROUP BY 1
+      - name: Подозрительная активность
+        description: События безопасности
+        query: SELECT * FROM audit_logs WHERE event_code LIKE 'SEC_%' ORDER
+          BY created_at DESC
+    format: JSON или CSV
+    access: Через админ-команду в боте или отдельный скрипт
   verification:
-    - "Сгенерировать тестовый отчёт"
-    - "Проверить полноту данных"
+    - Сгенерировать тестовый отчёт
+    - Проверить полноту данных

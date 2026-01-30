@@ -1,215 +1,313 @@
+---
 meta:
-  feature_id: "REV-001"
-  name: "Проверка проектов (Review)"
-  description: "Система запросов на проверку и откликов с фильтрацией по кампусам"
-  version: "1.1.0"
+  feature_id: REV-001
+  name: Проверка проектов (Review)
+  description: Система запросов на проверку и откликов с фильтрацией по кампусам
+  version: 1.1.0
 
 initial_state: REVIEW_MENU
-
 states:
   REVIEW_MENU:
     type: interactive
-    description: "Главное меню раздела Review"
+    description: Главное меню раздела Review
     interface:
       text:
-        ru: "🎬 **Проверка проектов (Review)**\nЗдесь ты можешь попросить проверить твой проект или помочь другим, откликнувшись на их запрос."
-        en: "🎬 **Project Review**\nHere you can ask for a review or help others by responding to their requests."
+        ru: '🎬 **Проверка проектов (Review)**
+
+          Здесь ты можешь попросить проверить твой проект или помочь другим, откликнувшись на их запрос.'
+        en: '🎬 **Project Review**
+
+          Here you can ask for a review or help others by responding to their requests.'
       buttons:
         - id: request
-          label: { ru: "🛫 Попросить проверить", en: "🛫 Request review" }
+          label:
+            ru: 🛫 Попросить проверить
+            en: 🛫 Request review
           next_state: FETCH_MY_PROJECTS_IN_REVIEW
         - id: respond
-          label: { ru: "🤝 Откликнуться (Проверить)", en: "🤝 Respond (Review others)" }
+          label:
+            ru: 🤝 Откликнуться (Проверить)
+            en: 🤝 Respond (Review others)
           next_state: FETCH_ALL_REVIEW_REQUESTS
         - id: settings
-          label: { ru: "⚙️ Настройки уведомлений", en: "⚙️ Notification settings" }
+          label:
+            ru: ⚙️ Настройки уведомлений
+            en: ⚙️ Notification settings
           next_state: MANAGE_NOTIFICATION_FILTERS
         - id: back
-          label: { ru: "🏠 Назад", en: "🏠 Back" }
-          next_state: "main_menu.yaml/MAIN_MENU"
-
-  # --- ФЛОУ ЗАПРОСА ---
+          label:
+            ru: 🏠 Назад
+            en: 🏠 Back
+          next_state: main_menu.yaml/MAIN_MENU
 
   FETCH_MY_PROJECTS_IN_REVIEW:
     type: system
-    description: "Получение списка проектов пользователя со статусом IN_REVIEWS"
+    description: Получение списка проектов пользователя со статусом IN_REVIEWS
     logic:
-      action: "get_user_projects"
-      payload: { user_id: "$context.user_id", status: "IN_REVIEWS" }
+      action: get_user_projects
+      payload:
+        user_id: $context.user_id
+        status: IN_REVIEWS
     transitions:
-      - condition: "projects_count > 0"
+      - condition: projects_count > 0
         next_state: SELECT_PROJECT
-      - condition: "projects_count == 0"
+      - condition: projects_count == 0
         next_state: ERROR_NO_PROJECTS_IN_REVIEW
 
   SELECT_PROJECT:
     type: interactive
-    description: "Выбор проекта для проверки"
+    description: Выбор проекта для проверки
     interface:
       text:
-        ru: "📋 **Выбери проект для проверки:**\nПроекты, готовые к сдаче:"
-        en: "📋 **Choose project for review:**\nProjects ready for submission:"
+        ru: '📋 **Выбери проект для проверки:**
+
+          Проекты, готовые к сдаче:'
+        en: '📋 **Choose project for review:**
+
+          Projects ready for submission:'
       buttons:
         - id: project_{project_id}
-          label: "{project_name}"
+          label: '{project_name}'
           next_state: INPUT_TIME_DESCRIPTION
         - id: back
-          label: { ru: "Назад", en: "Back" }
+          label:
+            ru: Назад
+            en: Back
           next_state: REVIEW_MENU
 
   INPUT_TIME_DESCRIPTION:
     type: input
-    description: "Ввод времени/описания для запроса"
+    description: Ввод времени/описания для запроса
     interface:
       text:
-        en: "🕒 **When are you free for review?**\nWrite briefly (e.g., 'in an hour' or '18:00 today').\n\n⚠️ Max 20 characters."
+        ru: '🕒 **Когда ты свободен для проверки?**
+
+          Напиши кратко (например, ''через час'' или ''сегодня в 18:00'').
+
+
+          ⚠️ Максимум 20 символов.'
+        en: '🕒 **When are you free for review?**
+
+          Write briefly (e.g., ''in an hour'' or ''18:00 today'').
+
+
+          ⚠️ Max 20 characters.'
       error_invalid:
-        ru: "❌ Слишком длинно! Пожалуйста, уложись в 20 символов."
-        en: "❌ Too long! Please stay within 20 characters."
+        ru: ❌ Слишком длинно! Пожалуйста, уложись в 20 символов.
+        en: ❌ Too long! Please stay within 20 characters.
     validation:
-      regex: "^.{1,20}$"
+      regex: ^.{1,20}$
     transitions:
-      - trigger: "on_valid_input"
+      - trigger: on_valid_input
         next_state: CREATE_REVIEW_REQUEST
-        action: "set_request_description"
+        action: set_request_description
 
   CREATE_REVIEW_REQUEST:
     type: system
-    description: "Создание запроса в БД"
+    description: Создание запроса в БД
     logic:
-      action: "create_review_request"
-      payload: 
-        student_id: "$context.user_id"
-        project_name: "$context.selected_project_name"
-        description: "$context.last_input"
+      action: create_review_request
+      payload:
+        student_id: $context.user_id
+        project_name: $context.selected_project_name
+        description: $context.last_input
     transitions:
       - next_state: REQUEST_SUCCESS_SUMMARY
 
   REQUEST_SUCCESS_SUMMARY:
     type: interactive
-    description: "Успешное создание запроса"
+    description: Успешное создание запроса
     interface:
       text:
-        ru: "✅ **Запрос создан!**\n\nПроект: {project_name}\nВремя: {description}\n\nМы разошлём уведомления пирам в выбранных тобой кампусах."
-        en: "✅ **Request created!**\n\nProject: {project_name}\nTime: {description}\n\nWe will notify peers in your selected campuses."
+        ru: '✅ **Запрос создан!**
+
+
+          Проект: {project_name}
+
+          Время: {description}
+
+
+          Мы разошлём уведомления пирам в выбранных тобой кампусах.'
+        en: '✅ **Request created!**
+
+
+          Project: {project_name}
+
+          Time: {description}
+
+
+          We will notify peers in your selected campuses.'
     transitions:
       - next_state: REVIEW_MENU
 
-  # --- ФЛОУ ОТКЛИКА ---
-
   FETCH_ALL_REVIEW_REQUESTS:
     type: system
-    description: "Загрузка всех активных запросов с пагинацией"
+    description: Загрузка всех активных запросов с пагинацией
     logic:
-      action: "get_review_requests"
-      payload: { campus_filter: true, offset: "$context.requests_offset", limit: 5 }
+      action: get_review_requests
+      payload:
+        campus_filter: true
+        offset: $context.requests_offset
+        limit: 5
     transitions:
       - next_state: DISPLAY_REQUESTS
 
   DISPLAY_REQUESTS:
     type: interactive
-    description: "Список активных запросов"
+    description: Список активных запросов
     interface:
       text:
-        ru: "🤝 **Доступные запросы на проверку:**\n\n{requests_list_numbered}"
-        en: "🤝 **Available review requests:**\n\n{requests_list_numbered}"
+        ru: '🤝 **Доступные запросы на проверку:**
+
+
+          {requests_list_numbered}'
+        en: '🤝 **Available review requests:**
+
+
+          {requests_list_numbered}'
       buttons:
         - id: req_{request_id}
-          label: "{index}" # Номерки для выбора
+          label: '{index}'
         - id: prev_page
-          label: "⬅️"
+          label: ⬅️
           next_state: FETCH_ALL_REVIEW_REQUESTS
-          condition: "current_page > 1"
+          condition: current_page > 1
         - id: next_page
-          label: "➡️"
+          label: ➡️
           next_state: FETCH_ALL_REVIEW_REQUESTS
-          condition: "current_page < total_pages"
+          condition: current_page < total_pages
         - id: back
-          label: { ru: "Назад", en: "Back" }
+          label:
+            ru: Назад
+            en: Back
           next_state: REVIEW_MENU
     transitions:
-      - trigger: "button_click"
-        condition: "id.startswith('req_')"
+      - trigger: button_click
+        condition: id.startswith('req_')
         next_state: VIEW_PEER_PROFILE
 
   VIEW_PEER_PROFILE:
     type: interactive
-    description: "Детальный профиль пира перед откликом"
+    description: Детальный профиль пира перед откликом
     interface:
       text:
-        ru: "👤 **Информация о пире:**\n\nНик: {peer_login}\nУровень: {peer_level}\nКоалиция: {peer_coalition}\nКампус: {peer_campus}\n\n🕒 Время: {request_description}\n📞 Связь: {peer_contacts}"
-        en: "👤 **Peer information:**\n\nLogin: {peer_login}\nLevel: {peer_level}\nCoalition: {peer_coalition}\nCampus: {peer_campus}\n\n🕒 Time: {request_description}\n📞 Contacts: {peer_contacts}"
+        ru: '👤 **Информация о пире:**
+
+
+          Ник: {peer_login}
+
+          Уровень: {peer_level}
+
+          Коалиция: {peer_coalition}
+
+          Кампус: {peer_campus}
+
+
+          🕒 Время: {request_description}
+
+          📞 Связь: {peer_contacts}'
+        en: '👤 **Peer information:**
+
+
+          Login: {peer_login}
+
+          Level: {peer_level}
+
+          Coalition: {peer_coalition}
+
+          Campus: {peer_campus}
+
+
+          🕒 Time: {request_description}
+
+          📞 Contacts: {peer_contacts}'
       buttons:
         - id: confirm_respond
-          label: { ru: "✅ Подтвердить отклик", en: "✅ Confirm response" }
+          label:
+            ru: ✅ Подтвердить отклик
+            en: ✅ Confirm response
           next_state: COMPLETE_RESPOND
         - id: back
-          label: { ru: "Назад", en: "Back" }
+          label:
+            ru: Назад
+            en: Back
           next_state: DISPLAY_REQUESTS
-    on_enter: "fetch_peer_profile"
+    on_enter: fetch_peer_profile
 
   COMPLETE_RESPOND:
     type: system
-    description: "Финальная проверка актуальности и запись отклика"
+    description: Финальная проверка актуальности и запись отклика
     logic:
-      action: "respond_to_review"
-      payload: { request_id: "$context.selected_request_id", responder_id: "$context.user_id" }
+      action: respond_to_review
+      payload:
+        request_id: $context.selected_request_id
+        responder_id: $context.user_id
     transitions:
-      - condition: "success == true"
+      - condition: success == true
         next_state: RESPOND_SUCCESS
-      - condition: "success == false"
+      - condition: success == false
         next_state: ERROR_REQUEST_TAKEN
 
   RESPOND_SUCCESS:
     type: interactive
-    description: "Успешный отклик"
+    description: Успешный отклик
     interface:
       text:
-        ru: "🎉 **Ты откликнулся на проверку!**\nПир получил уведомление с твоими контактами. Договоритесь о месте встречи."
-        en: "🎉 **You responded to the review!**\nThe peer received a notification with your contacts. Agree on a meeting place."
+        ru: 🎉 **Ты откликнулся на проверку!**\nПир получил уведомление с твоими контактами. Договоритесь о месте встречи.
+        en: 🎉 **You responded to the review!**\nThe peer received a notification with your contacts. Agree on a meeting place.
     transitions:
       - next_state: REVIEW_MENU
 
-  # --- НАСТРОЙКИ ---
-
   MANAGE_NOTIFICATION_FILTERS:
     type: interactive
-    description: "Настройка фильтров кампусов"
+    description: Настройка фильтров кампусов
     interface:
       text:
-        ru: "⚙️ **Настройки уведомлений**\nВыбери кампусы, которые ты хочешь уведомлять о своих запросах (в этих группах будут публиковаться запросы):"
-        en: "⚙️ **Notification Settings**\nChoose campuses you want to notify about your requests (requests will be published in these groups):"
+        ru: '⚙️ **Настройки уведомлений**
+
+          Выбери кампусы, которые ты хочешь уведомлять о своих запросах (в этих группах будут публиковаться запросы):'
+        en: '⚙️ **Notification Settings**
+
+          Choose campuses you want to notify about your requests (requests will be published in these groups):'
       buttons:
         - id: toggle_{campus_id}
-          label: "{campus_name} {status_icon}"
+          label: '{campus_name} {status_icon}'
         - id: back
-          label: { ru: "Назад", en: "Back" }
+          label:
+            ru: Назад
+            en: Back
           next_state: REVIEW_MENU
-    on_enter: "fetch_campus_filters"
+    on_enter: fetch_campus_filters
     transitions:
-      - trigger: "button_click"
-        condition: "id.startswith('toggle_')"
-        action: "toggle_campus_filter"
+      - trigger: button_click
+        condition: id.startswith('toggle_')
+        action: toggle_campus_filter
         next_state: MANAGE_NOTIFICATION_FILTERS
-
-  # --- ОШИБКИ ---
 
   ERROR_NO_PROJECTS_IN_REVIEW:
     type: interactive
-    description: "Нет проектов для сдачи"
+    description: Нет проектов для сдачи
     interface:
       text:
-        ru: "😔 **У тебя сейчас нет проектов со статусом 'К сдаче'.**\nСначала заверши работу над проектом на платформе."
-        en: "😔 **You don't have any projects with 'In Review' status.**\nFinish your project on the platform first."
+        ru: '😔 **У тебя сейчас нет проектов со статусом ''К сдаче''.**
+
+          Сначала заверши работу над проектом на платформе.'
+        en: '😔 **You don''t have any projects with ''In Review'' status.**
+
+          Finish your project on the platform first.'
     transitions:
       - next_state: REVIEW_MENU
 
   ERROR_REQUEST_TAKEN:
     type: interactive
-    description: "Запрос уже занят"
+    description: Запрос уже занят
     interface:
       text:
-        ru: "❌ **Опоздал!**\nКто-то другой уже откликнулся на этот запрос. Попробуй выбрать другой."
-        en: "❌ **Too late!**\nSomeone else already responded to this request. Try choosing another one."
+        ru: '❌ **Опоздал!**
+
+          Кто-то другой уже откликнулся на этот запрос. Попробуй выбрать другой.'
+        en: '❌ **Too late!**
+
+          Someone else already responded to this request. Try choosing another one.'
     transitions:
       - next_state: DISPLAY_REQUESTS

@@ -1,182 +1,315 @@
+---
 meta:
-  feature_id: "STAT-001"
-  name: "Статистика и поиск"
-  description: "Единый интерфейс для просмотра личной статистики, поиска пиров и сравнения навыков"
-  version: "1.1.1"
+  feature_id: STAT-001
+  name: Статистика и поиск
+  description: Единый интерфейс для просмотра личной статистики, поиска пиров и сравнения навыков
+  version: 1.1.1
 
 initial_state: STATS_SEARCH_MENU
-
 states:
   STATS_SEARCH_MENU:
     type: interactive
-    description: "Главное меню статистики и поиска"
+    description: Главное меню статистики и поиска
     interface:
       text:
-        ru: "📊 **Статистика и поиск**\nЗдесь ты можешь просматривать свои достижения, искать других студентов и сравнивать ваши навыки."
-        en: "📊 **Statistics and Search**\nHere you can view your achievements, search for other students, and compare your skills."
+        ru: '📊 **Статистика и поиск**
+
+          Здесь ты можешь просматривать свои достижения, искать других студентов и сравнивать ваши навыки.'
+        en: '📊 **Statistics and Search**
+
+          Here you can view your achievements, search for other students, and compare your skills.'
       buttons:
         - id: update
-          label: { ru: "Обновить", en: "Update" }
+          label:
+            ru: Обновить
+            en: Update
           next_state: FETCH_MY_STATS
         - id: skills
-          label: { ru: "Навыки", en: "Skills" }
+          label:
+            ru: Навыки
+            en: Skills
           next_state: FETCH_MY_SKILLS
         - id: search
-          label: { ru: "🔍 Поиск пира", en: "🔍 Search peer" }
+          label:
+            ru: 🔍 Поиск пира
+            en: 🔍 Search peer
           next_state: SEARCH_INPUT
-
-  # --- МОЯ СТАТИСТИКА ---
 
   FETCH_MY_STATS:
     type: system
-    description: "Загрузка статистики текущего пользователя"
+    description: Загрузка статистики текущего пользователя
     logic:
-      action: "get_user_stats"
-      payload: { user_id: "$context.user_id" }
+      action: get_user_stats
+      payload:
+        user_id: $context.user_id
     transitions:
       - next_state: DISPLAY_MY_STATS
 
   DISPLAY_MY_STATS:
     type: interactive
-    description: "Отображение личной статистики"
+    description: Отображение личной статистики
     interface:
       text:
-        ru: "👤 **Твоя статистика ({s21_login})**\n\n🏫 Кампус: {campus_name}\n Трайб: {coalition_name}\n\n📈 Прогресс:\n├─ Уровень: {level}\n├─ Опыт: {exp_value} XP\n├─ PRP: {prp_points}\n├─ CRP: {crp_points}\n└─ Монеты: {coins}"
-        en: "👤 **Your statistics ({s21_login})**\n\n🏫 Campus: {campus_name}\n🏛️ Tribe: {coalition_name}\n\n📈 Progress:\n├─ Level: {level}\n├─ Experience: {exp_value} XP\n├─ PRP: {prp_points}\n├─ CRP: {crp_points}\n└─ Coins: {coins}"
+        ru: '👤 **Твоя статистика ({s21_login})
+
+
+          🏫 Кампус: {campus_name}
+
+          🛖 Трайб: {coalition_name}
+
+
+          📈 Прогресс:
+
+          ├─ Уровень: {level}
+
+          ├─ Опыт: {exp_value} XP
+
+          ├─ PRP: {prp_points}
+
+          ├─ CRP: {crp_points}
+
+          └─ Монеты: {coins}'
+        en: '👤 **Your statistics ({s21_login})**
+
+
+          🏫 Campus: {campus_name}
+
+          🛖 Tribe: {coalition_name}
+
+
+          📈 Progress:
+
+          ├─ Level: {level}
+
+          ├─ Experience: {exp_value} XP
+
+          ├─ PRP: {prp_points}
+
+          ├─ CRP: {crp_points}
+
+          └─ Coins: {coins}'
       buttons:
         - id: back
-          label: { ru: "Назад", en: "Back" }
+          label:
+            ru: Назад
+            en: Back
           next_state: STATS_SEARCH_MENU
-
-  # --- МОИ НАВЫКИ ---
 
   FETCH_MY_SKILLS:
     type: system
-    description: "Загрузка навыков текущего пользователя"
+    description: Загрузка навыков текущего пользователя
     logic:
-      action: "get_user_skills"
-      payload: { user_id: "$context.user_id" }
+      action: get_user_skills
+      payload:
+        user_id: $context.user_id
     transitions:
       - next_state: GENERATE_MY_SKILLS_CHART
 
   GENERATE_MY_SKILLS_CHART:
     type: system
-    description: "Генерация Mermaid диаграммы для своих навыков"
+    description: Генерация Mermaid диаграммы для своих навыков
     logic:
-      action: "generate_radar_chart"
-      payload: { users: ["$context.user_id"] }
+      action: generate_radar_chart
+      payload:
+        users:
+          - $context.user_id
     transitions:
       - next_state: DISPLAY_MY_SKILLS
 
   DISPLAY_MY_SKILLS:
     type: interactive
-    description: "Отображение радар-диаграммы навыков"
+    description: Отображение радар-диаграммы навыков
     interface:
       text:
-        ru: "🕸️ **Твои навыки:**\n\n{radar_chart_mermaid}"
-        en: "🕸️ **Your skills:**\n\n{radar_chart_mermaid}"
+        ru: '🕸️ **Твои навыки:**
+
+
+          {radar_chart_mermaid}'
+        en: '🕸️ **Your skills:**
+
+
+          {radar_chart_mermaid}'
       buttons:
         - id: back
-          label: { ru: "Назад", en: "Back" }
+          label:
+            ru: Назад
+            en: Back
           next_state: STATS_SEARCH_MENU
-
-  # --- ПОИСК ПИРА ---
 
   SEARCH_INPUT:
     type: input
-    description: "Ввод логина для поиска"
+    description: Ввод логина для поиска
     interface:
       text:
-        ru: "🔍 Введи логин пира для просмотра статистики:"
-        en: "🔍 Enter peer login to view statistics:"
+        ru: '🔍 Введи логин пира для просмотра статистики:'
+        en: '🔍 Enter peer login to view statistics:'
       buttons:
         - id: back
-          label: { ru: "Назад", en: "Back" }
+          label:
+            ru: Назад
+            en: Back
           next_state: STATS_SEARCH_MENU
     validation:
-      regex: "^[a-z]{4,9}$"
+      regex: ^[a-z]{4,9}$
     transitions:
-      - trigger: "on_valid_input"
+      - trigger: on_valid_input
         next_state: FETCH_PEER_DATA
 
   FETCH_PEER_DATA:
     type: system
-    description: "Загрузка данных и разрешений пира"
+    description: Загрузка данных и разрешений пира
     logic:
-      action: "get_peer_data_with_permissions"
-      payload: { login: "$context.last_input", requester_id: "$context.user_id" }
+      action: get_peer_data_with_permissions
+      payload:
+        login: $context.last_input
+        requester_id: $context.user_id
     transitions:
-      - condition: "peer_found == true"
+      - condition: peer_found == true
         next_state: DISPLAY_PEER_STATS
-      - condition: "peer_found == false"
+      - condition: peer_found == false
         next_state: ERROR_PEER_NOT_FOUND
 
   DISPLAY_PEER_STATS:
     type: interactive
-    description: "Отображение статистики найденного пира"
+    description: Отображение статистики найденного пира
     interface:
       text:
-        ru: "👤 **Профиль: {peer_login}**\n\n🏫 Кампус: {peer_campus}\n🏛️ Коалиция: {peer_coalition}\n\n📈 Прогресс:\n├─ Уровень: {peer_level}\n├─ Опыт: {peer_exp} XP\n└─ Монеты: {peer_coins}\n\n📞 Связь: @{peer_telegram}"
-        en: "👤 **Profile: {peer_login}**\n\n🏫 Campus: {peer_campus}\n🏛️ Coalition: {peer_coalition}\n\n📈 Progress:\n├─ Level: {peer_level}\n├─ Experience: {peer_exp} XP\n└─ Coins: {peer_coins}\n\n📞 Contact: @{peer_telegram}"
+        ru: '👤 **Профиль: {peer_login}**
+
+
+          🏫 Кампус: {peer_campus}
+
+          🛖 Трайб: {peer_coalition}
+
+
+          📈 Прогресс:
+
+          ├─ Уровень: {peer_level}
+
+          ├─ Опыт: {peer_exp} XP
+
+          └─ Монеты: {peer_coins}
+
+
+          📞 Связь: @{peer_telegram}'
+        en: '👤 **Profile: {peer_login}**
+
+
+          🏫 Campus: {peer_campus}
+
+          🛖 Tribe: {peer_coalition}
+
+
+          📈 Progress:
+
+          ├─ Level: {peer_level}
+
+          ├─ Experience: {peer_exp} XP
+
+          └─ Coins: {peer_coins}
+
+
+          📞 Contact: @{peer_telegram}'
       buttons:
         - id: compare_stats
-          label: { ru: "📊 Сравнить статы", en: "📊 Compare stats" }
+          label:
+            ru: 📊 Сравнить статы
+            en: 📊 Compare stats
           next_state: COMPARE_STATS
         - id: compare_skills
-          label: { ru: "🕸️ Сравнить навыки", en: "🕸️ Compare skills" }
+          label:
+            ru: 🕸️ Сравнить навыки
+            en: 🕸️ Compare skills
           next_state: COMPARE_SKILLS
         - id: back
-          label: { ru: "Назад", en: "Back" }
+          label:
+            ru: Назад
+            en: Back
           next_state: STATS_SEARCH_MENU
-
-  # --- СРАВНЕНИЕ ---
 
   COMPARE_STATS:
     type: interactive
-    description: "Сравнение статистики двух пользователей"
+    description: Сравнение статистики двух пользователей
     interface:
       text:
-        ru: "📊 **Сравнение: Ты vs {peer_login}**\n\n| Параметр | Ты | {peer_login} |\n| :--- | :--- | :--- |\n| Уровень | {level} | {peer_level} |\n| Опыт | {exp_value} | {peer_exp} |\n| Монеты | {coins} | {peer_coins} |"
-        en: "📊 **Comparison: You vs {peer_login}**\n\n| Parameter | You | {peer_login} |\n| :--- | :--- | :--- |\n| Level | {level} | {peer_level} |\n| Experience | {exp_value} | {peer_exp} |\n| Coins | {coins} | {peer_coins} |"
+        ru: '📊 **Сравнение: Ты vs {peer_login}**
+
+
+          | Параметр | Ты | {peer_login} |
+
+          |:--- |:--- |:--- |
+
+          | Уровень | {level} | {peer_level} |
+
+          | Опыт | {exp_value} | {peer_exp} |
+
+          | Монеты | {coins} | {peer_coins} |'
+        en: '📊 **Comparison: You vs {peer_login}**
+
+
+          | Parameter | You | {peer_login} |
+
+          |:--- |:--- |:--- |
+
+          | Level | {level} | {peer_level} |
+
+          | Experience | {exp_value} | {peer_exp} |
+
+          | Coins | {coins} | {peer_coins} |'
       buttons:
         - id: back
-          label: { ru: "Назад", en: "Back" }
+          label:
+            ru: Назад
+            en: Back
           next_state: DISPLAY_PEER_STATS
 
   COMPARE_SKILLS:
     type: system
-    description: "Генерация сравнительной Mermaid диаграммы"
+    description: Генерация сравнительной Mermaid диаграммы
     logic:
-      action: "generate_radar_chart"
-      payload: { users: ["$context.user_id", "$context.peer_id"] }
+      action: generate_radar_chart
+      payload:
+        users:
+          - $context.user_id
+          - $context.peer_id
     transitions:
       - next_state: DISPLAY_SKILLS_COMPARISON
 
   DISPLAY_SKILLS_COMPARISON:
     type: interactive
-    description: "Отображение сравнения навыков"
+    description: Отображение сравнения навыков
     interface:
       text:
-        ru: "🕸️ **Сравнение навыков: Ты vs {peer_login}**\n\n{radar_comparison_mermaid}"
-        en: "🕸️ **Skills Comparison: You vs {peer_login}**\n\n{radar_comparison_mermaid}"
+        ru: '🕸️ **Сравнение навыков: Ты vs {peer_login}**
+
+
+          {radar_comparison_mermaid}'
+        en: '🕸️ **Skills Comparison: You vs {peer_login}**
+
+
+          {radar_comparison_mermaid}'
       buttons:
         - id: back
-          label: { ru: "Назад", en: "Back" }
+          label:
+            ru: Назад
+            en: Back
           next_state: DISPLAY_PEER_STATS
-
-  # --- ОШИБКИ ---
 
   ERROR_PEER_NOT_FOUND:
     type: interactive
-    description: "Пользователь не найден"
+    description: Пользователь не найден
     interface:
       text:
-        ru: "❌ Пользователь с таким логином не найден."
-        en: "❌ User with this login not found."
+        ru: ❌ Пользователь с таким логином не найден.
+        en: ❌ User with this login not found.
       buttons:
         - id: retry
-          label: { ru: "Попробовать снова", en: "Try again" }
+          label:
+            ru: Попробовать снова
+            en: Try again
           next_state: SEARCH_INPUT
         - id: back
-          label: { ru: "Назад", en: "Back" }
+          label:
+            ru: Назад
+            en: Back
           next_state: STATS_SEARCH_MENU
