@@ -13,7 +13,7 @@ const (
 
 // TelegramBot is a configuration for the telegram bot.
 type TelegramBot struct {
-	Token   Secret `env:"TELEGRAM_BOT_TOKEN,notEmpty"`
+	Token   Secret `env:"TELEGRAM_BOT_TOKEN,file,notEmpty"`
 	Polling struct {
 		DropPendingUpdates bool          `env:"DROP_PENDING_UPDATES" envDefault:"true"`
 		Timeout            int64         `env:"POLLING_TIMEOUT" envDefault:"9"`
