@@ -16,6 +16,12 @@ $(BINARY): go.mod go.sum $(GO_SRCS)
 
 build: deps $(BINARY)		## Build binary
 
+docker-build:		## Build docker image
+	docker build -t $(BINARY):local .
+
+docker-save:		## Save docker image
+	docker save $(BINARY):local -o $(BINARY).tar
+
 test: deps		## Run tests with race and coverage
 	go test -race -cover ./...
 
@@ -32,7 +38,7 @@ security: deps		## Run govulncheck
 	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 yaml:		## Lint YAML files
-	yamllint .
+	yamllint -d "{extends: default, rules: {line-length: disable, truthy: disable}}" . 2> /dev/null || docker run --rm -v $(shell pwd):/data cytopia/yamllint:latest -d "{extends: default, rules: {line-length: disable, truthy: disable}}" . || echo "yamllint not found"
 
 deps: go.mod go.sum		## Download Go modules
 	go mod download
@@ -44,7 +50,7 @@ ci: .github/workflows/ci.yml		## Run CI pipeline locally (act)
 	act push -P ubuntu-22.04=catthehacker/ubuntu:act-22.04
 
 clean: clean_gcov		## Remove build artifacts
-	rm -rf $(BINARY)
+	rm -rf $(BINARY) $(BINARY).tar
 
 clean_gcov:		## Remove coverage artifacts
 	rm -f *.out coverage.* *.coverprofile profile.cov

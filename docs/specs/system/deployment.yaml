@@ -1,0 +1,109 @@
+---
+meta:
+  name: "Deployment (Server & CD)"
+  version: "1.0.0"
+  source: "docs/info.md"
+
+server_setup:
+  run_as: "User with sudo (e.g. school); all commands under that user."
+
+  deploy_user:
+    create: |
+      sudo groupadd -f deploy
+      sudo useradd -r -g deploy -s /bin/bash -m deploy
+    flags:
+      r: "system user (uid in system range)"
+      g: "primary group deploy"
+      s: "/bin/bash (needed for non-interactive sudo dokku)"
+      m: "home /home/deploy (for ~/.ssh/authorized_keys)"
+    purpose: "Separate deploy user; audit and least privilege."
+
+  sudo_dokku_only:
+    create: |
+      echo 'deploy ALL=(ALL) NOPASSWD: /usr/bin/dokku *' | sudo tee /etc/sudoers.d/deploy
+      sudo chmod 440 /etc/sudoers.d/deploy
+    rules:
+      - "deploy can run only /usr/bin/dokku <args> without password"
+      - "NOPASSWD required (GitHub Actions cannot type password)"
+      - "File in /etc/sudoers.d/, mode 440"
+
+  ssh_deploy:
+    create: |
+      sudo mkdir -p /home/deploy/.ssh
+      sudo touch /home/deploy/.ssh/authorized_keys
+      sudo chmod 700 /home/deploy/.ssh
+      sudo chmod 600 /home/deploy/.ssh/authorized_keys
+      sudo chown -R deploy:deploy /home/deploy/.ssh
+    note: "Add one line to authorized_keys: public key matching VPS_SSH_KEY in GitHub."
+
+rationale:
+  separate_deploy_user: "Deploy key in GitHub Secrets; on leak attacker only gets dokku; logs show deploy."
+  sudo_dokku_only: "Dokku CLI needs elevated rights; grant only to deploy, only for /usr/bin/dokku."
+  ssh_port: "If SSH listens on non-22 (e.g. 23), workflow must use same port (VPS_PORT)."
+  key_auth: "GitHub Actions cannot enter password; deploy from GitHub only via key (private in Secrets, public in ~deploy/.ssh/authorized_keys)."
+
+cd_chain:
+  summary: "Build image -> push to registry -> SSH to server -> Dokku pulls image and restarts app."
+
+  trigger:
+    - "Push to main runs CI first (tests, lints)"
+    - "After CI success, CD runs (or workflow_dispatch)"
+
+  build_and_push:
+    steps:
+      - "Checkout repo on GitHub runner"
+      - "Login to GHCR (ghcr.io)"
+      - "Metadata: image tags from repo + commit (e.g. ghcr.io/owner/noemx21:<sha>)"
+      - "Build & push Docker image from repo root + Dockerfile"
+    result: "Image in GHCR, addressable by tag (e.g. SHA)."
+
+  deploy:
+    ssh_action: "appleboy/ssh-action; host/port from VPS_HOST, VPS_PORT (default 23); user VPS_USER=deploy; key VPS_SSH_KEY"
+    script_on_server:
+      - "Build image name from repo + SHA (e.g. ghcr.io/owner/noemx21:<sha>)"
+      - "sudo dokku apps:create bot || true"
+      - "sudo dokku git:from-image bot <image>"
+      - "sudo dokku run bot ./bot -migrate ... || true"
+    why_it_works:
+      - "Runner pushes to GHCR, server pulls via Dokku"
+      - "deploy can only sudo dokku ..., so script does only app operations"
+      - "Dokku handles Docker (pull, stop old, start new, proxy)"
+
+deploy_without_github:
+  variant_a_registry_ssh:
+    description: "Image in GHCR (or other registry), deploy via SSH"
+    steps:
+      local: "docker build -t ghcr.io/YOUR_ORG/noemx21:local . && docker push ..."
+      ssh: "ssh -p 23 school@<host>"
+      deploy: "sudo dokku git:from-image bot <image> && sudo dokku run bot ./bot -migrate || true"
+
+  variant_b_image_on_server:
+    description: "No external registry; image only on server"
+    steps:
+      local: "docker build -t noemx21:local . && docker save noemx21:local -o noemx21.tar"
+      copy: "scp -P 23 noemx21.tar school@<host>:/tmp/"
+      server: "sudo docker load -i /tmp/noemx21.tar && sudo dokku git:from-image bot noemx21:local && sudo dokku run bot ./noemx21-bot -migrate || true"
+
+  variant_c_mini_script:
+    description: "Same as CD from local machine; secrets (host, port, user, key, app) stored locally"
+    note: "sshpass in restricted env (e.g. Cursor sandbox) may fail (no PTY); use key auth or full terminal."
+
+troubleshooting:
+  read_only_file_system:
+    symptom: "dokku git:from-image fails: mkdir /var/lib/dokku: read-only file system"
+    cause: "Ubuntu 24.04 Docker via Snap; strict confinement, no write to /var/lib/dokku"
+    fix: "Move volumes to user home (Snap can write there). Example: mkdir -p /home/school/bot-data; dokku storage:unmount bot /var/lib/dokku/...; dokku storage:mount bot /home/school/bot-data:/app/data"
+
+  security_home_storage:
+    plus: "Only school and root access /home/school/bot-data; deploy has no direct access"
+    risk: "If school compromised, attacker can read/write bot DB; /var/lib/dokku had dokku owner isolation"
+    docker: "Snap Docker sees home dir; acceptable tradeoff for this project"
+
+  no_changes_detected:
+    symptom: "Re-run git:from-image with same image name -> Dokku says No changes detected, skips rebuild"
+    fix: "sudo dokku ps:rebuild bot"
+    recommended: "sudo dokku config:set bot DOKKU_DEPLOY_STRATEGY=docker-image"
+
+related:
+  - "ci_cd.yaml (triggers and pipeline steps)"
+  - "operations.yaml (updates and ops)"

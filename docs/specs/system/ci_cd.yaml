@@ -9,23 +9,23 @@ ci_pipeline:
     lint: "golangci-lint"
     lint_yaml: "yamllint ."
     test: "go test -race -cover ./..."
-    build: "go build ./cmd/bot"
+    build: "go build ./cmd/noemx21-bot"
     security: "govulncheck"
 
 cd_pipeline:
   trigger: "Merge to main (after CI)"
-  registry: "GHCR"
-  strategy: "SSH Deploy (docker-compose)"
+  registry: "GHCR (GitHub Container Registry)"
+  strategy: "Dokku (git:from-image)"
   steps:
-    - "Build & Push Docker image"
-    - "SSH to VPS"
-    - "Pull new image"
-    - "Apply migrations"
-    - "Rolling update (stop old, start new)"
-    - "Healthcheck verification"
-    - "Auto-rollback on failure"
+    - "Build & Push Docker image to GHCR"
+    - "SSH to Dokku Host"
+    - "Deploy: dokku git:from-image <app> <image>"
+    - "Config: dokku config:set <app> <secrets>"
+    - "Migrations: dokku run <app> <migrate_cmd>"
+    - "Healthcheck (internal Dokku checks)"
 
 secrets:
   - VPS_HOST
   - VPS_USER
   - VPS_SSH_KEY
+  - DOKKU_APP_NAME
