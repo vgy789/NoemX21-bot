@@ -18,7 +18,8 @@ func main() {
 	log := setupLogger(EnvLocal)
 	cfg := config.MustLoad()
 	log.Info("Bot started", "version", "0.0.1")
-	app.Run(cfg, log)
+	a := app.New(cfg, log)
+	a.Run()
 }
 
 // setupLogger sets up the logger.

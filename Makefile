@@ -5,7 +5,10 @@ GOFLAGS		?=
 GOLANGCI	:= $(shell go env GOPATH)/bin/golangci-lint
 GO_SRCS		:= $(shell find . -name '*.go' -not -path './vendor/*')
 
-.PHONY: help build test lint vet security yaml lint-deps deps tidy ci clean clean_gcov
+.PHONY: help build test lint vet security yaml lint-deps deps tidy ci clean clean_gcov generate
+
+generate:		## Generate code (mocks, etc)
+	go generate ./...
 
 help:		## Show this help
 	@grep -h -E '^[a-zA-Z0-9_.-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
