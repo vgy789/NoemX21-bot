@@ -9,7 +9,7 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/config"
 )
 
-// TelegramService is an interface for telegram service.
+//go:generate mockgen -source=$GOFILE -destination=mock/runner_mock.go -package=mock
 type TelegramService interface {
 	Run()
 }
