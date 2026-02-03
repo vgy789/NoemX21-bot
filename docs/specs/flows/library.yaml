@@ -2,49 +2,56 @@
 meta:
   feature_id: LIB-001
   name: Библиотека
-  description: 'Управление книгами: поиск, фильтрация, пагинация и бронирование'
-  version: 1.1.0
+  description: 'Управление книгами: Поиск, фильтрация, пагинация и бронирование'
+  version: 2.0.0
 
 initial_state: LIBRARY_MENU
 states:
   LIBRARY_MENU:
     type: interactive
     description: Главное меню библиотеки
+    ## TODO: реализуй поиск по названию/автору, state: → BOOK_SEARCH_INPUT
+    transitions:
+      - trigger: on_input
+        next_state: BOOK_SEARCH_INPUT
     interface:
       text:
-        ru: '📚 **Библиотека ({campus})**
+        ru: |
+          📚 *Библиотека* `{my_campus}`
 
+          📊 *Статистика*: Книг доступно: `{available_count}`
 
-          Здесь ты можешь найти любую книгу, узнать, у кого она сейчас, и забронировать себе слот для чтения.'
-        en: '📚 **Library ({campus})**
+          🔎 *Отправь мне название книги или нажми на кнопки ниже:*
+        en: |
+          📚 *Library* `({my_campus})`
 
+          📊 *Statistics*: Available books: `{available_count}`
 
-          Here you can find any book, see who has it now, and book a reading slot.'
+          🔎 *Send me the book title or click the buttons below:*
       buttons:
         - id: list_all
           label:
             ru: 📋 Весь список
             en: 📋 List all
+          row: 1
           next_state: FETCH_BOOKS
-        - id: search
-          label:
-            ru: 🔍 Поиск по названию/автору
-            en: 🔍 Search by title/author
-          next_state: BOOK_SEARCH_INPUT
-        - id: filters
-          label:
-            ru: 🏷️ Фильтры (категории/авторы)
-            en: 🏷️ Filters (categories/authors)
-          next_state: FILTER_SELECTION
         - id: available
           label:
             ru: ✅ Доступно сейчас
             en: ✅ Available now
+          row: 1
           next_state: FETCH_AVAILABLE_BOOKS
+        - id: filters
+          label:
+            ru: 🏷️ Категории
+            en: 🏷️ Categories
+          row: 2
+          next_state: FILTER_SELECTION
         - id: my_books
           label:
             ru: 📖 Мои книги
             en: 📖 My books
+          row: 2
           next_state: MY_BOOKS
         - id: back
           label:
@@ -53,50 +60,34 @@ states:
           next_state: main_menu.yaml/MAIN_MENU
     on_enter: fetch_library_stats
 
-  BOOK_SEARCH_INPUT:
-    type: input
-    description: Ввод текста для поиска книги
-    interface:
-      text:
-        ru: '🔍 Введи название книги или фамилию автора:'
-        en: '🔍 Enter book title or author''s name:'
-      buttons:
-        - id: back
-          label:
-            ru: Назад
-            en: Back
-          next_state: LIBRARY_MENU
-    transitions:
-      - trigger: on_valid_input
-        next_state: FETCH_BOOKS
-        action: set_search_query
-
   FILTER_SELECTION:
     type: interactive
     description: Выбор критерия фильтрации
     interface:
       text:
-        ru: '🏷️ **Фильтрация книг**
+        ru: |
+          🏷️ *Фильтрация книг*
 
-          Выбери категорию или автора:'
-        en: '🏷️ **Filter books**
+        en: |
+          🏷️ *Filter books*
 
-          Choose category or author:'
       buttons:
         - id: by_category
           label:
             ru: По категориям
             en: By categories
+          row: 1
           next_state: SELECT_CATEGORY
         - id: by_author
           label:
             ru: По автору
             en: By author
+          row: 1
           next_state: SELECT_AUTHOR
         - id: back
           label:
-            ru: Назад
-            en: Back
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: LIBRARY_MENU
 
   SELECT_CATEGORY:
@@ -104,16 +95,18 @@ states:
     description: Выбор конкретной категории
     interface:
       text:
-        ru: 🗂️ **Выбери категорию:**
-        en: 🗂️ **Choose category:**
+        ru: |
+          🗂️ *Выбери категорию:*
+        en: |
+          🗂️ *Choose category:*
       buttons:
-        - id: cat_{category_id}
-          label: '{category_name}'
+        - id: cat_{book_category_id}
+          label: "{book_category_name}"
           next_state: FETCH_BOOKS
         - id: back
           label:
-            ru: Назад
-            en: Back
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: FILTER_SELECTION
     on_enter: fetch_categories
 
@@ -122,16 +115,18 @@ states:
     description: Выбор конкретного автора
     interface:
       text:
-        ru: ✍️ **Выбери автора:**
-        en: ✍️ **Choose author:**
+        ru: |
+          ✍️ *Выбери автора:*
+        en: |
+          ✍️ *Choose author:*
       buttons:
-        - id: auth_{author_id}
-          label: '{author_name}'
+        - id: auth_{book_author_id}
+          label: "{book_author_name}"
           next_state: FETCH_BOOKS
         - id: back
           label:
-            ru: Назад
-            en: Back
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: FILTER_SELECTION
     on_enter: fetch_authors
 
@@ -168,33 +163,35 @@ states:
     description: Список книг с пагинацией
     interface:
       text:
-        ru: '**Результаты поиска ({total_count})**
+        ru: |
+          *Результаты поиска ({total_count})*
 
           Страница {current_page} из {total_pages}
 
-
-          {books_list_numbered}'
-        en: '**Search results ({total_count})**
+          {books_list_numbered}
+        en: |
+          *Search results ({total_count})*
 
           Page {current_page} of {total_pages}
 
-
-          {books_list_numbered}'
+          {books_list_numbered}
       buttons:
         - id: book_{book_id}
-          label: '{index}'
+          label: "{index}"
         - id: prev_page
           label: ⬅️
           next_state: FETCH_BOOKS
           condition: current_page > 1
+          row: 1
         - id: next_page
           label: ➡️
           next_state: FETCH_BOOKS
           condition: current_page < total_pages
+          row: 1
         - id: back
           label:
-            ru: Назад
-            en: Back
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: LIBRARY_MENU
     transitions:
       - trigger: button_click
@@ -206,45 +203,43 @@ states:
     description: Детальная информация о книге
     interface:
       text:
-        ru: '📖 **{title}**
+        ru: |
+          📖 *{book_title}*
+          ───
+          👤 *Автор:* {book_author}
+          🗂️ *Категория:* {book_category}
 
-          ✍️ Автор: {author}
+          {status_emoji} *Статус:* {status_description}
+          {loan_info}
+          ───
+          {notification_text}
+        en: |
+          📖 *{book_title}*
+          ───
+          👤 *Author:* {book_author}
+          🗂️ *Category:* {book_category}
 
-          🗂️ Категория: {category}
-
-
-          {status_description}
-
-
-          {loan_info}'
-        en: '📖 **{title}**
-
-          ✍️ Author: {author}
-
-          🗂️ Category: {category}
-
-
-          {status_description}
-
-
-          {loan_info}'
+          {status_emoji} *Status:* {status_description}
+          {loan_info}
+          ───
+          {notification_text}
       buttons:
         - id: borrow
           label:
-            ru: Взять книгу
-            en: Borrow book
+            ru: ⚡ Взять книгу
+            en: ⚡ Borrow book
           next_state: BORROW_BOOK
           condition: is_available == true
         - id: notify_when_free
           label:
-            ru: Уведомить о возврате
-            en: Notify when back
+            ru: 🔔 Уведомить о возврате
+            en: 🔔 Notify when back
           next_state: SET_BOOK_NOTIFICATION
           condition: is_available == false
         - id: back
           label:
-            ru: Назад
-            en: Back
+            ru: ⬅️ К списку
+            en: ⬅️ Back to list
           next_state: DISPLAY_BOOKS
     on_enter: fetch_book_details
 
@@ -267,8 +262,10 @@ states:
     description: Подтверждение успешной выдачи
     interface:
       text:
-        ru: ✅ Книга «{title}» за тобой! Пожалуйста, верни её до {due_date}.
-        en: ✅ Book '{title}' is yours! Please return it by {due_date}.
+        ru: |
+          ✅ Книга «{book_title}» за тобой! Пожалуйста, верни её до {due_date}.
+        en: |
+          ✅ Book "{book_title}" is yours! Please return it by {due_date}.
     transitions:
       - next_state: main_menu.yaml/MAIN_MENU
 
@@ -277,8 +274,10 @@ states:
     description: Подписка на уведомление о возврате
     interface:
       text:
-        ru: 🔔 Мы уведомим тебя, когда «{title}» в кампусе {campus} снова будет свободна.
-        en: 🔔 We will notify you when '{title}' in {campus} campus is available again.
+        ru: |
+          🔔 Мы уведомим тебя, когда «{book_title}» в кампусе {my_campus} снова будет свободна.
+        en: |
+          🔔 We will notify you when "{book_title}" in {my_campus} campus is available again.
     transitions:
       - next_state: DISPLAY_BOOKS
 
@@ -287,24 +286,25 @@ states:
     description: Книги у пользователя на руках
     interface:
       text:
-        ru: '**Твои книги:**
+        ## 🟢 (более 3 дней), 🟡 (1-2 дня), 🔴 (просрочено).
+        ru: |
+          *Твои книги:*
 
+          {my_books_list}
+        en: |
+          *Your books:*
 
-          {my_books_list}'
-        en: '**Your books:**
-
-
-          {my_books_list}'
+          {my_books_list}
       buttons:
         - id: return_{book_id}
           label:
-            ru: Вернуть «{title}»
-            en: Return '{title}'
+            ru: Вернуть «{book_title}»
+            en: Return «{book_title}»
           next_state: RETURN_BOOK
         - id: back
           label:
-            ru: 📚 Назад
-            en: 📚 Back
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: LIBRARY_MENU
     on_enter: fetch_my_books
 
@@ -324,7 +324,9 @@ states:
     description: 'Ошибка: книга занята'
     interface:
       text:
-        ru: ❌ Упс! Кто-то успел забрать книгу раньше тебя.
-        en: ❌ Oops! Someone already borrowed this book.
+        ru: |
+          ❌ Упс! Кто-то успел забрать книгу раньше тебя.
+        en: |
+          ❌ Oops! Someone already borrowed this book.
     transitions:
       - next_state: DISPLAY_BOOKS

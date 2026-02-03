@@ -2,6 +2,7 @@ package fsm
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"testing"
@@ -229,11 +230,11 @@ func TestEngine_ReplaceVariables(t *testing.T) {
 
 	t.Run("replace default variables", func(t *testing.T) {
 		state := &UserState{
-			Language: "ru",
+			Language: DefaultLanguage,
 			Context:  map[string]interface{}{},
 		}
 
-		text := "Login: {s21_login}, Level: {level}"
+		text := fmt.Sprintf("Login: %s, Level: %s", VarS21Login, VarLevel)
 		result := engine.replaceVariables(text, state)
 
 		assert.Contains(t, result, "jonnabin")
@@ -246,7 +247,7 @@ func TestEngine_ReplaceVariables(t *testing.T) {
 			Context:  map[string]interface{}{},
 		}
 
-		text := "Flag: {language_flag}"
+		text := "Flag: {my_lang_emoji}"
 		result := engine.replaceVariables(text, state)
 
 		assert.Contains(t, result, "🇷🇺")
@@ -258,7 +259,7 @@ func TestEngine_ReplaceVariables(t *testing.T) {
 			Context:  map[string]interface{}{},
 		}
 
-		text := "Flag: {language_flag}"
+		text := "Flag: {my_lang_emoji}"
 		result := engine.replaceVariables(text, state)
 
 		assert.Contains(t, result, "🇺🇸")
