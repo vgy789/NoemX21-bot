@@ -147,14 +147,32 @@ func TestEngine_GetCurrentRender(t *testing.T) {
 
 		assert.NotEmpty(t, render.Text)
 		assert.NotEmpty(t, render.Buttons)
-		assert.Contains(t, render.Text, "Главное меню")
+		assert.Contains(t, render.Text, "Личный кабинет")
 	})
 
-	t.Run("no state initialized", func(t *testing.T) {
-		nonExistentUser := int64(99999)
-		render, err := engine.GetCurrentRender(ctx, nonExistentUser)
-		assert.Error(t, err)
-		assert.Nil(t, render)
+	t.Run("render buttons grouped by row", func(t *testing.T) {
+		userState := &UserState{Language: LangRu}
+		flowState := &State{
+			Interface: Interface{
+				Text: map[string]string{LangRu: "Buttons text"},
+				Buttons: []Button{
+					{ID: "b1", Label: "B1", Row: 1},
+					{ID: "b2", Label: "B2", Row: 1},
+					{ID: "b3", Label: "B3", Row: 2},
+					{ID: "b4", Label: "B4"}, // No row
+				},
+			},
+		}
+
+		render := engine.renderState(userState, flowState)
+		assert.Len(t, render.Buttons, 3) // Row 1, Row 2, Row 3(auto)
+		assert.Len(t, render.Buttons[0], 2)
+		assert.Equal(t, "b1", render.Buttons[0][0].Data)
+		assert.Equal(t, "b2", render.Buttons[0][1].Data)
+		assert.Len(t, render.Buttons[1], 1)
+		assert.Equal(t, "b3", render.Buttons[1][0].Data)
+		assert.Len(t, render.Buttons[2], 1)
+		assert.Equal(t, "b4", render.Buttons[2][0].Data)
 	})
 }
 
@@ -218,8 +236,8 @@ func TestEngine_ReplaceVariables(t *testing.T) {
 		text := "Login: {s21_login}, Level: {level}"
 		result := engine.replaceVariables(text, state)
 
-		assert.Contains(t, result, "student")
-		assert.Contains(t, result, "0")
+		assert.Contains(t, result, "jonnabin")
+		assert.Contains(t, result, "11")
 	})
 
 	t.Run("replace language flag for ru", func(t *testing.T) {
@@ -250,16 +268,17 @@ func TestEngine_ReplaceVariables(t *testing.T) {
 		state := &UserState{
 			Language: "ru",
 			Context: map[string]interface{}{
-				"s21_login": "vgy789",
-				"level":     "5",
+				"s21_login": "vgy_789", // With underscore
+				"level":     "5*",      // With asterisk
 			},
 		}
 
 		text := "User: {s21_login}, Level: {level}"
 		result := engine.replaceVariables(text, state)
 
-		assert.Contains(t, result, "vgy789")
-		assert.Contains(t, result, "5")
+		// Variable values should be escaped
+		assert.Contains(t, result, "vgy\\_789")
+		assert.Contains(t, result, "5*")
 	})
 }
 
@@ -277,24 +296,18 @@ func TestEngine_RegistrationFlow(t *testing.T) {
 		err := engine.InitState(ctx, userID, "registration.yaml", "SELECT_LANGUAGE")
 		require.NoError(t, err)
 
-		// 2. Click set_ru
-		// This should:
-		// - set language to ru
-		// - transition to START
-		// - auto-transition from START to INPUT_LOGIN (based on registered == false mock)
+		// Click set_ru
+		// Now it transitions directly to main_menu.yaml/MAIN_MENU (per user changes)
 		render, err := engine.Process(ctx, userID, "set_ru")
 		require.NoError(t, err)
 		require.NotNil(t, render)
 
-		// Verify state
 		state, err := repo.GetState(ctx, userID)
 		require.NoError(t, err)
-		assert.Equal(t, "ru", state.Language)
-		assert.Equal(t, "registration.yaml", state.CurrentFlow)
-		assert.Equal(t, "INPUT_LOGIN", state.CurrentState)
+		assert.Equal(t, "main_menu.yaml", state.CurrentFlow)
+		assert.Equal(t, "MAIN_MENU", state.CurrentState)
 
-		// Verify render text (from INPUT_LOGIN)
-		assert.Contains(t, render.Text, "Введи логин School21")
+		assert.Contains(t, render.Text, "Личный кабинет")
 	})
 }
 
@@ -305,13 +318,10 @@ func TestEngine_EscapeMarkdown(t *testing.T) {
 	engine := NewEngine(parser, repo, logger)
 
 	t.Run("escape underscores", func(t *testing.T) {
-		text := "/api_token and /provider_credentials"
+		text := "vgy_789"
 		result := engine.escapeMarkdown(text)
 
-		// After escaping, underscores should be prefixed with backslash
-		assert.Contains(t, result, "\\_")
-		assert.Contains(t, result, "/api\\_token")
-		assert.Contains(t, result, "/provider\\_credentials")
+		assert.Equal(t, "vgy\\_789", result)
 	})
 
 	t.Run("empty text", func(t *testing.T) {

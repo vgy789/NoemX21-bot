@@ -47,9 +47,9 @@ const (
 
 // Default Values
 const (
-	DefaultS21Login  = "student"
-	DefaultLevel     = "0"
-	DefaultCoalition = "None"
+	DefaultS21Login  = "jonnabin"
+	DefaultLevel     = "11"
+	DefaultCoalition = "Sapphires"
 	DefaultFlagRu    = "🇷🇺"
 	DefaultFlagEn    = "🇺🇸"
 )

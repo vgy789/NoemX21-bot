@@ -41,7 +41,7 @@ security: deps		## Run govulncheck
 	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
 
 yaml:		## Lint YAML files
-	yamllint -d "{extends: default, rules: {line-length: disable, truthy: disable}}" . 2> /dev/null || docker run --rm -v $(shell pwd):/data cytopia/yamllint:latest -d "{extends: default, rules: {line-length: disable, truthy: disable}}" . || echo "yamllint not found"
+	yamllint . 2> /dev/null || docker run --rm -v $(shell pwd):/data cytopia/yamllint:latest . || echo "yamllint not found"
 
 deps: go.mod go.sum		## Download Go modules
 	go mod download

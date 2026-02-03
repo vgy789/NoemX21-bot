@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 )
 
@@ -75,8 +76,6 @@ func (e *Engine) GetCurrentRender(ctx context.Context, userID int64) (*RenderObj
 
 // Process handles an input (callback) and transitions the state.
 func (e *Engine) Process(ctx context.Context, userID int64, input string) (*RenderObject, error) {
-	e.log.Debug("processing input", "user_id", userID, "input", input)
-
 	state, err := e.repo.GetState(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -84,6 +83,8 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 	if state == nil {
 		return nil, fmt.Errorf("no active state")
 	}
+
+	e.log.Debug("processing input", "user_id", userID, "input", input, "flow", state.CurrentFlow, "state", state.CurrentState)
 
 	// 1. Handle special inputs (like language selection)
 	e.handleSpecialInputs(state, input, userID)
@@ -212,17 +213,29 @@ func (e *Engine) renderState(userState *UserState, flowState *State) *RenderObje
 
 	// Buttons
 	var buttons [][]ButtonRender
-	// Simple row layout: 1 button per row for now
+	rowMap := make(map[int]int) // RowID -> Index in buttons slice
+
 	for _, btn := range flowState.Interface.Buttons {
 		label := e.getButtonLabel(btn, userState)
 
 		// Apply replacements to labels too
 		label = e.replaceVariables(label, userState)
 
-		buttons = append(buttons, []ButtonRender{{
+		item := ButtonRender{
 			Text: label,
 			Data: btn.ID,
-		}})
+		}
+
+		if btn.Row > 0 {
+			if idx, ok := rowMap[btn.Row]; ok {
+				buttons[idx] = append(buttons[idx], item)
+				continue
+			}
+			rowMap[btn.Row] = len(buttons)
+			buttons = append(buttons, []ButtonRender{item})
+		} else {
+			buttons = append(buttons, []ButtonRender{item})
+		}
 	}
 
 	return &RenderObject{
@@ -258,22 +271,35 @@ func (e *Engine) replaceVariables(text string, state *UserState) string {
 	for key, val := range replacements {
 		if strings.Contains(result, key) {
 			e.log.Info("replacing template variable", "key", key, "val", val)
-			result = strings.ReplaceAll(result, key, val)
+			// Escape values before insertion to prevent breaking formatting
+			escapedVal := e.escapeMarkdown(val)
+			result = strings.ReplaceAll(result, key, escapedVal)
 		}
 	}
 
-	// Escape special characters that break Telegram Markdown (like underscores in commands)
-	return e.escapeMarkdown(result)
+	// Support ** as bold by converting to * (Telegram V1 style)
+	result = strings.ReplaceAll(result, "**", "*")
+
+	// Escape underscores inside unreplaced placeholders to prevent Markdown errors.
+	// Example: {available_count} -> {available\_count}
+	re := regexp.MustCompile(`\{[^}]+\}`)
+	result = re.ReplaceAllStringFunc(result, func(s string) string {
+		return strings.ReplaceAll(s, "_", "\\_")
+	})
+
+	return result
 }
 
 func (e *Engine) getReplacementMap(state *UserState) map[string]string {
 	// Default variables
 	replacements := map[string]string{
-		VarS21Login:      DefaultS21Login,
-		VarLevel:         DefaultLevel,
-		VarCoalition:     DefaultCoalition,
-		VarLanguageFlag:  DefaultFlagRu,
-		VarLanguageFlag2: DefaultFlagRu,
+		VarS21Login:         DefaultS21Login,
+		VarLevel:            DefaultLevel,
+		VarCoalition:        DefaultCoalition,
+		VarLanguageFlag:     DefaultFlagRu,
+		VarLanguageFlag2:    DefaultFlagRu,
+		"{campus}":          "Novosibirsk",
+		"{available_count}": "365",
 	}
 
 	// If language is EN, change default flag
@@ -290,11 +316,7 @@ func (e *Engine) getReplacementMap(state *UserState) map[string]string {
 	return replacements
 }
 
-// escapeMarkdown escapes underscores that are likely to break Telegram's Markdown V1 parser.
-// In V1, single underscores start italics. We escape them if they are part of a word.
+// escapeMarkdown handles escaping for Telegram Markdown (V1).
 func (e *Engine) escapeMarkdown(text string) string {
-	// Simple escaping: replace _ with \_
-	// But only if it's not already escaped.
-	// A more robust way is to use a regex, but a simple replace is often enough for V1.
 	return strings.ReplaceAll(text, "_", "\\_")
 }
