@@ -42,7 +42,7 @@ func (e *Engine) InitState(ctx context.Context, userID int64, flowName, stateNam
 		UserID:       userID,
 		CurrentFlow:  flowName,
 		CurrentState: stateName,
-		Language:     LangRu, // Default to RU
+		Language:     DefaultLanguage,
 		Context:      make(map[string]interface{}),
 	}
 	return e.repo.SetState(ctx, newState)
@@ -291,22 +291,8 @@ func (e *Engine) replaceVariables(text string, state *UserState) string {
 }
 
 func (e *Engine) getReplacementMap(state *UserState) map[string]string {
-	// Default variables
-	replacements := map[string]string{
-		VarS21Login:         DefaultS21Login,
-		VarLevel:            DefaultLevel,
-		VarCoalition:        DefaultCoalition,
-		VarLanguageFlag:     DefaultFlagRu,
-		VarLanguageFlag2:    DefaultFlagRu,
-		"{campus}":          "Novosibirsk",
-		"{available_count}": "365",
-	}
-
-	// If language is EN, change default flag
-	if state.Language == LangEn {
-		replacements[VarLanguageFlag] = DefaultFlagEn
-		replacements[VarLanguageFlag2] = DefaultFlagEn
-	}
+	// Get language-aware defaults
+	replacements := GetDefaultVariables(state.Language)
 
 	// Merge with Context (Context overrides defaults)
 	for k, v := range state.Context {

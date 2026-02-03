@@ -2,8 +2,8 @@
 meta:
   feature_id: REV-001
   name: Проверка проектов (Review)
-  description: Система запросов на проверку и откликов с фильтрацией по кампусам
-  version: 1.1.0
+  description: 'Система P2P проверок: создание запросов и поиск слотов'
+  version: 2.0.0
 
 initial_state: REVIEW_MENU
 states:
@@ -12,37 +12,44 @@ states:
     description: Главное меню раздела Review
     interface:
       text:
-        ru: '🎬 **Проверка проектов (Review)**
+        ru: |
+          🤝 *P2P Review*
 
-          Здесь ты можешь попросить проверить твой проект или помочь другим, откликнувшись на их запрос.'
-        en: '🎬 **Project Review**
+          *Нужна проверка?* Опубликуй запрос и дождись отклика пира. 📢
 
-          Here you can ask for a review or help others by responding to their requests.'
+          *Хочешь помочь другим?* Найди проект в списке и заработай Review Points. 💎
+        en: |
+          🤝 *P2P Review*
+
+          *Need a review?* Publish a request and wait for a peer's response. 📢
+          *Want to earn Review Points?* Find someone to check. 💎
       buttons:
         - id: request
           label:
-            ru: 🛫 Попросить проверить
-            en: 🛫 Request review
+            ru: 📢 Создать запрос
+            en: 📢 Create request
           next_state: FETCH_MY_PROJECTS_IN_REVIEW
         - id: respond
           label:
-            ru: 🤝 Откликнуться (Проверить)
-            en: 🤝 Respond (Review others)
+            ru: 🔭 Найти проект
+            en: 🔭 Find project
           next_state: FETCH_ALL_REVIEW_REQUESTS
         - id: settings
           label:
-            ru: ⚙️ Настройки уведомлений
-            en: ⚙️ Notification settings
+            ru: 🔔 Настройки
+            en: 🔔 Settings
           next_state: MANAGE_NOTIFICATION_FILTERS
+          row: 2
         - id: back
           label:
             ru: 🏠 Назад
             en: 🏠 Back
           next_state: main_menu.yaml/MAIN_MENU
+          row: 2
 
   FETCH_MY_PROJECTS_IN_REVIEW:
     type: system
-    description: Получение списка проектов пользователя со статусом IN_REVIEWS
+    description: 'Получение списка проектов пользователя (Status: IN_REVIEWS)'
     logic:
       action: get_user_projects
       payload:
@@ -56,45 +63,51 @@ states:
 
   SELECT_PROJECT:
     type: interactive
-    description: Выбор проекта для проверки
+    description: Выбор проекта для создания запроса
     interface:
       text:
-        ru: '📋 **Выбери проект для проверки:**
+        ru: |
+          📂 *Выбери проект*
 
-          Проекты, готовые к сдаче:'
-        en: '📋 **Choose project for review:**
+          Ниже список твоих проектов, которые уже переведены в статус ревью на платформе.
+        en: |
+          📂 *Select project*
 
-          Projects ready for submission:'
+          Below is the list of your projects currently in review status on the platform.
       buttons:
         - id: project_{project_id}
-          label: '{project_name}'
+          label: "{project_name}"
           next_state: INPUT_TIME_DESCRIPTION
         - id: back
           label:
-            ru: Назад
-            en: Back
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: REVIEW_MENU
 
   INPUT_TIME_DESCRIPTION:
     type: input
-    description: Ввод времени/описания для запроса
+    description: Ввод комментария (времени) к запросу
     interface:
       text:
-        ru: '🕒 **Когда ты свободен для проверки?**
+        ru: |
+          🕒 *Когда ты доступен?*
 
-          Напиши кратко (например, ''через час'' или ''сегодня в 18:00'').
+          Напиши коротко время или статус. Это увидят другие пиры в списке.
+          _Пример: «Сейчас», «С 18:00», «Завтра утро»._
 
+          ⚠️ *Лимит: 20 символов.*
+        en: |
+          🕒 *When are you available?*
 
-          ⚠️ Максимум 20 символов.'
-        en: '🕒 **When are you free for review?**
+          Write a short time or status. Peers will see this in the list.
+          _Ex: "Now", "From 18:00", "Tomorrow am"._
 
-          Write briefly (e.g., ''in an hour'' or ''18:00 today'').
-
-
-          ⚠️ Max 20 characters.'
+          ⚠️ *Limit: 20 chars.*
       error_invalid:
-        ru: ❌ Слишком длинно! Пожалуйста, уложись в 20 символов.
-        en: ❌ Too long! Please stay within 20 characters.
+        ru: |
+          🤏 Слишком длинно! Сократи до 20 символов, пожалуйста.
+        en: |
+          🤏 Too long! Please shorten to 20 characters.
     validation:
       regex: ^.{1,20}$
     transitions:
@@ -104,7 +117,7 @@ states:
 
   CREATE_REVIEW_REQUEST:
     type: system
-    description: Создание запроса в БД
+    description: Сабмит запроса в БД
     logic:
       action: create_review_request
       payload:
@@ -116,33 +129,29 @@ states:
 
   REQUEST_SUCCESS_SUMMARY:
     type: interactive
-    description: Успешное создание запроса
+    description: Подтверждение создания запроса
     interface:
       text:
-        ru: '✅ **Запрос создан!**
+        ru: |
+          ✅ *Запрос опубликован!*
 
+          📌 Проект: `{project_name}`
+          💬 Инфо: `{description}`
 
-          Проект: {project_name}
+          Мы уведомим пиров в выбранных кампусах. Жди сообщений!
+        en: |
+          ✅ *Request published!*
 
-          Время: {description}
+          📌 Project: `{project_name}`
+          💬 Info: `{description}`
 
-
-          Мы разошлём уведомления пирам в выбранных тобой кампусах.'
-        en: '✅ **Request created!**
-
-
-          Project: {project_name}
-
-          Time: {description}
-
-
-          We will notify peers in your selected campuses.'
+          We will notify peers in selected campuses. Wait for messages!
     transitions:
       - next_state: REVIEW_MENU
 
   FETCH_ALL_REVIEW_REQUESTS:
     type: system
-    description: Загрузка всех активных запросов с пагинацией
+    description: Загрузка списка активных запросов (Feed)
     logic:
       action: get_review_requests
       payload:
@@ -154,20 +163,24 @@ states:
 
   DISPLAY_REQUESTS:
     type: interactive
-    description: Список активных запросов
+    description: Список доступных ревью (Пагинация)
     interface:
       text:
-        ru: '🤝 **Доступные запросы на проверку:**
+        ru: |
+          🔭 *Доска объявлений*
 
+          Выбери номер запроса, чтобы посмотреть профиль пира и записаться на проверку.
 
-          {requests_list_numbered}'
-        en: '🤝 **Available review requests:**
+          {requests_list_numbered}
+        en: |
+          🔭 *Quest Board*
 
+          Select a request number to view the peer's profile and book the review.
 
-          {requests_list_numbered}'
+          {requests_list_numbered}
       buttons:
         - id: req_{request_id}
-          label: '{index}'
+          label: "{index} | {project_short_name}"
         - id: prev_page
           label: ⬅️
           next_state: FETCH_ALL_REVIEW_REQUESTS
@@ -178,9 +191,10 @@ states:
           condition: current_page < total_pages
         - id: back
           label:
-            ru: Назад
-            en: Back
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: REVIEW_MENU
+          row: 2
     transitions:
       - trigger: button_click
         condition: id.startswith('req_')
@@ -188,55 +202,43 @@ states:
 
   VIEW_PEER_PROFILE:
     type: interactive
-    description: Детальный профиль пира перед откликом
+    description: Карточка пира перед взятием проверки
     interface:
       text:
-        ru: '👤 **Информация о пире:**
+        ru: |
+          👤 *Карточка пира*
 
+          🆔 `{peer_login}` (Lvl {peer_level})
+          🏰 Кампус: {peer_campus}
+          🛡 Трайб: {peer_coalition}
 
-          Ник: {peer_login}
+          ⚔️ *Проект:* {project_name}
+          🕒 *Время:* {request_description}
+        en: |
+          👤 *Peer Card*
 
-          Уровень: {peer_level}
+          🆔 `{peer_login}` (Lvl {peer_level})
+          🏰 Campus: {peer_campus}
+          🛡 Tribe: {peer_coalition}
 
-          Коалиция: {peer_coalition}
-
-          Кампус: {peer_campus}
-
-
-          🕒 Время: {request_description}
-
-          📞 Связь: {peer_contacts}'
-        en: '👤 **Peer information:**
-
-
-          Login: {peer_login}
-
-          Level: {peer_level}
-
-          Coalition: {peer_coalition}
-
-          Campus: {peer_campus}
-
-
-          🕒 Time: {request_description}
-
-          📞 Contacts: {peer_contacts}'
+          ⚔️ *Project:* {project_name}
+          🕒 *Time:* {request_description}
       buttons:
         - id: confirm_respond
           label:
-            ru: ✅ Подтвердить отклик
-            en: ✅ Confirm response
+            ru: 🤝 Беру проверку!
+            en: 🤝 I'll take it!
           next_state: COMPLETE_RESPOND
         - id: back
           label:
-            ru: Назад
-            en: Back
+            ru: ⬅️ К списку
+            en: ⬅️ To list
           next_state: DISPLAY_REQUESTS
     on_enter: fetch_peer_profile
 
   COMPLETE_RESPOND:
     type: system
-    description: Финальная проверка актуальности и запись отклика
+    description: Попытка занять слот
     logic:
       action: respond_to_review
       payload:
@@ -250,32 +252,46 @@ states:
 
   RESPOND_SUCCESS:
     type: interactive
-    description: Успешный отклик
+    description: Успешная запись на проверку
     interface:
       text:
-        ru: 🎉 **Ты откликнулся на проверку!**\nПир получил уведомление с твоими контактами. Договоритесь о месте встречи.
-        en: 🎉 **You responded to the review!**\nThe peer received a notification with your contacts. Agree on a meeting place.
+        ru: |
+          🎉 *Матч!*
+
+          Ты записался на проверку к `{peer_login}`.
+          Пир получил уведомление с твоими контактами.
+          Спишитесь в личке, чтобы договориться о деталях.
+        en: |
+          🎉 *It's a Match!*
+
+          You signed up to review `{peer_login}`.
+          The peer has been notified with your contacts.
+          DM them to agree on the details.
     transitions:
       - next_state: REVIEW_MENU
 
   MANAGE_NOTIFICATION_FILTERS:
     type: interactive
-    description: Настройка фильтров кампусов
+    description: Фильтр кампусов
     interface:
       text:
-        ru: '⚙️ **Настройки уведомлений**
+        ru: |
+          ⚙️ *Где ищем?*
 
-          Выбери кампусы, которые ты хочешь уведомлять о своих запросах (в этих группах будут публиковаться запросы):'
-        en: '⚙️ **Notification Settings**
+          Выбери кампусы, в которых будут видны твои запросы.
+          (Нажми на кнопку, чтобы включить/выключить)
+        en: |
+          ⚙️ *Where to search?*
 
-          Choose campuses you want to notify about your requests (requests will be published in these groups):'
+          Select campuses where your requests will be visible.
+          (Click button to toggle)
       buttons:
         - id: toggle_{campus_id}
-          label: '{campus_name} {status_icon}'
+          label: "{status_emoji} {my_campus}"
         - id: back
           label:
-            ru: Назад
-            en: Back
+            ru: 💾 Готово / Назад
+            en: 💾 Done / Back
           next_state: REVIEW_MENU
     on_enter: fetch_campus_filters
     transitions:
@@ -286,28 +302,44 @@ states:
 
   ERROR_NO_PROJECTS_IN_REVIEW:
     type: interactive
-    description: Нет проектов для сдачи
+    description: 'Ошибка: нет проектов для сдачи'
     interface:
       text:
-        ru: '😔 **У тебя сейчас нет проектов со статусом ''К сдаче''.**
+        ru: |
+          📭 *Пусто*
 
-          Сначала заверши работу над проектом на платформе.'
-        en: '😔 **You don''t have any projects with ''In Review'' status.**
+          У тебя сейчас нет активных проектов в статусе *Review* на платформе.
+          Сначала сдай проект в интре, а потом возвращайся сюда за пиром.
+        en: |
+          📭 *Empty*
 
-          Finish your project on the platform first.'
-    transitions:
-      - next_state: REVIEW_MENU
+          You don't have active projects in *Review* status on the platform.
+          Submit the project on the intranet first, then come back here.
+      buttons:
+        - id: back
+          label:
+            ru: Ок
+            en: Ok
+          next_state: REVIEW_MENU
 
   ERROR_REQUEST_TAKEN:
     type: interactive
-    description: Запрос уже занят
+    description: 'Ошибка: слот уже занят (Race condition)'
     interface:
       text:
-        ru: '❌ **Опоздал!**
+        ru: |
+          🏃💨 *Не успел!*
 
-          Кто-то другой уже откликнулся на этот запрос. Попробуй выбрать другой.'
-        en: '❌ **Too late!**
+          Кто-то оказался быстрее и уже забрал этот слот.
+          Посмотри список, там наверняка есть еще!
+        en: |
+          🏃💨 *Too slow!*
 
-          Someone else already responded to this request. Try choosing another one.'
-    transitions:
-      - next_state: DISPLAY_REQUESTS
+          Someone was faster and already took this slot.
+          Check the list, there must be others!
+      buttons:
+        - id: back
+          label:
+            ru: 🔄 Обновить список
+            en: 🔄 Refresh list
+          next_state: FETCH_ALL_REVIEW_REQUESTS

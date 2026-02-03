@@ -2,8 +2,8 @@
 meta:
   feature_id: ADM-001
   name: Администрирование
-  description: Управление рассылками, привязкой тем в группах и правилами входа (Guard)
-  version: 1.1.0
+  description: 'Центр управления: рассылки, маршрутизация ревью и защита чатов'
+  version: 2.0.0
 
 initial_state: ADMIN_MENU
 states:
@@ -12,35 +12,49 @@ states:
     description: Главное меню администратора
     interface:
       text:
-        ru: '🛠️ **Панель управления**
+        ru: |
+          🎛 *Центр управления*
 
-          Здесь ты можешь настроить рассылки, привязать постинг запросов к треду или настроить охранника для чата.'
-        en: '🛠️ **Admin Panel**
+          Добро пожаловать в админку. Выбери уровень доступа:
 
-          Here you can configure broadcasts, link requests to threads, or setup a chat guard.'
+          📡 *Global Admin:*
+          Отправка уведомлений всем пользователям бота.
+
+          👮‍♂️ *Group Owner:*
+          Настройка твоих чатов: защита от чужаков и привязка топиков для уведомлений.
+        en: |
+          🎛 *Control Center*
+
+          Welcome to the admin panel. Choose access level:
+
+          📡 *Global Admin:*
+          Broadcast notifications to all bot users.
+
+          👮‍♂️ *Group Owner:*
+          Manage your chats: intruder protection and topic linking for notifications.
       buttons:
         - id: broadcast
           label:
-            ru: 📢 Глобальная рассылка
-            en: 📢 Global broadcast
+            ru: 📢 Сделать рассылку
+            en: 📢 Broadcast message
           next_state: BROADCAST_INPUT
           condition: is_bot_owner == true
         - id: link_topic
           label:
-            ru: 🔗 Привязать тему (Review)
-            en: 🔗 Link topic (Review)
+            ru: 🔗 Маршрутизация (Topics)
+            en: 🔗 Routing (Topics)
           next_state: SELECT_GROUP_FOR_TOPIC
           condition: is_group_owner == true
         - id: guard
           label:
-            ru: 🛡️ Настроить Guard
-            en: 🛡️ Setup Guard
+            ru: 🛡️ Фейс-контроль (Guard)
+            en: 🛡️ Face Control (Guard)
           next_state: SELECT_GROUP_FOR_GUARD
           condition: is_group_owner == true
         - id: back
           label:
-            ru: 🏠 Назад
-            en: 🏠 Back
+            ru: 🏠 Выход
+            en: 🏠 Exit
           next_state: main_menu.yaml/MAIN_MENU
     on_enter: check_admin_permissions
 
@@ -49,13 +63,23 @@ states:
     description: Ввод текста для рассылки
     interface:
       text:
-        ru: '📢 **Текст рассылки**\nВведите сообщение, которое получат ВСЕ пользователи бота:'
-        en: '📢 **Broadcast Message**\nEnter the message that ALL bot users will receive:'
+        ru: |
+          📢 *Громкоговоритель*
+
+          Напиши сообщение. Его получат **ВСЕ** пользователи бота, у которых включены уведомления.
+
+          _Поддерживается Markdown-разметка._
+        en: |
+          📢 *Loudspeaker*
+
+          Write a message. It will be received by **ALL** bot users with notifications enabled.
+
+          _Markdown is supported._
       buttons:
         - id: cancel
           label:
-            ru: Назад
-            en: Back
+            ru: 🔙 Отмена
+            en: 🔙 Cancel
           next_state: ADMIN_MENU
     validation:
       regex: ^[\s\S]{1,4096}$
@@ -68,32 +92,34 @@ states:
     description: Подтверждение рассылки
     interface:
       text:
-        ru: '⚠️ **Подтверди отправку!**
+        ru: |
+          ⚠️ *Финальная проверка*
 
-          Сообщение будет отправлено всем пользователям.
+          Ты собираешься отправить это сообщение всем пользователям. Отменить действие будет нельзя.
 
+          📜 *Превью:*
+          ──────────────────
+          {last_input}
+          ──────────────────
+        en: |
+          ⚠️ *Final Check*
 
-          Текст:
+          You are about to send this message to all users. This action cannot be undone.
 
-          {last_input}'
-        en: '⚠️ **Confirm sending!**
-
-          The message will be sent to all users.
-
-
-          Text:
-
-          {last_input}'
+          📜 *Preview:*
+          ──────────────────
+          {last_input}
+          ──────────────────
       buttons:
         - id: confirm
           label:
-            ru: ✅ Отправить
-            en: ✅ Send
+            ru: 🔥 Отправить сейчас
+            en: 🔥 Send now
           next_state: EXECUTE_BROADCAST
         - id: cancel
           label:
-            ru: Отмена
-            en: Cancel
+            ru: ❌ Отмена
+            en: ❌ Cancel
           next_state: ADMIN_MENU
 
   EXECUTE_BROADCAST:
@@ -108,40 +134,56 @@ states:
 
   SELECT_GROUP_FOR_TOPIC:
     type: interactive
-    description: Выбор группы (только где пользователь — владелец)
+    description: Выбор группы для привязки темы
     interface:
       text:
-        ru: '📋 **Выбери свою группу:**\nПоказаны только группы, в которых ты являешься владельцем:'
-        en: '📋 **Choose your group:**\nOnly groups where you are the owner are shown:'
+        ru: |
+          🔗 *Маршрутизация ревью*
+
+          Выбери группу, в которой ты хочешь настроить автоматический постинг запросов на ревью (Peer Review) в конкретный топик.
+
+          _Список групп, где ты владелец:_
+        en: |
+          🔗 *Review Routing*
+
+          Select a group where you want to configure automatic posting of Peer Review requests to a specific topic.
+
+          _Groups where you are owner:_
       buttons:
         - id: group_{chat_id}
-          label: '{chat_title}'
-          next_state: INPUT_THREAD_ID
+          label: "{chat_title}"
         - id: back
           label:
-            ru: Назад
-            en: Back
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: ADMIN_MENU
     on_enter: fetch_managed_groups
 
   INPUT_THREAD_ID:
     type: input
-    description: Ввод message_thread_id для темы
+    description: Ввод message_thread_id
     interface:
       text:
-        ru: '🔗 **Введите message_thread_id**
+        ru: |
+          📍 *Настройка для «{chat_title}»*
 
-          Укажи ID темы в группе «{chat_title}», куда будут поститься запросы.
+          Введи ID топика (`message_thread_id`), куда бот будет присылать уведомления.
 
+          ℹ️ *Как узнать ID:*
+          1. Скопируй ссылку на любое сообщение внутри нужного топика.
+          2. Последние цифры ссылки — это и есть ID (например, в `t.me/c/123/44` ID — это **44**).
 
-          Текущая привязка: {current_thread_info}'
-        en: '🔗 **Enter message_thread_id**
+          👇 *Введи только число:*
+        en: |
+          📍 *Setup for "{chat_title}"*
 
-          Specify the topic ID in the ''{chat_title}'' group where requests
-          will be posted.
+          Enter the Topic ID (`message_thread_id`) where the bot will post notifications.
 
+          ℹ️ *How to find ID:*
+          1. Copy the link to any message inside the desired topic.
+          2. The last digits are the ID (e.g., in `t.me/c/123/44`, the ID is **44**).
 
-          Current link: {current_thread_info}'
+          👇 *Enter number only:*
     validation:
       regex: ^\d+$
     transitions:
@@ -150,30 +192,40 @@ states:
 
   CONFIGURE_TOPIC_FILTERS:
     type: interactive
-    description: Настройка фильтров темы (кампус, ветка)
+    description: Настройка фильтров темы
     interface:
       text:
-        ru: '⚙️ **Фильтры для темы ({chat_title})**
+        ru: |
+          ⚙️ *Фильтры потока ({chat_title})*
 
-          Текущие фильтры: {current_filters_summary}
+          ID топика: `{thread_id}`
 
+          Какие запросы пересылать сюда? Нажимай на кнопки, чтобы включить/выключить фильтры.
 
-          Выбери какие запросы будут попадать сюда:'
-        en: '⚙️ **Topic Filters ({chat_title})**
+          📋 *Текущие настройки:*
+          {current_filters_summary}
+        en: |
+          ⚙️ *Stream Filters ({chat_title})*
 
-          Current filters: {current_filters_summary}
+          Topic ID: `{thread_id}`
 
+          Which requests should be forwarded here? Tap buttons to toggle filters.
 
-          Choose which requests will be posted here:'
+          📋 *Current settings:*
+          {current_filters_summary}
       buttons:
         - id: campus_{campus_id}
-          label: 'Кампус: {campus_name} {status_icon}'
+          label:
+            ru: "🏳️ Кампус: {my_campus} {status_emoji}"
+            en: "🏳️ Campus: {my_campus} {status_emoji}"
         - id: branch_{branch_id}
-          label: 'Ветка проекта: {branch_name} {status_icon}'
+          label:
+            ru: "🌿 Ветка: {branch_name} {status_emoji}"
+            en: "🌿 Branch: {branch_name} {status_emoji}"
         - id: save
           label:
-            ru: ✅ Сохранить
-            en: ✅ Save
+            ru: 💾 Сохранить и выйти
+            en: 💾 Save and exit
           next_state: SAVE_TOPIC_LINK
     on_enter: fetch_topic_filter_options
     transitions:
@@ -184,7 +236,7 @@ states:
 
   SAVE_TOPIC_LINK:
     type: system
-    description: Сохранение привязки в БД
+    description: Сохранение привязки
     logic:
       action: link_group_topic
       payload:
@@ -196,23 +248,25 @@ states:
 
   SELECT_GROUP_FOR_GUARD:
     type: interactive
-    description: Выбор группы (только где пользователь — владелец)
+    description: Выбор группы для Guard
     interface:
       text:
-        ru: '🛡️ **Настройка охранника**
+        ru: |
+          🛡️ *Фейс-контроль (Guard)*
 
-          Выбери свою группу для редактирования правил входа:'
-        en: '🛡️ **Guard Setup**
+          Выбери группу, чтобы настроить автоматическую проверку входящих пользователей через API Школы 21.
+        en: |
+          🛡️ *Face Control (Guard)*
 
-          Choose your group to edit entry rules:'
+          Select a group to configure automatic user verification via School 21 API.
       buttons:
         - id: group_{chat_id}
-          label: '{chat_title}'
+          label: "{chat_title}"
           next_state: CONFIGURE_GUARD_RULES
         - id: back
           label:
-            ru: Назад
-            en: Back
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: ADMIN_MENU
     on_enter: fetch_managed_groups
 
@@ -221,37 +275,39 @@ states:
     description: Настройка условий пропуска
     interface:
       text:
-        ru: '🛡️ **Правила Guard для {chat_title}**
+        ru: |
+          👮‍♂️ *Пост охраны: {chat_title}*
 
-          Текущие правила: {current_rules_summary}
+          Кого пропускаем внутрь? Бот будет кикать тех, кто не соответствует правилам.
 
+          📋 *Активные требования:*
+          {current_rules_summary}
+        en: |
+          👮‍♂️ *Security Post: {chat_title}*
 
-          Пользователь будет допущен, если выполнены условия:'
-        en: '🛡️ **Guard Rules for {chat_title}**
+          Who is allowed in? The bot will kick anyone who doesn't meet the rules.
 
-          Current rules: {current_rules_summary}
-
-
-          User will be allowed if conditions are met:'
+          📋 *Active Requirements:*
+          {current_rules_summary}
       buttons:
         - id: toggle_school_member
           label:
-            ru: Любой участник Школы 21 {member_status_icon}
-            en: Any School 21 member {member_status_icon}
+            ru: "🎓 Студент Школы 21 {member_status_icon}"
+            en: "🎓 School 21 Student {member_status_icon}"
         - id: set_project
           label:
-            ru: '📝 Проект: {project_condition}'
-            en: '📝 Project: {project_condition}'
+            ru: "📝 Проект: {project_condition}"
+            en: "📝 Project: {project_condition}"
           next_state: INPUT_GUARD_PROJECT
         - id: set_campus
           label:
-            ru: '🏫 Кампус: {campus_condition}'
-            en: '🏫 Campus: {campus_condition}'
+            ru: "🏰 Кампус: {campus_condition}"
+            en: "🏰 Campus: {campus_condition}"
           next_state: SELECT_GUARD_CAMPUS
         - id: save
           label:
-            ru: ✅ Сохранить правила
-            en: ✅ Save rules
+            ru: ✅ Применить правила
+            en: ✅ Apply Rules
           next_state: SAVE_GUARD_RULES
     on_enter: fetch_current_guard_rules
     transitions:
@@ -265,8 +321,18 @@ states:
     description: Ввод проекта для Guard
     interface:
       text:
-        ru: 'Введите название проекта (или ''none'' для сброса):'
-        en: 'Enter project name (or ''none'' to reset):'
+        ru: |
+          📝 *Требование по проекту*
+
+          Введи название проекта, на который должен быть зарегистрирован студент (или `none` для отключения).
+
+          *Пример:* `C3_SimpleBashUtils`
+        en: |
+          📝 *Project Requirement*
+
+          Enter the project name the student must be registered for (or `none` to disable).
+
+          *Example:* `C3_SimpleBashUtils`
     transitions:
       - trigger: on_valid_input
         next_state: CONFIGURE_GUARD_RULES
@@ -277,17 +343,28 @@ states:
     description: Выбор кампуса для Guard
     interface:
       text:
-        ru: 'Выбери кампус (или ''Все'' для сброса):'
-        en: 'Choose campus (or ''All'' to reset):'
+        ru: |
+          🏰 *Требование по кампусу*
+
+          Выбери кампус, из которого должны быть студенты.
+        en: |
+          🏰 *Campus Requirement*
+
+          Select the campus students must be from.
       buttons:
         - id: campus_{campus_id}
-          label: '{campus_name}'
+          label: "{my_campus}"
+          next_state: CONFIGURE_GUARD_RULES
+        - id: reset
+          label:
+            ru: 🌍 Любой кампус (Сброс)
+            en: 🌍 Any campus (Reset)
           next_state: CONFIGURE_GUARD_RULES
     on_enter: fetch_available_campuses
 
   SAVE_GUARD_RULES:
     type: system
-    description: Сохранение правил Guard в БД
+    description: Сохранение правил
     logic:
       action: update_chat_guard
       payload:
