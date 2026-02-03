@@ -1,0 +1,16 @@
+extends: default
+
+rules:
+  line-length: disable
+  truthy: disable
+  indentation:
+    spaces: 2
+    indent-sequences: true
+  document-start: disable
+  comments:
+    level: warning
+  empty-lines:
+    max: 2
+  colons:
+    max-spaces-after: 1
+  key-duplicates: enable

@@ -23,6 +23,7 @@ type Button struct {
 	ID        string      `yaml:"id"`
 	Label     interface{} `yaml:"label"`      // String or Map[string]string
 	NextState string      `yaml:"next_state"` // can be "STATE" or "file.yaml/STATE"
+	Row       int         `yaml:"row"`        // Optional: buttons with same Row ID will be in the same row
 }
 
 type Transition struct {
