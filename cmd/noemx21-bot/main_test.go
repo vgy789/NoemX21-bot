@@ -8,17 +8,20 @@ import (
 
 func TestSetupLogger(t *testing.T) {
 	tests := []struct {
-		name string
-		env  string
+		name       string
+		production bool
+		logLevel   string
 	}{
-		{"local", EnvLocal},
-		{"prod", EnvProd},
-		{"default", "unknown"},
+		{"debug non-production", false, "debug"},
+		{"info production", true, "info"},
+		{"warn level", false, "warn"},
+		{"error level", true, "error"},
+		{"default fallback", false, "unknown"},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			log := setupLogger(tt.env)
+			log := setupLogger(tt.production, tt.logLevel)
 			assert.NotNil(t, log)
 		})
 	}

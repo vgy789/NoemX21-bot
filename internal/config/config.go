@@ -24,8 +24,9 @@ type TelegramBot struct {
 
 // Config is a configuration for the application.
 type Config struct {
-	Env      string `env:"ENV" envDefault:"local"`
-	Telegram TelegramBot
+	Production bool   `env:"PRODUCTION" envDefault:"false"`
+	LogLevel   string `env:"LOG_LEVEL" envDefault:"debug"`
+	Telegram   TelegramBot
 }
 
 // MustLoad reads config from .env file OR environment variables.

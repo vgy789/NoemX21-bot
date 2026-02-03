@@ -21,4 +21,5 @@ func TestNewTelegramService(t *testing.T) {
 
 	assert.Equal(t, cfg, ts.cfg)
 	assert.Equal(t, logger, ts.log)
+	assert.NotNil(t, ts.engine, "FSM engine should be initialized")
 }

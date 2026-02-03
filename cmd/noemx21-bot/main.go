@@ -2,6 +2,7 @@ package main
 
 import (
 	"os"
+	"strings"
 
 	"log/slog"
 
@@ -9,26 +10,32 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/config"
 )
 
-const (
-	EnvLocal = "local"
-	EnvProd  = "prod"
-)
-
 func main() {
-	log := setupLogger(EnvLocal)
 	cfg := config.MustLoad()
-	log.Info("Bot started", "version", "0.0.1")
+	log := setupLogger(cfg.Production, cfg.LogLevel)
+	log.Info("Bot started", "version", "0.0.1", "production", cfg.Production, "log_level", cfg.LogLevel)
 	a := app.New(cfg, log)
 	a.Run()
 }
 
 // setupLogger sets up the logger.
-func setupLogger(env string) *slog.Logger {
-	switch env {
-	case EnvLocal:
-		return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelDebug}))
-	case EnvProd:
-		return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
+func setupLogger(production bool, levelStr string) *slog.Logger {
+	var level slog.Level
+	switch strings.ToLower(levelStr) {
+	case "debug":
+		level = slog.LevelDebug
+	case "info":
+		level = slog.LevelInfo
+	case "warn":
+		level = slog.LevelWarn
+	case "error":
+		level = slog.LevelError
+	default:
+		level = slog.LevelInfo
 	}
-	return slog.Default()
+
+	if production {
+		return slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
+	}
+	return slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: level}))
 }
