@@ -27,6 +27,7 @@ type Config struct {
 	Production bool   `env:"PRODUCTION" envDefault:"false"`
 	LogLevel   string `env:"LOG_LEVEL" envDefault:"debug"`
 	Telegram   TelegramBot
+	DBURL      Secret `env:"DATABASE_URL,file,notEmpty"`
 }
 
 // MustLoad reads config from .env file OR environment variables.

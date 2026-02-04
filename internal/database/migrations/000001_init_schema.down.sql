@@ -1,0 +1,14 @@
+-- 000001_init_schema.down.sql
+
+DROP TABLE IF EXISTS auth_verification_codes;
+DROP TABLE IF EXISTS rocketchat_credentials;
+DROP TABLE IF EXISTS platform_credentials;
+DROP TABLE IF EXISTS user_bot_settings;
+DROP TABLE IF EXISTS user_accounts;
+DROP TABLE IF EXISTS students;
+DROP TABLE IF EXISTS coalitions;
+DROP TABLE IF EXISTS campuses;
+
+DROP TYPE IF EXISTS ENUM_USER_ROLE;
+DROP TYPE IF EXISTS ENUM_PLATFORM;
+DROP TYPE IF EXISTS ENUM_STUDENT_STATUS;
