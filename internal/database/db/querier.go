@@ -15,6 +15,7 @@ type Querier interface {
 	GetStudentByRocketChatId(ctx context.Context, rocketchatID string) (Student, error)
 	// queries.sql
 	GetStudentByS21Login(ctx context.Context, s21Login string) (Student, error)
+	GetStudentProfile(ctx context.Context, s21Login string) (GetStudentProfileRow, error)
 	GetUserAccountByExternalId(ctx context.Context, arg GetUserAccountByExternalIdParams) (UserAccount, error)
 	GetUserBotSettings(ctx context.Context, userAccountID int64) (UserBotSetting, error)
 	UpsertPlatformCredentials(ctx context.Context, arg UpsertPlatformCredentialsParams) error

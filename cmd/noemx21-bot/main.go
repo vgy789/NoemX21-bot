@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"os"
 	"strings"
 
@@ -8,13 +9,26 @@ import (
 
 	"github.com/vgy789/noemx21-bot/internal/app"
 	"github.com/vgy789/noemx21-bot/internal/config"
+	"github.com/vgy789/noemx21-bot/internal/database/db"
 )
 
 func main() {
 	cfg := config.MustLoad()
 	log := setupLogger(cfg.Production, cfg.LogLevel)
 	log.Info("Bot started", "version", "0.0.1", "production", cfg.Production, "log_level", cfg.LogLevel)
-	a := app.New(cfg, log)
+
+	// Initialize Database
+	ctx := context.Background()
+	pool, err := db.Connect(ctx, cfg.DBURL.Expose())
+	if err != nil {
+		log.Error("failed to connect to database", "error", err)
+		os.Exit(1)
+	}
+	defer pool.Close()
+
+	repo := db.NewDBWrapper(pool)
+
+	a := app.New(cfg, log, repo)
 	a.Run()
 }
 

@@ -3,6 +3,13 @@
 -- name: GetStudentByS21Login :one
 SELECT * FROM students WHERE s21_login = $1;
 
+-- name: GetStudentProfile :one
+SELECT s.*, c.short_name as campus_name, cool.name as coalition_name
+FROM students s
+LEFT JOIN campuses c ON s.campus_id = c.id
+LEFT JOIN coalitions cool ON s.coalition_id = cool.id
+WHERE s.s21_login = $1;
+
 -- name: GetStudentByRocketChatId :one
 SELECT * FROM students WHERE rocketchat_id = $1;
 
