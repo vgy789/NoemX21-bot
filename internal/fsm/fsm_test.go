@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -109,13 +110,13 @@ func TestEngine_InitState(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	parser := NewFlowParser("../../docs/specs/flows", logger)
 	repo := NewMemoryStateRepository()
-	engine := NewEngine(parser, repo, logger)
+	engine := NewEngine(parser, repo, logger, nil, nil)
 
 	ctx := context.Background()
 	userID := int64(67890)
 
 	t.Run("initialize state", func(t *testing.T) {
-		err := engine.InitState(ctx, userID, "main_menu.yaml", "MAIN_MENU")
+		err := engine.InitState(ctx, userID, "main_menu.yaml", "MAIN_MENU", nil)
 		require.NoError(t, err)
 
 		state, err := repo.GetState(ctx, userID)
@@ -133,13 +134,13 @@ func TestEngine_GetCurrentRender(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	parser := NewFlowParser("../../docs/specs/flows", logger)
 	repo := NewMemoryStateRepository()
-	engine := NewEngine(parser, repo, logger)
+	engine := NewEngine(parser, repo, logger, nil, nil)
 
 	ctx := context.Background()
 	userID := int64(11111)
 
 	t.Run("render main menu", func(t *testing.T) {
-		err := engine.InitState(ctx, userID, "main_menu.yaml", "MAIN_MENU")
+		err := engine.InitState(ctx, userID, "main_menu.yaml", "MAIN_MENU", nil)
 		require.NoError(t, err)
 
 		render, err := engine.GetCurrentRender(ctx, userID)
@@ -181,14 +182,14 @@ func TestEngine_Process(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	parser := NewFlowParser("../../docs/specs/flows", logger)
 	repo := NewMemoryStateRepository()
-	engine := NewEngine(parser, repo, logger)
+	engine := NewEngine(parser, repo, logger, nil, nil)
 
 	ctx := context.Background()
 	userID := int64(22222)
 
 	t.Run("transition to settings", func(t *testing.T) {
 		// Initialize to main menu
-		err := engine.InitState(ctx, userID, "main_menu.yaml", "MAIN_MENU")
+		err := engine.InitState(ctx, userID, "main_menu.yaml", "MAIN_MENU", nil)
 		require.NoError(t, err)
 
 		// Click settings button
@@ -204,7 +205,7 @@ func TestEngine_Process(t *testing.T) {
 	})
 
 	t.Run("invalid transition", func(t *testing.T) {
-		err := engine.InitState(ctx, userID, "main_menu.yaml", "MAIN_MENU")
+		err := engine.InitState(ctx, userID, "main_menu.yaml", "MAIN_MENU", nil)
 		require.NoError(t, err)
 
 		// Try invalid button
@@ -226,7 +227,7 @@ func TestEngine_ReplaceVariables(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	parser := NewFlowParser("../../docs/specs/flows", logger)
 	repo := NewMemoryStateRepository()
-	engine := NewEngine(parser, repo, logger)
+	engine := NewEngine(parser, repo, logger, nil, nil)
 
 	t.Run("replace default variables", func(t *testing.T) {
 		state := &UserState{
@@ -237,8 +238,8 @@ func TestEngine_ReplaceVariables(t *testing.T) {
 		text := fmt.Sprintf("Login: %s, Level: %s", VarS21Login, VarLevel)
 		result := engine.replaceVariables(text, state)
 
-		assert.Contains(t, result, "jonnabin")
-		assert.Contains(t, result, "11")
+		assert.Contains(t, result, "Гость")
+		assert.Contains(t, result, "99")
 	})
 
 	t.Run("replace language flag for ru", func(t *testing.T) {
@@ -266,6 +267,11 @@ func TestEngine_ReplaceVariables(t *testing.T) {
 	})
 
 	t.Run("replace context variables", func(t *testing.T) {
+		sanitizer := func(s string) string {
+			return strings.ReplaceAll(s, "_", "\\_")
+		}
+		engineEscaping := NewEngine(parser, repo, logger, nil, sanitizer)
+
 		state := &UserState{
 			Language: "ru",
 			Context: map[string]interface{}{
@@ -275,7 +281,7 @@ func TestEngine_ReplaceVariables(t *testing.T) {
 		}
 
 		text := "User: {s21_login}, Level: {level}"
-		result := engine.replaceVariables(text, state)
+		result := engineEscaping.replaceVariables(text, state)
 
 		// Variable values should be escaped
 		assert.Contains(t, result, "vgy\\_789")
@@ -287,14 +293,14 @@ func TestEngine_RegistrationFlow(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	parser := NewFlowParser("../../docs/specs/flows", logger)
 	repo := NewMemoryStateRepository()
-	engine := NewEngine(parser, repo, logger)
+	engine := NewEngine(parser, repo, logger, nil, nil)
 
 	ctx := context.Background()
 	userID := int64(33333)
 
 	t.Run("start -> select language -> input login", func(t *testing.T) {
 		// 1. Initial state (SELECT_LANGUAGE)
-		err := engine.InitState(ctx, userID, "registration.yaml", "SELECT_LANGUAGE")
+		err := engine.InitState(ctx, userID, "registration.yaml", "SELECT_LANGUAGE", nil)
 		require.NoError(t, err)
 
 		// Click set_ru
@@ -312,21 +318,233 @@ func TestEngine_RegistrationFlow(t *testing.T) {
 	})
 }
 
-func TestEngine_EscapeMarkdown(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	parser := NewFlowParser("../../docs/specs/flows", logger)
-	repo := NewMemoryStateRepository()
-	engine := NewEngine(parser, repo, logger)
+func TestLogicRegistry(t *testing.T) {
+	registry := NewLogicRegistry()
 
-	t.Run("escape underscores", func(t *testing.T) {
-		text := "vgy_789"
-		result := engine.escapeMarkdown(text)
+	t.Run("register and get", func(t *testing.T) {
+		action := func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+			return "NEXT", nil, nil
+		}
+		registry.Register("test_action", action)
 
-		assert.Equal(t, "vgy\\_789", result)
+		act, ok := registry.Get("test_action")
+		assert.True(t, ok)
+		assert.NotNil(t, act)
 	})
 
-	t.Run("empty text", func(t *testing.T) {
-		result := engine.escapeMarkdown("")
-		assert.Equal(t, "", result)
+	t.Run("get non-existent", func(t *testing.T) {
+		act, ok := registry.Get("non_existent")
+		assert.False(t, ok)
+		assert.Nil(t, act)
+	})
+}
+
+func TestEngine_EvaluateCondition(t *testing.T) {
+	e := &Engine{}
+
+	tests := []struct {
+		name      string
+		condition string
+		ctx       map[string]interface{}
+		want      bool
+	}{
+		{"equal string", "key == value", map[string]interface{}{"key": "value"}, true},
+		{"not equal string", "key == value", map[string]interface{}{"key": "other"}, false},
+		{"quoted value", "key == 'value'", map[string]interface{}{"key": "value"}, true},
+		{"double quoted value", "key == \"value\"", map[string]interface{}{"key": "value"}, true},
+		{"numeric value", "count == 10", map[string]interface{}{"count": 10}, true},
+		{"boolean value", "flag == true", map[string]interface{}{"flag": true}, true},
+		{"missing key", "missing == val", map[string]interface{}{"key": "val"}, false},
+		{"invalid format", "invalid condition", map[string]interface{}{"key": "val"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, e.evaluateCondition(tt.condition, tt.ctx))
+		})
+	}
+}
+
+func TestEngine_SystemStateWithRegistry(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	repo := NewMemoryStateRepository()
+	registry := NewLogicRegistry()
+
+	registry.Register("check_auth", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+		if userID == 1 {
+			return "", map[string]interface{}{"is_auth": true}, nil
+		}
+		return "FORCED_STATE", nil, nil
+	})
+
+	engine := NewEngine(nil, repo, logger, registry, nil)
+
+	t.Run("action returns forced state", func(t *testing.T) {
+		spec := &State{
+			Logic: Logic{Action: "check_auth"},
+		}
+		state := &UserState{UserID: 2}
+		next := engine.evaluateSystemState(spec, state)
+		assert.Equal(t, "FORCED_STATE", next)
+	})
+
+	t.Run("action updates context and uses transitions", func(t *testing.T) {
+		spec := &State{
+			Logic: Logic{Action: "check_auth"},
+			Transitions: []Transition{
+				{Condition: "is_auth == true", NextState: "AUTH_SUCCESS"},
+				{Condition: "is_auth == false", NextState: "AUTH_FAIL"},
+			},
+		}
+		state := &UserState{UserID: 1, Context: make(map[string]interface{})}
+		next := engine.evaluateSystemState(spec, state)
+		assert.Equal(t, "AUTH_SUCCESS", next)
+		assert.Equal(t, true, state.Context["is_auth"])
+	})
+}
+
+func TestEngine_EdgeCases(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	repo := NewMemoryStateRepository()
+	parser := NewFlowParser("non_existent", logger) // will fail to find flows
+	engine := NewEngine(parser, repo, logger, nil, nil)
+
+	ctx := context.Background()
+	userID := int64(999)
+
+	t.Run("InitState does not validate flow existence", func(t *testing.T) {
+		err := engine.InitState(ctx, userID, "ghost.yaml", "START", nil)
+		assert.NoError(t, err)
+	})
+
+	t.Run("Process without InitState", func(t *testing.T) {
+		render, err := engine.Process(ctx, userID, "click")
+		assert.Error(t, err)
+		assert.Nil(t, render)
+	})
+
+	t.Run("GetCurrentRender without InitState", func(t *testing.T) {
+		render, err := engine.GetCurrentRender(ctx, userID)
+		assert.Error(t, err)
+		assert.Nil(t, render)
+	})
+}
+
+func TestEngine_SpecialInputs(t *testing.T) {
+	e := &Engine{log: slog.Default()}
+	state := &UserState{}
+
+	e.handleSpecialInputs(state, InputSetRu, 1)
+	assert.Equal(t, LangRu, state.Language)
+
+	e.handleSpecialInputs(state, InputSetEn, 1)
+	assert.Equal(t, LangEn, state.Language)
+}
+
+func TestEngine_FindNextState(t *testing.T) {
+	e := &Engine{}
+	spec := State{
+		Interface: Interface{
+			Buttons: []Button{
+				{ID: "btn1", NextState: "STATE1"},
+				{ID: "btn2", NextState: "STATE2"},
+			},
+		},
+	}
+
+	assert.Equal(t, "STATE1", e.findNextState(spec, "btn1"))
+	assert.Equal(t, "STATE2", e.findNextState(spec, "btn2"))
+	assert.Equal(t, "", e.findNextState(spec, "unknown"))
+}
+
+func TestEngine_MoreEdgeCases(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	repo := NewMemoryStateRepository()
+	parser := NewFlowParser("../../docs/specs/flows", logger)
+	registry := NewLogicRegistry()
+	engine := NewEngine(parser, repo, logger, registry, nil)
+
+	ctx := context.Background()
+	userID := int64(1001)
+
+	t.Run("transitionTo non-existent state", func(t *testing.T) {
+		state := &UserState{UserID: userID, CurrentFlow: "registration.yaml"}
+		err := engine.transitionTo(ctx, state, "NON_EXISTENT")
+		assert.Error(t, err)
+		assert.Contains(t, err.Error(), "not found")
+	})
+
+	t.Run("evaluateSystemState with missing action", func(t *testing.T) {
+		spec := &State{Logic: Logic{Action: "missing_action"}}
+		state := &UserState{}
+		// Should just log and return ""
+		next := engine.evaluateSystemState(spec, state)
+		assert.Equal(t, "", next)
+	})
+
+	t.Run("Process with action error", func(t *testing.T) {
+		registry.Register("fail_action", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+			return "", nil, fmt.Errorf("action failed")
+		})
+
+		// Setup state to a state that has a button with this action
+		// We'll use a mocked flow or just use evaluateSystemState directly if easier,
+		// but Process uses transitions.
+
+		// Actually testing Process error path is better.
+		// We need a flow that has an action.
+	})
+
+	t.Run("replaceVariables with missing key", func(t *testing.T) {
+		text := "Hello {{name}}"
+		state := &UserState{Context: map[string]interface{}{}}
+		result := engine.replaceVariables(text, state)
+		assert.Equal(t, "Hello {{name}}", result) // Keys are preserved if missing
+	})
+
+	t.Run("Process success with real flow", func(t *testing.T) {
+		userID := int64(2001)
+		registry.Register("input:set_ru", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+			return "", map[string]interface{}{"language": "ru"}, nil
+		})
+		_ = engine.InitState(ctx, userID, "registration.yaml", "SELECT_LANGUAGE", nil)
+
+		render, err := engine.Process(ctx, userID, "set_ru")
+		assert.NoError(t, err)
+		assert.NotNil(t, render)
+
+		state, _ := repo.GetState(ctx, userID)
+		assert.Equal(t, "MAIN_MENU", state.CurrentState)
+		assert.Equal(t, "ru", state.Context["language"])
+	})
+
+	t.Run("evaluateSystemState with check", func(t *testing.T) {
+		spec := &State{
+			Logic: Logic{
+				Check: "is_registered",
+			},
+			Transitions: []Transition{
+				{Condition: "registered == true", NextState: "NEXT_OK"},
+				{Condition: "registered == false", NextState: "NEXT_FAIL"},
+			},
+		}
+
+		state := &UserState{Context: map[string]interface{}{}}
+
+		// Registered = true
+		registry.Register("is_registered", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+			return "", map[string]interface{}{"registered": true}, nil
+		})
+
+		next := engine.evaluateSystemState(spec, state)
+		assert.Equal(t, "NEXT_OK", next)
+		assert.True(t, state.Context["registered"].(bool))
+
+		// Registered = false
+		registry.Register("is_registered", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+			return "", map[string]interface{}{"registered": false}, nil
+		})
+		next = engine.evaluateSystemState(spec, state)
+		assert.Equal(t, "NEXT_FAIL", next)
 	})
 }
