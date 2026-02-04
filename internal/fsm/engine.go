@@ -4,23 +4,32 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"regexp"
 	"strings"
 )
 
 // Engine handles the core FSM logic.
 type Engine struct {
-	parser *FlowParser
-	repo   StateRepository
-	log    *slog.Logger
+	parser    *FlowParser
+	repo      StateRepository
+	log       *slog.Logger
+	registry  *LogicRegistry
+	sanitizer VariableSanitizer
 }
 
 // NewEngine creates a new FSM engine.
-func NewEngine(parser *FlowParser, repo StateRepository, log *slog.Logger) *Engine {
+func NewEngine(parser *FlowParser, repo StateRepository, log *slog.Logger, registry *LogicRegistry, sanitizer VariableSanitizer) *Engine {
+	if sanitizer == nil {
+		sanitizer = func(s string) string { return s }
+	}
+	if registry == nil {
+		registry = NewLogicRegistry()
+	}
 	return &Engine{
-		parser: parser,
-		repo:   repo,
-		log:    log,
+		parser:    parser,
+		repo:      repo,
+		log:       log,
+		registry:  registry,
+		sanitizer: sanitizer,
 	}
 }
 
@@ -36,14 +45,22 @@ type ButtonRender struct {
 }
 
 // InitState initializes or resets the user state to specific flow/state.
-func (e *Engine) InitState(ctx context.Context, userID int64, flowName, stateName string) error {
+func (e *Engine) Registry() *LogicRegistry {
+	return e.registry
+}
+
+func (e *Engine) InitState(ctx context.Context, userID int64, flowName, stateName string, initialContext map[string]interface{}) error {
+
 	e.log.Info("initializing state", "user_id", userID, "flow", flowName, "state", stateName)
+	if initialContext == nil {
+		initialContext = make(map[string]interface{})
+	}
 	newState := &UserState{
 		UserID:       userID,
 		CurrentFlow:  flowName,
 		CurrentState: stateName,
 		Language:     DefaultLanguage,
-		Context:      make(map[string]interface{}),
+		Context:      initialContext,
 	}
 	return e.repo.SetState(ctx, newState)
 }
@@ -86,8 +103,20 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 
 	e.log.Debug("processing input", "user_id", userID, "input", input, "flow", state.CurrentFlow, "state", state.CurrentState)
 
-	// 1. Handle special inputs (like language selection)
-	e.handleSpecialInputs(state, input, userID)
+	// 1. Check if input triggers a global action (e.g. language change)
+	if action, ok := e.registry.Get("input:" + input); ok {
+		e.log.Info("executing global input action", "input", input)
+		_, updates, err := action(ctx, userID, map[string]interface{}{"input": input})
+		if err != nil {
+			e.log.Error("global action failed", "input", input, "error", err)
+		} else if len(updates) > 0 {
+			e.updateStateContext(state, updates)
+			// Save state after updates
+			if err := e.repo.SetState(ctx, state); err != nil {
+				return nil, err
+			}
+		}
+	}
 
 	flow, err := e.parser.GetFlow(state.CurrentFlow)
 	if err != nil {
@@ -179,24 +208,84 @@ func (e *Engine) transitionTo(ctx context.Context, state *UserState, target stri
 	return nil
 }
 
-// evaluateSystemState determines the next state for a system state based on logic/transitions.
-func (e *Engine) evaluateSystemState(spec *State, _ *UserState) string {
-	// Mock logic evaluations for now based on registration flow
-	if spec.Logic.Check == "is_user_registered" {
-		// Mock: user is not registered
-		for _, t := range spec.Transitions {
-			if t.Condition == "registered == false" {
-				return t.NextState
+// evaluateSystemState determines the next state via registry actions and transitions.
+func (e *Engine) evaluateSystemState(spec *State, state *UserState) string {
+	actionName := spec.Logic.Action
+	if actionName == "" {
+		actionName = spec.Logic.Check // Fallback to 'check' field
+	}
+
+	// var results map[string]interface{}
+
+	if actionName != "" {
+		if action, ok := e.registry.Get(actionName); ok {
+			e.log.Debug("executing system action", "action", actionName)
+			// Prepare payload
+			payload := spec.Logic.Payload
+			// Inject implicit context
+			if payload == nil {
+				payload = make(map[string]interface{})
 			}
+			payload["_last_input"] = state.Context["last_input"]
+
+			next, updates, err := action(context.Background(), state.UserID, payload)
+			if err != nil {
+				e.log.Error("system action failed", "action", actionName, "error", err)
+				// Ideally handle error transition here
+			}
+
+			// Update context
+			e.updateStateContext(state, updates)
+			// results = updates
+
+			// If action returned a forced next state, use it
+			if next != "" {
+				return next
+			}
+		} else {
+			e.log.Warn("system action not found in registry", "action", actionName)
 		}
 	}
 
-	// Fallback: first transition if no condition matches
-	if len(spec.Transitions) > 0 {
-		return spec.Transitions[0].NextState
+	// Evaluate transitions based on state context + results
+	for _, t := range spec.Transitions {
+		if t.Condition == "" {
+			return t.NextState // Unconditional transition
+		}
+		if e.evaluateCondition(t.Condition, state.Context) {
+			return t.NextState
+		}
 	}
 
 	return ""
+}
+
+func (e *Engine) evaluateCondition(condition string, ctx map[string]interface{}) bool {
+	// Simple evaluator: "key == value"
+	// TODO: Use a real expression engine if needed
+	parts := strings.Split(condition, "==")
+	if len(parts) != 2 {
+		return false
+	}
+	key := strings.TrimSpace(parts[0])
+	val := strings.TrimSpace(parts[1])
+	val = strings.Trim(val, "'\"") // Trim quotes
+
+	ctxVal, ok := ctx[key]
+	if !ok {
+		return false
+	}
+
+	return fmt.Sprintf("%v", ctxVal) == val
+}
+
+func (e *Engine) updateStateContext(state *UserState, updates map[string]interface{}) {
+	if state.Context == nil {
+		state.Context = make(map[string]interface{})
+	}
+	for k, v := range updates {
+		state.Context[k] = v
+	}
 }
 
 func (e *Engine) renderState(userState *UserState, flowState *State) *RenderObject {
@@ -271,21 +360,11 @@ func (e *Engine) replaceVariables(text string, state *UserState) string {
 	for key, val := range replacements {
 		if strings.Contains(result, key) {
 			e.log.Info("replacing template variable", "key", key, "val", val)
-			// Escape values before insertion to prevent breaking formatting
-			escapedVal := e.escapeMarkdown(val)
+			// Escape values using the configured sanitizer
+			escapedVal := e.sanitizer(val)
 			result = strings.ReplaceAll(result, key, escapedVal)
 		}
 	}
-
-	// Support ** as bold by converting to * (Telegram V1 style)
-	result = strings.ReplaceAll(result, "**", "*")
-
-	// Escape underscores inside unreplaced placeholders to prevent Markdown errors.
-	// Example: {available_count} -> {available\_count}
-	re := regexp.MustCompile(`\{[^}]+\}`)
-	result = re.ReplaceAllStringFunc(result, func(s string) string {
-		return strings.ReplaceAll(s, "_", "\\_")
-	})
 
 	return result
 }
@@ -300,9 +379,4 @@ func (e *Engine) getReplacementMap(state *UserState) map[string]string {
 		replacements[key] = fmt.Sprintf("%v", v)
 	}
 	return replacements
-}
-
-// escapeMarkdown handles escaping for Telegram Markdown (V1).
-func (e *Engine) escapeMarkdown(text string) string {
-	return strings.ReplaceAll(text, "_", "\\_")
 }

@@ -149,6 +149,61 @@ func (q *Queries) GetStudentByS21Login(ctx context.Context, s21Login string) (St
 	return i, err
 }
 
+const getStudentProfile = `-- name: GetStudentProfile :one
+SELECT s.s21_login, s.rocketchat_id, s.campus_id, s.coalition_id, s.status, s.parallel_name, s.level, s.exp_value, s.prp, s.crp, s.coins, s.timezone, s.alternative_contact, s.has_coffee_ban, s.created_at, s.updated_at, c.short_name as campus_name, cool.name as coalition_name
+FROM students s
+LEFT JOIN campuses c ON s.campus_id = c.id
+LEFT JOIN coalitions cool ON s.coalition_id = cool.id
+WHERE s.s21_login = $1
+`
+
+type GetStudentProfileRow struct {
+	S21Login           string                `json:"s21_login"`
+	RocketchatID       string                `json:"rocketchat_id"`
+	CampusID           pgtype.UUID           `json:"campus_id"`
+	CoalitionID        pgtype.Int2           `json:"coalition_id"`
+	Status             NullEnumStudentStatus `json:"status"`
+	ParallelName       pgtype.Text           `json:"parallel_name"`
+	Level              pgtype.Int4           `json:"level"`
+	ExpValue           pgtype.Int4           `json:"exp_value"`
+	Prp                pgtype.Int4           `json:"prp"`
+	Crp                pgtype.Int4           `json:"crp"`
+	Coins              pgtype.Int4           `json:"coins"`
+	Timezone           string                `json:"timezone"`
+	AlternativeContact pgtype.Text           `json:"alternative_contact"`
+	HasCoffeeBan       pgtype.Bool           `json:"has_coffee_ban"`
+	CreatedAt          pgtype.Timestamptz    `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz    `json:"updated_at"`
+	CampusName         pgtype.Text           `json:"campus_name"`
+	CoalitionName      pgtype.Text           `json:"coalition_name"`
+}
+
+func (q *Queries) GetStudentProfile(ctx context.Context, s21Login string) (GetStudentProfileRow, error) {
+	row := q.db.QueryRow(ctx, getStudentProfile, s21Login)
+	var i GetStudentProfileRow
+	err := row.Scan(
+		&i.S21Login,
+		&i.RocketchatID,
+		&i.CampusID,
+		&i.CoalitionID,
+		&i.Status,
+		&i.ParallelName,
+		&i.Level,
+		&i.ExpValue,
+		&i.Prp,
+		&i.Crp,
+		&i.Coins,
+		&i.Timezone,
+		&i.AlternativeContact,
+		&i.HasCoffeeBan,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.CampusName,
+		&i.CoalitionName,
+	)
+	return i, err
+}
+
 const getUserAccountByExternalId = `-- name: GetUserAccountByExternalId :one
 SELECT id, student_id, platform, external_id, username, is_searchable, role, linked_at FROM user_accounts 
 WHERE platform = $1 AND external_id = $2

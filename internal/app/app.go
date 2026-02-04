@@ -4,6 +4,8 @@ import (
 	"log/slog"
 
 	"github.com/vgy789/noemx21-bot/internal/config"
+	"github.com/vgy789/noemx21-bot/internal/database/db"
+	"github.com/vgy789/noemx21-bot/internal/service"
 	telegram "github.com/vgy789/noemx21-bot/internal/transport/telegram"
 )
 
@@ -13,9 +15,10 @@ type App struct {
 }
 
 // New creates a new application instance.
-func New(cfg *config.Config, log *slog.Logger) *App {
+func New(cfg *config.Config, log *slog.Logger, repo *db.DBWrapper) *App {
+	studentSvc := service.NewStudentService(repo)
 	return &App{
-		tg: telegram.NewTelegramService(&cfg.Telegram, log),
+		tg: telegram.NewTelegramService(&cfg.Telegram, log, studentSvc),
 	}
 }
 

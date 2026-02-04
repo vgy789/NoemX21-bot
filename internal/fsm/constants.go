@@ -42,16 +42,16 @@ const (
 // DefaultVariables map acts as a single source of truth for default values (debugging/fallback)
 var DefaultVariables = map[string]string{
 	VarS21Login:       "jonnabin",
-	VarLevel:          "11",
-	VarCoalition:      "Sapphires",
+	VarLevel:          "99",
+	VarCoalition:      "Abcdefg",
 	VarLanguageFlag:   DefaultFlagRu,
-	VarCampus:         "Novosibirsk",
-	VarAvailableCount: "365",
-	VarExp:            "98765",
-	VarPrps:           "11",
-	VarCrps:           "5",
-	VarCoins:          "653",
-	VarDate:           "03.02.2033",
+	VarCampus:         "Abcdefg",
+	VarAvailableCount: "987",
+	VarExp:            "987654",
+	VarPrps:           "98",
+	VarCrps:           "98",
+	VarCoins:          "987",
+	VarDate:           "03.02.3333",
 }
 
 // Input Constants
@@ -83,8 +83,14 @@ func GetDefaultVariables(lang string) map[string]string {
 	// Adjust language-specific defaults
 	if lang == LangEn {
 		vars[VarLanguageFlag] = DefaultFlagEn
+		vars[VarCampus] = "Unknown campus"
+		vars[VarCoalition] = "No coalition"
+		vars[VarS21Login] = "Guest"
 	} else {
 		vars[VarLanguageFlag] = DefaultFlagRu
+		vars[VarCampus] = "Неизвестный кампус"
+		vars[VarCoalition] = "Нет коалиции"
+		vars[VarS21Login] = "Гость"
 	}
 
 	return vars
