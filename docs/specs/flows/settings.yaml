@@ -3,7 +3,7 @@ meta:
   feature_id: SET-001
   name: Настройки пользователя
   description: Управление настройками профиля, API-токенами и данными Data-Provider
-  version: 2.0.0
+  version: 2.0.1
 
 initial_state: SETTINGS_MENU
 states:
@@ -118,11 +118,11 @@ states:
           Enter additional contact (e.g., email or Telegram), or delete the current contact.
       error_invalid:
         ru: |
-          ⚠️ Слишком длинный текст! Максимум 30 символов.
+          ⚠️ Слишком длинный текст! Максимум 42 символов.
         en: |
-          ⚠️ Text too long! Max 30 characters.
+          ⚠️ Text too long! Max 42 characters.
     validation:
-      regex: ^.{1,30}$
+      regex: ^.{1,42}$
     transitions:
       - trigger: on_valid_input
         next_state: CONFIRM_ALTERNATIVE_CONTACT

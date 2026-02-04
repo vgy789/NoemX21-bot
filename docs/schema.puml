@@ -16,7 +16,8 @@ package "Identity_Auth" {
     entity "campuses" as campuses {
         * id : uuid <<PK>>
         --
-        * name : string <<UK>>
+        * short_name : string <<UK>>
+        * full_name : string
         timezone : string
         is_active : boolean
         created_at : timestamp
@@ -27,15 +28,12 @@ package "Identity_Auth" {
         * id : smallint <<PK>>
         --
         * name : string <<UK>>
-        icon_url : string
-        color : string
         created_at : timestamp
     }
 
     entity "students" as students {
-        * id : uuid <<PK>>
+        * s21_login : string <<PK>>
         --
-        * s21_login : string <<UK>>
         * rocketchat_id : string <<UK>>
         campus_id : uuid <<FK>>
         coalition_id : smallint <<FK>>
@@ -47,9 +45,9 @@ package "Identity_Auth" {
         crp : int
         coins : int
         language_code : string
-        is_provider : boolean
-        is_searchable : boolean
-        has_coffee_ban : boolean
+        timezone : string
+        alternative_contact : string
+        has_coffee_ban : boolean # TODO: А должно ли оно тут быть?
         created_at : timestamp
         updated_at : timestamp
     }
@@ -57,15 +55,15 @@ package "Identity_Auth" {
     entity "user_accounts" as user_accounts {
         * id : bigserial <<PK>>
         --
-        student_id : uuid <<FK>>
+        student_id : string <<FK>>
         platform : ENUM_PLATFORM
         external_id : string
         username : string
-        alternative_contact : string
         role : ENUM_USER_ROLE
+        is_searchable : boolean
         linked_at : timestamp
-        created_at : timestamp
-        updated_at : timestamp
+        --
+        UNIQUE(student_id, platform)
     }
 
     entity "user_bot_settings" as user_bot_settings {
@@ -79,18 +77,31 @@ package "Identity_Auth" {
         updated_at : timestamp
     }
 
-    entity "user_secrets" as user_secrets {
-        * student_id : uuid <<PK>> <<FK>>
+    entity "platform_credentials" as platform_credentials {
+        * student_id : string <<PK>> <<FK>>
         --
-        payload_enc : bytea
-        nonce : bytea
+        password_enc : bytea
+        password_nonce : bytea
+        access_token : text
+        access_expires_at : timestamp
+        refresh_token_enc : bytea
+        refresh_nonce : bytea
+        refresh_expires_at : timestamp
+        updated_at : timestamp
+    }
+
+    entity "rocketchat_credentials" as rocketchat_credentials {
+        * student_id : string <<PK>> <<FK>>
+        --
+        rc_token_enc : bytea
+        rc_nonce : bytea
         updated_at : timestamp
     }
 
     entity "auth_verification_codes" as auth_verification_codes {
         * id : bigserial <<PK>>
         --
-        student_id : uuid <<FK>>
+        student_id : string <<FK>>
         code : string
         expires_at : timestamp
         created_at : timestamp
@@ -104,7 +115,7 @@ package "Operational_Cache" {
     entity "student_projects_cache" as student_projects_cache {
         * id : bigserial <<PK>>
         --
-        student_id : uuid <<FK>>
+        student_id : string <<FK>>
         project_name : string
         project_id : bigint
         status : ENUM_PROJECT_STATUS
@@ -117,7 +128,7 @@ package "Operational_Cache" {
     entity "review_requests" as review_requests {
         * id : bigserial <<PK>>
         --
-        student_id : uuid <<FK>>
+        student_id : string <<FK>>
         campus_id : uuid <<FK>>
         matched_reviewer_id : uuid <<FK>>
         project_name : string
@@ -132,7 +143,7 @@ package "Operational_Cache" {
     entity "review_notification_filters" as review_notification_filters {
         * id : bigserial <<PK>>
         --
-        student_id : uuid <<FK>>
+        student_id : string <<FK>>
         campus_id : uuid <<FK>>
         created_at : timestamp
     }
@@ -168,7 +179,7 @@ package "Resources" {
         * id : bigserial <<PK>>
         --
         room_id : int <<FK>>
-        student_id : uuid <<FK>>
+        student_id : string <<FK>>
         start_time : timestamp
         end_time : timestamp
         is_cancelled : boolean
@@ -194,7 +205,7 @@ package "Resources" {
         * id : bigserial <<PK>>
         --
         book_id : int <<FK>>
-        student_id : uuid <<FK>>
+        student_id : string <<FK>>
         returned_by_id : uuid <<FK>>
         borrowed_at : timestamp
         due_at : timestamp
@@ -205,7 +216,7 @@ package "Resources" {
         * id : bigserial <<PK>>
         --
         book_id : int <<FK>>
-        student_id : uuid <<FK>>
+        student_id : string <<FK>>
         created_at : timestamp
     }
 }
@@ -274,8 +285,8 @@ package "Community_Social" {
     entity "coffee_matches" as coffee_matches {
         * id : bigserial <<PK>>
         --
-        student_1_id : uuid <<FK>>
-        student_2_id : uuid <<FK>>
+        student_1_id : string <<FK>>
+        student_2_id : string <<FK>>
         match_date : date
         status : ENUM_COFFEE_STATUS
         created_at : timestamp
@@ -312,7 +323,7 @@ package "System_Stats" {
     entity "external_api_keys" as external_api_keys {
         * id : bigserial <<PK>>
         --
-        created_by_student_id : uuid <<FK>>
+        created_by_student_id : string <<FK>>
         client_name : string
         key_hash : string
         is_active : boolean
@@ -332,7 +343,7 @@ package "System_Stats" {
     }
 
     entity "student_skills" as student_skills {
-        * student_id : uuid <<PK>> <<FK>>
+        * student_id : string <<PK>> <<FK>>
         * skill_id : int <<PK>> <<FK>>
         --
         value : int
@@ -357,7 +368,7 @@ package "Notifications_Audit" {
     entity "notifications" as notifications {
         * id : bigserial <<PK>>
         --
-        student_id : uuid <<FK>>
+        student_id : string <<FK>>
         type : ENUM_NOTIF_TYPE
         message : string
         metadata : jsonb
@@ -385,7 +396,8 @@ package "Notifications_Audit" {
 campuses ||--o{ students
 coalitions ||--o{ students
 students ||--o{ user_accounts
-students ||--o{ user_secrets
+students ||--o| platform_credentials
+students ||--o| rocketchat_credentials
 students ||--o{ auth_verification_codes
 user_accounts ||--o| user_bot_settings
 
