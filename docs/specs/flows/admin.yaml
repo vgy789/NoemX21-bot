@@ -55,7 +55,7 @@ states:
           label:
             ru: 🏠 Выход
             en: 🏠 Exit
-          next_state: main_menu.yaml/MAIN_MENU
+          next_state: MAIN_MENU
     on_enter: check_admin_permissions
 
   BROADCAST_INPUT:

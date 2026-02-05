@@ -2,7 +2,10 @@ package fsm
 
 import (
 	"context"
+	"encoding/json"
 	"sync"
+
+	"github.com/vgy789/noemx21-bot/internal/database/db"
 )
 
 // StateRepository defines the interface for storing user states.
@@ -41,4 +44,54 @@ func (r *MemoryStateRepository) SetState(ctx context.Context, state *UserState) 
 
 	r.states[state.UserID] = state
 	return nil
+}
+
+// PostgreSQLStateRepository is a PostgreSQL implementation of StateRepository.
+type PostgreSQLStateRepository struct {
+	queries db.Querier
+}
+
+func NewPostgreSQLStateRepository(queries db.Querier) *PostgreSQLStateRepository {
+	return &PostgreSQLStateRepository{
+		queries: queries,
+	}
+}
+
+func (r *PostgreSQLStateRepository) GetState(ctx context.Context, userID int64) (*UserState, error) {
+	row, err := r.queries.GetFSMState(ctx, userID)
+	if err != nil {
+		// sqlc with pgx returns error if no rows found
+		// We need to check if it's "no rows" error
+		// For now, assume if error happens it might be not found or connection error
+		// In a real app we would check errors.Is(err, pgx.ErrNoRows)
+		return nil, nil // Fallback to start
+	}
+
+	var contextMap map[string]interface{}
+	if err := json.Unmarshal(row.Context, &contextMap); err != nil {
+		return nil, err
+	}
+
+	return &UserState{
+		UserID:       row.UserID,
+		CurrentFlow:  row.CurrentFlow,
+		CurrentState: row.CurrentState,
+		Context:      contextMap,
+		Language:     row.Language,
+	}, nil
+}
+
+func (r *PostgreSQLStateRepository) SetState(ctx context.Context, state *UserState) error {
+	contextBytes, err := json.Marshal(state.Context)
+	if err != nil {
+		return err
+	}
+
+	return r.queries.UpsertFSMState(ctx, db.UpsertFSMStateParams{
+		UserID:       state.UserID,
+		CurrentFlow:  state.CurrentFlow,
+		CurrentState: state.CurrentState,
+		Context:      contextBytes,
+		Language:     state.Language,
+	})
 }

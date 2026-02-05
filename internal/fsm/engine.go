@@ -15,6 +15,13 @@ type Engine struct {
 	log       *slog.Logger
 	registry  *LogicRegistry
 	sanitizer VariableSanitizer
+	aliases   map[string]StateAddress
+}
+
+// StateAddress represents a specific state in a specific flow.
+type StateAddress struct {
+	Flow  string
+	State string
 }
 
 // NewEngine creates a new FSM engine.
@@ -31,7 +38,18 @@ func NewEngine(parser *FlowParser, repo StateRepository, log *slog.Logger, regis
 		log:       log,
 		registry:  registry,
 		sanitizer: sanitizer,
+		aliases:   make(map[string]StateAddress),
 	}
+}
+
+// AddAlias adds a global state alias.
+func (e *Engine) AddAlias(alias, target string) {
+	parts := strings.Split(target, "/")
+	if len(parts) != 2 {
+		e.log.Error("invalid alias target, expected flow.yaml/STATE", "alias", alias, "target", target)
+		return
+	}
+	e.aliases[alias] = StateAddress{Flow: parts[0], State: parts[1]}
 }
 
 // RenderObject represents the data to be sent to the user.
@@ -53,6 +71,16 @@ func (e *Engine) Registry() *LogicRegistry {
 // Repo returns the state repository.
 func (e *Engine) Repo() StateRepository {
 	return e.repo
+}
+
+// Parser returns the flow parser.
+func (e *Engine) Parser() *FlowParser {
+	return e.parser
+}
+
+// Sanitizer returns the variable sanitizer.
+func (e *Engine) Sanitizer() func(string) string {
+	return e.sanitizer
 }
 
 func (e *Engine) InitState(ctx context.Context, userID int64, flowName, stateName string, initialContext map[string]interface{}) error {
@@ -207,10 +235,14 @@ func (e *Engine) transitionTo(ctx context.Context, state *UserState, target stri
 	targetFlow := state.CurrentFlow
 	targetState := target
 
-	if strings.Contains(target, "/") {
-		parts := strings.Split(target, "/")
-		targetFlow = parts[0]
-		targetState = parts[1]
+	// Resolve alias
+	if resolved, ok := e.aliases[target]; ok {
+		e.log.Debug("resolving state alias", "alias", target, "flow", resolved.Flow, "state", resolved.State)
+		targetFlow = resolved.Flow
+		targetState = resolved.State
+	} else if strings.Contains(target, "/") {
+		e.log.Error("hardcoded cross-flow navigation forbidden", "target", target, "user_id", state.UserID)
+		return fmt.Errorf("hardcoded cross-flow navigation (with '/') is forbidden, use aliases: %s", target)
 	}
 
 	e.log.Info("transitioning", "from", state.CurrentState, "to", targetState, "flow", targetFlow)

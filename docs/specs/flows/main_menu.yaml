@@ -27,33 +27,33 @@ states:
           label:
             ru: 📊 Статистика и поиск
             en: 📊 Stats & Search
-          next_state: statistics.yaml/STATS_SEARCH_MENU
+          next_state: STATS_MENU
         - id: review
           label:
             ru: 👀 Ревью
             en: 👀 Review
           row: 1
-          next_state: reviews.yaml/REVIEW_MENU
+          next_state: REVIEWS_MENU
         - id: booking
           label:
             ru: 💬 Переговорки
             en: 💬 Meeting rooms
           row: 1
-          next_state: booking.yaml/BOOKING_MENU
+          next_state: BOOKING_MENU
         - id: library
           label:
             ru: 📚 Библиотека
             en: 📚 Library
-          next_state: library.yaml/LIBRARY_MENU
+          next_state: LIBRARY_MENU
           row: 2
         - id: clubs
           label:
             ru: 🎲 Клубы/группы
             en: 🎲 Clubs/Groups
           row: 2
-          next_state: clubs.yaml/CLUBS_MENU
+          next_state: CLUBS_MENU
         - id: settings
           label:
             ru: ⚙️ Настройки
             en: ⚙️ Settings
-          next_state: settings.yaml/SETTINGS_MENU
+          next_state: SETTINGS_MENU

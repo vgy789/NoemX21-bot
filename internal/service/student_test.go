@@ -41,6 +41,14 @@ func (m *mockQuerier) GetRocketChatCredentials(ctx context.Context, studentID st
 	return m.mock.GetRocketChatCredentials(ctx, studentID)
 }
 
+func (m *mockQuerier) GetFSMState(ctx context.Context, userID int64) (db.FsmUserState, error) {
+	return m.mock.GetFSMState(ctx, userID)
+}
+
+func (m *mockQuerier) UpsertFSMState(ctx context.Context, arg db.UpsertFSMStateParams) error {
+	return m.mock.UpsertFSMState(ctx, arg)
+}
+
 func (m *mockQuerier) GetStudentByRocketChatId(ctx context.Context, rocketchatID string) (db.Student, error) {
 	return m.mock.GetStudentByRocketChatId(ctx, rocketchatID)
 }

@@ -44,7 +44,7 @@ states:
           label:
             ru: 🏠 Назад
             en: 🏠 Back
-          next_state: main_menu.yaml/MAIN_MENU
+          next_state: MAIN_MENU
           row: 2
 
   FETCH_MY_PROJECTS_IN_REVIEW:

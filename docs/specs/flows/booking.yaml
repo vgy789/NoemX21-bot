@@ -40,7 +40,7 @@ states:
           label:
             ru: 🏠 Назад
             en: 🏠 Back
-          next_state: main_menu.yaml/MAIN_MENU
+          next_state: MAIN_MENU
 
   SELECT_DATE:
     type: interactive
@@ -202,4 +202,4 @@ states:
           Room *{room_name}* is booked for *{time}*.
           Have a productive session! 👨‍💻
     transitions:
-      - next_state: main_menu.yaml/MAIN_MENU
+      - next_state: MAIN_MENU

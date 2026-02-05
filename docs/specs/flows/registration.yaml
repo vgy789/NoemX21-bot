@@ -34,7 +34,7 @@ states:
       check: is_user_registered
     transitions:
       - condition: registered == true
-        next_state: main_menu.yaml/MAIN_MENU
+        next_state: MAIN_MENU
       - condition: registered == false
         next_state: INPUT_LOGIN
 
@@ -313,4 +313,4 @@ states:
         - label:
             ru: В меню
             en: To menu
-          next_state: main_menu.yaml/MAIN_MENU
+          next_state: MAIN_MENU

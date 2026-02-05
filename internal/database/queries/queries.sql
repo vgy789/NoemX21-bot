@@ -122,3 +122,19 @@ WHERE student_id = $1 AND code = $2;
 -- name: DeleteExpiredAuthVerificationCodes :exec
 DELETE FROM auth_verification_codes
 WHERE expires_at < CURRENT_TIMESTAMP;
+
+-- name: GetFSMState :one
+SELECT * FROM fsm_user_states WHERE user_id = $1;
+
+-- name: UpsertFSMState :exec
+INSERT INTO fsm_user_states (
+    user_id, current_flow, current_state, context, language
+) VALUES (
+    $1, $2, $3, $4, $5
+)
+ON CONFLICT (user_id) DO UPDATE SET
+    current_flow = EXCLUDED.current_flow,
+    current_state = EXCLUDED.current_state,
+    context = EXCLUDED.context,
+    language = EXCLUDED.language,
+    updated_at = CURRENT_TIMESTAMP;
