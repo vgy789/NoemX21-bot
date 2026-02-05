@@ -47,12 +47,11 @@ func (s *DefaultSender) AnswerCallbackQuery(id string, opts *gotgbot.AnswerCallb
 func NewTelegramService(cfg *config.Config, log *slog.Logger, studentSvc service.StudentService, queries db.Querier, rcClient *rocketchat.Client) TelegramService {
 	// Initialize FSM components
 	parser := fsm.NewFlowParser("docs/specs/flows", log) // Assuming CWD is root
-	repoFSM := fsm.NewMemoryStateRepository()
+	repoFSM := fsm.NewPostgreSQLStateRepository(queries)
 
 	// Create registry and register actions
 	registry := fsm.NewLogicRegistry()
 	registrar := actions.NewRegistrar(cfg, log, studentSvc, queries, rcClient)
-	registrar.RegisterAll(registry)
 
 	// Initialize Engine with sanitizer
 	sanitizer := func(text string) string {
@@ -60,6 +59,9 @@ func NewTelegramService(cfg *config.Config, log *slog.Logger, studentSvc service
 	}
 
 	engine := fsm.NewEngine(parser, repoFSM, log, registry, sanitizer)
+
+	// Register all actions and aliases from plugins
+	registrar.RegisterAll(registry, engine.AddAlias)
 
 	return &telegramService{
 		cfg:        cfg,

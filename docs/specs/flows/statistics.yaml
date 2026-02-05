@@ -63,7 +63,7 @@ states:
           label:
             ru: 🏠 Назад
             en: 🏠 Back
-          next_state: main_menu.yaml/MAIN_MENU
+          next_state: MAIN_MENU
 
   FETCH_MY_STATS:
     type: system

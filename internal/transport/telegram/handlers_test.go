@@ -43,6 +43,7 @@ func TestTelegramService_Handlers(t *testing.T) {
 	})
 
 	engine := fsm.NewEngine(parser, repo, logger, registry, nil)
+	engine.AddAlias("MAIN_MENU", "main_menu.yaml/MAIN_MENU")
 
 	s := &telegramService{
 		log:        logger,

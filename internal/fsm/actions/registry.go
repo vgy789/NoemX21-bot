@@ -6,5 +6,5 @@ import (
 
 // ActionRegistrar defines the interface for registering FSM actions.
 type ActionRegistrar interface {
-	RegisterAll(registry *fsm.LogicRegistry)
+	RegisterAll(registry *fsm.LogicRegistry, aliasRegistrar func(alias, target string))
 }

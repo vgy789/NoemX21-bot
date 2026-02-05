@@ -167,6 +167,15 @@ type Coalition struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type FsmUserState struct {
+	UserID       int64              `json:"user_id"`
+	CurrentFlow  string             `json:"current_flow"`
+	CurrentState string             `json:"current_state"`
+	Context      []byte             `json:"context"`
+	Language     string             `json:"language"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
 type PlatformCredential struct {
 	StudentID        string             `json:"student_id"`
 	PasswordEnc      []byte             `json:"password_enc"`

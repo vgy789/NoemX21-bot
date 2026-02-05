@@ -11,11 +11,7 @@ import (
 )
 
 type registrar struct {
-	cfg        *config.Config
-	log        *slog.Logger
-	studentSvc service.StudentService
-	queries    db.Querier
-	rcClient   *rocketchat.Client
+	deps *Dependencies
 }
 
 // NewRegistrar creates a new action registrar.
@@ -27,21 +23,20 @@ func NewRegistrar(
 	rcClient *rocketchat.Client,
 ) ActionRegistrar {
 	return &registrar{
-		cfg:        cfg,
-		log:        log,
-		studentSvc: studentSvc,
-		queries:    queries,
-		rcClient:   rcClient,
+		deps: &Dependencies{
+			Config:     cfg,
+			Log:        log,
+			StudentSvc: studentSvc,
+			Queries:    queries,
+			RCClient:   rcClient,
+		},
 	}
 }
 
-func (r *registrar) RegisterAll(registry *fsm.LogicRegistry) {
-	// Base actions
-	RegisterBaseActions(registry, r.log)
-
-	// Settings actions
-	RegisterSettingsActions(registry, r.log, r.queries)
-
-	// Registration actions
-	RegisterRegistrationActions(registry, r.cfg, r.log, r.studentSvc, r.queries, r.rcClient)
+func (r *registrar) RegisterAll(registry *fsm.LogicRegistry, aliasRegistrar func(alias, target string)) {
+	r.deps.AliasRegistrar = aliasRegistrar
+	for _, p := range GetPlugins() {
+		r.deps.Log.Info("registering plugin", "plugin_id", p.ID())
+		p.Register(registry, r.deps)
+	}
 }

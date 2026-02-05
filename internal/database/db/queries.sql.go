@@ -105,6 +105,24 @@ func (q *Queries) DeleteExpiredAuthVerificationCodes(ctx context.Context) error 
 	return err
 }
 
+const getFSMState = `-- name: GetFSMState :one
+SELECT user_id, current_flow, current_state, context, language, updated_at FROM fsm_user_states WHERE user_id = $1
+`
+
+func (q *Queries) GetFSMState(ctx context.Context, userID int64) (FsmUserState, error) {
+	row := q.db.QueryRow(ctx, getFSMState, userID)
+	var i FsmUserState
+	err := row.Scan(
+		&i.UserID,
+		&i.CurrentFlow,
+		&i.CurrentState,
+		&i.Context,
+		&i.Language,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getPlatformCredentials = `-- name: GetPlatformCredentials :one
 SELECT student_id, password_enc, password_nonce, access_token, access_expires_at, refresh_token_enc, refresh_nonce, refresh_expires_at, updated_at FROM platform_credentials 
 WHERE student_id = $1
@@ -347,6 +365,39 @@ func (q *Queries) GetValidAuthVerificationCode(ctx context.Context, arg GetValid
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const upsertFSMState = `-- name: UpsertFSMState :exec
+INSERT INTO fsm_user_states (
+    user_id, current_flow, current_state, context, language
+) VALUES (
+    $1, $2, $3, $4, $5
+)
+ON CONFLICT (user_id) DO UPDATE SET
+    current_flow = EXCLUDED.current_flow,
+    current_state = EXCLUDED.current_state,
+    context = EXCLUDED.context,
+    language = EXCLUDED.language,
+    updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertFSMStateParams struct {
+	UserID       int64  `json:"user_id"`
+	CurrentFlow  string `json:"current_flow"`
+	CurrentState string `json:"current_state"`
+	Context      []byte `json:"context"`
+	Language     string `json:"language"`
+}
+
+func (q *Queries) UpsertFSMState(ctx context.Context, arg UpsertFSMStateParams) error {
+	_, err := q.db.Exec(ctx, upsertFSMState,
+		arg.UserID,
+		arg.CurrentFlow,
+		arg.CurrentState,
+		arg.Context,
+		arg.Language,
+	)
+	return err
 }
 
 const upsertPlatformCredentials = `-- name: UpsertPlatformCredentials :exec

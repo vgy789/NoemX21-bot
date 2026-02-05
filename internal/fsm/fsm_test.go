@@ -183,6 +183,7 @@ func TestEngine_Process(t *testing.T) {
 	parser := NewFlowParser("../../docs/specs/flows", logger)
 	repo := NewMemoryStateRepository()
 	engine := NewEngine(parser, repo, logger, nil, nil)
+	engine.AddAlias("SETTINGS_MENU", "settings.yaml/SETTINGS_MENU")
 
 	ctx := context.Background()
 	userID := int64(22222)
@@ -298,6 +299,7 @@ func TestEngine_RegistrationFlow(t *testing.T) {
 		return "", map[string]interface{}{"registered": true}, nil
 	})
 	engine := NewEngine(parser, repo, logger, registry, nil)
+	engine.AddAlias("MAIN_MENU", "main_menu.yaml/MAIN_MENU")
 
 	ctx := context.Background()
 	userID := int64(33333)
@@ -464,6 +466,7 @@ func TestEngine_MoreEdgeCases(t *testing.T) {
 	parser := NewFlowParser("../../docs/specs/flows", logger)
 	registry := NewLogicRegistry()
 	engine := NewEngine(parser, repo, logger, registry, nil)
+	engine.AddAlias("MAIN_MENU", "main_menu.yaml/MAIN_MENU")
 
 	ctx := context.Background()
 	userID := int64(1001)

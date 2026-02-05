@@ -29,10 +29,12 @@ func TestNewTelegramService(t *testing.T) {
 	mockRCClient := rocketchat.NewClient("", "", "")
 
 	service := NewTelegramService(cfg, logger, mockStudentSvc, mockQuerier, mockRCClient)
+	ts, ok := service.(*telegramService)
+	require.True(t, ok, "NewTelegramService did not return *telegramService")
+	// Use memory repo for tests
+	ts.engine = fsm.NewEngine(ts.engine.Parser(), fsm.NewMemoryStateRepository(), logger, ts.engine.Registry(), ts.engine.Sanitizer())
 
 	require.NotNil(t, service)
-
-	ts, ok := service.(*telegramService)
 	require.True(t, ok, "NewTelegramService did not return *telegramService")
 
 	assert.Equal(t, cfg, ts.cfg)

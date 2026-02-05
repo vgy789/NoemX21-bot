@@ -14,6 +14,7 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	dbMock "github.com/vgy789/noemx21-bot/internal/database/db/mock"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
+	"github.com/vgy789/noemx21-bot/internal/fsm/actions"
 	serviceMock "github.com/vgy789/noemx21-bot/internal/service/mock"
 	"go.uber.org/mock/gomock"
 )
@@ -30,8 +31,14 @@ func prepareRegistrationTest(t *testing.T) (*telegramService, *serviceMock.MockS
 	service := NewTelegramService(cfg, logger, mockStudentSvc, mockQuerier, mockRCClient)
 	ts := service.(*telegramService)
 
-	// Override parser with correct relative path
-	ts.engine = fsm.NewEngine(fsm.NewFlowParser("../../../docs/specs/flows", logger), ts.engine.Repo(), logger, ts.engine.Registry(), nil)
+	// Override engine with test settings
+	repo := fsm.NewMemoryStateRepository()
+	parser := fsm.NewFlowParser("../../../docs/specs/flows", logger)
+	ts.engine = fsm.NewEngine(parser, repo, logger, ts.engine.Registry(), ts.engine.Sanitizer())
+
+	// Register actions and aliases in test engine
+	registrar := actions.NewRegistrar(cfg, logger, mockStudentSvc, mockQuerier, mockRCClient)
+	registrar.RegisterAll(ts.engine.Registry(), ts.engine.AddAlias)
 
 	return ts, mockStudentSvc, mockQuerier, ctrl
 }
