@@ -3,7 +3,7 @@ meta:
   feature_id: REG-001
   name: Регистрация нового пользователя
   description: Процесс создания аккаунта с валидацией через S21 API и проверкой OTP в Rocket.Chat
-  version: 2.0.0
+  version: 2.1.0
 
 ## интерфейс settings.yaml/SET_LANGUAGE и registration.yaml/SELECT_LANGUAGE должны совпадать
 initial_state: SELECT_LANGUAGE
@@ -100,7 +100,7 @@ states:
           critical: true
     transitions:
       - condition: rocket_user_found == true && email_verified == true
-        next_state: AWAITING_OTP
+        next_state: GENERATE_OTP
         security_level: SAFE
       - condition: rocket_user_found == true && email_mismatch == true
         next_state: ERROR_EMAIL_MISMATCH
@@ -109,6 +109,17 @@ states:
         next_state: ROCKET_USER_NOT_FOUND
       - condition: rocket_api_error == true
         next_state: ROCKET_API_ERROR
+
+  GENERATE_OTP:
+    type: system
+    description: Генерация и отправка OTP кода в Rocket.Chat
+    logic:
+      action: generate_otp
+      payload:
+        login: $context.last_input
+    transitions:
+      - condition: otp_sent == true
+        next_state: AWAITING_OTP
 
   AWAITING_OTP:
     requirement: Безопасная обработка OTP-кодов в памяти и при передаче (см. security_policy.yaml)
@@ -128,15 +139,8 @@ states:
     validation:
       regex: ^[0-9]{6}$
     transitions:
-      - trigger: code_correct
-        condition: email_unique == true
-        next_state: REGISTRATION_COMPLETE
-      - trigger: code_correct
-        condition: email_unique == false
-        next_state: ERROR_EMAIL_ALREADY_REGISTERED
-      - trigger: code_incorrect
-        condition: attempts > 0
-        next_state: AWAITING_OTP
+      - trigger: on_valid_input
+        next_state: VALIDATE_OTP
       - trigger: code_expired
         next_state: INPUT_LOGIN
         action: "notify: code_expired"
@@ -146,6 +150,22 @@ states:
     forbidden_practices:
       - Вывод OTP в логи
       - Сохранение OTP в БД
+
+  VALIDATE_OTP:
+    type: system
+    description: Верификация OTP кода и проверка уникальности email
+    logic:
+      action: verify_otp
+      payload:
+        code: "{last_input}"
+        student_id: "{s21_login}"
+    transitions:
+      - condition: code_correct == true && email_unique == true
+        next_state: REGISTRATION_COMPLETE
+      - condition: code_correct == true && email_unique == false
+        next_state: ERROR_EMAIL_ALREADY_REGISTERED
+      - condition: code_correct == false
+        next_state: AWAITING_OTP
 
   ERROR_WRONG_PARALLEL:
     type: interactive
