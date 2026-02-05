@@ -19,9 +19,9 @@ import (
 )
 
 type fakeS21Client struct {
-	authResp    *s21.AuthResponse
-	authErr     error
-	participant *s21.ParticipantV1DTO
+	authResp       *s21.AuthResponse
+	authErr        error
+	participant    *s21.ParticipantV1DTO
 	participantErr error
 }
 
@@ -142,6 +142,7 @@ func TestCredentialSeeder_Seed_newStudent_missingRocketChatID(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Init.SchoolLogin = "newuser"
 	cfg.Init.SchoolPassword = config.Secret("")
+	cfg.RocketChat.UserID = config.Secret("") // Empty RocketChat user ID
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	seeder := NewCredentialSeeder(mockRepo, nil, &fakeS21Client{}, log)
 
@@ -223,7 +224,7 @@ func TestCredentialSeeder_Seed_upsertRocketChat(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Init.SchoolLogin = "u"
 	cfg.Init.SchoolPassword = config.Secret("p")
-	cfg.Init.RocketChatToken = config.Secret("rctoken")
+	cfg.RocketChat.AuthToken = config.Secret("rctoken")
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	seeder := NewCredentialSeeder(mockRepo, crypter, &fakeS21Client{}, log)
 
@@ -249,7 +250,7 @@ func TestCredentialSeeder_Seed_newStudent_upsertStudent(t *testing.T) {
 
 	cfg := &config.Config{}
 	cfg.Init.SchoolLogin = "newbie"
-	cfg.Init.RocketChatUserID = "rc-id"
+	cfg.RocketChat.UserID = config.Secret("rc-id")
 	cfg.Init.SchoolPassword = config.Secret("")
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	seeder := NewCredentialSeeder(mockRepo, nil, &fakeS21Client{}, log)

@@ -161,6 +161,64 @@ func (mr *MockQuerierMockRecorder) GetUserBotSettings(ctx, userAccountID any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserBotSettings", reflect.TypeOf((*MockQuerier)(nil).GetUserBotSettings), ctx, userAccountID)
 }
 
+// CreateAuthVerificationCode mocks base method.
+func (m *MockQuerier) CreateAuthVerificationCode(ctx context.Context, arg db.CreateAuthVerificationCodeParams) (db.AuthVerificationCode, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateAuthVerificationCode", ctx, arg)
+	ret0, _ := ret[0].(db.AuthVerificationCode)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateAuthVerificationCode indicates an expected call of CreateAuthVerificationCode.
+func (mr *MockQuerierMockRecorder) CreateAuthVerificationCode(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateAuthVerificationCode", reflect.TypeOf((*MockQuerier)(nil).CreateAuthVerificationCode), ctx, arg)
+}
+
+// DeleteAuthVerificationCode mocks base method.
+func (m *MockQuerier) DeleteAuthVerificationCode(ctx context.Context, arg db.DeleteAuthVerificationCodeParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAuthVerificationCode", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteAuthVerificationCode indicates an expected call of DeleteAuthVerificationCode.
+func (mr *MockQuerierMockRecorder) DeleteAuthVerificationCode(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAuthVerificationCode", reflect.TypeOf((*MockQuerier)(nil).DeleteAuthVerificationCode), ctx, arg)
+}
+
+// DeleteExpiredAuthVerificationCodes mocks base method.
+func (m *MockQuerier) DeleteExpiredAuthVerificationCodes(ctx context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteExpiredAuthVerificationCodes", ctx)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteExpiredAuthVerificationCodes indicates an expected call of DeleteExpiredAuthVerificationCodes.
+func (mr *MockQuerierMockRecorder) DeleteExpiredAuthVerificationCodes(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredAuthVerificationCodes", reflect.TypeOf((*MockQuerier)(nil).DeleteExpiredAuthVerificationCodes), ctx)
+}
+
+// GetValidAuthVerificationCode mocks base method.
+func (m *MockQuerier) GetValidAuthVerificationCode(ctx context.Context, arg db.GetValidAuthVerificationCodeParams) (db.AuthVerificationCode, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetValidAuthVerificationCode", ctx, arg)
+	ret0, _ := ret[0].(db.AuthVerificationCode)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetValidAuthVerificationCode indicates an expected call of GetValidAuthVerificationCode.
+func (mr *MockQuerierMockRecorder) GetValidAuthVerificationCode(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetValidAuthVerificationCode", reflect.TypeOf((*MockQuerier)(nil).GetValidAuthVerificationCode), ctx, arg)
+}
+
 // UpsertPlatformCredentials mocks base method.
 func (m *MockQuerier) UpsertPlatformCredentials(ctx context.Context, arg db.UpsertPlatformCredentialsParams) error {
 	m.ctrl.T.Helper()

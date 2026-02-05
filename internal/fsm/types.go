@@ -46,3 +46,9 @@ type UserState struct {
 	Context      map[string]interface{} `json:"context"`       // Store arbitrary data
 	Language     string                 `json:"language"`      // "ru" or "en"
 }
+
+// ContextKey is a type for context keys
+type ContextKey string
+
+// ContextKeyStudentID is used to store student ID in context
+const ContextKeyStudentID ContextKey = "student_id"

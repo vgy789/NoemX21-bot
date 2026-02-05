@@ -3,6 +3,7 @@ package app
 import (
 	"log/slog"
 
+	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/service"
@@ -15,10 +16,10 @@ type App struct {
 }
 
 // New creates a new application instance.
-func New(cfg *config.Config, log *slog.Logger, repo *db.DBWrapper) *App {
-	studentSvc := service.NewStudentService(repo)
+func New(cfg *config.Config, log *slog.Logger, repo *db.DBWrapper, rcClient *rocketchat.Client) *App {
+	studentSvc := service.NewStudentService(repo.Queries)
 	return &App{
-		tg: telegram.NewTelegramService(&cfg.Telegram, log, studentSvc),
+		tg: telegram.NewTelegramService(cfg, log, studentSvc, repo.Queries, rcClient),
 	}
 }
 

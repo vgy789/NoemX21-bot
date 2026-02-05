@@ -83,7 +83,7 @@ ON CONFLICT (student_id) DO UPDATE SET
     updated_at = CURRENT_TIMESTAMP;
 
 -- name: GetRocketChatCredentials :one
-SELECT * FROM rocketchat_credentials 
+SELECT * FROM rocketchat_credentials
 WHERE student_id = $1;
 
 -- name: UpsertRocketChatCredentials :exec
@@ -96,3 +96,25 @@ ON CONFLICT (student_id) DO UPDATE SET
     rc_token_enc = EXCLUDED.rc_token_enc,
     rc_nonce = EXCLUDED.rc_nonce,
     updated_at = CURRENT_TIMESTAMP;
+
+-- name: CreateAuthVerificationCode :one
+INSERT INTO auth_verification_codes (
+    student_id, code, expires_at
+) VALUES (
+    $1, $2, $3
+)
+RETURNING *;
+
+-- name: GetValidAuthVerificationCode :one
+SELECT * FROM auth_verification_codes
+WHERE student_id = $1 AND code = $2 AND expires_at > CURRENT_TIMESTAMP
+ORDER BY created_at DESC
+LIMIT 1;
+
+-- name: DeleteAuthVerificationCode :exec
+DELETE FROM auth_verification_codes
+WHERE student_id = $1 AND code = $2;
+
+-- name: DeleteExpiredAuthVerificationCodes :exec
+DELETE FROM auth_verification_codes
+WHERE expires_at < CURRENT_TIMESTAMP;

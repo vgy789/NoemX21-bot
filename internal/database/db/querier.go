@@ -9,7 +9,10 @@ import (
 )
 
 type Querier interface {
+	CreateAuthVerificationCode(ctx context.Context, arg CreateAuthVerificationCodeParams) (AuthVerificationCode, error)
 	CreateUserAccount(ctx context.Context, arg CreateUserAccountParams) (UserAccount, error)
+	DeleteAuthVerificationCode(ctx context.Context, arg DeleteAuthVerificationCodeParams) error
+	DeleteExpiredAuthVerificationCodes(ctx context.Context) error
 	GetPlatformCredentials(ctx context.Context, studentID string) (PlatformCredential, error)
 	GetRocketChatCredentials(ctx context.Context, studentID string) (RocketchatCredential, error)
 	GetStudentByRocketChatId(ctx context.Context, rocketchatID string) (Student, error)
@@ -18,6 +21,7 @@ type Querier interface {
 	GetStudentProfile(ctx context.Context, s21Login string) (GetStudentProfileRow, error)
 	GetUserAccountByExternalId(ctx context.Context, arg GetUserAccountByExternalIdParams) (UserAccount, error)
 	GetUserBotSettings(ctx context.Context, userAccountID int64) (UserBotSetting, error)
+	GetValidAuthVerificationCode(ctx context.Context, arg GetValidAuthVerificationCodeParams) (AuthVerificationCode, error)
 	UpsertPlatformCredentials(ctx context.Context, arg UpsertPlatformCredentialsParams) error
 	UpsertRocketChatCredentials(ctx context.Context, arg UpsertRocketChatCredentialsParams) error
 	UpsertStudent(ctx context.Context, arg UpsertStudentParams) (Student, error)

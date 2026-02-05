@@ -6,23 +6,57 @@ import (
 	"os"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
 	"github.com/vgy789/noemx21-bot/internal/config"
+	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 	serviceMock "github.com/vgy789/noemx21-bot/internal/service/mock"
 	"go.uber.org/mock/gomock"
 )
 
+// dbtxMock implements db.DBTX for testing
+type dbtxMock struct {
+	ctrl *gomock.Controller
+}
+
+func (m *dbtxMock) Exec(ctx context.Context, query string, args ...interface{}) (pgconn.CommandTag, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Exec", ctx, query, args)
+	ret0, _ := ret[0].(pgconn.CommandTag)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (m *dbtxMock) Query(ctx context.Context, query string, args ...interface{}) (pgx.Rows, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Query", ctx, query, args)
+	ret0, _ := ret[0].(pgx.Rows)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+func (m *dbtxMock) QueryRow(ctx context.Context, query string, args ...interface{}) pgx.Row {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "QueryRow", ctx, query, args)
+	return ret[0].(pgx.Row)
+}
+
 func TestNewTelegramService(t *testing.T) {
-	cfg := &config.TelegramBot{}
+	cfg := &config.Config{}
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockStudentSvc := serviceMock.NewMockStudentService(ctrl)
+	mockDBTX := &dbtxMock{ctrl: ctrl}
+	mockQueries := db.New(mockDBTX)
+	mockRCClient := rocketchat.NewClient("", "", "")
 
-	service := NewTelegramService(cfg, logger, mockStudentSvc)
+	service := NewTelegramService(cfg, logger, mockStudentSvc, mockQueries, mockRCClient)
 
 	require.NotNil(t, service)
 

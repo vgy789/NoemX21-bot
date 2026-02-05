@@ -14,6 +14,18 @@ const (
 	StateInputLogin     = "INPUT_LOGIN"
 	StateMainMenu       = "MAIN_MENU"
 	StateSettingsMenu   = "SETTINGS_MENU"
+	// Registration states
+	StateAwaitingOTP    = "AWAITING_OTP"
+	StateFindRocketUser = "FIND_ROCKET_USER"
+	// Error states
+	StateErrorWrongParallel          = "ERROR_WRONG_PARALLEL"
+	StateErrorAccessDenied           = "ERROR_ACCESS_DENIED"
+	StateErrorNotFound               = "ERROR_NOT_FOUND"
+	StateErrorAPI                    = "ERROR_API"
+	StateErrorEmailMismatch          = "ERROR_EMAIL_MISMATCH"
+	StateRocketUserNotFound          = "ROCKET_USER_NOT_FOUND"
+	StateRocketAPIError              = "ROCKET_API_ERROR"
+	StateErrorEmailAlreadyRegistered = "ERROR_EMAIL_ALREADY_REGISTERED"
 )
 
 // State Types

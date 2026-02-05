@@ -11,6 +11,34 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createAuthVerificationCode = `-- name: CreateAuthVerificationCode :one
+INSERT INTO auth_verification_codes (
+    student_id, code, expires_at
+) VALUES (
+    $1, $2, $3
+)
+RETURNING id, student_id, code, expires_at, created_at
+`
+
+type CreateAuthVerificationCodeParams struct {
+	StudentID pgtype.Text        `json:"student_id"`
+	Code      string             `json:"code"`
+	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
+}
+
+func (q *Queries) CreateAuthVerificationCode(ctx context.Context, arg CreateAuthVerificationCodeParams) (AuthVerificationCode, error) {
+	row := q.db.QueryRow(ctx, createAuthVerificationCode, arg.StudentID, arg.Code, arg.ExpiresAt)
+	var i AuthVerificationCode
+	err := row.Scan(
+		&i.ID,
+		&i.StudentID,
+		&i.Code,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createUserAccount = `-- name: CreateUserAccount :one
 INSERT INTO user_accounts (
     student_id, platform, external_id, username, is_searchable, role
@@ -52,6 +80,31 @@ func (q *Queries) CreateUserAccount(ctx context.Context, arg CreateUserAccountPa
 	return i, err
 }
 
+const deleteAuthVerificationCode = `-- name: DeleteAuthVerificationCode :exec
+DELETE FROM auth_verification_codes
+WHERE student_id = $1 AND code = $2
+`
+
+type DeleteAuthVerificationCodeParams struct {
+	StudentID pgtype.Text `json:"student_id"`
+	Code      string      `json:"code"`
+}
+
+func (q *Queries) DeleteAuthVerificationCode(ctx context.Context, arg DeleteAuthVerificationCodeParams) error {
+	_, err := q.db.Exec(ctx, deleteAuthVerificationCode, arg.StudentID, arg.Code)
+	return err
+}
+
+const deleteExpiredAuthVerificationCodes = `-- name: DeleteExpiredAuthVerificationCodes :exec
+DELETE FROM auth_verification_codes
+WHERE expires_at < CURRENT_TIMESTAMP
+`
+
+func (q *Queries) DeleteExpiredAuthVerificationCodes(ctx context.Context) error {
+	_, err := q.db.Exec(ctx, deleteExpiredAuthVerificationCodes)
+	return err
+}
+
 const getPlatformCredentials = `-- name: GetPlatformCredentials :one
 SELECT student_id, password_enc, password_nonce, access_token, access_expires_at, refresh_token_enc, refresh_nonce, refresh_expires_at, updated_at FROM platform_credentials 
 WHERE student_id = $1
@@ -75,7 +128,7 @@ func (q *Queries) GetPlatformCredentials(ctx context.Context, studentID string) 
 }
 
 const getRocketChatCredentials = `-- name: GetRocketChatCredentials :one
-SELECT student_id, rc_token_enc, rc_nonce, updated_at FROM rocketchat_credentials 
+SELECT student_id, rc_token_enc, rc_nonce, updated_at FROM rocketchat_credentials
 WHERE student_id = $1
 `
 
@@ -246,6 +299,31 @@ func (q *Queries) GetUserBotSettings(ctx context.Context, userAccountID int64) (
 		&i.ReviewPostCampusIds,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getValidAuthVerificationCode = `-- name: GetValidAuthVerificationCode :one
+SELECT id, student_id, code, expires_at, created_at FROM auth_verification_codes
+WHERE student_id = $1 AND code = $2 AND expires_at > CURRENT_TIMESTAMP
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+type GetValidAuthVerificationCodeParams struct {
+	StudentID pgtype.Text `json:"student_id"`
+	Code      string      `json:"code"`
+}
+
+func (q *Queries) GetValidAuthVerificationCode(ctx context.Context, arg GetValidAuthVerificationCodeParams) (AuthVerificationCode, error) {
+	row := q.db.QueryRow(ctx, getValidAuthVerificationCode, arg.StudentID, arg.Code)
+	var i AuthVerificationCode
+	err := row.Scan(
+		&i.ID,
+		&i.StudentID,
+		&i.Code,
+		&i.ExpiresAt,
+		&i.CreatedAt,
 	)
 	return i, err
 }

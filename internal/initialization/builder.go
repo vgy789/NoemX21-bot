@@ -5,6 +5,7 @@ import (
 	"log/slog"
 
 	"github.com/vgy789/noemx21-bot/internal/app"
+	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
 	"github.com/vgy789/noemx21-bot/internal/clients/s21"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/crypto"
@@ -73,14 +74,19 @@ func (b *Builder) BuildS21Client() *s21.Client {
 	return InitializeS21Client(b.s21Base)
 }
 
+// BuildRocketChatClient initializes the RocketChat client.
+func (b *Builder) BuildRocketChatClient() *rocketchat.Client {
+	return InitializeRocketChatClient(b.cfg)
+}
+
 // BuildSeeder initializes the credential seeder.
 func (b *Builder) BuildSeeder(repo *db.Queries, crypter *crypto.Crypter, s21Client *s21.Client) *service.CredentialSeeder {
 	return InitializeSeeder(repo, crypter, s21Client, b.log)
 }
 
 // BuildApp creates the application instance.
-func (b *Builder) BuildApp(repo *db.DBWrapper) *app.App {
-	return app.New(b.cfg, b.log, repo)
+func (b *Builder) BuildApp(repo *db.DBWrapper, rcClient *rocketchat.Client) *app.App {
+	return app.New(b.cfg, b.log, repo, rcClient)
 }
 
 // Run runs the application.
@@ -98,6 +104,7 @@ func (b *Builder) Run() error {
 	}
 
 	// Initialize Crypto and Seed Credentials
+	var rcClient *rocketchat.Client
 	if b.aeadKey != "" {
 		crypter, err := b.BuildCrypter()
 		if err != nil {
@@ -115,8 +122,11 @@ func (b *Builder) Run() error {
 		b.log.Warn("SCHOOL21_USER_LOGIN provided but AEAD_KEY is missing. Skipping credential seeding.")
 	}
 
+	// Initialize RocketChat client
+	rcClient = b.BuildRocketChatClient()
+
 	// Build and run the app
-	app := b.BuildApp(repo)
+	app := b.BuildApp(repo, rcClient)
 	app.Run()
 
 	return nil

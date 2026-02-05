@@ -13,7 +13,8 @@ import (
 // registerHandlers registers handlers for the dispatcher.
 func (s *telegramService) registerHandlers(d *ext.Dispatcher) {
 	d.AddHandler(handlers.NewCommand("start", s.handleStart))
-	d.AddHandler(handlers.NewCallback(nil, s.handleCallback))
+	d.AddHandler(handlers.NewCallback(func(cq *gotgbot.CallbackQuery) bool { return true }, s.handleCallback))
+	d.AddHandler(handlers.NewMessage(func(msg *gotgbot.Message) bool { return true }, s.handleTextMessage))
 }
 
 // handleStart handles the start command.
@@ -59,6 +60,31 @@ func (s *telegramService) handleStart(b *gotgbot.Bot, ctx *ext.Context) error {
 	}
 
 	return s.sendRender(s.getSender(b), ctx.EffectiveChat.Id, render)
+}
+
+// handleTextMessage handles text messages (e.g., OTP code input).
+func (s *telegramService) handleTextMessage(b *gotgbot.Bot, ctx *ext.Context) error {
+	userID := ctx.EffectiveUser.Id
+	text := ctx.Message.Text
+	bgCtx := context.Background()
+
+	s.log.Debug("text message received", "user_id", userID, "text", text)
+
+	// Process the text message through FSM
+	render, err := s.engine.Process(bgCtx, userID, text)
+	if err != nil {
+		s.log.Warn("fsm text processing failed", "error", err, "user_id", userID, "text", text)
+
+		// Fallback: try to just get the current state and re-render it
+		render, err = s.engine.GetCurrentRender(bgCtx, userID)
+		if err != nil {
+			s.log.Error("fallback render failed", "error", err, "user_id", userID)
+			_, _ = s.getSender(b).SendMessage(ctx.EffectiveChat.Id, "Произошла ошибка. Введите /start", nil)
+			return nil
+		}
+	}
+
+	return s.updateMessageRender(s.getSender(b), ctx.EffectiveChat.Id, ctx.Message.GetMessageId(), render)
 }
 
 // handleCallback handles callback queries (buttons).

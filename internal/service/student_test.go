@@ -12,12 +12,81 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
+// mockQuerier implements db.Querier by wrapping a mock.MockQuerier
+type mockQuerier struct {
+	mock *mock.MockQuerier
+}
+
+func (m *mockQuerier) CreateUserAccount(ctx context.Context, arg db.CreateUserAccountParams) (db.UserAccount, error) {
+	return m.mock.CreateUserAccount(ctx, arg)
+}
+
+func (m *mockQuerier) CreateAuthVerificationCode(ctx context.Context, arg db.CreateAuthVerificationCodeParams) (db.AuthVerificationCode, error) {
+	return m.mock.CreateAuthVerificationCode(ctx, arg)
+}
+
+func (m *mockQuerier) DeleteAuthVerificationCode(ctx context.Context, arg db.DeleteAuthVerificationCodeParams) error {
+	return m.mock.DeleteAuthVerificationCode(ctx, arg)
+}
+
+func (m *mockQuerier) DeleteExpiredAuthVerificationCodes(ctx context.Context) error {
+	return m.mock.DeleteExpiredAuthVerificationCodes(ctx)
+}
+
+func (m *mockQuerier) GetPlatformCredentials(ctx context.Context, studentID string) (db.PlatformCredential, error) {
+	return m.mock.GetPlatformCredentials(ctx, studentID)
+}
+
+func (m *mockQuerier) GetRocketChatCredentials(ctx context.Context, studentID string) (db.RocketchatCredential, error) {
+	return m.mock.GetRocketChatCredentials(ctx, studentID)
+}
+
+func (m *mockQuerier) GetStudentByRocketChatId(ctx context.Context, rocketchatID string) (db.Student, error) {
+	return m.mock.GetStudentByRocketChatId(ctx, rocketchatID)
+}
+
+func (m *mockQuerier) GetStudentByS21Login(ctx context.Context, s21Login string) (db.Student, error) {
+	return m.mock.GetStudentByS21Login(ctx, s21Login)
+}
+
+func (m *mockQuerier) GetStudentProfile(ctx context.Context, s21Login string) (db.GetStudentProfileRow, error) {
+	return m.mock.GetStudentProfile(ctx, s21Login)
+}
+
+func (m *mockQuerier) GetUserAccountByExternalId(ctx context.Context, arg db.GetUserAccountByExternalIdParams) (db.UserAccount, error) {
+	return m.mock.GetUserAccountByExternalId(ctx, arg)
+}
+
+func (m *mockQuerier) GetUserBotSettings(ctx context.Context, userAccountID int64) (db.UserBotSetting, error) {
+	return m.mock.GetUserBotSettings(ctx, userAccountID)
+}
+
+func (m *mockQuerier) GetValidAuthVerificationCode(ctx context.Context, arg db.GetValidAuthVerificationCodeParams) (db.AuthVerificationCode, error) {
+	return m.mock.GetValidAuthVerificationCode(ctx, arg)
+}
+
+func (m *mockQuerier) UpsertPlatformCredentials(ctx context.Context, arg db.UpsertPlatformCredentialsParams) error {
+	return m.mock.UpsertPlatformCredentials(ctx, arg)
+}
+
+func (m *mockQuerier) UpsertRocketChatCredentials(ctx context.Context, arg db.UpsertRocketChatCredentialsParams) error {
+	return m.mock.UpsertRocketChatCredentials(ctx, arg)
+}
+
+func (m *mockQuerier) UpsertStudent(ctx context.Context, arg db.UpsertStudentParams) (db.Student, error) {
+	return m.mock.UpsertStudent(ctx, arg)
+}
+
+func (m *mockQuerier) UpsertUserBotSettings(ctx context.Context, arg db.UpsertUserBotSettingsParams) (db.UserBotSetting, error) {
+	return m.mock.UpsertUserBotSettings(ctx, arg)
+}
+
 func TestStudentService_GetProfileByTelegramID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockRepo := mock.NewMockQuerier(ctrl)
-	svc := NewStudentService(mockRepo)
+	svc := NewStudentService(&mockQuerier{mock: mockRepo})
 	ctx := context.Background()
 	tgID := int64(12345)
 
