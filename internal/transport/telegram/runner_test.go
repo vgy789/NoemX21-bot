@@ -2,48 +2,21 @@ package telegram
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"os"
 	"testing"
 
-	"github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
+	dbMock "github.com/vgy789/noemx21-bot/internal/database/db/mock"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 	serviceMock "github.com/vgy789/noemx21-bot/internal/service/mock"
 	"go.uber.org/mock/gomock"
 )
-
-// dbtxMock implements db.DBTX for testing
-type dbtxMock struct {
-	ctrl *gomock.Controller
-}
-
-func (m *dbtxMock) Exec(ctx context.Context, query string, args ...interface{}) (pgconn.CommandTag, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Exec", ctx, query, args)
-	ret0, _ := ret[0].(pgconn.CommandTag)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-func (m *dbtxMock) Query(ctx context.Context, query string, args ...interface{}) (pgx.Rows, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Query", ctx, query, args)
-	ret0, _ := ret[0].(pgx.Rows)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-func (m *dbtxMock) QueryRow(ctx context.Context, query string, args ...interface{}) pgx.Row {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "QueryRow", ctx, query, args)
-	return ret[0].(pgx.Row)
-}
 
 func TestNewTelegramService(t *testing.T) {
 	cfg := &config.Config{}
@@ -52,11 +25,10 @@ func TestNewTelegramService(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 	mockStudentSvc := serviceMock.NewMockStudentService(ctrl)
-	mockDBTX := &dbtxMock{ctrl: ctrl}
-	mockQueries := db.New(mockDBTX)
+	mockQuerier := dbMock.NewMockQuerier(ctrl)
 	mockRCClient := rocketchat.NewClient("", "", "")
 
-	service := NewTelegramService(cfg, logger, mockStudentSvc, mockQueries, mockRCClient)
+	service := NewTelegramService(cfg, logger, mockStudentSvc, mockQuerier, mockRCClient)
 
 	require.NotNil(t, service)
 
@@ -77,6 +49,9 @@ func TestNewTelegramService(t *testing.T) {
 	})
 
 	t.Run("test registry: input:set_ru", func(t *testing.T) {
+		// Expect call to check account existence - return error (not found) for this test
+		mockQuerier.EXPECT().GetUserAccountByExternalId(gomock.Any(), gomock.Any()).Return(db.UserAccount{}, fmt.Errorf("not found"))
+
 		action, _ := ts.engine.Registry().Get("input:set_ru")
 		_, res, err := action(context.Background(), 1, nil)
 		assert.NoError(t, err)

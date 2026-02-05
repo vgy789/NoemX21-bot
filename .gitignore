@@ -32,6 +32,11 @@ env/*
 .vscode/
 .cursor
 .agent
+.delme
+.roo
+.quint
+quint
+system
 
 # Data/DB
 data/

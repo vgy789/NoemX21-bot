@@ -57,6 +57,10 @@ func (m *mockQuerier) GetUserAccountByExternalId(ctx context.Context, arg db.Get
 	return m.mock.GetUserAccountByExternalId(ctx, arg)
 }
 
+func (m *mockQuerier) GetUserAccountByStudentId(ctx context.Context, studentID string) (db.UserAccount, error) {
+	return m.mock.GetUserAccountByStudentId(ctx, studentID)
+}
+
 func (m *mockQuerier) GetUserBotSettings(ctx context.Context, userAccountID int64) (db.UserBotSetting, error) {
 	return m.mock.GetUserBotSettings(ctx, userAccountID)
 }
