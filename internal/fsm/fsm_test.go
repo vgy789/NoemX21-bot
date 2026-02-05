@@ -293,18 +293,19 @@ func TestEngine_RegistrationFlow(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	parser := NewFlowParser("../../docs/specs/flows", logger)
 	repo := NewMemoryStateRepository()
-	engine := NewEngine(parser, repo, logger, nil, nil)
+	registry := NewLogicRegistry()
+	registry.Register("is_user_registered", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+		return "", map[string]interface{}{"registered": true}, nil
+	})
+	engine := NewEngine(parser, repo, logger, registry, nil)
 
 	ctx := context.Background()
 	userID := int64(33333)
 
 	t.Run("start -> select language -> input login", func(t *testing.T) {
-		// 1. Initial state (SELECT_LANGUAGE)
 		err := engine.InitState(ctx, userID, "registration.yaml", "SELECT_LANGUAGE", nil)
 		require.NoError(t, err)
 
-		// Click set_ru
-		// Now it transitions directly to main_menu.yaml/MAIN_MENU (per user changes)
 		render, err := engine.Process(ctx, userID, "set_ru")
 		require.NoError(t, err)
 		require.NotNil(t, render)
@@ -506,6 +507,9 @@ func TestEngine_MoreEdgeCases(t *testing.T) {
 		userID := int64(2001)
 		registry.Register("input:set_ru", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
 			return "", map[string]interface{}{"language": "ru"}, nil
+		})
+		registry.Register("is_user_registered", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+			return "", map[string]interface{}{"registered": true}, nil
 		})
 		_ = engine.InitState(ctx, userID, "registration.yaml", "SELECT_LANGUAGE", nil)
 

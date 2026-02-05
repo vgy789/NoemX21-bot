@@ -30,10 +30,10 @@ func TestTelegramService_Handlers(t *testing.T) {
 	parser := fsm.NewFlowParser("../../../docs/specs/flows", logger)
 	repo := fsm.NewMemoryStateRepository()
 
-	// Create registry for handlers test
+	// Create registry for handlers test (registered: true so set_ru -> START -> main_menu.yaml/MAIN_MENU)
 	registry := fsm.NewLogicRegistry()
 	registry.Register("is_user_registered", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
-		return "", map[string]interface{}{"registered": false}, nil
+		return "", map[string]interface{}{"registered": true}, nil
 	})
 	registry.Register("input:set_ru", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
 		return "", map[string]interface{}{"language": "ru"}, nil

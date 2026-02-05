@@ -18,11 +18,11 @@ states:
       buttons:
         - id: set_ru
           label: 🇷🇺 Русский
-          next_state: main_menu.yaml/MAIN_MENU
+          next_state: START
           row: 1
         - id: set_en
           label: 🇺🇸 English
-          next_state: main_menu.yaml/MAIN_MENU
+          next_state: START
           row: 1
     on_enter:
       action: not_reset_user_context
