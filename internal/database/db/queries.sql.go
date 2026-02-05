@@ -283,6 +283,27 @@ func (q *Queries) GetUserAccountByExternalId(ctx context.Context, arg GetUserAcc
 	return i, err
 }
 
+const getUserAccountByStudentId = `-- name: GetUserAccountByStudentId :one
+SELECT id, student_id, platform, external_id, username, is_searchable, role, linked_at FROM user_accounts
+WHERE student_id = $1
+`
+
+func (q *Queries) GetUserAccountByStudentId(ctx context.Context, studentID string) (UserAccount, error) {
+	row := q.db.QueryRow(ctx, getUserAccountByStudentId, studentID)
+	var i UserAccount
+	err := row.Scan(
+		&i.ID,
+		&i.StudentID,
+		&i.Platform,
+		&i.ExternalID,
+		&i.Username,
+		&i.IsSearchable,
+		&i.Role,
+		&i.LinkedAt,
+	)
+	return i, err
+}
+
 const getUserBotSettings = `-- name: GetUserBotSettings :one
 SELECT id, user_account_id, language_code, notifications_enabled, review_post_campus_ids, created_at, updated_at FROM user_bot_settings 
 WHERE user_account_id = $1
