@@ -93,7 +93,7 @@ func (s *CredentialSeeder) Seed(ctx context.Context, cfg *config.Config) error {
 	if err != nil {
 		if err == pgx.ErrNoRows {
 			// Create new student
-			if cfg.Init.RocketChatUserID == "" {
+			if cfg.RocketChat.UserID.Expose() == "" {
 				return fmt.Errorf("cannot create student: ROCKETCHAT_USER_ID is missing")
 			}
 
@@ -105,7 +105,7 @@ func (s *CredentialSeeder) Seed(ctx context.Context, cfg *config.Config) error {
 
 			upsertParams := db.UpsertStudentParams{
 				S21Login:     cfg.Init.SchoolLogin,
-				RocketchatID: cfg.Init.RocketChatUserID,
+				RocketchatID: cfg.RocketChat.UserID.Expose(),
 				Status:       db.NullEnumStudentStatus{Valid: true, EnumStudentStatus: db.EnumStudentStatusACTIVE},
 				Timezone:     "UTC", // Default
 				// Others are nullable or have defaults handled by DB if we assume, but params struct requires them?
@@ -172,7 +172,7 @@ func (s *CredentialSeeder) Seed(ctx context.Context, cfg *config.Config) error {
 	}
 
 	// 3. Encrypt and Upsert RocketChat Credentials
-	rcTokenPlain := cfg.Init.RocketChatToken.Expose()
+	rcTokenPlain := cfg.RocketChat.AuthToken.Expose()
 	if rcTokenPlain != "" {
 		rcEnc, rcNonce, err := s.crypter.Encrypt([]byte(rcTokenPlain), []byte(cfg.Init.SchoolLogin))
 		if err != nil {

@@ -4,6 +4,7 @@ import (
 	"context"
 	"log/slog"
 
+	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
 	"github.com/vgy789/noemx21-bot/internal/clients/s21"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/crypto"
@@ -34,6 +35,11 @@ func InitializeCrypter(aeadKey string, log *slog.Logger) (*crypto.Crypter, error
 // InitializeS21Client initializes the S21 client.
 func InitializeS21Client(s21BaseURL string) *s21.Client {
 	return s21.NewClient(s21BaseURL)
+}
+
+// InitializeRocketChatClient initializes the RocketChat client.
+func InitializeRocketChatClient(cfg *config.Config) *rocketchat.Client {
+	return rocketchat.NewClient(cfg.RocketChat.URL.Expose(), cfg.RocketChat.UserID.Expose(), cfg.RocketChat.AuthToken.Expose())
 }
 
 // InitializeSeeder initializes the credential seeder.
