@@ -28,6 +28,14 @@ type Config struct {
 	LogLevel   string `env:"LOG_LEVEL" envDefault:"debug"`
 	Telegram   TelegramBot
 	DBURL      Secret `env:"DATABASE_URL,file,notEmpty"`
+	Init       struct {
+		AEADKey          Secret `env:"AEAD_KEY"` // 32 bytes hex
+		SchoolLogin      string `env:"SCHOOL21_USER_LOGIN"`
+		SchoolPassword   Secret `env:"SCHOOL21_USER_PASSWORD"`
+		RocketChatUserID string `env:"ROCKETCHAT_USER_ID"`
+		RocketChatToken  Secret `env:"ROCKETCHAT_API_TOKEN"`
+		S21BaseURL       string `env:"SCHOOL21_API_URL"`
+	}
 }
 
 // MustLoad reads config from .env file OR environment variables.

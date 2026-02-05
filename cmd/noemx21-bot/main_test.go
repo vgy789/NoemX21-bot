@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/vgy789/noemx21-bot/internal/initialization"
 )
 
 func TestSetupLogger(t *testing.T) {
@@ -21,7 +22,7 @@ func TestSetupLogger(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			log := setupLogger(tt.production, tt.logLevel)
+			log := initialization.SetupLogger(tt.production, tt.logLevel)
 			assert.NotNil(t, log)
 		})
 	}
