@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"strings"
 )
 
@@ -44,9 +45,14 @@ type ButtonRender struct {
 	Data string
 }
 
-// InitState initializes or resets the user state to specific flow/state.
+// Registry returns the physics engine's logic registry.
 func (e *Engine) Registry() *LogicRegistry {
 	return e.registry
+}
+
+// Repo returns the state repository.
+func (e *Engine) Repo() StateRepository {
+	return e.repo
 }
 
 func (e *Engine) InitState(ctx context.Context, userID int64, flowName, stateName string, initialContext map[string]interface{}) error {
@@ -59,7 +65,7 @@ func (e *Engine) InitState(ctx context.Context, userID int64, flowName, stateNam
 		UserID:       userID,
 		CurrentFlow:  flowName,
 		CurrentState: stateName,
-		Language:     DefaultLanguage,
+		Language:     LangRu,
 		Context:      initialContext,
 	}
 	return e.repo.SetState(ctx, newState)
@@ -130,6 +136,38 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 
 	// 2. Find transition based on input (button ID)
 	nextStateRaw := e.findNextState(currentStateSpec, input)
+
+	// If it's an input state and no button was pressed, validate the raw input
+	if currentStateSpec.Type == StateTypeInput && nextStateRaw == "" {
+		if currentStateSpec.Validation.Regex != "" {
+			matched, err := regexp.MatchString(currentStateSpec.Validation.Regex, input)
+			if err != nil {
+				e.log.Error("regex compilation failed", "regex", currentStateSpec.Validation.Regex, "error", err)
+			} else if !matched {
+				e.log.Warn("input validation failed", "user_id", userID, "input", input, "regex", currentStateSpec.Validation.Regex)
+				// Save last input as invalid and stay in same state
+				state.Context["last_input"] = input
+				state.Context["last_input_invalid"] = true
+				if err := e.repo.SetState(ctx, state); err != nil {
+					return nil, err
+				}
+				return e.GetCurrentRender(ctx, userID)
+			}
+		}
+
+		// Validation passed or not required
+		state.Context["last_input"] = input
+		state.Context["last_input_invalid"] = false
+
+		// For input states, we look for a transition with trigger "on_valid_input"
+		for _, t := range currentStateSpec.Transitions {
+			if t.Trigger == "on_valid_input" {
+				nextStateRaw = t.NextState
+				break
+			}
+		}
+	}
+
 	if nextStateRaw == "" {
 		e.log.Warn("no transition found for input", "input", input, "state", state.CurrentState)
 		return nil, fmt.Errorf("unknown input or no transition for: %s", input)
@@ -221,11 +259,18 @@ func (e *Engine) evaluateSystemState(spec *State, state *UserState) string {
 		if action, ok := e.registry.Get(actionName); ok {
 			e.log.Debug("executing system action", "action", actionName)
 			// Prepare payload
-			payload := spec.Logic.Payload
-			// Inject implicit context
-			if payload == nil {
-				payload = make(map[string]interface{})
+			payload := make(map[string]interface{})
+			if spec.Logic.Payload != nil {
+				for k, v := range spec.Logic.Payload {
+					if strVal, ok := v.(string); ok {
+						payload[k] = e.replaceVariables(strVal, state)
+					} else {
+						payload[k] = v
+					}
+				}
 			}
+
+			// Inject implicit context
 			payload["_last_input"] = state.Context["last_input"]
 
 			next, updates, err := action(context.Background(), state.UserID, payload)
@@ -261,27 +306,70 @@ func (e *Engine) evaluateSystemState(spec *State, state *UserState) string {
 }
 
 func (e *Engine) evaluateCondition(condition string, ctx map[string]interface{}) bool {
-	// Simple evaluator: "key == value"
-	// TODO: Use a real expression engine if needed
-	parts := strings.Split(condition, "==")
+	// Support AND logic
+	subConditions := strings.Split(condition, "&&")
+	for _, sub := range subConditions {
+		if !e.evaluateSingleCondition(strings.TrimSpace(sub), ctx) {
+			return false
+		}
+	}
+	return true
+}
+
+func (e *Engine) evaluateSingleCondition(condition string, ctx map[string]interface{}) bool {
+	var operator string
+	if strings.Contains(condition, "==") {
+		operator = "=="
+	} else if strings.Contains(condition, "!=") {
+		operator = "!="
+	} else {
+		return false
+	}
+
+	parts := strings.Split(condition, operator)
 	if len(parts) != 2 {
 		return false
 	}
+
 	key := strings.TrimSpace(parts[0])
 	val := strings.TrimSpace(parts[1])
 	val = strings.Trim(val, "'\"") // Trim quotes
 
-	ctxVal, ok := ctx[key]
-	if !ok {
-		return false
-	}
+	// Get context value with support for dot notation
+	ctxVal := e.getContextValue(ctx, key)
+	ctxString := fmt.Sprintf("%v", ctxVal)
 
-	return fmt.Sprintf("%v", ctxVal) == val
+	if operator == "==" {
+		return ctxString == val
+	} else {
+		return ctxString != val
+	}
+}
+
+func (e *Engine) getContextValue(ctx map[string]interface{}, key string) interface{} {
+	parts := strings.Split(key, ".")
+	var current interface{} = ctx
+
+	for _, part := range parts {
+		if m, ok := current.(map[string]interface{}); ok {
+			if val, exists := m[part]; exists {
+				current = val
+			} else {
+				return nil
+			}
+		} else {
+			return nil
+		}
+	}
+	return current
 }
 
 func (e *Engine) updateStateContext(state *UserState, updates map[string]interface{}) {
 	if state.Context == nil {
 		state.Context = make(map[string]interface{})
+	}
+	if lang, ok := updates["language"].(string); ok {
+		state.Language = lang
 	}
 	for k, v := range updates {
 		state.Context[k] = v
@@ -291,10 +379,32 @@ func (e *Engine) updateStateContext(state *UserState, updates map[string]interfa
 func (e *Engine) renderState(userState *UserState, flowState *State) *RenderObject {
 	// Text
 	text := "Template error"
-	if txt, ok := flowState.Interface.Text[userState.Language]; ok {
-		text = txt
-	} else if txt, ok := flowState.Interface.Text[LangEn]; ok {
-		text = txt // Fallback
+
+	// Check if we should use error text
+	isInvalid := false
+	if val, ok := userState.Context["last_input_invalid"].(bool); ok {
+		isInvalid = val
+	}
+
+	// Try to get error text if input was invalid
+	var textFound bool
+	if isInvalid && flowState.Interface.ErrorInvalid != nil {
+		if txt, ok := flowState.Interface.ErrorInvalid[userState.Language]; ok {
+			text = txt
+			textFound = true
+		} else if txt, ok := flowState.Interface.ErrorInvalid[LangEn]; ok {
+			text = txt
+			textFound = true
+		}
+	}
+
+	// Fallback to normal text
+	if !textFound {
+		if txt, ok := flowState.Interface.Text[userState.Language]; ok {
+			text = txt
+		} else if txt, ok := flowState.Interface.Text[LangEn]; ok {
+			text = txt // Fallback
+		}
 	}
 
 	// Apply dynamic replacements
@@ -375,8 +485,10 @@ func (e *Engine) getReplacementMap(state *UserState) map[string]string {
 
 	// Merge with Context (Context overrides defaults)
 	for k, v := range state.Context {
-		key := fmt.Sprintf("{%s}", k)
-		replacements[key] = fmt.Sprintf("%v", v)
+		val := fmt.Sprintf("%v", v)
+		replacements[fmt.Sprintf("{%s}", k)] = val
+		replacements[fmt.Sprintf("$context.%s", k)] = val
+		replacements[fmt.Sprintf("$updates.%s", k)] = val
 	}
 	return replacements
 }

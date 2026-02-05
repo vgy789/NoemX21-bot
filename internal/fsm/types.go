@@ -20,11 +20,17 @@ type State struct {
 	Interface   Interface    `yaml:"interface"`
 	Transitions []Transition `yaml:"transitions"`
 	Logic       Logic        `yaml:"logic"`
+	Validation  Validation   `yaml:"validation"`
+}
+
+type Validation struct {
+	Regex string `yaml:"regex"`
 }
 
 type Interface struct {
-	Text    map[string]string `yaml:"text"` // Locale -> Text
-	Buttons []Button          `yaml:"buttons"`
+	Text         map[string]string `yaml:"text"`          // Locale -> Text
+	ErrorInvalid map[string]string `yaml:"error_invalid"` // Optional: Locale -> Error Text
+	Buttons      []Button          `yaml:"buttons"`
 }
 
 type Button struct {
