@@ -18,14 +18,14 @@ import (
 
 // OTPService handles OTP verification codes
 type OTPService struct {
-	db       *db.Queries
+	db       db.Querier
 	rcClient *rocketchat.Client
 	cfg      *config.Config
 	log      *slog.Logger
 }
 
 // NewOTPService creates a new OTP service
-func NewOTPService(db *db.Queries, rcClient *rocketchat.Client, cfg *config.Config, log *slog.Logger) *OTPService {
+func NewOTPService(db db.Querier, rcClient *rocketchat.Client, cfg *config.Config, log *slog.Logger) *OTPService {
 	return &OTPService{
 		db:       db,
 		rcClient: rcClient,

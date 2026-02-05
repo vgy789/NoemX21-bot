@@ -35,6 +35,10 @@ RETURNING *;
 SELECT * FROM user_accounts 
 WHERE platform = $1 AND external_id = $2;
 
+-- name: GetUserAccountByStudentId :one
+SELECT * FROM user_accounts
+WHERE student_id = $1;
+
 -- name: CreateUserAccount :one
 INSERT INTO user_accounts (
     student_id, platform, external_id, username, is_searchable, role
