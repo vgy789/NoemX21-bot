@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -21,9 +22,9 @@ type Client struct {
 // NewClient creates a new Rocket.Chat client
 func NewClient(baseURL, authToken, userID string) *Client {
 	return &Client{
-		baseURL:    baseURL,
-		authToken:  authToken,
-		userID:     userID,
+		baseURL:    strings.TrimRight(baseURL, "/"),
+		authToken:  strings.TrimSpace(authToken),
+		userID:     strings.TrimSpace(userID),
 		httpClient: &http.Client{Timeout: 10 * time.Second},
 	}
 }
@@ -49,15 +50,15 @@ type MessageRequest struct {
 
 // MessageResponse from Rocket.Chat
 type MessageResponse struct {
-	ID        string `json:"_id"`
-	RoomID    string `json:"rid"`
-	Message   string `json:"msg"`
-	Timestamp string `json:"ts"`
+	ID        string          `json:"_id"`
+	RoomID    string          `json:"rid"`
+	Message   string          `json:"msg"`
+	Timestamp json.RawMessage `json:"ts"` // Can be string or number
 }
 
 // SendDirectMessage sends a direct message to a user
 func (c *Client) SendDirectMessage(ctx context.Context, userID, text string) (*MessageResponse, error) {
-	url := fmt.Sprintf("%s/api/v1/chat.postMessage", c.baseURL)
+	url := fmt.Sprintf("%s/chat.postMessage", c.baseURL)
 
 	reqBody := MessageRequest{
 		Channel: userID,
@@ -104,6 +105,7 @@ func (c *Client) SendDirectMessage(ctx context.Context, userID, text string) (*M
 // UserInfoResponse from Rocket.Chat user.info
 type UserInfoResponse struct {
 	User struct {
+		ID     string `json:"_id"`
 		Emails []struct {
 			Address  string `json:"address"`
 			Verified bool   `json:"verified"`
@@ -115,7 +117,9 @@ type UserInfoResponse struct {
 
 // GetUserInfo gets information about a user
 func (c *Client) GetUserInfo(ctx context.Context, username string) (*UserInfoResponse, error) {
-	url := fmt.Sprintf("%s/api/v1/users.info?username=%s", c.baseURL, username)
+	fmt.Printf("DEBUG baseURL: |%s|\n", c.baseURL)
+	url := fmt.Sprintf("%s/users.info?username=%s", c.baseURL, username)
+	fmt.Printf("DEBUG final URL: |%s|\n", url)
 
 	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
 	if err != nil {
@@ -124,6 +128,13 @@ func (c *Client) GetUserInfo(ctx context.Context, username string) (*UserInfoRes
 
 	req.Header.Set("X-Auth-Token", c.authToken)
 	req.Header.Set("X-User-Id", c.userID)
+
+	// DEBUG LOGGING
+	fmt.Printf("DEBUG REQUEST: %s %s|\n", req.Method, req.URL.String())
+	for k, v := range req.Header {
+		fmt.Printf("HEADER %s: %s|\n", k, strings.Join(v, ","))
+	}
+	// END DEBUG LOGGING
 
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -143,6 +154,10 @@ func (c *Client) GetUserInfo(ctx context.Context, username string) (*UserInfoRes
 	var userInfo UserInfoResponse
 	if err := json.Unmarshal(body, &userInfo); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	if !userInfo.Success {
+		return nil, fmt.Errorf("API error: success=false, body: %s", string(body))
 	}
 
 	return &userInfo, nil

@@ -177,6 +177,7 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 				// Save last input as invalid and stay in same state
 				state.Context["last_input"] = input
 				state.Context["last_input_invalid"] = true
+				// We don't set error_reason here anymore, allowing the YAML's error_invalid text to be the source of truth
 				if err := e.repo.SetState(ctx, state); err != nil {
 					return nil, err
 				}
@@ -270,7 +271,7 @@ func (e *Engine) transitionTo(ctx context.Context, state *UserState, target stri
 
 	if spec.Type == StateTypeSystem {
 		e.log.Debug("auto-processing system state", "state", targetState)
-		next := e.evaluateSystemState(&spec, state)
+		next := e.evaluateSystemState(ctx, &spec, state)
 		if next != "" {
 			return e.transitionTo(ctx, state, next)
 		}
@@ -280,7 +281,7 @@ func (e *Engine) transitionTo(ctx context.Context, state *UserState, target stri
 }
 
 // evaluateSystemState determines the next state via registry actions and transitions.
-func (e *Engine) evaluateSystemState(spec *State, state *UserState) string {
+func (e *Engine) evaluateSystemState(ctx context.Context, spec *State, state *UserState) string {
 	actionName := spec.Logic.Action
 
 	// var results map[string]interface{}
@@ -292,9 +293,19 @@ func (e *Engine) evaluateSystemState(spec *State, state *UserState) string {
 			payload := make(map[string]interface{})
 			if spec.Logic.Payload != nil {
 				for k, v := range spec.Logic.Payload {
-					if strVal, ok := v.(string); ok {
-						payload[k] = e.replaceVariables(strVal, state)
-					} else {
+					switch val := v.(type) {
+					case string:
+						payload[k] = e.replaceVariables(val, state)
+					case map[string]interface{}:
+						// Support localization within payload: if map has "ru"/"en" keys, pick the right one
+						if localized, ok := val[state.Language].(string); ok {
+							payload[k] = e.replaceVariables(localized, state)
+						} else if fallback, ok := val[LangEn].(string); ok {
+							payload[k] = e.replaceVariables(fallback, state)
+						} else {
+							payload[k] = v
+						}
+					default:
 						payload[k] = v
 					}
 				}
@@ -303,7 +314,7 @@ func (e *Engine) evaluateSystemState(spec *State, state *UserState) string {
 			// Inject implicit context
 			payload["_last_input"] = state.Context["last_input"]
 
-			next, updates, err := action(context.Background(), state.UserID, payload)
+			next, updates, err := action(ctx, state.UserID, payload)
 			if err != nil {
 				e.log.Error("system action failed", "action", actionName, "error", err)
 				// Ideally handle error transition here
@@ -507,6 +518,10 @@ func (e *Engine) replaceVariables(text string, state *UserState) string {
 			result = strings.ReplaceAll(result, key, escapedVal)
 		}
 	}
+
+	// Clean up any remaining {var} tags that weren't replaced to avoid showing raw braces to user
+	re := regexp.MustCompile(`\{[a-zA-Z0-9_.]+\}`)
+	result = re.ReplaceAllString(result, "")
 
 	return result
 }

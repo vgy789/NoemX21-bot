@@ -42,7 +42,7 @@ func TestNewTelegramService(t *testing.T) {
 	assert.Equal(t, mockStudentSvc, ts.studentSvc)
 
 	t.Run("test registry: is_user_registered", func(t *testing.T) {
-		mockStudentSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), int64(1)).Return(nil, nil)
+		mockStudentSvc.EXPECT().GetProfileByExternalID(gomock.Any(), db.EnumPlatformTelegram, "1").Return(nil, nil)
 		action, _ := ts.engine.Registry().Get("is_user_registered")
 		_, res, err := action(context.Background(), 1, nil)
 		assert.NoError(t, err)

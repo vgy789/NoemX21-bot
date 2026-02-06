@@ -13,6 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	pgtype "github.com/jackc/pgx/v5/pgtype"
 	db "github.com/vgy789/noemx21-bot/internal/database/db"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -112,6 +113,21 @@ func (m *MockQuerier) GetFSMState(ctx context.Context, userID int64) (db.FsmUser
 func (mr *MockQuerierMockRecorder) GetFSMState(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFSMState", reflect.TypeOf((*MockQuerier)(nil).GetFSMState), ctx, userID)
+}
+
+// GetLastAuthVerificationCode mocks base method.
+func (m *MockQuerier) GetLastAuthVerificationCode(ctx context.Context, studentID pgtype.Text) (db.AuthVerificationCode, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLastAuthVerificationCode", ctx, studentID)
+	ret0, _ := ret[0].(db.AuthVerificationCode)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLastAuthVerificationCode indicates an expected call of GetLastAuthVerificationCode.
+func (mr *MockQuerierMockRecorder) GetLastAuthVerificationCode(ctx, studentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastAuthVerificationCode", reflect.TypeOf((*MockQuerier)(nil).GetLastAuthVerificationCode), ctx, studentID)
 }
 
 // GetPlatformCredentials mocks base method.

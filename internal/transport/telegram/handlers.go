@@ -48,6 +48,13 @@ func (s *telegramService) handleStart(b *gotgbot.Bot, ctx *ext.Context) error {
 	}
 
 	// 2. Initialize FSM (Always start with Registration/Language selection as requested)
+	// Store telegram username for later use in registration
+	if ctx.EffectiveUser.Username != "" {
+		initialContext["telegram_username"] = ctx.EffectiveUser.Username
+	}
+	initialContext["telegram_first_name"] = ctx.EffectiveUser.FirstName
+	initialContext["telegram_last_name"] = ctx.EffectiveUser.LastName
+
 	if err := s.engine.InitState(bgCtx, userID, fsm.FlowRegistration, fsm.StateSelectLanguage, initialContext); err != nil {
 		s.log.Error("failed to init state", "error", err, "user_id", userID)
 		return err
@@ -66,7 +73,13 @@ func (s *telegramService) handleStart(b *gotgbot.Bot, ctx *ext.Context) error {
 func (s *telegramService) handleTextMessage(b *gotgbot.Bot, ctx *ext.Context) error {
 	userID := ctx.EffectiveUser.Id
 	text := ctx.Message.Text
-	bgCtx := context.Background()
+	bgCtx := context.WithValue(context.Background(), fsm.ContextKeyUserInfo, &fsm.UserInfo{
+		ID:        userID,
+		Username:  ctx.EffectiveUser.Username,
+		FirstName: ctx.EffectiveUser.FirstName,
+		LastName:  ctx.EffectiveUser.LastName,
+		Platform:  "Telegram",
+	})
 
 	s.log.Debug("text message received", "user_id", userID, "text", text)
 
@@ -91,7 +104,13 @@ func (s *telegramService) handleTextMessage(b *gotgbot.Bot, ctx *ext.Context) er
 func (s *telegramService) handleCallback(b *gotgbot.Bot, ctx *ext.Context) error {
 	cb := ctx.CallbackQuery
 	userID := ctx.EffectiveUser.Id
-	bgCtx := context.Background()
+	bgCtx := context.WithValue(context.Background(), fsm.ContextKeyUserInfo, &fsm.UserInfo{
+		ID:        userID,
+		Username:  ctx.EffectiveUser.Username,
+		FirstName: ctx.EffectiveUser.FirstName,
+		LastName:  ctx.EffectiveUser.LastName,
+		Platform:  "Telegram",
+	})
 
 	s.log.Debug("callback received", "user_id", userID, "data", cb.Data)
 

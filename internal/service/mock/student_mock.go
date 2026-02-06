@@ -13,6 +13,7 @@ import (
 	context "context"
 	reflect "reflect"
 
+	db "github.com/vgy789/noemx21-bot/internal/database/db"
 	service "github.com/vgy789/noemx21-bot/internal/service"
 	gomock "go.uber.org/mock/gomock"
 )
@@ -54,4 +55,19 @@ func (m *MockStudentService) GetProfileByTelegramID(ctx context.Context, tgID in
 func (mr *MockStudentServiceMockRecorder) GetProfileByTelegramID(ctx, tgID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProfileByTelegramID", reflect.TypeOf((*MockStudentService)(nil).GetProfileByTelegramID), ctx, tgID)
+}
+
+// GetProfileByExternalID mocks base method.
+func (m *MockStudentService) GetProfileByExternalID(ctx context.Context, platform db.EnumPlatform, externalID string) (*service.StudentProfile, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProfileByExternalID", ctx, platform, externalID)
+	ret0, _ := ret[0].(*service.StudentProfile)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProfileByExternalID indicates an expected call of GetProfileByExternalID.
+func (mr *MockStudentServiceMockRecorder) GetProfileByExternalID(ctx, platform, externalID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProfileByExternalID", reflect.TypeOf((*MockStudentService)(nil).GetProfileByExternalID), ctx, platform, externalID)
 }

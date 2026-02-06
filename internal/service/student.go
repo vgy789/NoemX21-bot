@@ -22,6 +22,7 @@ type StudentProfile struct {
 // StudentService defines business logic for students.
 type StudentService interface {
 	GetProfileByTelegramID(ctx context.Context, tgID int64) (*StudentProfile, error)
+	GetProfileByExternalID(ctx context.Context, platform db.EnumPlatform, externalID string) (*StudentProfile, error)
 }
 
 type studentService struct {
@@ -34,10 +35,14 @@ func NewStudentService(repo db.Querier) StudentService {
 }
 
 func (s *studentService) GetProfileByTelegramID(ctx context.Context, tgID int64) (*StudentProfile, error) {
+	return s.GetProfileByExternalID(ctx, db.EnumPlatformTelegram, fmt.Sprintf("%d", tgID))
+}
+
+func (s *studentService) GetProfileByExternalID(ctx context.Context, platform db.EnumPlatform, externalID string) (*StudentProfile, error) {
 	// 1. Find account
 	ua, err := s.repo.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
-		Platform:   db.EnumPlatformTelegram,
-		ExternalID: fmt.Sprintf("%d", tgID),
+		Platform:   platform,
+		ExternalID: externalID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("user account not found: %w", err)

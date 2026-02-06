@@ -63,5 +63,18 @@ type UserState struct {
 // ContextKey is a type for context keys
 type ContextKey string
 
-// ContextKeyStudentID is used to store student ID in context
-const ContextKeyStudentID ContextKey = "student_id"
+const (
+	// ContextKeyStudentID is used to store student ID in context
+	ContextKeyStudentID ContextKey = "student_id"
+	// ContextKeyUserInfo is used to store transport-level user info (e.g. from Telegram)
+	ContextKeyUserInfo ContextKey = "user_info"
+)
+
+// UserInfo represents basic user metadata from the transport layer
+type UserInfo struct {
+	ID        int64
+	Username  string
+	FirstName string
+	LastName  string
+	Platform  string
+}

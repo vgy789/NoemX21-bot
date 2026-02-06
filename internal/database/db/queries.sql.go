@@ -123,6 +123,26 @@ func (q *Queries) GetFSMState(ctx context.Context, userID int64) (FsmUserState, 
 	return i, err
 }
 
+const getLastAuthVerificationCode = `-- name: GetLastAuthVerificationCode :one
+SELECT id, student_id, code, expires_at, created_at FROM auth_verification_codes
+WHERE student_id = $1
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLastAuthVerificationCode(ctx context.Context, studentID pgtype.Text) (AuthVerificationCode, error) {
+	row := q.db.QueryRow(ctx, getLastAuthVerificationCode, studentID)
+	var i AuthVerificationCode
+	err := row.Scan(
+		&i.ID,
+		&i.StudentID,
+		&i.Code,
+		&i.ExpiresAt,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getPlatformCredentials = `-- name: GetPlatformCredentials :one
 SELECT student_id, password_enc, password_nonce, access_token, access_expires_at, refresh_token_enc, refresh_nonce, refresh_expires_at, updated_at FROM platform_credentials 
 WHERE student_id = $1
