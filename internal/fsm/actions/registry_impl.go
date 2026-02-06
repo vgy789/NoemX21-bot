@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
+	"github.com/vgy789/noemx21-bot/internal/clients/s21"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
@@ -21,6 +22,7 @@ func NewRegistrar(
 	studentSvc service.StudentService,
 	queries db.Querier,
 	rcClient *rocketchat.Client,
+	s21Client *s21.Client,
 ) ActionRegistrar {
 	return &registrar{
 		deps: &Dependencies{
@@ -29,6 +31,7 @@ func NewRegistrar(
 			StudentSvc: studentSvc,
 			Queries:    queries,
 			RCClient:   rcClient,
+			S21Client:  s21Client,
 		},
 	}
 }

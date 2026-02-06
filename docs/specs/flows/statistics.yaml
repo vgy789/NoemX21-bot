@@ -3,7 +3,7 @@ meta:
   feature_id: STAT-001
   name: Статистика и поиск
   description: 'Центр аналитики: личный прогресс, поиск пиров и сравнение скиллов'
-  version: 2.0.0
+  version: 2.0.1
 
 initial_state: STATS_SEARCH_MENU
 states:
@@ -127,12 +127,12 @@ states:
           🕵️‍♂️ *Поиск пира*
 
           Введи никнейм студента, чтобы посмотреть его профиль.
-          _Например:_ `jonnabin`
+          _Например:_ `verter`
         en: |
           🕵️‍♂️ *Find a Peer*
 
           Enter a student's nickname to view their profile.
-          _Example:_ `jonnabin`
+          _Example:_ `verter`
       buttons:
         - id: back
           label:

@@ -127,6 +127,7 @@ func (e *Engine) GetCurrentRender(ctx context.Context, userID int64) (*RenderObj
 
 // Process handles an input (callback) and transitions the state.
 func (e *Engine) Process(ctx context.Context, userID int64, input string) (*RenderObject, error) {
+	input = strings.ToLower(strings.TrimSpace(input))
 	state, err := e.repo.GetState(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -281,9 +282,6 @@ func (e *Engine) transitionTo(ctx context.Context, state *UserState, target stri
 // evaluateSystemState determines the next state via registry actions and transitions.
 func (e *Engine) evaluateSystemState(spec *State, state *UserState) string {
 	actionName := spec.Logic.Action
-	if actionName == "" {
-		actionName = spec.Logic.Check // Fallback to 'check' field
-	}
 
 	// var results map[string]interface{}
 
@@ -410,7 +408,7 @@ func (e *Engine) updateStateContext(state *UserState, updates map[string]interfa
 
 func (e *Engine) renderState(userState *UserState, flowState *State) *RenderObject {
 	// Text
-	text := "Template error"
+	text := "Internal state error"
 
 	// Check if we should use error text
 	isInvalid := false
@@ -436,6 +434,8 @@ func (e *Engine) renderState(userState *UserState, flowState *State) *RenderObje
 			text = txt
 		} else if txt, ok := flowState.Interface.Text[LangEn]; ok {
 			text = txt // Fallback
+		} else {
+			e.log.Error("no text found for state", "flow", userState.CurrentFlow, "state", userState.CurrentState, "lang", userState.Language)
 		}
 	}
 

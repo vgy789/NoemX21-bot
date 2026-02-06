@@ -83,3 +83,40 @@ func TestClient_GetParticipant_apiError(t *testing.T) {
 	assert.Nil(t, got)
 	assert.Contains(t, err.Error(), "404")
 }
+func TestClient_GetParticipant_404InBody(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		// The quirk: 200 OK but body says 404
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{
+			"status": 404,
+			"code": "NOT_FOUND",
+			"message": "Not found user by login maslenok"
+		}`))
+	}))
+	defer server.Close()
+
+	client := NewClientForTest(server.URL, "", server.Client())
+	got, err := client.GetParticipant(context.Background(), "tok", "maslenok")
+	assert.Error(t, err)
+	assert.Nil(t, got)
+	assert.Contains(t, err.Error(), "API body error: status 404")
+}
+
+func TestClient_GetParticipant_StatusAsInt(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{
+			"login": "user",
+			"status": 200,
+			"parallelName": "Core program"
+		}`))
+	}))
+	defer server.Close()
+
+	client := NewClientForTest(server.URL, "", server.Client())
+	got, err := client.GetParticipant(context.Background(), "tok", "user")
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, float64(200), got.Status)
+}

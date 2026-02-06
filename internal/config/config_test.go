@@ -33,10 +33,10 @@ func TestMustLoad(t *testing.T) {
 	t.Setenv("PRODUCTION", "true")
 	t.Setenv("LOG_LEVEL", "info")
 
-	// Missing RocketChat vars
-	t.Setenv("ROCKETCHAT_URL", rcUrlFile)
-	t.Setenv("ROCKETCHAT_USER_ID", rcUserFile)
-	t.Setenv("ROCKETCHAT_AUTH_TOKEN", rcTokenFile)
+	// Set RocketChat vars (note: they don't have ,file tag in current config.go)
+	t.Setenv("ROCKETCHAT_API_URL", "http://localhost:3000")
+	t.Setenv("ROCKETCHAT_USER_ID", "user")
+	t.Setenv("ROCKETCHAT_AUTH_TOKEN", "token")
 
 	// Create a dummy .env file to satisfy godotenv.Load if necessary,
 	// though MustLoad ignores its error.

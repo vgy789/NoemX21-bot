@@ -3,7 +3,7 @@ meta:
   feature_id: LIB-001
   name: Библиотека
   description: 'Управление книгами: Поиск, фильтрация, пагинация и бронирование'
-  version: 2.0.0
+  version: 2.0.1
 
 initial_state: LIBRARY_MENU
 states:
@@ -58,7 +58,6 @@ states:
             ru: 🏠 Назад
             en: 🏠 Back
           next_state: MAIN_MENU
-    on_enter: fetch_library_stats
 
   FILTER_SELECTION:
     type: interactive
@@ -108,7 +107,6 @@ states:
             ru: 🔙 Назад
             en: 🔙 Back
           next_state: FILTER_SELECTION
-    on_enter: fetch_categories
 
   SELECT_AUTHOR:
     type: interactive
@@ -128,7 +126,6 @@ states:
             ru: 🔙 Назад
             en: 🔙 Back
           next_state: FILTER_SELECTION
-    on_enter: fetch_authors
 
   FETCH_BOOKS:
     type: system
@@ -241,7 +238,6 @@ states:
             ru: ⬅️ К списку
             en: ⬅️ Back to list
           next_state: DISPLAY_BOOKS
-    on_enter: fetch_book_details
 
   BORROW_BOOK:
     type: system
@@ -306,7 +302,6 @@ states:
             ru: 🔙 Назад
             en: 🔙 Back
           next_state: LIBRARY_MENU
-    on_enter: fetch_my_books
 
   RETURN_BOOK:
     type: system

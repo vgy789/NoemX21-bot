@@ -85,8 +85,8 @@ func (b *Builder) BuildSeeder(repo *db.Queries, crypter *crypto.Crypter, s21Clie
 }
 
 // BuildApp creates the application instance.
-func (b *Builder) BuildApp(repo *db.DBWrapper, rcClient *rocketchat.Client) *app.App {
-	return app.New(b.cfg, b.log, repo, rcClient)
+func (b *Builder) BuildApp(repo *db.DBWrapper, rcClient *rocketchat.Client, s21Client *s21.Client) *app.App {
+	return app.New(b.cfg, b.log, repo, rcClient, s21Client)
 }
 
 // Run runs the application.
@@ -103,15 +103,17 @@ func (b *Builder) Run() error {
 		return err
 	}
 
+	// Initialize RocketChat and S21 clients
+	rcClient := b.BuildRocketChatClient()
+	s21Client := b.BuildS21Client()
+
 	// Initialize Crypto and Seed Credentials
-	var rcClient *rocketchat.Client
 	if b.aeadKey != "" {
 		crypter, err := b.BuildCrypter()
 		if err != nil {
 			return err
 		}
 
-		s21Client := b.BuildS21Client()
 		repoQueries := repo.Queries
 		seeder := b.BuildSeeder(repoQueries, crypter, s21Client)
 
@@ -122,11 +124,8 @@ func (b *Builder) Run() error {
 		b.log.Warn("SCHOOL21_USER_LOGIN provided but AEAD_KEY is missing. Skipping credential seeding.")
 	}
 
-	// Initialize RocketChat client
-	rcClient = b.BuildRocketChatClient()
-
 	// Build and run the app
-	app := b.BuildApp(repo, rcClient)
+	app := b.BuildApp(repo, rcClient, s21Client)
 	app.Run()
 
 	return nil

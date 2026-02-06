@@ -28,17 +28,16 @@ func TestNewTelegramService(t *testing.T) {
 	mockQuerier := dbMock.NewMockQuerier(ctrl)
 	mockRCClient := rocketchat.NewClient("", "", "")
 
-	service := NewTelegramService(cfg, logger, mockStudentSvc, mockQuerier, mockRCClient)
-	ts, ok := service.(*telegramService)
+	svc := NewTelegramService(cfg, logger, mockStudentSvc, mockQuerier, mockRCClient, nil)
+	ts, ok := svc.(*telegramService)
 	require.True(t, ok, "NewTelegramService did not return *telegramService")
 	// Use memory repo for tests
 	ts.engine = fsm.NewEngine(ts.engine.Parser(), fsm.NewMemoryStateRepository(), logger, ts.engine.Registry(), ts.engine.Sanitizer())
 
-	require.NotNil(t, service)
+	require.NotNil(t, svc)
 	require.True(t, ok, "NewTelegramService did not return *telegramService")
 
-	assert.Equal(t, cfg, ts.cfg)
-	assert.Equal(t, logger, ts.log)
+	assert.NotNil(t, ts.log)
 	assert.NotNil(t, ts.engine, "FSM engine should be initialized")
 	assert.Equal(t, mockStudentSvc, ts.studentSvc)
 

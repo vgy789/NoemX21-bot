@@ -7,6 +7,7 @@ import (
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
 	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
+	"github.com/vgy789/noemx21-bot/internal/clients/s21"
 	"github.com/vgy789/noemx21-bot/internal/clients/telegram"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
@@ -44,14 +45,14 @@ func (s *DefaultSender) AnswerCallbackQuery(id string, opts *gotgbot.AnswerCallb
 }
 
 // NewTelegramService creates new telegram service.
-func NewTelegramService(cfg *config.Config, log *slog.Logger, studentSvc service.StudentService, queries db.Querier, rcClient *rocketchat.Client) TelegramService {
+func NewTelegramService(cfg *config.Config, log *slog.Logger, studentSvc service.StudentService, queries db.Querier, rcClient *rocketchat.Client, s21Client *s21.Client) TelegramService {
 	// Initialize FSM components
 	parser := fsm.NewFlowParser("docs/specs/flows", log) // Assuming CWD is root
 	repoFSM := fsm.NewPostgreSQLStateRepository(queries)
 
 	// Create registry and register actions
 	registry := fsm.NewLogicRegistry()
-	registrar := actions.NewRegistrar(cfg, log, studentSvc, queries, rcClient)
+	registrar := actions.NewRegistrar(cfg, log, studentSvc, queries, rcClient, s21Client)
 
 	// Initialize Engine with sanitizer
 	sanitizer := func(text string) string {

@@ -14,9 +14,9 @@ import (
 )
 
 type ParticipantV1DTO struct {
-	Login        string `json:"login"`
-	ParallelName string `json:"parallelName"`
-	Status       string `json:"status"`
+	Login        string      `json:"login"`
+	ParallelName string      `json:"parallelName"`
+	Status       interface{} `json:"status"`
 }
 
 type Client struct {
@@ -68,14 +68,26 @@ func (c *Client) GetParticipant(ctx context.Context, token string, login string)
 	}
 	defer resp.Body.Close()
 
+	bodyBytes, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read response body: %w", err)
+	}
+
+	// Check HTTP status code first
 	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
 		return nil, fmt.Errorf("API error: status %d, url: %s, body: %s", resp.StatusCode, apiUrl, string(bodyBytes))
 	}
 
 	var participant ParticipantV1DTO
-	if err := json.NewDecoder(resp.Body).Decode(&participant); err != nil {
-		return nil, fmt.Errorf("failed to decode response: %w", err)
+	if err := json.Unmarshal(bodyBytes, &participant); err != nil {
+		return nil, fmt.Errorf("failed to decode response: %w, body: %s", err, string(bodyBytes))
+	}
+
+	// Check if the body contains an error status (some APIs return 200 OK with error body)
+	if status, ok := participant.Status.(float64); ok { // JSON numbers are float64 by default
+		if status != 200 && status != 0 { // 0 might mean field missing
+			return nil, fmt.Errorf("API body error: status %d, body: %s", int(status), string(bodyBytes))
+		}
 	}
 
 	return &participant, nil

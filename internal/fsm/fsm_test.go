@@ -222,6 +222,19 @@ func TestEngine_Process(t *testing.T) {
 		assert.Contains(t, err.Error(), "no active state")
 		assert.Nil(t, render)
 	})
+
+	t.Run("input normalization", func(t *testing.T) {
+		err := engine.InitState(ctx, userID, "main_menu.yaml", "MAIN_MENU", nil)
+		require.NoError(t, err)
+
+		// Click settings button with uppercase and spaces
+		render, err := engine.Process(ctx, userID, "  SETTINGS  ")
+		require.NoError(t, err)
+		require.NotNil(t, render)
+
+		state, _ := repo.GetState(ctx, userID)
+		assert.Equal(t, "SETTINGS_MENU", state.CurrentState)
+	})
 }
 
 func TestEngine_ReplaceVariables(t *testing.T) {
@@ -525,10 +538,10 @@ func TestEngine_MoreEdgeCases(t *testing.T) {
 		assert.Equal(t, "ru", state.Context["language"])
 	})
 
-	t.Run("evaluateSystemState with check", func(t *testing.T) {
+	t.Run("evaluateSystemState with action", func(t *testing.T) {
 		spec := &State{
 			Logic: Logic{
-				Check: "is_registered",
+				Action: "is_registered",
 			},
 			Transitions: []Transition{
 				{Condition: "registered == true", NextState: "NEXT_OK"},

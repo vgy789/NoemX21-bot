@@ -3,7 +3,7 @@ meta:
   feature_id: ADM-001
   name: Администрирование
   description: 'Центр управления: рассылки, маршрутизация ревью и защита чатов'
-  version: 2.0.0
+  version: 2.0.1
 
 initial_state: ADMIN_MENU
 states:
@@ -56,7 +56,6 @@ states:
             ru: 🏠 Выход
             en: 🏠 Exit
           next_state: MAIN_MENU
-    on_enter: check_admin_permissions
 
   BROADCAST_INPUT:
     type: input
@@ -157,7 +156,6 @@ states:
             ru: 🔙 Назад
             en: 🔙 Back
           next_state: ADMIN_MENU
-    on_enter: fetch_managed_groups
 
   INPUT_THREAD_ID:
     type: input
@@ -227,7 +225,6 @@ states:
             ru: 💾 Сохранить и выйти
             en: 💾 Save and exit
           next_state: SAVE_TOPIC_LINK
-    on_enter: fetch_topic_filter_options
     transitions:
       - trigger: button_click
         condition: id.startswith('campus_') || id.startswith('branch_')
@@ -268,7 +265,6 @@ states:
             ru: 🔙 Назад
             en: 🔙 Back
           next_state: ADMIN_MENU
-    on_enter: fetch_managed_groups
 
   CONFIGURE_GUARD_RULES:
     type: interactive
@@ -309,7 +305,6 @@ states:
             ru: ✅ Применить правила
             en: ✅ Apply Rules
           next_state: SAVE_GUARD_RULES
-    on_enter: fetch_current_guard_rules
     transitions:
       - trigger: button_click
         condition: id == 'toggle_school_member'
@@ -360,7 +355,6 @@ states:
             ru: 🌍 Любой кампус (Сброс)
             en: 🌍 Any campus (Reset)
           next_state: CONFIGURE_GUARD_RULES
-    on_enter: fetch_available_campuses
 
   SAVE_GUARD_RULES:
     type: system
