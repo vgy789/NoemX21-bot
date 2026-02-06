@@ -1,10 +1,10 @@
 package s21
 
 import (
-"context"
-"encoding/json"
-"fmt"
-"net/http"
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
 )
 
 type CampusV1DTO struct {
@@ -33,7 +33,7 @@ func (c *Client) GetCampuses(ctx context.Context, token string) ([]CampusV1DTO, 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("API error: status %d", resp.StatusCode)

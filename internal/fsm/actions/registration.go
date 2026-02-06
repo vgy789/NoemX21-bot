@@ -205,7 +205,7 @@ func (p *registrationPlugin) Register(registry *fsm.LogicRegistry, deps *Depende
 		if err := otpSvc.GenerateAndSendOTP(ctx, login, ui); err != nil {
 			if strings.HasPrefix(err.Error(), "RATE_LIMIT:") {
 				var remaining int
-				fmt.Sscanf(err.Error(), "RATE_LIMIT:%d", &remaining)
+				_, _ = fmt.Sscanf(err.Error(), "RATE_LIMIT:%d", &remaining)
 				return "", map[string]interface{}{
 					"otp_sent":             false,
 					"otp_rate_limited":     true,

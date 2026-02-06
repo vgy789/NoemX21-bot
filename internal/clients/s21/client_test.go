@@ -36,7 +36,7 @@ func TestClient_Auth(t *testing.T) {
 func TestClient_Auth_failStatus(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
-		w.Write([]byte("invalid credentials"))
+		_, _ = w.Write([]byte("invalid credentials"))
 	}))
 	defer server.Close()
 
@@ -73,7 +73,7 @@ func TestClient_GetParticipant(t *testing.T) {
 func TestClient_GetParticipant_apiError(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
-		w.Write([]byte(`{"code":"NOT_FOUND"}`))
+		_, _ = w.Write([]byte(`{"code":"NOT_FOUND"}`))
 	}))
 	defer server.Close()
 
@@ -88,7 +88,7 @@ func TestClient_GetParticipant_404InBody(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		// The quirk: 200 OK but body says 404
 		w.WriteHeader(http.StatusOK)
-		w.Write([]byte(`{
+		_, _ = w.Write([]byte(`{
 			"status": 404,
 			"code": "NOT_FOUND",
 			"message": "Not found user by login maslenok"
@@ -106,7 +106,7 @@ func TestClient_GetParticipant_404InBody(t *testing.T) {
 func TestClient_GetParticipant_StatusAsInt(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		w.Write([]byte(`{
+		_, _ = w.Write([]byte(`{
 			"login": "user",
 			"status": 200,
 			"parallelName": "Core program"

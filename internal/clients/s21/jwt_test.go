@@ -21,7 +21,7 @@ func TestParseAccessTokenClaims(t *testing.T) {
 	claims, err := ParseAccessTokenClaims(raw)
 	require.NoError(t, err)
 	require.NotNil(t, claims.ExpiresAt)
-	assert.True(t, claims.ExpiresAt.Time.Equal(exp))
+	assert.True(t, claims.ExpiresAt.Equal(exp))
 }
 
 func TestAccessTokenExpiry(t *testing.T) {

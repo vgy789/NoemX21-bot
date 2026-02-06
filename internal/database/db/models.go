@@ -166,13 +166,13 @@ type Campuse struct {
 	ShortName string             `json:"short_name"`
 	FullName  string             `json:"full_name"`
 	Timezone  pgtype.Text        `json:"timezone"`
-	IsActive  pgtype.Bool        `json:"is_active"`
+	IsActive  bool               `json:"is_active"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
 type Club struct {
-	ID           int32              `json:"id"`
+	ID           int16              `json:"id"`
 	CampusID     pgtype.UUID        `json:"campus_id"`
 	LeaderLogin  pgtype.Text        `json:"leader_login"`
 	Name         string             `json:"name"`

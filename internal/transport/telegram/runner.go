@@ -80,7 +80,6 @@ type telegramService struct {
 	engine     *fsm.Engine
 	sender     Sender // For testing
 	db         db.Querier
-	rcClient   *rocketchat.Client
 }
 
 func (s *telegramService) getSender(b *gotgbot.Bot) Sender {

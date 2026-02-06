@@ -105,7 +105,7 @@ func (s *CampusService) UpdateCampuses(ctx context.Context) error {
 			ShortName: c.ShortName,
 			FullName:  c.FullName,
 			Timezone:  pgtype.Text{String: c.Timezone, Valid: true},
-			IsActive:  pgtype.Bool{Bool: true, Valid: true},
+			IsActive:  true,
 		})
 		if err != nil {
 			s.log.Error("failed to upsert campus", "id", c.ID, "name", c.ShortName, "error", err)
