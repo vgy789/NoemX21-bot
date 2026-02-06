@@ -15,6 +15,7 @@ import (
 	dbMock "github.com/vgy789/noemx21-bot/internal/database/db/mock"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 	"github.com/vgy789/noemx21-bot/internal/fsm/actions"
+	"github.com/vgy789/noemx21-bot/internal/service"
 	serviceMock "github.com/vgy789/noemx21-bot/internal/service/mock"
 	"go.uber.org/mock/gomock"
 )
@@ -91,7 +92,7 @@ func TestRegistration_APIErrors(t *testing.T) {
 }
 
 func TestRegistration_UniquenessAndOTP(t *testing.T) {
-	ts, _, mockQueries, ctrl := prepareRegistrationTest(t)
+	ts, mockStudentSvc, mockQueries, ctrl := prepareRegistrationTest(t)
 	defer ctrl.Finish()
 	ctx := context.Background()
 	userID := int64(300)
@@ -121,9 +122,11 @@ func TestRegistration_UniquenessAndOTP(t *testing.T) {
 		mockQueries.EXPECT().DeleteAuthVerificationCode(gomock.Any(), gomock.Any()).Return(nil)
 		mockQueries.EXPECT().CreateUserAccount(gomock.Any(), gomock.Any()).Return(db.UserAccount{ID: 1}, nil)
 		mockQueries.EXPECT().UpsertUserBotSettings(gomock.Any(), gomock.Any()).Return(db.UserBotSetting{ID: 1}, nil)
+		mockStudentSvc.EXPECT().GetProfileByExternalID(gomock.Any(), db.EnumPlatformTelegram, "301").Return(&service.StudentProfile{Login: "newuser"}, nil)
 
 		render, err := ts.engine.Process(ctx, userID, "654321")
 		require.NoError(t, err)
-		assert.Contains(t, render.Text, "Регистрация завершена")
+		// After successful registration, user should be in MAIN_MENU
+		assert.Contains(t, render.Text, "Личный кабинет")
 	})
 }

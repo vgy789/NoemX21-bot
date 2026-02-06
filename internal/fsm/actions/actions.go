@@ -14,6 +14,10 @@ func (p *baseActionsPlugin) Register(registry *fsm.LogicRegistry, deps *Dependen
 	registry.Register("not_reset_user_context", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
 		return "", nil, nil
 	})
+
+	registry.Register("set_variables", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+		return "", payload, nil
+	})
 }
 
 func init() {

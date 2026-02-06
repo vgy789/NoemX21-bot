@@ -61,6 +61,10 @@ func (m *mockQuerier) GetStudentProfile(ctx context.Context, s21Login string) (d
 	return m.mock.GetStudentProfile(ctx, s21Login)
 }
 
+func (m *mockQuerier) GetLastAuthVerificationCode(ctx context.Context, studentID pgtype.Text) (db.AuthVerificationCode, error) {
+	return m.mock.GetLastAuthVerificationCode(ctx, studentID)
+}
+
 func (m *mockQuerier) GetUserAccountByExternalId(ctx context.Context, arg db.GetUserAccountByExternalIdParams) (db.UserAccount, error) {
 	return m.mock.GetUserAccountByExternalId(ctx, arg)
 }
@@ -87,6 +91,26 @@ func (m *mockQuerier) UpsertRocketChatCredentials(ctx context.Context, arg db.Up
 
 func (m *mockQuerier) UpsertStudent(ctx context.Context, arg db.UpsertStudentParams) (db.Student, error) {
 	return m.mock.UpsertStudent(ctx, arg)
+}
+
+func (m *mockQuerier) CreateApiKey(ctx context.Context, arg db.CreateApiKeyParams) (db.ApiKey, error) {
+	return m.mock.CreateApiKey(ctx, arg)
+}
+
+func (m *mockQuerier) GetApiKeyByHash(ctx context.Context, keyHash string) (db.ApiKey, error) {
+	return m.mock.GetApiKeyByHash(ctx, keyHash)
+}
+
+func (m *mockQuerier) RevokeOldApiKeys(ctx context.Context, userAccountID int64) error {
+	return m.mock.RevokeOldApiKeys(ctx, userAccountID)
+}
+
+func (m *mockQuerier) GetActiveApiKey(ctx context.Context, userAccountID int64) (db.ApiKey, error) {
+	return m.mock.GetActiveApiKey(ctx, userAccountID)
+}
+
+func (m *mockQuerier) DeleteAllAuthVerificationCodes(ctx context.Context, studentID pgtype.Text) error {
+	return m.mock.DeleteAllAuthVerificationCodes(ctx, studentID)
 }
 
 func (m *mockQuerier) UpsertUserBotSettings(ctx context.Context, arg db.UpsertUserBotSettingsParams) (db.UserBotSetting, error) {

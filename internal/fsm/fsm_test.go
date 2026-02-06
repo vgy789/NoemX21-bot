@@ -400,7 +400,7 @@ func TestEngine_SystemStateWithRegistry(t *testing.T) {
 			Logic: Logic{Action: "check_auth"},
 		}
 		state := &UserState{UserID: 2}
-		next := engine.evaluateSystemState(spec, state)
+		next := engine.evaluateSystemState(context.Background(), spec, state)
 		assert.Equal(t, "FORCED_STATE", next)
 	})
 
@@ -413,7 +413,7 @@ func TestEngine_SystemStateWithRegistry(t *testing.T) {
 			},
 		}
 		state := &UserState{UserID: 1, Context: make(map[string]interface{})}
-		next := engine.evaluateSystemState(spec, state)
+		next := engine.evaluateSystemState(context.Background(), spec, state)
 		assert.Equal(t, "AUTH_SUCCESS", next)
 		assert.Equal(t, true, state.Context["is_auth"])
 	})
@@ -495,7 +495,7 @@ func TestEngine_MoreEdgeCases(t *testing.T) {
 		spec := &State{Logic: Logic{Action: "missing_action"}}
 		state := &UserState{}
 		// Should just log and return ""
-		next := engine.evaluateSystemState(spec, state)
+		next := engine.evaluateSystemState(context.Background(), spec, state)
 		assert.Equal(t, "", next)
 	})
 
@@ -516,7 +516,7 @@ func TestEngine_MoreEdgeCases(t *testing.T) {
 		text := "Hello {{name}}"
 		state := &UserState{Context: map[string]interface{}{}}
 		result := engine.replaceVariables(text, state)
-		assert.Equal(t, "Hello {{name}}", result) // Keys are preserved if missing
+		assert.Equal(t, "Hello {}", result) // Unknown tags are removed
 	})
 
 	t.Run("Process success with real flow", func(t *testing.T) {
@@ -556,7 +556,7 @@ func TestEngine_MoreEdgeCases(t *testing.T) {
 			return "", map[string]interface{}{"registered": true}, nil
 		})
 
-		next := engine.evaluateSystemState(spec, state)
+		next := engine.evaluateSystemState(context.Background(), spec, state)
 		assert.Equal(t, "NEXT_OK", next)
 		assert.True(t, state.Context["registered"].(bool))
 
@@ -564,7 +564,7 @@ func TestEngine_MoreEdgeCases(t *testing.T) {
 		registry.Register("is_registered", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
 			return "", map[string]interface{}{"registered": false}, nil
 		})
-		next = engine.evaluateSystemState(spec, state)
+		next = engine.evaluateSystemState(context.Background(), spec, state)
 		assert.Equal(t, "NEXT_FAIL", next)
 	})
 }

@@ -39,7 +39,7 @@ func InitializeS21Client(s21BaseURL string) *s21.Client {
 
 // InitializeRocketChatClient initializes the RocketChat client.
 func InitializeRocketChatClient(cfg *config.Config) *rocketchat.Client {
-	return rocketchat.NewClient(cfg.RocketChat.URL.Expose(), cfg.RocketChat.UserID.Expose(), cfg.RocketChat.AuthToken.Expose())
+	return rocketchat.NewClient(cfg.RocketChat.URL.Expose(), cfg.RocketChat.AuthToken.Expose(), cfg.RocketChat.UserID.Expose())
 }
 
 // InitializeSeeder initializes the credential seeder.

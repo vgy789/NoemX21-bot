@@ -109,6 +109,12 @@ INSERT INTO auth_verification_codes (
 )
 RETURNING *;
 
+-- name: GetLastAuthVerificationCode :one
+SELECT * FROM auth_verification_codes
+WHERE student_id = $1
+ORDER BY created_at DESC
+LIMIT 1;
+
 -- name: GetValidAuthVerificationCode :one
 SELECT * FROM auth_verification_codes
 WHERE student_id = $1 AND code = $2 AND expires_at > CURRENT_TIMESTAMP
@@ -118,6 +124,10 @@ LIMIT 1;
 -- name: DeleteAuthVerificationCode :exec
 DELETE FROM auth_verification_codes
 WHERE student_id = $1 AND code = $2;
+
+-- name: DeleteAllAuthVerificationCodes :exec
+DELETE FROM auth_verification_codes
+WHERE student_id = $1;
 
 -- name: DeleteExpiredAuthVerificationCodes :exec
 DELETE FROM auth_verification_codes

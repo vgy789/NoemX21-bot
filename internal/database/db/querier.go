@@ -6,6 +6,8 @@ package db
 
 import (
 	"context"
+
+	"github.com/jackc/pgx/v5/pgtype"
 )
 
 type Querier interface {
@@ -14,6 +16,7 @@ type Querier interface {
 	DeleteAuthVerificationCode(ctx context.Context, arg DeleteAuthVerificationCodeParams) error
 	DeleteExpiredAuthVerificationCodes(ctx context.Context) error
 	GetFSMState(ctx context.Context, userID int64) (FsmUserState, error)
+	GetLastAuthVerificationCode(ctx context.Context, studentID pgtype.Text) (AuthVerificationCode, error)
 	GetPlatformCredentials(ctx context.Context, studentID string) (PlatformCredential, error)
 	GetRocketChatCredentials(ctx context.Context, studentID string) (RocketchatCredential, error)
 	GetStudentByRocketChatId(ctx context.Context, rocketchatID string) (Student, error)

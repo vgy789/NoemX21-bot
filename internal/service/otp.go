@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"fmt"
 	"math/big"
+	"strings"
 	"time"
 
 	"log/slog"
@@ -35,8 +36,19 @@ func NewOTPService(db db.Querier, rcClient *rocketchat.Client, cfg *config.Confi
 }
 
 // GenerateAndSendOTP generates a 6-digit code and sends it via RocketChat
-func (s *OTPService) GenerateAndSendOTP(ctx context.Context, telegramUserID int64, s21Login string) error {
-	// Generate 6-digit code
+func (s *OTPService) GenerateAndSendOTP(ctx context.Context, s21Login string, ui fsm.UserInfo) error {
+	// 0. Rate limiting check (cooldown 60 seconds)
+	lastOTP, err := s.db.GetLastAuthVerificationCode(ctx, pgtype.Text{Valid: true, String: s21Login})
+	if err == nil {
+		if time.Since(lastOTP.CreatedAt.Time) < 60*time.Second {
+			remaining := 60 - int(time.Since(lastOTP.CreatedAt.Time).Seconds())
+			return fmt.Errorf("RATE_LIMIT:%d", remaining)
+		}
+	} else if !strings.Contains(err.Error(), "no rows") {
+		s.log.Error("failed to check last OTP", "error", err)
+	}
+
+	// 1. Generate 6-digit code
 	code, err := s.generateCode()
 	if err != nil {
 		return fmt.Errorf("failed to generate code: %w", err)
@@ -45,13 +57,24 @@ func (s *OTPService) GenerateAndSendOTP(ctx context.Context, telegramUserID int6
 	// Calculate expiration time (5 minutes from now)
 	expiresAt := time.Now().Add(5 * time.Minute)
 
-	// Get RocketChat user ID for the student
+	// 2. Get RocketChat user ID from database (it was verified in previous step)
 	student, err := s.db.GetStudentByS21Login(ctx, s21Login)
 	if err != nil {
 		return fmt.Errorf("failed to get student info: %w", err)
 	}
 
-	// Create verification code in database
+	if student.RocketchatID == "" {
+		return fmt.Errorf("student has no rocketchat_id")
+	}
+
+	// 3. Delete all previous verification codes for this student (invalidate old codes)
+	err = s.db.DeleteAllAuthVerificationCodes(ctx, pgtype.Text{Valid: true, String: s21Login})
+	if err != nil && !strings.Contains(err.Error(), "no rows") {
+		s.log.Warn("failed to delete old verification codes", "error", err)
+		// Continue anyway - not critical
+	}
+
+	// 4. Create new verification code in database
 	_, err = s.db.CreateAuthVerificationCode(ctx, db.CreateAuthVerificationCodeParams{
 		StudentID: pgtype.Text{Valid: true, String: s21Login},
 		Code:      code,
@@ -61,14 +84,30 @@ func (s *OTPService) GenerateAndSendOTP(ctx context.Context, telegramUserID int6
 		return fmt.Errorf("failed to create verification code: %w", err)
 	}
 
-	// Send OTP via RocketChat
+	// 4. Send OTP via RocketChat using stored ID
 	rcUserID := student.RocketchatID
-	message := fmt.Sprintf("🔐 Твой код подтверждения: %s\n\nСрок действия: 5 минут", code)
+	fullName := strings.TrimSpace(fmt.Sprintf("%s %s", ui.FirstName, ui.LastName))
+	if fullName == "" {
+		fullName = "No Name"
+	}
 
+	message := fmt.Sprintf(
+		"🔐 *NOEMX21-BOT* | КОД ПОДТВЕРЖДЕНИЯ: *%s*\n\n"+
+			"---\n"+
+			"Действует: 5 минут\n"+
+			"Код запросил пользователь *%s* id: *%d* username: *%s* platform: *%s*\n"+
+			"Не передавай код третьим лицам.\n\n",
+		code,
+		fullName,
+		ui.ID,
+		ui.Username,
+		ui.Platform,
+	)
 	_, err = s.rcClient.SendDirectMessage(ctx, rcUserID, message)
 	if err != nil {
-		// Log error but don't fail - code is still in DB
+		// Log error but don't fail immediately
 		s.log.Error("failed to send OTP via RocketChat", "error", err, "rc_user_id", rcUserID)
+		return fmt.Errorf("failed to send message")
 	}
 
 	s.log.Info("OTP generated and sent", "student_id", s21Login, "code", code, "expires_at", expiresAt)
@@ -92,7 +131,10 @@ func (s *OTPService) VerifyOTP(ctx context.Context, telegramUserID int64, code s
 		Code:      code,
 	})
 	if err != nil {
-		return false, fmt.Errorf("invalid or expired code")
+		if strings.Contains(err.Error(), "no rows") || strings.Contains(err.Error(), "not found") {
+			return false, nil
+		}
+		return false, fmt.Errorf("database error during verification: %w", err)
 	}
 
 	// Delete the used code
@@ -120,11 +162,4 @@ func (s *OTPService) generateCode() (string, error) {
 
 	code := fmt.Sprintf("%06d", n.Int64())
 	return code, nil
-}
-
-// SendOTPToRocketChat sends OTP directly to RocketChat (for testing)
-func (s *OTPService) SendOTPToRocketChat(ctx context.Context, rcUserID, code string) error {
-	message := fmt.Sprintf("🔐 Твой код подтверждения: %s\n\nСрок действия: 5 минут", code)
-	_, err := s.rcClient.SendDirectMessage(ctx, rcUserID, message)
-	return err
 }
