@@ -87,6 +87,20 @@ func (mr *MockQuerierMockRecorder) CreateUserAccount(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUserAccount", reflect.TypeOf((*MockQuerier)(nil).CreateUserAccount), ctx, arg)
 }
 
+// DeactivateClubsByCampus mocks base method.
+func (m *MockQuerier) DeactivateClubsByCampus(ctx context.Context, campusID pgtype.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeactivateClubsByCampus", ctx, campusID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeactivateClubsByCampus indicates an expected call of DeactivateClubsByCampus.
+func (mr *MockQuerierMockRecorder) DeactivateClubsByCampus(ctx, campusID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeactivateClubsByCampus", reflect.TypeOf((*MockQuerier)(nil).DeactivateClubsByCampus), ctx, campusID)
+}
+
 // DeleteAllAuthVerificationCodes mocks base method.
 func (m *MockQuerier) DeleteAllAuthVerificationCodes(ctx context.Context, studentID pgtype.Text) error {
 	m.ctrl.T.Helper()
@@ -157,6 +171,21 @@ func (m *MockQuerier) GetApiKeyByHash(ctx context.Context, keyHash string) (db.A
 func (mr *MockQuerierMockRecorder) GetApiKeyByHash(ctx, keyHash any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetApiKeyByHash", reflect.TypeOf((*MockQuerier)(nil).GetApiKeyByHash), ctx, keyHash)
+}
+
+// GetCampusByShortName mocks base method.
+func (m *MockQuerier) GetCampusByShortName(ctx context.Context, shortName string) (db.Campuse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCampusByShortName", ctx, shortName)
+	ret0, _ := ret[0].(db.Campuse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCampusByShortName indicates an expected call of GetCampusByShortName.
+func (mr *MockQuerierMockRecorder) GetCampusByShortName(ctx, shortName any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCampusByShortName", reflect.TypeOf((*MockQuerier)(nil).GetCampusByShortName), ctx, shortName)
 }
 
 // GetFSMState mocks base method.
@@ -336,6 +365,51 @@ func (m *MockQuerier) RevokeOldApiKeys(ctx context.Context, userAccountID int64)
 func (mr *MockQuerierMockRecorder) RevokeOldApiKeys(ctx, userAccountID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeOldApiKeys", reflect.TypeOf((*MockQuerier)(nil).RevokeOldApiKeys), ctx, userAccountID)
+}
+
+// UpsertCampus mocks base method.
+func (m *MockQuerier) UpsertCampus(ctx context.Context, arg db.UpsertCampusParams) (db.Campuse, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertCampus", ctx, arg)
+	ret0, _ := ret[0].(db.Campuse)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertCampus indicates an expected call of UpsertCampus.
+func (mr *MockQuerierMockRecorder) UpsertCampus(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertCampus", reflect.TypeOf((*MockQuerier)(nil).UpsertCampus), ctx, arg)
+}
+
+// UpsertClub mocks base method.
+func (m *MockQuerier) UpsertClub(ctx context.Context, arg db.UpsertClubParams) (db.Club, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertClub", ctx, arg)
+	ret0, _ := ret[0].(db.Club)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertClub indicates an expected call of UpsertClub.
+func (mr *MockQuerierMockRecorder) UpsertClub(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertClub", reflect.TypeOf((*MockQuerier)(nil).UpsertClub), ctx, arg)
+}
+
+// UpsertClubCategory mocks base method.
+func (m *MockQuerier) UpsertClubCategory(ctx context.Context, name string) (db.ClubCategory, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertClubCategory", ctx, name)
+	ret0, _ := ret[0].(db.ClubCategory)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertClubCategory indicates an expected call of UpsertClubCategory.
+func (mr *MockQuerierMockRecorder) UpsertClubCategory(ctx, name any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertClubCategory", reflect.TypeOf((*MockQuerier)(nil).UpsertClubCategory), ctx, name)
 }
 
 // UpsertFSMState mocks base method.

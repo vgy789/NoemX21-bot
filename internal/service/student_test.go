@@ -117,6 +117,26 @@ func (m *mockQuerier) UpsertUserBotSettings(ctx context.Context, arg db.UpsertUs
 	return m.mock.UpsertUserBotSettings(ctx, arg)
 }
 
+func (m *mockQuerier) DeactivateClubsByCampus(ctx context.Context, campusID pgtype.UUID) error {
+	return m.mock.DeactivateClubsByCampus(ctx, campusID)
+}
+
+func (m *mockQuerier) GetCampusByShortName(ctx context.Context, shortName string) (db.Campuse, error) {
+	return m.mock.GetCampusByShortName(ctx, shortName)
+}
+
+func (m *mockQuerier) UpsertClub(ctx context.Context, arg db.UpsertClubParams) (db.Club, error) {
+	return m.mock.UpsertClub(ctx, arg)
+}
+
+func (m *mockQuerier) UpsertClubCategory(ctx context.Context, name string) (db.ClubCategory, error) {
+	return m.mock.UpsertClubCategory(ctx, name)
+}
+
+func (m *mockQuerier) UpsertCampus(ctx context.Context, arg db.UpsertCampusParams) (db.Campuse, error) {
+	return m.mock.UpsertCampus(ctx, arg)
+}
+
 func TestStudentService_GetProfileByTelegramID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

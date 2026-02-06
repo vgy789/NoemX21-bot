@@ -39,6 +39,15 @@ type Config struct {
 		SchoolPassword Secret `env:"SCHOOL21_USER_PASSWORD"`
 		S21BaseURL     string `env:"SCHOOL21_API_URL"`
 	}
+	GitSync GitSync
+}
+
+type GitSync struct {
+	RepoURL   string `env:"GIT_REPO_URL"`
+	Branch    string `env:"GIT_BRANCH" envDefault:"main"`
+	Interval  string `env:"GIT_SYNC_INTERVAL" envDefault:"5m"`
+	LocalPath string `env:"GIT_LOCAL_PATH" envDefault:"data"`
+	AuthToken Secret `env:"GIT_AUTH_TOKEN"`
 }
 
 // MustLoad reads config from .env file OR environment variables.

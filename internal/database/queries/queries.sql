@@ -171,3 +171,46 @@ SELECT * FROM api_keys
 WHERE user_account_id = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
 ORDER BY created_at DESC
 LIMIT 1;
+
+-- name: GetCampusByShortName :one
+SELECT * FROM campuses WHERE short_name = $1;
+
+-- name: UpsertClubCategory :one
+INSERT INTO club_categories (name) VALUES ($1)
+ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+RETURNING *;
+
+-- name: UpsertClub :one
+INSERT INTO clubs (
+    id, campus_id, leader_login, name, description, category_id,
+    external_link, is_local, is_active, updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP
+)
+ON CONFLICT (campus_id, id) DO UPDATE SET
+    leader_login = EXCLUDED.leader_login,
+    name = EXCLUDED.name,
+    description = EXCLUDED.description,
+    category_id = EXCLUDED.category_id,
+    external_link = EXCLUDED.external_link,
+    is_local = EXCLUDED.is_local,
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING *;
+
+-- name: DeactivateClubsByCampus :exec
+UPDATE clubs
+SET is_active = false, updated_at = CURRENT_TIMESTAMP
+WHERE campus_id = $1;
+
+
+-- name: UpsertCampus :one
+INSERT INTO campuses (id, short_name, full_name, timezone, is_active)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (id) DO UPDATE SET
+    short_name = EXCLUDED.short_name,
+    full_name = EXCLUDED.full_name,
+    timezone = EXCLUDED.timezone,
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING *;
