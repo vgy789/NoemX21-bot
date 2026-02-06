@@ -3,7 +3,7 @@ meta:
   feature_id: REV-001
   name: Проверка проектов (Review)
   description: 'Система P2P проверок: создание запросов и поиск слотов'
-  version: 2.0.0
+  version: 2.0.1
 
 initial_state: REVIEW_MENU
 states:
@@ -234,7 +234,6 @@ states:
             ru: ⬅️ К списку
             en: ⬅️ To list
           next_state: DISPLAY_REQUESTS
-    on_enter: fetch_peer_profile
 
   COMPLETE_RESPOND:
     type: system
@@ -293,7 +292,6 @@ states:
             ru: 💾 Готово / Назад
             en: 💾 Done / Back
           next_state: REVIEW_MENU
-    on_enter: fetch_campus_filters
     transitions:
       - trigger: button_click
         condition: id.startswith('toggle_')

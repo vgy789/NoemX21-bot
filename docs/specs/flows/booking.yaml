@@ -3,7 +3,7 @@ meta:
   feature_id: BOOK-001
   name: Бронирование переговорок
   description: Система бронирования слотов в кампусе (Friendly UI)
-  version: 2.0.0
+  version: 2.0.1
 
 initial_state: BOOKING_MENU
 states:
@@ -113,7 +113,6 @@ states:
             ru: ⬅️ Отмена
             en: ⬅️ Cancel
           next_state: BOOKING_MENU
-    on_enter: fetch_room_constraints
 
   CONFIRM_BOOKING:
     type: interactive

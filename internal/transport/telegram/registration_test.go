@@ -28,7 +28,7 @@ func prepareRegistrationTest(t *testing.T) (*telegramService, *serviceMock.MockS
 	mockQuerier := dbMock.NewMockQuerier(ctrl)
 	mockRCClient := rocketchat.NewClient("", "", "")
 
-	service := NewTelegramService(cfg, logger, mockStudentSvc, mockQuerier, mockRCClient)
+	service := NewTelegramService(cfg, logger, mockStudentSvc, mockQuerier, mockRCClient, nil)
 	ts := service.(*telegramService)
 
 	// Override engine with test settings
@@ -37,7 +37,7 @@ func prepareRegistrationTest(t *testing.T) (*telegramService, *serviceMock.MockS
 	ts.engine = fsm.NewEngine(parser, repo, logger, ts.engine.Registry(), ts.engine.Sanitizer())
 
 	// Register actions and aliases in test engine
-	registrar := actions.NewRegistrar(cfg, logger, mockStudentSvc, mockQuerier, mockRCClient)
+	registrar := actions.NewRegistrar(cfg, logger, mockStudentSvc, mockQuerier, mockRCClient, nil)
 	registrar.RegisterAll(ts.engine.Registry(), ts.engine.AddAlias)
 
 	return ts, mockStudentSvc, mockQuerier, ctrl
@@ -73,7 +73,20 @@ func TestRegistration_APIErrors(t *testing.T) {
 		render, err := ts.engine.Process(ctx, userID, "discovery")
 		require.NoError(t, err)
 		require.NotNil(t, render)
-		assert.Contains(t, render.Text, "Ты не из программы Core")
+		assert.Contains(t, render.Text, "Регистрация доступна только для студентов основы")
+	})
+
+	t.Run("user not found", func(t *testing.T) {
+		_ = ts.engine.InitState(ctx, userID, fsm.FlowRegistration, fsm.StateInputLogin, nil)
+		// Mock valid_school21_user to return 404
+		ts.engine.Registry().Register("validate_school21_user", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+			return "", map[string]interface{}{"api_status": 404}, nil
+		})
+
+		render, err := ts.engine.Process(ctx, userID, "maslenok")
+		require.NoError(t, err)
+		require.NotNil(t, render)
+		assert.Contains(t, render.Text, "Пользователь не найден в School21")
 	})
 }
 
@@ -94,7 +107,7 @@ func TestRegistration_UniquenessAndOTP(t *testing.T) {
 
 		render, err := ts.engine.Process(ctx, userID, "123456")
 		require.NoError(t, err)
-		assert.Contains(t, render.Text, "Email уже занят")
+		assert.Contains(t, render.Text, "Пользователь уже авторизован")
 	})
 
 	t.Run("success", func(t *testing.T) {

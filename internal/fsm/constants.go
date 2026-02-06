@@ -53,7 +53,7 @@ const (
 
 // DefaultVariables map acts as a single source of truth for default values (debugging/fallback)
 var DefaultVariables = map[string]string{
-	VarS21Login:       "jonnabin",
+	VarS21Login:       "verter",
 	VarLevel:          "99",
 	VarCoalition:      "Abcdefg",
 	VarLanguageFlag:   DefaultFlagRu,

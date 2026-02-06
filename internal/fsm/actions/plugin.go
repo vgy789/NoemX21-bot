@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
+	"github.com/vgy789/noemx21-bot/internal/clients/s21"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
@@ -17,6 +18,7 @@ type Dependencies struct {
 	StudentSvc     service.StudentService
 	Queries        db.Querier
 	RCClient       *rocketchat.Client
+	S21Client      *s21.Client
 	AliasRegistrar func(alias, target string)
 }
 

@@ -3,6 +3,7 @@ package actions
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
@@ -27,11 +28,32 @@ func (p *registrationPlugin) Register(registry *fsm.LogicRegistry, deps *Depende
 	registry.Register("validate_school21_user", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
 		login := payload["login"].(string)
 		deps.Log.Debug("validating school21 user", "login", login)
+
+		// 1. Get bot's own token to use for verification
+		// In a real app, we should cache this token.
+		authResp, err := deps.S21Client.Auth(ctx, deps.Config.Init.SchoolLogin, deps.Config.Init.SchoolPassword.Expose())
+		if err != nil {
+			deps.Log.Error("failed to authenticate bot to School21 API", "error", err)
+			return "", map[string]interface{}{"api_status": 500}, nil
+		}
+
+		// 2. Check the student login via API
+		participant, err := deps.S21Client.GetParticipant(ctx, authResp.AccessToken, login)
+		if err != nil {
+			// Check if it was a 404 (user not found)
+			if strings.Contains(err.Error(), "status 404") || strings.Contains(err.Error(), "body error: status 404") {
+				return "", map[string]interface{}{"api_status": 404}, nil
+			}
+			deps.Log.Error("S21 API GetParticipant failed", "login", login, "error", err)
+			return "", map[string]interface{}{"api_status": 502}, nil
+		}
+
+		// 3. Return successful validation data
 		return "", map[string]interface{}{
 			"api_status": 200,
 			"user": map[string]interface{}{
-				"status":       "ACTIVE",
-				"parallelName": "Core program",
+				"status":       participant.Status,
+				"parallelName": participant.ParallelName,
 			},
 		}, nil
 	})
@@ -43,8 +65,19 @@ func (p *registrationPlugin) Register(registry *fsm.LogicRegistry, deps *Depende
 		if err != nil {
 			deps.Log.Debug("student not found in database", "login", login)
 			return "", map[string]interface{}{
-				"rocket_user_found": false,
+				"rocket_user_not_found": true,
 			}, nil
+		}
+
+		// Check if account already exists for another user
+		ua, err := deps.Queries.GetUserAccountByStudentId(ctx, login)
+		if err == nil {
+			if ua.ExternalID != fmt.Sprintf("%d", userID) {
+				deps.Log.Debug("student already registered to another account", "login", login, "other_external_id", ua.ExternalID)
+				return "", map[string]interface{}{
+					"email_already_registered": true,
+				}, nil
+			}
 		}
 
 		if student.RocketchatID == "" {

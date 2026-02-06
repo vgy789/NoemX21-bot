@@ -3,7 +3,7 @@ meta:
   feature_id: SET-001
   name: Настройки пользователя
   description: Управление настройками профиля, API-токенами и данными Data-Provider
-  version: 2.0.1
+  version: 2.0.2
 
 initial_state: SETTINGS_MENU
 states:
@@ -163,8 +163,8 @@ states:
     description: Выбор языка бота
     interface:
       text:
-        ru: 🌐 Выберите язык `/` Choose language
-        en: 🌐 Выберите язык `/` Choose language
+        ru: 🌐 Выбери язык `/` Choose language
+        en: 🌐 Выбери язык `/` Choose language
       buttons:
         - id: ru
           label:
@@ -327,8 +327,8 @@ states:
           ⚠️ Я не нашёл токен или логин. Попробуй снова.
         en: |
           ⚠️ I didn't find a token or login. Try again.
-    validation: null
-    regex: (?:ey[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+)|(?<![A-Za-z0-9\-_])[a-z]{4,9}(?![A-Za-z0-9\-_])
+    validation:
+      regex: (?:ey[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+)|(?<![A-Za-z0-9\-_])[a-z]{4,9}(?![A-Za-z0-9\-_])
     transitions:
       - trigger: on_valid_input
         next_state: CONFIRM_PROVIDER_CREDENTIALS

@@ -84,7 +84,7 @@ func (s *telegramService) handleTextMessage(b *gotgbot.Bot, ctx *ext.Context) er
 		}
 	}
 
-	return s.updateMessageRender(s.getSender(b), ctx.EffectiveChat.Id, ctx.Message.GetMessageId(), render)
+	return s.sendRender(s.getSender(b), ctx.EffectiveChat.Id, render)
 }
 
 // handleCallback handles callback queries (buttons).

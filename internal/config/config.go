@@ -29,9 +29,9 @@ type Config struct {
 	Telegram   TelegramBot
 	DBURL      Secret `env:"DATABASE_URL,file,notEmpty"`
 	RocketChat struct {
-		URL       Secret `env:"ROCKETCHAT_URL,file,notEmpty"`
-		UserID    Secret `env:"ROCKETCHAT_USER_ID,file,notEmpty"`
-		AuthToken Secret `env:"ROCKETCHAT_AUTH_TOKEN,file,notEmpty"`
+		URL       Secret `env:"ROCKETCHAT_API_URL,notEmpty"`
+		UserID    Secret `env:"ROCKETCHAT_USER_ID,notEmpty"`
+		AuthToken Secret `env:"ROCKETCHAT_AUTH_TOKEN,notEmpty"`
 	}
 	Init struct {
 		AEADKey        Secret `env:"AEAD_KEY"` // 32 bytes hex

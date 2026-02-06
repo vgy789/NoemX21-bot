@@ -39,7 +39,6 @@ type Transition struct {
 }
 
 type Logic struct {
-	Check   string                 `yaml:"check"`
 	Action  string                 `yaml:"action"`
 	Payload map[string]interface{} `yaml:"payload"`
 }

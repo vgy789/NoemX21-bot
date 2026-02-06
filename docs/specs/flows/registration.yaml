@@ -3,7 +3,7 @@ meta:
   feature_id: REG-001
   name: Регистрация нового пользователя
   description: Процесс создания аккаунта с валидацией через S21 API и проверкой OTP в Rocket.Chat
-  version: 2.1.0
+  version: 2.2.0
 
 ## интерфейс settings.yaml/SET_LANGUAGE и registration.yaml/SELECT_LANGUAGE должны совпадать
 initial_state: SELECT_LANGUAGE
@@ -13,8 +13,8 @@ states:
     description: Первый экран после /start. Выбор локализации.
     interface:
       text:
-        en: 🌐 Выберите язык `/` Choose language
-        ru: 🌐 Выберите язык `/` Choose language
+        en: 🌐 Выбери язык `/` Choose language
+        ru: 🌐 Выбери язык `/` Choose language
       buttons:
         - id: set_ru
           label: 🇷🇺 Русский
@@ -24,14 +24,12 @@ states:
           label: 🇺🇸 English
           next_state: START
           row: 1
-    on_enter:
-      action: not_reset_user_context
 
   START:
     type: system
     description: Проверка статуса регистрации пользователя
     logic:
-      check: is_user_registered
+      action: is_user_registered
     transitions:
       - condition: registered == true
         next_state: MAIN_MENU
@@ -44,21 +42,21 @@ states:
     interface:
       text:
         ru: |
-          Введи логин School21 (4-9 символов, только латиница):
+          👇 Введи свой логин School21 (например `verter`):
         en: |
-          Enter School21 login (4-9 chars, lowercase a-z):
+          👇 Enter your School21 login (example `verter`):
       error_invalid:
         ru: |
-          ⚠️ Неверный формат! Попробуй ещё раз (например: jonnabin):
+          ⚠️ Неверный формат! Попробуй ещё раз:
         en: |
-          ⚠️ Invalid format! Try again (example: jonnabin):
+          ⚠️ Invalid format! Try again:
     validation:
       regex: ^[a-z]{4,9}$
     transitions:
       - trigger: on_valid_input
         next_state: VALIDATE_VIA_API
       - trigger: on_invalid_input
-        next_state: INPUT_LOGIN
+        next_state: ERROR_NOT_FOUND
 
   VALIDATE_VIA_API:
     type: system
@@ -68,47 +66,49 @@ states:
       payload:
         login: $context.last_input
     transitions:
-      - condition: api_status == 200 && user.status == 'ACTIVE' && user.parallelName == 'Core program'
-        next_state: FIND_ROCKET_USER
-      - condition: api_status == 200 && user.status == 'ACTIVE' && user.parallelName != 'Core program'
-        next_state: ERROR_WRONG_PARALLEL
       - condition: api_status == 404
         next_state: ERROR_NOT_FOUND
+      - condition: api_status == 200 && user.status == 'ACTIVE' && user.parallelName != 'Core program'
+        next_state: ERROR_WRONG_PARALLEL
       - condition: user.status == 'EXPELLED' || user.status == 'BLOCKED'
         next_state: ERROR_ACCESS_DENIED
+      - condition: api_status == 200 && user.status == 'ACTIVE' && user.parallelName == 'Core program'
+        next_state: FIND_ROCKET_USER
       - condition: api_status != 200
         next_state: ERROR_API
 
   FIND_ROCKET_USER:
     type: system
     description: Поиск пользователя в Rocket.Chat с проверкой email для защиты от подмены никнейма
-    security_note: Email verification защищает от race condition. Злоумышленник может сменить nickname, но не может подделать verified email
+    # security_note: Email verification защищает от race condition. Злоумышленник может сменить nickname, но не может подделать verified email
     logic:
       action: find_and_verify_rocket_user
       payload:
         login: $context.last_input
-      checks:
-        - name: User exists in RocketChat
-          api_call: GET /api/v1/users.info?username={login}
-          required: true
-        - name: Email verification (CRITICAL SECURITY CHECK)
-          description: Проверка что email совпадает с School21 email и verified
-          steps:
-            - Extract user.emails[0].address from RocketChat response
-            - 'Verify format: {login}@student.21-school.ru'
-            - Verify user.emails[0].verified == true
-          critical: true
+    # checks:
+    #   - name: User exists in RocketChat
+    #     api_call: GET /api/v1/users.info?username={login}
+    #     required: true
+    #   - name: Email verification (CRITICAL SECURITY CHECK)
+    #     description: Проверка что email совпадает с School21 email и verified
+    #     steps:
+    #       - Extract user.emails[0].address from RocketChat response
+    #       - 'Verify format: {login}@student.21-school.ru'
+    #       - Verify user.emails[0].verified == true
+    #     critical: true
     transitions:
       - condition: rocket_user_found == true && email_verified == true
+        # security_level: SAFE
         next_state: GENERATE_OTP
-        security_level: SAFE
       - condition: rocket_user_found == true && email_mismatch == true
+        # security_level: CRITICAL_REJECT
         next_state: ERROR_EMAIL_MISMATCH
-        security_level: CRITICAL_REJECT
       - condition: rocket_user_not_found == true
         next_state: ROCKET_USER_NOT_FOUND
       - condition: rocket_api_error == true
         next_state: ROCKET_API_ERROR
+      - condition: email_already_registered == true
+        next_state: ERROR_EMAIL_ALREADY_REGISTERED
 
   GENERATE_OTP:
     type: system
@@ -122,7 +122,7 @@ states:
         next_state: AWAITING_OTP
 
   AWAITING_OTP:
-    requirement: Безопасная обработка OTP-кодов в памяти и при передаче (см. security_policy.yaml)
+    # requirement: Безопасная обработка OTP-кодов в памяти и при передаче (см. security_policy.yaml)
     type: input
     description: Ввод OTP-кода, отправленного в Rocket.Chat
     interface:
@@ -144,12 +144,12 @@ states:
       - trigger: code_expired
         next_state: INPUT_LOGIN
         action: "notify: code_expired"
-    verification: Проверка отсутствия OTP в логах при тестах
-    risks:
-      - Утечка OTP через дампы памяти или логи
-    forbidden_practices:
-      - Вывод OTP в логи
-      - Сохранение OTP в БД
+  # verification: Проверка отсутствия OTP в логах при тестах
+  # risks:
+  #   - Утечка OTP через дампы памяти или логи
+  # forbidden_practices:
+  #   - Вывод OTP в логи
+  #   - Сохранение OTP в БД
 
   VALIDATE_OTP:
     type: system
@@ -173,9 +173,9 @@ states:
     interface:
       text:
         ru: |
-          ❌ Ты не из программы Core. Регистрация доступна только для студентов основы.
+          ❌ Регистрация доступна только для студентов основы.
         en: |
-          ❌ You are not in Core program. Registration available only for Core students.
+          ❌ Registration is only available for Core students.
       buttons:
         - id: retry
           label:
@@ -189,14 +189,14 @@ states:
     interface:
       text:
         ru: |
-          ❌ Твой статус не подходит для регистрации.
+          ❌ Регистрация доступна только для действующих студентов.
         en: |
-          ❌ Your status does not allow registration.
+          ❌ Registration is only available for active students.
       buttons:
         - id: retry
           label:
-            ru: Попробовать снова
-            en: Try again
+            ru: 🔁 Попробовать снова
+            en: 🔁 Try again
           next_state: INPUT_LOGIN
 
   ERROR_NOT_FOUND:
@@ -205,14 +205,16 @@ states:
     interface:
       text:
         ru: |
-          ❌ Пользователь не найден в School21. Проверь логин.
+          ❌ Пользователь не найден в School21.
+          Убедись что ты вводишь свой логин правильно.
         en: |
-          ❌ User not found in School21. Check your login.
+          ❌ User not found in School21.
+          Make sure you are entering your login correctly.
       buttons:
         - id: retry
           label:
-            ru: Попробовать снова
-            en: Try again
+            ru: 🔁 Попробовать снова
+            en: 🔁 Try again
           next_state: INPUT_LOGIN
 
   ERROR_API:
@@ -221,14 +223,14 @@ states:
     interface:
       text:
         ru: |
-          ❌ Временная ошибка связи с School21. Попробуй позже.
+          ❌ Временная ошибка связи с School21 API. Попробуй позже.
         en: |
           ❌ Temporary School21 API error. Try again later.
       buttons:
         - id: retry
           label:
-            ru: Попробовать снова
-            en: Try again
+            ru: 🔁 Попробовать снова
+            en: 🔁 Try again
           next_state: INPUT_LOGIN
 
   ROCKET_USER_NOT_FOUND:
@@ -237,14 +239,16 @@ states:
     interface:
       text:
         ru: |
-          ❌ Пользователь не найден в Rocket.Chat. Проверь, зарегистрирован ли ты в системе School21.
+          ❌ Пользователь не найден в Rocket.Chat.
+          Убедись что в твоём Rocket.Chat профиле установлен верный никнейм.
         en: |
-          ❌ User not found in Rocket.Chat. Check if you are registered in School21 system.
+          ❌ User not found in Rocket.Chat.
+          Make sure you set the correct nickname in your Rocket.Chat profile.
       buttons:
         - id: retry
           label:
-            ru: Попробовать снова
-            en: Try again
+            ru: 🔁 Попробовать снова
+            en: 🔁 Try again
           next_state: INPUT_LOGIN
 
   ROCKET_API_ERROR:
@@ -259,8 +263,8 @@ states:
       buttons:
         - id: retry
           label:
-            ru: Попробовать снова
-            en: Try again
+            ru: 🔁 Попробовать снова
+            en: 🔁 Try again
           next_state: INPUT_LOGIN
 
   ERROR_EMAIL_MISMATCH:
@@ -269,24 +273,16 @@ states:
     interface:
       text:
         ru: |
-          ❌ Ошибка верификации!
-
-          Email в твоём профиле RocketChat не совпадает с {login}@student.21-school.ru
-
-          Это защитный механизм от подмены личности.
-          Убедись что ты используешь правильный логин.
+          ❌ Пользователь не связан с твоим текущим аккаунтом Rocket.Chat.
+          Пожалуйста, введи именно свой логин School21.
         en: |
-          ❌ Verification failed!
-
-          Email in your RocketChat profile doesn't match {login}@student.21-school.ru
-
-          This is a security measure against identity theft.
-          Make sure you're using the correct login.
+          ❌ User is not associated with your current Rocket.Chat account.
+          Please enter your actual School21 login.
       buttons:
         - id: retry
           label:
-            ru: Попробовать снова
-            en: Try again
+            ru: 🔁 Попробовать снова
+            en: 🔁 Try again
           next_state: INPUT_LOGIN
 
   ERROR_EMAIL_ALREADY_REGISTERED:
@@ -295,11 +291,62 @@ states:
     interface:
       text:
         ru: |
-          ❌ Email уже занят!
+          ❌ Пользователь уже авторизован!
+          Выйди из другого аккаунта и попробуй снова.
         en: |
-          ❌ Email already in use!
-    transitions:
-      - next_state: INPUT_LOGIN
+          ❌ User is already authorized!
+          Log out of the other account and try again.
+      buttons:
+        - id: retry
+          label:
+            ru: 🔁 Попробовать снова
+            en: 🔁 Try again
+          next_state: INPUT_LOGIN
+        - id: help
+          label:
+            ru: ℹ️ Правила регистрации
+            en: ℹ️ Registration rules
+          next_state: HELP
+
+  HELP:
+    type: interactive
+    description: Помощь
+    interface:
+      text:
+        ru: |
+          ℹ️ Зарегистрировать можно только 1 профиль мессенджера.
+
+          Если у тебя уже есть профиль, отвяжи бота от предыдущего, чтобы зарегистрировать этот. (В меню `Настройки→Отвязать профиль`).
+        en: |
+          ℹ️ You can register only 1 messenger profile.
+
+          If you already have a profile, unlink the bot from the previous one to register this one. (In the menu `Settings → Unlink profile`).
+      buttons:
+        - id: retry
+          label:
+            ru: 🔁 Попробовать снова
+            en: 🔁 Try again
+          next_state: INPUT_LOGIN
+        - id: goodbye
+          label:
+            ru: 🖐️ Ладно, пока
+            en: 🖐️ Ok, bye
+          next_state: GOODBYE
+
+  GOODBYE:
+    type: final
+    interface:
+      text:
+        ru: |
+          Чао! 🙃
+        en: |
+          Chao! 🙃
+      buttons:
+        - id: start
+          label:
+            ru: /start
+            en: /start
+          next_state: START
 
   REGISTRATION_COMPLETE:
     type: final
@@ -310,7 +357,8 @@ states:
         en: |
           🎉 Registration successful! Welcome, {name}.
       buttons:
-        - label:
-            ru: В меню
-            en: To menu
+        - id: to_menu
+          label:
+            ru: 🏠 В главное меню
+            en: 🏠 To main menu
           next_state: MAIN_MENU
