@@ -143,6 +143,16 @@ func (ns NullEnumUserRole) Value() (driver.Value, error) {
 	return string(ns.EnumUserRole), nil
 }
 
+type ApiKey struct {
+	ID            int64              `json:"id"`
+	UserAccountID int64              `json:"user_account_id"`
+	KeyHash       string             `json:"key_hash"`
+	Prefix        string             `json:"prefix"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
+	RevokedAt     pgtype.Timestamptz `json:"revoked_at"`
+	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
+}
+
 type AuthVerificationCode struct {
 	ID        int64              `json:"id"`
 	StudentID pgtype.Text        `json:"student_id"`
