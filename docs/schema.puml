@@ -320,15 +320,13 @@ package "System_Stats" {
         created_at : timestamp
     }
 
-    entity "external_api_keys" as external_api_keys {
+    entity "api_keys" as api_keys {
         * id : bigserial <<PK>>
         --
-        created_by_student_id : string <<FK>>
-        client_name : string
+        user_account_id : bigint <<FK>>
         key_hash : string
-        is_active : boolean
-        rate_limit : int
-        last_used_at : timestamp
+        prefix : string
+        revoked_at : timestamp
         created_at : timestamp
         expires_at : timestamp
     }
@@ -440,7 +438,7 @@ campuses ||--o{ cached_events
 campuses ||--o{ cached_sales
 campuses ||--o{ room_schedule_images
 
-students ||--o{ external_api_keys
+user_accounts ||--o{ api_keys
 students ||--o{ notifications
 
 @endum

@@ -11,6 +11,42 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const createApiKey = `-- name: CreateApiKey :one
+INSERT INTO api_keys (
+    user_account_id, key_hash, prefix, expires_at
+) VALUES (
+    $1, $2, $3, $4
+)
+RETURNING id, user_account_id, key_hash, prefix, created_at, revoked_at, expires_at
+`
+
+type CreateApiKeyParams struct {
+	UserAccountID int64              `json:"user_account_id"`
+	KeyHash       string             `json:"key_hash"`
+	Prefix        string             `json:"prefix"`
+	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
+}
+
+func (q *Queries) CreateApiKey(ctx context.Context, arg CreateApiKeyParams) (ApiKey, error) {
+	row := q.db.QueryRow(ctx, createApiKey,
+		arg.UserAccountID,
+		arg.KeyHash,
+		arg.Prefix,
+		arg.ExpiresAt,
+	)
+	var i ApiKey
+	err := row.Scan(
+		&i.ID,
+		&i.UserAccountID,
+		&i.KeyHash,
+		&i.Prefix,
+		&i.CreatedAt,
+		&i.RevokedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
 const createAuthVerificationCode = `-- name: CreateAuthVerificationCode :one
 INSERT INTO auth_verification_codes (
     student_id, code, expires_at
@@ -80,6 +116,16 @@ func (q *Queries) CreateUserAccount(ctx context.Context, arg CreateUserAccountPa
 	return i, err
 }
 
+const deleteAllAuthVerificationCodes = `-- name: DeleteAllAuthVerificationCodes :exec
+DELETE FROM auth_verification_codes
+WHERE student_id = $1
+`
+
+func (q *Queries) DeleteAllAuthVerificationCodes(ctx context.Context, studentID pgtype.Text) error {
+	_, err := q.db.Exec(ctx, deleteAllAuthVerificationCodes, studentID)
+	return err
+}
+
 const deleteAuthVerificationCode = `-- name: DeleteAuthVerificationCode :exec
 DELETE FROM auth_verification_codes
 WHERE student_id = $1 AND code = $2
@@ -103,6 +149,48 @@ WHERE expires_at < CURRENT_TIMESTAMP
 func (q *Queries) DeleteExpiredAuthVerificationCodes(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, deleteExpiredAuthVerificationCodes)
 	return err
+}
+
+const getActiveApiKey = `-- name: GetActiveApiKey :one
+SELECT id, user_account_id, key_hash, prefix, created_at, revoked_at, expires_at FROM api_keys
+WHERE user_account_id = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+ORDER BY created_at DESC
+LIMIT 1
+`
+
+func (q *Queries) GetActiveApiKey(ctx context.Context, userAccountID int64) (ApiKey, error) {
+	row := q.db.QueryRow(ctx, getActiveApiKey, userAccountID)
+	var i ApiKey
+	err := row.Scan(
+		&i.ID,
+		&i.UserAccountID,
+		&i.KeyHash,
+		&i.Prefix,
+		&i.CreatedAt,
+		&i.RevokedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
+}
+
+const getApiKeyByHash = `-- name: GetApiKeyByHash :one
+SELECT id, user_account_id, key_hash, prefix, created_at, revoked_at, expires_at FROM api_keys
+WHERE key_hash = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+`
+
+func (q *Queries) GetApiKeyByHash(ctx context.Context, keyHash string) (ApiKey, error) {
+	row := q.db.QueryRow(ctx, getApiKeyByHash, keyHash)
+	var i ApiKey
+	err := row.Scan(
+		&i.ID,
+		&i.UserAccountID,
+		&i.KeyHash,
+		&i.Prefix,
+		&i.CreatedAt,
+		&i.RevokedAt,
+		&i.ExpiresAt,
+	)
+	return i, err
 }
 
 const getFSMState = `-- name: GetFSMState :one
@@ -385,6 +473,17 @@ func (q *Queries) GetValidAuthVerificationCode(ctx context.Context, arg GetValid
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const revokeOldApiKeys = `-- name: RevokeOldApiKeys :exec
+UPDATE api_keys
+SET revoked_at = CURRENT_TIMESTAMP
+WHERE user_account_id = $1 AND revoked_at IS NULL
+`
+
+func (q *Queries) RevokeOldApiKeys(ctx context.Context, userAccountID int64) error {
+	_, err := q.db.Exec(ctx, revokeOldApiKeys, userAccountID)
+	return err
 }
 
 const upsertFSMState = `-- name: UpsertFSMState :exec

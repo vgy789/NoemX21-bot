@@ -42,6 +42,21 @@ func (m *MockQuerier) EXPECT() *MockQuerierMockRecorder {
 	return m.recorder
 }
 
+// CreateApiKey mocks base method.
+func (m *MockQuerier) CreateApiKey(ctx context.Context, arg db.CreateApiKeyParams) (db.ApiKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateApiKey", ctx, arg)
+	ret0, _ := ret[0].(db.ApiKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateApiKey indicates an expected call of CreateApiKey.
+func (mr *MockQuerierMockRecorder) CreateApiKey(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateApiKey", reflect.TypeOf((*MockQuerier)(nil).CreateApiKey), ctx, arg)
+}
+
 // CreateAuthVerificationCode mocks base method.
 func (m *MockQuerier) CreateAuthVerificationCode(ctx context.Context, arg db.CreateAuthVerificationCodeParams) (db.AuthVerificationCode, error) {
 	m.ctrl.T.Helper()
@@ -72,6 +87,20 @@ func (mr *MockQuerierMockRecorder) CreateUserAccount(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateUserAccount", reflect.TypeOf((*MockQuerier)(nil).CreateUserAccount), ctx, arg)
 }
 
+// DeleteAllAuthVerificationCodes mocks base method.
+func (m *MockQuerier) DeleteAllAuthVerificationCodes(ctx context.Context, studentID pgtype.Text) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteAllAuthVerificationCodes", ctx, studentID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteAllAuthVerificationCodes indicates an expected call of DeleteAllAuthVerificationCodes.
+func (mr *MockQuerierMockRecorder) DeleteAllAuthVerificationCodes(ctx, studentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteAllAuthVerificationCodes", reflect.TypeOf((*MockQuerier)(nil).DeleteAllAuthVerificationCodes), ctx, studentID)
+}
+
 // DeleteAuthVerificationCode mocks base method.
 func (m *MockQuerier) DeleteAuthVerificationCode(ctx context.Context, arg db.DeleteAuthVerificationCodeParams) error {
 	m.ctrl.T.Helper()
@@ -98,6 +127,36 @@ func (m *MockQuerier) DeleteExpiredAuthVerificationCodes(ctx context.Context) er
 func (mr *MockQuerierMockRecorder) DeleteExpiredAuthVerificationCodes(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredAuthVerificationCodes", reflect.TypeOf((*MockQuerier)(nil).DeleteExpiredAuthVerificationCodes), ctx)
+}
+
+// GetActiveApiKey mocks base method.
+func (m *MockQuerier) GetActiveApiKey(ctx context.Context, userAccountID int64) (db.ApiKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveApiKey", ctx, userAccountID)
+	ret0, _ := ret[0].(db.ApiKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActiveApiKey indicates an expected call of GetActiveApiKey.
+func (mr *MockQuerierMockRecorder) GetActiveApiKey(ctx, userAccountID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveApiKey", reflect.TypeOf((*MockQuerier)(nil).GetActiveApiKey), ctx, userAccountID)
+}
+
+// GetApiKeyByHash mocks base method.
+func (m *MockQuerier) GetApiKeyByHash(ctx context.Context, keyHash string) (db.ApiKey, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetApiKeyByHash", ctx, keyHash)
+	ret0, _ := ret[0].(db.ApiKey)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetApiKeyByHash indicates an expected call of GetApiKeyByHash.
+func (mr *MockQuerierMockRecorder) GetApiKeyByHash(ctx, keyHash any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetApiKeyByHash", reflect.TypeOf((*MockQuerier)(nil).GetApiKeyByHash), ctx, keyHash)
 }
 
 // GetFSMState mocks base method.
@@ -263,6 +322,20 @@ func (m *MockQuerier) GetValidAuthVerificationCode(ctx context.Context, arg db.G
 func (mr *MockQuerierMockRecorder) GetValidAuthVerificationCode(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetValidAuthVerificationCode", reflect.TypeOf((*MockQuerier)(nil).GetValidAuthVerificationCode), ctx, arg)
+}
+
+// RevokeOldApiKeys mocks base method.
+func (m *MockQuerier) RevokeOldApiKeys(ctx context.Context, userAccountID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RevokeOldApiKeys", ctx, userAccountID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RevokeOldApiKeys indicates an expected call of RevokeOldApiKeys.
+func (mr *MockQuerierMockRecorder) RevokeOldApiKeys(ctx, userAccountID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeOldApiKeys", reflect.TypeOf((*MockQuerier)(nil).RevokeOldApiKeys), ctx, userAccountID)
 }
 
 // UpsertFSMState mocks base method.

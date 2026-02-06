@@ -148,3 +148,26 @@ ON CONFLICT (user_id) DO UPDATE SET
     context = EXCLUDED.context,
     language = EXCLUDED.language,
     updated_at = CURRENT_TIMESTAMP;
+
+-- name: CreateApiKey :one
+INSERT INTO api_keys (
+    user_account_id, key_hash, prefix, expires_at
+) VALUES (
+    $1, $2, $3, $4
+)
+RETURNING *;
+
+-- name: GetApiKeyByHash :one
+SELECT * FROM api_keys
+WHERE key_hash = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP);
+
+-- name: RevokeOldApiKeys :exec
+UPDATE api_keys
+SET revoked_at = CURRENT_TIMESTAMP
+WHERE user_account_id = $1 AND revoked_at IS NULL;
+
+-- name: GetActiveApiKey :one
+SELECT * FROM api_keys
+WHERE user_account_id = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+ORDER BY created_at DESC
+LIMIT 1;
