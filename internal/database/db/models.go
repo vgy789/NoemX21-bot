@@ -171,6 +171,26 @@ type Campuse struct {
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
+type Club struct {
+	ID           int32              `json:"id"`
+	CampusID     pgtype.UUID        `json:"campus_id"`
+	LeaderLogin  pgtype.Text        `json:"leader_login"`
+	Name         string             `json:"name"`
+	Description  pgtype.Text        `json:"description"`
+	CategoryID   int16              `json:"category_id"`
+	ExternalLink pgtype.Text        `json:"external_link"`
+	IsLocal      pgtype.Bool        `json:"is_local"`
+	IsActive     pgtype.Bool        `json:"is_active"`
+	CreatedAt    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ClubCategory struct {
+	ID        int16              `json:"id"`
+	Name      string             `json:"name"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
 type Coalition struct {
 	ID        int16              `json:"id"`
 	Name      string             `json:"name"`

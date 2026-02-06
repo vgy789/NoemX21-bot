@@ -116,6 +116,17 @@ func (q *Queries) CreateUserAccount(ctx context.Context, arg CreateUserAccountPa
 	return i, err
 }
 
+const deactivateClubsByCampus = `-- name: DeactivateClubsByCampus :exec
+UPDATE clubs
+SET is_active = false, updated_at = CURRENT_TIMESTAMP
+WHERE campus_id = $1
+`
+
+func (q *Queries) DeactivateClubsByCampus(ctx context.Context, campusID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deactivateClubsByCampus, campusID)
+	return err
+}
+
 const deleteAllAuthVerificationCodes = `-- name: DeleteAllAuthVerificationCodes :exec
 DELETE FROM auth_verification_codes
 WHERE student_id = $1
@@ -189,6 +200,25 @@ func (q *Queries) GetApiKeyByHash(ctx context.Context, keyHash string) (ApiKey, 
 		&i.CreatedAt,
 		&i.RevokedAt,
 		&i.ExpiresAt,
+	)
+	return i, err
+}
+
+const getCampusByShortName = `-- name: GetCampusByShortName :one
+SELECT id, short_name, full_name, timezone, is_active, created_at, updated_at FROM campuses WHERE short_name = $1
+`
+
+func (q *Queries) GetCampusByShortName(ctx context.Context, shortName string) (Campuse, error) {
+	row := q.db.QueryRow(ctx, getCampusByShortName, shortName)
+	var i Campuse
+	err := row.Scan(
+		&i.ID,
+		&i.ShortName,
+		&i.FullName,
+		&i.Timezone,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -484,6 +514,120 @@ WHERE user_account_id = $1 AND revoked_at IS NULL
 func (q *Queries) RevokeOldApiKeys(ctx context.Context, userAccountID int64) error {
 	_, err := q.db.Exec(ctx, revokeOldApiKeys, userAccountID)
 	return err
+}
+
+const upsertCampus = `-- name: UpsertCampus :one
+INSERT INTO campuses (id, short_name, full_name, timezone, is_active)
+VALUES ($1, $2, $3, $4, $5)
+ON CONFLICT (id) DO UPDATE SET
+    short_name = EXCLUDED.short_name,
+    full_name = EXCLUDED.full_name,
+    timezone = EXCLUDED.timezone,
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING id, short_name, full_name, timezone, is_active, created_at, updated_at
+`
+
+type UpsertCampusParams struct {
+	ID        pgtype.UUID `json:"id"`
+	ShortName string      `json:"short_name"`
+	FullName  string      `json:"full_name"`
+	Timezone  pgtype.Text `json:"timezone"`
+	IsActive  pgtype.Bool `json:"is_active"`
+}
+
+func (q *Queries) UpsertCampus(ctx context.Context, arg UpsertCampusParams) (Campuse, error) {
+	row := q.db.QueryRow(ctx, upsertCampus,
+		arg.ID,
+		arg.ShortName,
+		arg.FullName,
+		arg.Timezone,
+		arg.IsActive,
+	)
+	var i Campuse
+	err := row.Scan(
+		&i.ID,
+		&i.ShortName,
+		&i.FullName,
+		&i.Timezone,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertClub = `-- name: UpsertClub :one
+INSERT INTO clubs (
+    id, campus_id, leader_login, name, description, category_id,
+    external_link, is_local, is_active, updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, CURRENT_TIMESTAMP
+)
+ON CONFLICT (campus_id, id) DO UPDATE SET
+    leader_login = EXCLUDED.leader_login,
+    name = EXCLUDED.name,
+    description = EXCLUDED.description,
+    category_id = EXCLUDED.category_id,
+    external_link = EXCLUDED.external_link,
+    is_local = EXCLUDED.is_local,
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING id, campus_id, leader_login, name, description, category_id, external_link, is_local, is_active, created_at, updated_at
+`
+
+type UpsertClubParams struct {
+	ID           int32       `json:"id"`
+	CampusID     pgtype.UUID `json:"campus_id"`
+	LeaderLogin  pgtype.Text `json:"leader_login"`
+	Name         string      `json:"name"`
+	Description  pgtype.Text `json:"description"`
+	CategoryID   int16       `json:"category_id"`
+	ExternalLink pgtype.Text `json:"external_link"`
+	IsLocal      pgtype.Bool `json:"is_local"`
+	IsActive     pgtype.Bool `json:"is_active"`
+}
+
+func (q *Queries) UpsertClub(ctx context.Context, arg UpsertClubParams) (Club, error) {
+	row := q.db.QueryRow(ctx, upsertClub,
+		arg.ID,
+		arg.CampusID,
+		arg.LeaderLogin,
+		arg.Name,
+		arg.Description,
+		arg.CategoryID,
+		arg.ExternalLink,
+		arg.IsLocal,
+		arg.IsActive,
+	)
+	var i Club
+	err := row.Scan(
+		&i.ID,
+		&i.CampusID,
+		&i.LeaderLogin,
+		&i.Name,
+		&i.Description,
+		&i.CategoryID,
+		&i.ExternalLink,
+		&i.IsLocal,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertClubCategory = `-- name: UpsertClubCategory :one
+INSERT INTO club_categories (name) VALUES ($1)
+ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+RETURNING id, name, created_at
+`
+
+func (q *Queries) UpsertClubCategory(ctx context.Context, name string) (ClubCategory, error) {
+	row := q.db.QueryRow(ctx, upsertClubCategory, name)
+	var i ClubCategory
+	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
+	return i, err
 }
 
 const upsertFSMState = `-- name: UpsertFSMState :exec

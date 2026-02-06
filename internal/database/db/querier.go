@@ -14,11 +14,13 @@ type Querier interface {
 	CreateApiKey(ctx context.Context, arg CreateApiKeyParams) (ApiKey, error)
 	CreateAuthVerificationCode(ctx context.Context, arg CreateAuthVerificationCodeParams) (AuthVerificationCode, error)
 	CreateUserAccount(ctx context.Context, arg CreateUserAccountParams) (UserAccount, error)
+	DeactivateClubsByCampus(ctx context.Context, campusID pgtype.UUID) error
 	DeleteAllAuthVerificationCodes(ctx context.Context, studentID pgtype.Text) error
 	DeleteAuthVerificationCode(ctx context.Context, arg DeleteAuthVerificationCodeParams) error
 	DeleteExpiredAuthVerificationCodes(ctx context.Context) error
 	GetActiveApiKey(ctx context.Context, userAccountID int64) (ApiKey, error)
 	GetApiKeyByHash(ctx context.Context, keyHash string) (ApiKey, error)
+	GetCampusByShortName(ctx context.Context, shortName string) (Campuse, error)
 	GetFSMState(ctx context.Context, userID int64) (FsmUserState, error)
 	GetLastAuthVerificationCode(ctx context.Context, studentID pgtype.Text) (AuthVerificationCode, error)
 	GetPlatformCredentials(ctx context.Context, studentID string) (PlatformCredential, error)
@@ -32,6 +34,9 @@ type Querier interface {
 	GetUserBotSettings(ctx context.Context, userAccountID int64) (UserBotSetting, error)
 	GetValidAuthVerificationCode(ctx context.Context, arg GetValidAuthVerificationCodeParams) (AuthVerificationCode, error)
 	RevokeOldApiKeys(ctx context.Context, userAccountID int64) error
+	UpsertCampus(ctx context.Context, arg UpsertCampusParams) (Campuse, error)
+	UpsertClub(ctx context.Context, arg UpsertClubParams) (Club, error)
+	UpsertClubCategory(ctx context.Context, name string) (ClubCategory, error)
 	UpsertFSMState(ctx context.Context, arg UpsertFSMStateParams) error
 	UpsertPlatformCredentials(ctx context.Context, arg UpsertPlatformCredentialsParams) error
 	UpsertRocketChatCredentials(ctx context.Context, arg UpsertRocketChatCredentialsParams) error

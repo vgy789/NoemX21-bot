@@ -29,7 +29,7 @@ func TestNew(t *testing.T) {
 	repo := &db.DBWrapper{}
 	rcClient := rocketchat.NewClient("", "", "")
 
-	a := New(cfg, logger, repo, rcClient, nil)
+	a := New(cfg, logger, repo, rcClient, nil, nil)
 	assert.NotNil(t, a)
 	assert.NotNil(t, a.tg)
 }
