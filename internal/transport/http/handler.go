@@ -84,5 +84,5 @@ func (h *WebhookHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	// 4. Response
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(RegisterResponse{Registered: registered})
+	_ = json.NewEncoder(w).Encode(RegisterResponse{Registered: registered})
 }

@@ -21,11 +21,11 @@ func TestMustLoad(t *testing.T) {
 	_ = os.WriteFile(rcUserFile, []byte("user"), 0644)
 	_ = os.WriteFile(rcTokenFile, []byte("token"), 0644)
 
-	defer os.Remove(tokenFile)
-	defer os.Remove(dbFile)
-	defer os.Remove(rcUrlFile)
-	defer os.Remove(rcUserFile)
-	defer os.Remove(rcTokenFile)
+	defer func() { _ = os.Remove(tokenFile) }()
+	defer func() { _ = os.Remove(dbFile) }()
+	defer func() { _ = os.Remove(rcUrlFile) }()
+	defer func() { _ = os.Remove(rcUserFile) }()
+	defer func() { _ = os.Remove(rcTokenFile) }()
 
 	// Set required env vars to point to these files
 	t.Setenv("TELEGRAM_BOT_TOKEN", tokenFile)
@@ -52,8 +52,8 @@ func TestMustLoad(t *testing.T) {
 
 func TestMustLoad_Panic(t *testing.T) {
 	// Unset required env vars
-	os.Unsetenv("TELEGRAM_BOT_TOKEN")
-	os.Unsetenv("DATABASE_URL")
+	_ = os.Unsetenv("TELEGRAM_BOT_TOKEN")
+	_ = os.Unsetenv("DATABASE_URL")
 
 	assert.Panics(t, func() {
 		MustLoad()

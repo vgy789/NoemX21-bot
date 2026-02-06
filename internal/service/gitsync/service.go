@@ -193,7 +193,7 @@ func (s *GitSyncService) syncCampus(ctx context.Context, campus db.Campuse, path
 
 		// Upsert Club
 		_, err = s.queries.UpsertClub(ctx, db.UpsertClubParams{
-			ID:           int32(c.ID),
+			ID:           int16(c.ID),
 			CampusID:     campus.ID,
 			LeaderLogin:  toText(c.LeaderLogin),
 			Name:         c.Name,

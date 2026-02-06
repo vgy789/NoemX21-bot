@@ -533,7 +533,7 @@ type UpsertCampusParams struct {
 	ShortName string      `json:"short_name"`
 	FullName  string      `json:"full_name"`
 	Timezone  pgtype.Text `json:"timezone"`
-	IsActive  pgtype.Bool `json:"is_active"`
+	IsActive  bool        `json:"is_active"`
 }
 
 func (q *Queries) UpsertCampus(ctx context.Context, arg UpsertCampusParams) (Campuse, error) {
@@ -577,7 +577,7 @@ RETURNING id, campus_id, leader_login, name, description, category_id, external_
 `
 
 type UpsertClubParams struct {
-	ID           int32       `json:"id"`
+	ID           int16       `json:"id"`
 	CampusID     pgtype.UUID `json:"campus_id"`
 	LeaderLogin  pgtype.Text `json:"leader_login"`
 	Name         string      `json:"name"`
