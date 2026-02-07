@@ -397,6 +397,20 @@ func (mr *MockQuerierMockRecorder) RevokeOldApiKeys(ctx, userAccountID any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeOldApiKeys", reflect.TypeOf((*MockQuerier)(nil).RevokeOldApiKeys), ctx, userAccountID)
 }
 
+// UpdateStudentStats mocks base method.
+func (m *MockQuerier) UpdateStudentStats(ctx context.Context, arg db.UpdateStudentStatsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateStudentStats", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateStudentStats indicates an expected call of UpdateStudentStats.
+func (mr *MockQuerierMockRecorder) UpdateStudentStats(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateStudentStats", reflect.TypeOf((*MockQuerier)(nil).UpdateStudentStats), ctx, arg)
+}
+
 // UpsertCampus mocks base method.
 func (m *MockQuerier) UpsertCampus(ctx context.Context, arg db.UpsertCampusParams) (db.Campuse, error) {
 	m.ctrl.T.Helper()
@@ -440,6 +454,20 @@ func (m *MockQuerier) UpsertClubCategory(ctx context.Context, name string) (db.C
 func (mr *MockQuerierMockRecorder) UpsertClubCategory(ctx, name any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertClubCategory", reflect.TypeOf((*MockQuerier)(nil).UpsertClubCategory), ctx, name)
+}
+
+// UpsertCoalition mocks base method.
+func (m *MockQuerier) UpsertCoalition(ctx context.Context, arg db.UpsertCoalitionParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertCoalition", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertCoalition indicates an expected call of UpsertCoalition.
+func (mr *MockQuerierMockRecorder) UpsertCoalition(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertCoalition", reflect.TypeOf((*MockQuerier)(nil).UpsertCoalition), ctx, arg)
 }
 
 // UpsertFSMState mocks base method.

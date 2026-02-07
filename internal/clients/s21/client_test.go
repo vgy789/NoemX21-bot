@@ -55,7 +55,7 @@ func TestClient_GetParticipant(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(ParticipantV1DTO{
 			Login:        "testuser",
-			ParallelName: "Core program",
+			ParallelName: StringPtr("Core program"),
 			Status:       "ACTIVE",
 		})
 	}))
@@ -66,7 +66,7 @@ func TestClient_GetParticipant(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, got)
 	assert.Equal(t, "testuser", got.Login)
-	assert.Equal(t, "Core program", got.ParallelName)
+	assert.Equal(t, "Core program", *got.ParallelName)
 	assert.Equal(t, "ACTIVE", got.Status)
 }
 
@@ -100,15 +100,15 @@ func TestClient_GetParticipant_404InBody(t *testing.T) {
 	got, err := client.GetParticipant(context.Background(), "tok", "maslenok")
 	assert.Error(t, err)
 	assert.Nil(t, got)
-	assert.Contains(t, err.Error(), "API body error: status 404")
+	assert.Contains(t, err.Error(), "failed to decode response")
 }
 
-func TestClient_GetParticipant_StatusAsInt(t *testing.T) {
+func TestClient_GetParticipant_StatusAsString(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{
 			"login": "user",
-			"status": 200,
+			"status": "ACTIVE",
 			"parallelName": "Core program"
 		}`))
 	}))
@@ -118,7 +118,7 @@ func TestClient_GetParticipant_StatusAsInt(t *testing.T) {
 	got, err := client.GetParticipant(context.Background(), "tok", "user")
 	require.NoError(t, err)
 	require.NotNil(t, got)
-	assert.Equal(t, float64(200), got.Status)
+	assert.Equal(t, "ACTIVE", got.Status)
 }
 
 func TestClient_GetCampuses(t *testing.T) {

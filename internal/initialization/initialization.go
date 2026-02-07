@@ -42,22 +42,22 @@ func InitializeRocketChatClient(cfg *config.Config) *rocketchat.Client {
 	return rocketchat.NewClient(cfg.RocketChat.URL.Expose(), cfg.RocketChat.AuthToken.Expose(), cfg.RocketChat.UserID.Expose())
 }
 
-// InitializeSeeder initializes the credential seeder.
-func InitializeSeeder(repo *db.Queries, crypter *crypto.Crypter, s21Client *s21.Client, log *slog.Logger) *service.CredentialSeeder {
-	return service.NewCredentialSeeder(repo, crypter, s21Client, log)
+// InitializeCredentialService initializes the credential service.
+func InitializeCredentialService(repo *db.Queries, crypter *crypto.Crypter, s21Client *s21.Client, log *slog.Logger) *service.CredentialService {
+	return service.NewCredentialService(repo, crypter, s21Client, log)
 }
 
 // SeedCredentials seeds credentials from the configuration.
-func SeedCredentials(ctx context.Context, seeder *service.CredentialSeeder, cfg *config.Config, log *slog.Logger) error {
+func SeedCredentials(ctx context.Context, credService *service.CredentialService, cfg *config.Config, log *slog.Logger) error {
 	if cfg.Init.AEADKey.Expose() != "" {
-		if err := seeder.Seed(ctx, cfg); err != nil {
+		if err := credService.Seed(ctx, cfg); err != nil {
 			log.Error("failed to seed credentials", "error", err)
 			return err
 		}
 
 		// Verify credentials via S21 API
 		if cfg.Init.SchoolLogin != "" {
-			if err := seeder.Verify(ctx, cfg.Init.SchoolLogin); err != nil {
+			if err := credService.Verify(ctx, cfg.Init.SchoolLogin); err != nil {
 				log.Error("credential verification failed", "error", err)
 				// We don't exit here, just log the error as it might be an API issue or invalid initial creds
 			}

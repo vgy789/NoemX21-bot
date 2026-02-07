@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -18,19 +19,76 @@ type S21Client interface {
 	GetParticipant(ctx context.Context, token string, login string) (*s21.ParticipantV1DTO, error)
 }
 
-type CredentialSeeder struct {
+type CredentialService struct {
 	repo      db.Querier
 	crypter   *crypto.Crypter
 	s21Client S21Client
 	log       *slog.Logger
 }
 
-func NewCredentialSeeder(repo db.Querier, crypter *crypto.Crypter, s21Client S21Client, log *slog.Logger) *CredentialSeeder {
-	return &CredentialSeeder{repo: repo, crypter: crypter, s21Client: s21Client, log: log}
+func NewCredentialService(repo db.Querier, crypter *crypto.Crypter, s21Client S21Client, log *slog.Logger) *CredentialService {
+	return &CredentialService{repo: repo, crypter: crypter, s21Client: s21Client, log: log}
+}
+
+// GetValidToken retrieves a valid access token for the user, refreshing or re-authenticating if needed.
+func (s *CredentialService) GetValidToken(ctx context.Context, login string) (string, error) {
+	// 1. Check existing token
+	creds, err := s.repo.GetPlatformCredentials(ctx, login)
+	if err == nil {
+		if creds.AccessToken.Valid && creds.AccessExpiresAt.Time.After(time.Now().Add(time.Minute)) {
+			// Token is valid and has at least 1 minute remaining
+			return creds.AccessToken.String, nil
+		}
+	} else if err != pgx.ErrNoRows {
+		return "", fmt.Errorf("failed to get credentials: %w", err)
+	}
+
+	// 2. Token invalid or missing, need to authenticate
+	// We need the password. If we don't have creds record, we can't do anything unless we have a separate way (like passed in),
+	// but here we rely on DB storage.
+	if err == pgx.ErrNoRows {
+		return "", fmt.Errorf("no credentials found for %s", login)
+	}
+
+	if len(creds.PasswordEnc) == 0 {
+		return "", fmt.Errorf("no password stored for %s", login)
+	}
+
+	decryptedPassword, err := s.crypter.Decrypt(creds.PasswordEnc, creds.PasswordNonce, []byte(login))
+	if err != nil {
+		return "", fmt.Errorf("failed to decrypt password: %w", err)
+	}
+
+	// 3. Authenticate
+	authResp, err := s.s21Client.Auth(ctx, login, string(decryptedPassword))
+	if err != nil {
+		return "", fmt.Errorf("authentication failed: %w", err)
+	}
+
+	// 4. Save new token
+	expiration := time.Now().Add(time.Duration(authResp.ExpiresIn) * time.Second)
+	refreshExpiration := time.Now().Add(time.Duration(authResp.RefreshExpiresIn) * time.Second)
+
+	err = s.repo.UpsertPlatformCredentials(ctx, db.UpsertPlatformCredentialsParams{
+		StudentID:        login,
+		PasswordEnc:      creds.PasswordEnc,   // Keep existing
+		PasswordNonce:    creds.PasswordNonce, // Keep existing
+		AccessToken:      pgtype.Text{String: authResp.AccessToken, Valid: true},
+		AccessExpiresAt:  pgtype.Timestamptz{Time: expiration, Valid: true},
+		RefreshTokenEnc:  nil, // We are not storing refresh token encrypted yet, or maybe we should? api doesn't give refresh token?
+		RefreshNonce:     nil, // The auth response likely has refresh token, but let's stick to access for now.
+		RefreshExpiresAt: pgtype.Timestamptz{Time: refreshExpiration, Valid: true},
+	})
+	if err != nil {
+		s.log.Error("failed to save new token", "login", login, "error", err)
+		// Proceed anyway since we have the token
+	}
+
+	return authResp.AccessToken, nil
 }
 
 // Verify retrieves credentials from DB, decrypts them, and checks the user via S21 API.
-func (s *CredentialSeeder) Verify(ctx context.Context, login string) error {
+func (s *CredentialService) Verify(ctx context.Context, login string) error {
 	s.log.Info("Starting AEAD decryption and API verification", "login", login)
 
 	// 1. Retrieve Platform Credentials
@@ -62,16 +120,21 @@ func (s *CredentialSeeder) Verify(ctx context.Context, login string) error {
 	}
 
 	// 5. Validate status and parallelName
-	if participant.Status == "ACTIVE" && participant.ParallelName == "Core program" {
+	parallelName := ""
+	if participant.ParallelName != nil {
+		parallelName = *participant.ParallelName
+	}
+
+	if participant.Status == "ACTIVE" && parallelName == "Core program" {
 		s.log.Info("User verification successful",
 			"login", login,
 			"status", participant.Status,
-			"parallel", participant.ParallelName)
+			"parallel", parallelName)
 	} else {
 		s.log.Warn("User verification failed: criteria not met",
 			"login", login,
 			"status", participant.Status,
-			"parallel", participant.ParallelName,
+			"parallel", parallelName,
 			"expected_status", "ACTIVE",
 			"expected_parallel", "Core program")
 	}
@@ -80,7 +143,7 @@ func (s *CredentialSeeder) Verify(ctx context.Context, login string) error {
 }
 
 // Seed encrypts and stores the initial credentials from configuration.
-func (s *CredentialSeeder) Seed(ctx context.Context, cfg *config.Config) error {
+func (s *CredentialService) Seed(ctx context.Context, cfg *config.Config) error {
 	if cfg.Init.SchoolLogin == "" {
 		s.log.Info("No SCHOOL21_USER_LOGIN provided, skipping seeding credentials")
 		return nil
@@ -104,16 +167,20 @@ func (s *CredentialSeeder) Seed(ctx context.Context, cfg *config.Config) error {
 			// But UpsertStudentParams requires Timezone string.
 
 			upsertParams := db.UpsertStudentParams{
-				S21Login:     cfg.Init.SchoolLogin,
-				RocketchatID: cfg.RocketChat.UserID.Expose(),
-				Status:       db.NullEnumStudentStatus{Valid: true, EnumStudentStatus: db.EnumStudentStatusACTIVE},
-				Timezone:     "UTC", // Default
-				// Others are nullable or have defaults handled by DB if we assume, but params struct requires them?
-				// pgtype.UUID, pgtype.Int2 are nullable values.
+				S21Login:           cfg.Init.SchoolLogin,
+				RocketchatID:       cfg.RocketChat.UserID.Expose(),
+				Status:             db.NullEnumStudentStatus{Valid: true, EnumStudentStatus: db.EnumStudentStatusACTIVE},
+				Timezone:           "UTC", // Default
 				CampusID:           pgtype.UUID{Valid: false},
 				CoalitionID:        pgtype.Int2{Valid: false},
 				AlternativeContact: pgtype.Text{Valid: false},
 				HasCoffeeBan:       pgtype.Bool{Valid: false},
+				Level:              pgtype.Int4{Valid: false},
+				ExpValue:           pgtype.Int4{Valid: false},
+				Prp:                pgtype.Int4{Valid: false},
+				Crp:                pgtype.Int4{Valid: false},
+				Coins:              pgtype.Int4{Valid: false},
+				ParallelName:       pgtype.Text{Valid: false},
 			}
 
 			_, err = s.repo.UpsertStudent(ctx, upsertParams)

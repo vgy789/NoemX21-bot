@@ -30,7 +30,7 @@ func prepareRegistrationTest(t *testing.T) (*telegramService, *serviceMock.MockS
 	mockQuerier := dbMock.NewMockQuerier(ctrl)
 	mockRCClient := rocketchat.NewClient("", "", "")
 
-	engine := setup.NewFSM(cfg, logger, mockQuerier, mockStudentSvc, mockRCClient, nil, "../../../docs/specs/flows")
+	engine := setup.NewFSM(cfg, logger, mockQuerier, mockStudentSvc, mockRCClient, nil, nil, "../../../docs/specs/flows")
 	service := NewTelegramService(cfg, logger, mockStudentSvc, engine)
 	ts := service.(*telegramService)
 
@@ -40,7 +40,7 @@ func prepareRegistrationTest(t *testing.T) (*telegramService, *serviceMock.MockS
 	ts.engine = fsm.NewEngine(parser, repo, logger, ts.engine.Registry(), ts.engine.Sanitizer())
 
 	// Register actions and aliases in test engine
-	registrar := actions.NewRegistrar(cfg, logger, mockStudentSvc, mockQuerier, mockRCClient, nil)
+	registrar := actions.NewRegistrar(cfg, logger, mockStudentSvc, mockQuerier, mockRCClient, nil, nil)
 	registrar.RegisterAll(ts.engine.Registry(), ts.engine.AddAlias)
 
 	return ts, mockStudentSvc, mockQuerier, ctrl

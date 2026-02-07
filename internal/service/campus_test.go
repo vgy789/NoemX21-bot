@@ -68,11 +68,14 @@ func TestCampusService_UpdateCampuses_getCredsFails(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Init.SchoolLogin = "school"
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	svc := NewCampusService(mockRepo, nil, cfg, log, nil)
+
+	// Need a real CredentialService that uses the mockRepo
+	credSvc := NewCredentialService(mockRepo, nil, nil, log)
+	svc := NewCampusService(mockRepo, nil, cfg, log, credSvc)
 
 	err := svc.UpdateCampuses(context.Background())
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to get platform credentials")
+	assert.Contains(t, err.Error(), "failed to get credentials")
 }
 
 func TestCampusService_UpdateCampuses_decryptFails(t *testing.T) {
@@ -97,7 +100,7 @@ func TestCampusService_UpdateCampuses_decryptFails(t *testing.T) {
 	cfg := &config.Config{}
 	cfg.Init.SchoolLogin = "school"
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	seeder := NewCredentialSeeder(mockRepo, crypter, nil, log)
+	seeder := NewCredentialService(mockRepo, crypter, nil, log)
 	svc := NewCampusService(mockRepo, nil, cfg, log, seeder)
 
 	err = svc.UpdateCampuses(context.Background())
