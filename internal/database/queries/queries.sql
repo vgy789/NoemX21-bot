@@ -214,3 +214,40 @@ ON CONFLICT (id) DO UPDATE SET
     is_active = EXCLUDED.is_active,
     updated_at = CURRENT_TIMESTAMP
 RETURNING *;
+
+-- name: UpsertSkill :one
+INSERT INTO skills (id, name, category)
+VALUES ($1, $2, $3)
+ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    category = EXCLUDED.category,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING *;
+
+-- name: UpsertStudentSkill :exec
+INSERT INTO student_skills (student_id, skill_id, value)
+VALUES ($1, $2, $3)
+ON CONFLICT (student_id, skill_id) DO UPDATE SET
+    value = EXCLUDED.value,
+    updated_at = CURRENT_TIMESTAMP;
+
+-- name: GetStudentSkills :many
+SELECT s.name, s.category, ss.value
+FROM student_skills ss
+JOIN skills s ON ss.skill_id = s.id
+WHERE ss.student_id = $1;
+
+-- name: GetPeerProfile :one
+SELECT 
+    s.s21_login, 
+    COALESCE(ua.username, '') as telegram_username,
+    c.short_name as campus_name,
+    cool.name as coalition_name,
+    s.level,
+    s.exp_value,
+    s.coins
+FROM students s
+LEFT JOIN campuses c ON s.campus_id = c.id
+LEFT JOIN coalitions cool ON s.coalition_id = cool.id
+LEFT JOIN user_accounts ua ON s.s21_login = ua.student_id AND ua.platform = 'telegram'
+WHERE s.s21_login = $1;

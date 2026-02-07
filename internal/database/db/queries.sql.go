@@ -261,6 +261,47 @@ func (q *Queries) GetLastAuthVerificationCode(ctx context.Context, studentID pgt
 	return i, err
 }
 
+const getPeerProfile = `-- name: GetPeerProfile :one
+SELECT 
+    s.s21_login, 
+    COALESCE(ua.username, '') as telegram_username,
+    c.short_name as campus_name,
+    cool.name as coalition_name,
+    s.level,
+    s.exp_value,
+    s.coins
+FROM students s
+LEFT JOIN campuses c ON s.campus_id = c.id
+LEFT JOIN coalitions cool ON s.coalition_id = cool.id
+LEFT JOIN user_accounts ua ON s.s21_login = ua.student_id AND ua.platform = 'telegram'
+WHERE s.s21_login = $1
+`
+
+type GetPeerProfileRow struct {
+	S21Login         string      `json:"s21_login"`
+	TelegramUsername string      `json:"telegram_username"`
+	CampusName       pgtype.Text `json:"campus_name"`
+	CoalitionName    pgtype.Text `json:"coalition_name"`
+	Level            pgtype.Int4 `json:"level"`
+	ExpValue         pgtype.Int4 `json:"exp_value"`
+	Coins            pgtype.Int4 `json:"coins"`
+}
+
+func (q *Queries) GetPeerProfile(ctx context.Context, s21Login string) (GetPeerProfileRow, error) {
+	row := q.db.QueryRow(ctx, getPeerProfile, s21Login)
+	var i GetPeerProfileRow
+	err := row.Scan(
+		&i.S21Login,
+		&i.TelegramUsername,
+		&i.CampusName,
+		&i.CoalitionName,
+		&i.Level,
+		&i.ExpValue,
+		&i.Coins,
+	)
+	return i, err
+}
+
 const getPlatformCredentials = `-- name: GetPlatformCredentials :one
 SELECT student_id, password_enc, password_nonce, access_token, access_expires_at, refresh_token_enc, refresh_nonce, refresh_expires_at, updated_at FROM platform_credentials 
 WHERE student_id = $1
@@ -411,6 +452,39 @@ func (q *Queries) GetStudentProfile(ctx context.Context, s21Login string) (GetSt
 		&i.CoalitionName,
 	)
 	return i, err
+}
+
+const getStudentSkills = `-- name: GetStudentSkills :many
+SELECT s.name, s.category, ss.value
+FROM student_skills ss
+JOIN skills s ON ss.skill_id = s.id
+WHERE ss.student_id = $1
+`
+
+type GetStudentSkillsRow struct {
+	Name     string      `json:"name"`
+	Category pgtype.Text `json:"category"`
+	Value    int32       `json:"value"`
+}
+
+func (q *Queries) GetStudentSkills(ctx context.Context, studentID string) ([]GetStudentSkillsRow, error) {
+	rows, err := q.db.Query(ctx, getStudentSkills, studentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetStudentSkillsRow
+	for rows.Next() {
+		var i GetStudentSkillsRow
+		if err := rows.Scan(&i.Name, &i.Category, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getUserAccountByExternalId = `-- name: GetUserAccountByExternalId :one
@@ -730,6 +804,35 @@ func (q *Queries) UpsertRocketChatCredentials(ctx context.Context, arg UpsertRoc
 	return err
 }
 
+const upsertSkill = `-- name: UpsertSkill :one
+INSERT INTO skills (id, name, category)
+VALUES ($1, $2, $3)
+ON CONFLICT (id) DO UPDATE SET
+    name = EXCLUDED.name,
+    category = EXCLUDED.category,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING id, name, category, created_at, updated_at
+`
+
+type UpsertSkillParams struct {
+	ID       int32       `json:"id"`
+	Name     string      `json:"name"`
+	Category pgtype.Text `json:"category"`
+}
+
+func (q *Queries) UpsertSkill(ctx context.Context, arg UpsertSkillParams) (Skill, error) {
+	row := q.db.QueryRow(ctx, upsertSkill, arg.ID, arg.Name, arg.Category)
+	var i Skill
+	err := row.Scan(
+		&i.ID,
+		&i.Name,
+		&i.Category,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const upsertStudent = `-- name: UpsertStudent :one
 INSERT INTO students (
     s21_login, rocketchat_id, campus_id, coalition_id, status, 
@@ -791,6 +894,25 @@ func (q *Queries) UpsertStudent(ctx context.Context, arg UpsertStudentParams) (S
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const upsertStudentSkill = `-- name: UpsertStudentSkill :exec
+INSERT INTO student_skills (student_id, skill_id, value)
+VALUES ($1, $2, $3)
+ON CONFLICT (student_id, skill_id) DO UPDATE SET
+    value = EXCLUDED.value,
+    updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertStudentSkillParams struct {
+	StudentID string `json:"student_id"`
+	SkillID   int32  `json:"skill_id"`
+	Value     int32  `json:"value"`
+}
+
+func (q *Queries) UpsertStudentSkill(ctx context.Context, arg UpsertStudentSkillParams) error {
+	_, err := q.db.Exec(ctx, upsertStudentSkill, arg.StudentID, arg.SkillID, arg.Value)
+	return err
 }
 
 const upsertUserBotSettings = `-- name: UpsertUserBotSettings :one
