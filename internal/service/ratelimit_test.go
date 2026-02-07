@@ -50,3 +50,12 @@ func TestRateLimiter(t *testing.T) {
 	err = rl.CheckAndRecord(userID, "user5")
 	assert.NoError(t, err)
 }
+
+func TestGetRateLimiter(t *testing.T) {
+	rl := GetRateLimiter()
+	assert.NotNil(t, rl)
+	assert.Equal(t, 10, rl.maxAttempts)
+	// Second call returns same instance (singleton)
+	rl2 := GetRateLimiter()
+	assert.Equal(t, rl, rl2)
+}

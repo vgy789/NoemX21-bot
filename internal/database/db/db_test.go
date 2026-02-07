@@ -6,6 +6,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -162,6 +163,96 @@ func TestQueries_Remaining(t *testing.T) {
 		mockDB.On("QueryRow", ctx, getUserAccountByExternalId, mock.Anything, mock.Anything).Return(mockRow)
 		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		_, _ = q.GetUserAccountByExternalId(ctx, GetUserAccountByExternalIdParams{})
+	})
+
+	t.Run("GetPeerProfile", func(t *testing.T) {
+		mockRow := new(MockRow)
+		mockDB.On("QueryRow", ctx, getPeerProfile, mock.Anything).Return(mockRow)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		_, _ = q.GetPeerProfile(ctx, "login")
+	})
+
+	t.Run("GetActiveApiKey", func(t *testing.T) {
+		mockRow := new(MockRow)
+		mockDB.On("QueryRow", ctx, getActiveApiKey, mock.Anything).Return(mockRow)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		_, _ = q.GetActiveApiKey(ctx, 1)
+	})
+
+	t.Run("GetApiKeyByHash", func(t *testing.T) {
+		mockRow := new(MockRow)
+		mockDB.On("QueryRow", ctx, getApiKeyByHash, mock.Anything).Return(mockRow)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		_, _ = q.GetApiKeyByHash(ctx, "hash")
+	})
+
+	t.Run("RevokeOldApiKeys", func(t *testing.T) {
+		mockDB.On("Exec", ctx, revokeOldApiKeys, mock.Anything).Return(pgconn.CommandTag{}, nil)
+		_ = q.RevokeOldApiKeys(ctx, 1)
+	})
+
+	t.Run("GetUserAccountByStudentId", func(t *testing.T) {
+		mockRow := new(MockRow)
+		mockDB.On("QueryRow", ctx, getUserAccountByStudentId, mock.Anything).Return(mockRow)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		_, _ = q.GetUserAccountByStudentId(ctx, "student1")
+	})
+
+	t.Run("GetCampusByShortName", func(t *testing.T) {
+		mockRow := new(MockRow)
+		mockDB.On("QueryRow", ctx, getCampusByShortName, mock.Anything).Return(mockRow)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		_, _ = q.GetCampusByShortName(ctx, "moscow")
+	})
+
+	t.Run("GetFSMState", func(t *testing.T) {
+		mockRow := new(MockRow)
+		mockDB.On("QueryRow", ctx, getFSMState, mock.Anything).Return(mockRow)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		_, _ = q.GetFSMState(ctx, 1)
+	})
+
+	t.Run("UpsertFSMState", func(t *testing.T) {
+		mockDB.On("Exec", ctx, upsertFSMState, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(pgconn.CommandTag{}, nil)
+		_ = q.UpsertFSMState(ctx, UpsertFSMStateParams{})
+	})
+
+	t.Run("DeleteExpiredAuthVerificationCodes", func(t *testing.T) {
+		mockDB.On("Exec", ctx, deleteExpiredAuthVerificationCodes, mock.Anything).Return(pgconn.CommandTag{}, nil)
+		_ = q.DeleteExpiredAuthVerificationCodes(ctx)
+	})
+
+	t.Run("CreateApiKey", func(t *testing.T) {
+		mockRow := new(MockRow)
+		mockDB.On("QueryRow", ctx, createApiKey, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(mockRow)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		_, _ = q.CreateApiKey(ctx, CreateApiKeyParams{})
+	})
+
+	t.Run("CreateAuthVerificationCode", func(t *testing.T) {
+		mockRow := new(MockRow)
+		mockDB.On("QueryRow", ctx, createAuthVerificationCode, mock.Anything, mock.Anything, mock.Anything).Return(mockRow)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		_, _ = q.CreateAuthVerificationCode(ctx, CreateAuthVerificationCodeParams{})
+	})
+
+	t.Run("GetLastAuthVerificationCode", func(t *testing.T) {
+		mockRow := new(MockRow)
+		mockDB.On("QueryRow", ctx, getLastAuthVerificationCode, mock.Anything).Return(mockRow)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		_, _ = q.GetLastAuthVerificationCode(ctx, pgtype.Text{})
+	})
+
+	t.Run("GetValidAuthVerificationCode", func(t *testing.T) {
+		mockRow := new(MockRow)
+		mockDB.On("QueryRow", ctx, getValidAuthVerificationCode, mock.Anything, mock.Anything).Return(mockRow)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		_, _ = q.GetValidAuthVerificationCode(ctx, GetValidAuthVerificationCodeParams{})
+	})
+
+	t.Run("DeactivateClubsByCampus", func(t *testing.T) {
+		mockDB.On("Exec", ctx, deactivateClubsByCampus, mock.Anything).Return(pgconn.CommandTag{}, nil)
+		_ = q.DeactivateClubsByCampus(ctx, pgtype.UUID{})
 	})
 }
 

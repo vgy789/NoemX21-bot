@@ -120,3 +120,39 @@ func TestClient_GetParticipant_StatusAsInt(t *testing.T) {
 	require.NotNil(t, got)
 	assert.Equal(t, float64(200), got.Status)
 }
+
+func TestClient_GetCampuses(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "GET", r.Method)
+		assert.Contains(t, r.URL.Path, "campuses")
+		assert.Equal(t, "Bearer tok", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(CampusesResponse{
+			Campuses: []CampusV1DTO{
+				{ID: "1", ShortName: "moscow", FullName: "Moscow", Timezone: "Europe/Moscow"},
+				{ID: "2", ShortName: "nsk", FullName: "Novosibirsk", Timezone: "Asia/Novosibirsk"},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := NewClientForTest(server.URL, "", server.Client())
+	got, err := client.GetCampuses(context.Background(), "tok")
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	assert.Equal(t, "moscow", got[0].ShortName)
+	assert.Equal(t, "Novosibirsk", got[1].FullName)
+}
+
+func TestClient_GetCampuses_apiError(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	client := NewClientForTest(server.URL, "", server.Client())
+	got, err := client.GetCampuses(context.Background(), "tok")
+	assert.Error(t, err)
+	assert.Nil(t, got)
+	assert.Contains(t, err.Error(), "500")
+}

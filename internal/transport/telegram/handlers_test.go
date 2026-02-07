@@ -219,4 +219,42 @@ func TestTelegramService_Handlers(t *testing.T) {
 		// We can't easily check internal handlers without reflection or if library exposes them,
 		// but calling it increases coverage.
 	})
+
+	t.Run("handleTextMessage - success", func(t *testing.T) {
+		userID := int64(789)
+		_ = engine.InitState(context.Background(), userID, "registration.yaml", "SELECT_LANGUAGE", map[string]interface{}{"language": "ru"})
+		// Move to state that accepts text
+		_, _ = engine.Process(context.Background(), userID, "set_ru")
+		mockSender.EXPECT().SendMessage(userID, gomock.Any(), gomock.Any()).Return(nil, nil)
+
+		update := &gotgbot.Update{
+			Message: &gotgbot.Message{
+				From: &gotgbot.User{Id: userID},
+				Chat: gotgbot.Chat{Id: userID},
+				Text: "next",
+			},
+		}
+		ctx := ext.NewContext(&gotgbot.Bot{}, update, nil)
+
+		err := s.handleTextMessage(nil, ctx)
+		assert.NoError(t, err)
+	})
+
+	t.Run("handleTextMessage - Process fails fallback render", func(t *testing.T) {
+		userID := int64(999)
+		// No state -> Process will fail, GetCurrentRender will fail -> fallback message
+		mockSender.EXPECT().SendMessage(userID, "Произошла ошибка. Введите /start", gomock.Any()).Return(nil, nil)
+
+		update := &gotgbot.Update{
+			Message: &gotgbot.Message{
+				From: &gotgbot.User{Id: userID},
+				Chat: gotgbot.Chat{Id: userID},
+				Text: "hello",
+			},
+		}
+		ctx := ext.NewContext(&gotgbot.Bot{}, update, nil)
+
+		err := s.handleTextMessage(nil, ctx)
+		assert.NoError(t, err)
+	})
 }
