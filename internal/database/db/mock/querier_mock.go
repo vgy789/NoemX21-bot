@@ -218,6 +218,21 @@ func (mr *MockQuerierMockRecorder) GetLastAuthVerificationCode(ctx, studentID an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastAuthVerificationCode", reflect.TypeOf((*MockQuerier)(nil).GetLastAuthVerificationCode), ctx, studentID)
 }
 
+// GetPeerProfile mocks base method.
+func (m *MockQuerier) GetPeerProfile(ctx context.Context, s21Login string) (db.GetPeerProfileRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPeerProfile", ctx, s21Login)
+	ret0, _ := ret[0].(db.GetPeerProfileRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPeerProfile indicates an expected call of GetPeerProfile.
+func (mr *MockQuerierMockRecorder) GetPeerProfile(ctx, s21Login any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPeerProfile", reflect.TypeOf((*MockQuerier)(nil).GetPeerProfile), ctx, s21Login)
+}
+
 // GetPlatformCredentials mocks base method.
 func (m *MockQuerier) GetPlatformCredentials(ctx context.Context, studentID string) (db.PlatformCredential, error) {
 	m.ctrl.T.Helper()
@@ -291,6 +306,21 @@ func (m *MockQuerier) GetStudentProfile(ctx context.Context, s21Login string) (d
 func (mr *MockQuerierMockRecorder) GetStudentProfile(ctx, s21Login any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStudentProfile", reflect.TypeOf((*MockQuerier)(nil).GetStudentProfile), ctx, s21Login)
+}
+
+// GetStudentSkills mocks base method.
+func (m *MockQuerier) GetStudentSkills(ctx context.Context, studentID string) ([]db.GetStudentSkillsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetStudentSkills", ctx, studentID)
+	ret0, _ := ret[0].([]db.GetStudentSkillsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetStudentSkills indicates an expected call of GetStudentSkills.
+func (mr *MockQuerierMockRecorder) GetStudentSkills(ctx, studentID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetStudentSkills", reflect.TypeOf((*MockQuerier)(nil).GetStudentSkills), ctx, studentID)
 }
 
 // GetUserAccountByExternalId mocks base method.
@@ -454,6 +484,21 @@ func (mr *MockQuerierMockRecorder) UpsertRocketChatCredentials(ctx, arg any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertRocketChatCredentials", reflect.TypeOf((*MockQuerier)(nil).UpsertRocketChatCredentials), ctx, arg)
 }
 
+// UpsertSkill mocks base method.
+func (m *MockQuerier) UpsertSkill(ctx context.Context, arg db.UpsertSkillParams) (db.Skill, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertSkill", ctx, arg)
+	ret0, _ := ret[0].(db.Skill)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertSkill indicates an expected call of UpsertSkill.
+func (mr *MockQuerierMockRecorder) UpsertSkill(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertSkill", reflect.TypeOf((*MockQuerier)(nil).UpsertSkill), ctx, arg)
+}
+
 // UpsertStudent mocks base method.
 func (m *MockQuerier) UpsertStudent(ctx context.Context, arg db.UpsertStudentParams) (db.Student, error) {
 	m.ctrl.T.Helper()
@@ -467,6 +512,20 @@ func (m *MockQuerier) UpsertStudent(ctx context.Context, arg db.UpsertStudentPar
 func (mr *MockQuerierMockRecorder) UpsertStudent(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertStudent", reflect.TypeOf((*MockQuerier)(nil).UpsertStudent), ctx, arg)
+}
+
+// UpsertStudentSkill mocks base method.
+func (m *MockQuerier) UpsertStudentSkill(ctx context.Context, arg db.UpsertStudentSkillParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertStudentSkill", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertStudentSkill indicates an expected call of UpsertStudentSkill.
+func (mr *MockQuerierMockRecorder) UpsertStudentSkill(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertStudentSkill", reflect.TypeOf((*MockQuerier)(nil).UpsertStudentSkill), ctx, arg)
 }
 
 // UpsertUserBotSettings mocks base method.

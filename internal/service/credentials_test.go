@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vgy789/noemx21-bot/internal/clients/s21"
@@ -97,6 +98,30 @@ func TestCredentialSeeder_Verify_getCredsFails(t *testing.T) {
 	assert.Contains(t, err.Error(), "platform credentials")
 }
 
+func TestCredentialSeeder_Verify_decryptFails(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	hexKey := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+	crypter, _ := crypto.NewCrypter(hexKey)
+	// Wrong nonce or tampered enc will make Decrypt fail
+	creds := db.PlatformCredential{
+		StudentID:     "bad",
+		PasswordEnc:   []byte("bad"),
+		PasswordNonce: []byte("wrong"),
+	}
+
+	mockRepo := mock.NewMockQuerier(ctrl)
+	mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "bad").Return(creds, nil)
+
+	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	seeder := NewCredentialSeeder(mockRepo, crypter, &fakeS21Client{}, log)
+
+	err := seeder.Verify(context.Background(), "bad")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "decryption")
+}
+
 func TestCredentialSeeder_Verify_authFails(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -118,6 +143,59 @@ func TestCredentialSeeder_Verify_authFails(t *testing.T) {
 	assert.Contains(t, err.Error(), "authentication")
 }
 
+func TestCredentialSeeder_Verify_apiFails(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	hexKey := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+	crypter, err := crypto.NewCrypter(hexKey)
+	require.NoError(t, err)
+	plainPwd := []byte("secret")
+	enc, nonce, err := crypter.Encrypt(plainPwd, []byte("apiuser"))
+	require.NoError(t, err)
+	creds := db.PlatformCredential{StudentID: "apiuser", PasswordEnc: enc, PasswordNonce: nonce}
+
+	mockRepo := mock.NewMockQuerier(ctrl)
+	mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "apiuser").Return(creds, nil)
+
+	s21Fake := &fakeS21Client{
+		authResp:       &s21.AuthResponse{AccessToken: "tok"},
+		participantErr: fmt.Errorf("API 500"),
+	}
+	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	seeder := NewCredentialSeeder(mockRepo, crypter, s21Fake, log)
+
+	err = seeder.Verify(context.Background(), "apiuser")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "API verification failed")
+}
+
+func TestCredentialSeeder_Verify_criteriaNotMet(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	hexKey := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+	crypter, err := crypto.NewCrypter(hexKey)
+	require.NoError(t, err)
+	plainPwd := []byte("secret")
+	enc, nonce, err := crypter.Encrypt(plainPwd, []byte("inactive"))
+	require.NoError(t, err)
+	creds := db.PlatformCredential{StudentID: "inactive", PasswordEnc: enc, PasswordNonce: nonce}
+
+	mockRepo := mock.NewMockQuerier(ctrl)
+	mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "inactive").Return(creds, nil)
+
+	s21Fake := &fakeS21Client{
+		authResp:    &s21.AuthResponse{AccessToken: "tok"},
+		participant: &s21.ParticipantV1DTO{Login: "inactive", Status: "FROZEN", ParallelName: "Other"},
+	}
+	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	seeder := NewCredentialSeeder(mockRepo, crypter, s21Fake, log)
+
+	err = seeder.Verify(context.Background(), "inactive")
+	assert.NoError(t, err)
+}
+
 func TestCredentialSeeder_Seed_noLogin(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -128,6 +206,26 @@ func TestCredentialSeeder_Seed_noLogin(t *testing.T) {
 	cfg := &config.Config{}
 	err := seeder.Seed(context.Background(), cfg)
 	assert.NoError(t, err)
+}
+
+func TestCredentialSeeder_Seed_getStudentError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mock.NewMockQuerier(ctrl)
+	mockRepo.EXPECT().
+		GetStudentByS21Login(gomock.Any(), "fail").
+		Return(db.Student{}, fmt.Errorf("db connection error"))
+
+	cfg := &config.Config{}
+	cfg.Init.SchoolLogin = "fail"
+	cfg.Init.SchoolPassword = config.Secret("")
+	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	seeder := NewCredentialSeeder(mockRepo, nil, &fakeS21Client{}, log)
+
+	err := seeder.Seed(context.Background(), cfg)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to check student existence")
 }
 
 func TestCredentialSeeder_Seed_newStudent_missingRocketChatID(t *testing.T) {
@@ -230,6 +328,119 @@ func TestCredentialSeeder_Seed_upsertRocketChat(t *testing.T) {
 
 	err := seeder.Seed(context.Background(), cfg)
 	assert.NoError(t, err)
+}
+
+func TestCredentialSeeder_Seed_existingPlatformCredsPreserved(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	crypter, _ := crypto.NewCrypter("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+	existing := db.PlatformCredential{
+		StudentID:   "preserve",
+		AccessToken: pgtype.Text{String: "old-token", Valid: true},
+	}
+	mockRepo := mock.NewMockQuerier(ctrl)
+	mockRepo.EXPECT().GetStudentByS21Login(gomock.Any(), "preserve").Return(db.Student{S21Login: "preserve"}, nil)
+	mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "preserve").Return(existing, nil)
+	mockRepo.EXPECT().
+		UpsertPlatformCredentials(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, arg db.UpsertPlatformCredentialsParams) error {
+			assert.Equal(t, "old-token", arg.AccessToken.String)
+			return nil
+		})
+
+	cfg := &config.Config{}
+	cfg.Init.SchoolLogin = "preserve"
+	cfg.Init.SchoolPassword = config.Secret("newpwd")
+	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	seeder := NewCredentialSeeder(mockRepo, crypter, &fakeS21Client{}, log)
+
+	err := seeder.Seed(context.Background(), cfg)
+	assert.NoError(t, err)
+}
+
+func TestCredentialSeeder_Seed_getPlatformCredsError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	crypter, _ := crypto.NewCrypter("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+	mockRepo := mock.NewMockQuerier(ctrl)
+	mockRepo.EXPECT().GetStudentByS21Login(gomock.Any(), "u").Return(db.Student{S21Login: "u"}, nil)
+	mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "u").Return(db.PlatformCredential{}, fmt.Errorf("connection refused"))
+
+	cfg := &config.Config{}
+	cfg.Init.SchoolLogin = "u"
+	cfg.Init.SchoolPassword = config.Secret("pwd")
+	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	seeder := NewCredentialSeeder(mockRepo, crypter, &fakeS21Client{}, log)
+
+	err := seeder.Seed(context.Background(), cfg)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to get platform credentials")
+}
+
+func TestCredentialSeeder_Seed_upsertPlatformFails(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	crypter, _ := crypto.NewCrypter("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+	mockRepo := mock.NewMockQuerier(ctrl)
+	mockRepo.EXPECT().GetStudentByS21Login(gomock.Any(), "u").Return(db.Student{S21Login: "u"}, nil)
+	mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "u").Return(db.PlatformCredential{}, pgx.ErrNoRows)
+	mockRepo.EXPECT().UpsertPlatformCredentials(gomock.Any(), gomock.Any()).Return(fmt.Errorf("db constraint error"))
+
+	cfg := &config.Config{}
+	cfg.Init.SchoolLogin = "u"
+	cfg.Init.SchoolPassword = config.Secret("pwd")
+	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	seeder := NewCredentialSeeder(mockRepo, crypter, &fakeS21Client{}, log)
+
+	err := seeder.Seed(context.Background(), cfg)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "upsert platform credentials")
+}
+
+func TestCredentialSeeder_Seed_newStudent_upsertStudentFails(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mock.NewMockQuerier(ctrl)
+	mockRepo.EXPECT().GetStudentByS21Login(gomock.Any(), "new").Return(db.Student{}, pgx.ErrNoRows)
+	mockRepo.EXPECT().UpsertStudent(gomock.Any(), gomock.Any()).Return(db.Student{}, fmt.Errorf("unique violation"))
+
+	cfg := &config.Config{}
+	cfg.Init.SchoolLogin = "new"
+	cfg.Init.SchoolPassword = config.Secret("")
+	cfg.RocketChat.UserID = config.Secret("rc-1")
+	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	seeder := NewCredentialSeeder(mockRepo, nil, &fakeS21Client{}, log)
+
+	err := seeder.Seed(context.Background(), cfg)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "failed to create student")
+}
+
+func TestCredentialSeeder_Seed_upsertRocketChatFails(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	crypter, _ := crypto.NewCrypter("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
+	mockRepo := mock.NewMockQuerier(ctrl)
+	mockRepo.EXPECT().GetStudentByS21Login(gomock.Any(), "u").Return(db.Student{S21Login: "u"}, nil)
+	mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "u").Return(db.PlatformCredential{}, pgx.ErrNoRows)
+	mockRepo.EXPECT().UpsertPlatformCredentials(gomock.Any(), gomock.Any()).Return(nil)
+	mockRepo.EXPECT().UpsertRocketChatCredentials(gomock.Any(), gomock.Any()).Return(fmt.Errorf("db error"))
+
+	cfg := &config.Config{}
+	cfg.Init.SchoolLogin = "u"
+	cfg.Init.SchoolPassword = config.Secret("p")
+	cfg.RocketChat.AuthToken = config.Secret("rctoken")
+	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	seeder := NewCredentialSeeder(mockRepo, crypter, &fakeS21Client{}, log)
+
+	err := seeder.Seed(context.Background(), cfg)
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "upsert RC credentials")
 }
 
 func TestCredentialSeeder_Seed_newStudent_upsertStudent(t *testing.T) {

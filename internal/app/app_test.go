@@ -8,6 +8,7 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
+	"github.com/vgy789/noemx21-bot/internal/service/gitsync"
 	"go.uber.org/mock/gomock"
 )
 
@@ -20,6 +21,13 @@ func (m *mockTelegramService) Run() {
 	m.runCalled = true
 }
 
+// mockStarter returns nil from Start()
+type mockStarter struct{}
+
+func (m *mockStarter) Start() error {
+	return nil
+}
+
 func TestNew(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -29,7 +37,10 @@ func TestNew(t *testing.T) {
 	repo := &db.DBWrapper{}
 	rcClient := rocketchat.NewClient("", "", "")
 
-	a := New(cfg, logger, repo, rcClient, nil, nil)
+	gitSync := gitsync.NewGitSyncService(cfg.GitSync, nil, logger)
+	campusSvc := &mockStarter{}
+
+	a := New(cfg, logger, repo, rcClient, nil, nil, gitSync, campusSvc)
 	assert.NotNil(t, a)
 	assert.NotNil(t, a.tg)
 }
@@ -39,18 +50,20 @@ func TestApp_Run(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockTG := &mockTelegramService{}
-
-	// Create a mock HTTP server that doesn't actually start
 	mockHTTPServer := &mockHTTPServer{}
+	mockGitSync := &mockStarter{}
+	mockCampusSvc := &mockStarter{}
 
 	a := &App{
 		tg:         mockTG,
 		httpServer: mockHTTPServer,
+		gitSync:    mockGitSync,
+		campusSvc:  mockCampusSvc,
 	}
 
-	// We can't actually call Run() as it would block, so we just test the structure
-	assert.NotNil(t, a.tg)
-	assert.NotNil(t, a.httpServer)
+	a.Run()
+
+	assert.True(t, mockTG.runCalled)
 }
 
 // mockHTTPServer is a simple mock for testing

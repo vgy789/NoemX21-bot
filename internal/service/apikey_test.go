@@ -63,6 +63,16 @@ func TestApiKeyService_GenerateApiKey(t *testing.T) {
 		assert.Empty(t, rawKey)
 		assert.Contains(t, err.Error(), "failed to revoke old keys")
 	})
+
+	t.Run("create_error", func(t *testing.T) {
+		mockRepo.EXPECT().RevokeOldApiKeys(ctx, userAccountID).Return(nil)
+		mockRepo.EXPECT().CreateApiKey(ctx, gomock.Any()).Return(db.ApiKey{}, assert.AnError)
+
+		rawKey, err := svc.GenerateApiKey(ctx, userAccountID)
+		assert.Error(t, err)
+		assert.Empty(t, rawKey)
+		assert.Contains(t, err.Error(), "failed to create api key")
+	})
 }
 
 func TestApiKeyService_ValidateApiKey(t *testing.T) {
