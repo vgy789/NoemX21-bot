@@ -14,8 +14,14 @@ GO_SRCS		:= $(shell find . -name '*.go' -not -path './vendor/*')
 generate: sqlc		## Generate code (sqlc, mocks, etc)
 	@go generate ./... 2>/dev/null || true
 
-sqlc:			## Generate SQL code with sqlc
+sqlc: sqlc-deps		## Generate SQL code with sqlc
 	$(SQLC) generate
+
+sqlc-deps:		## Install sqlc if missing
+	@command -v $(SQLC) >/dev/null 2>&1 || go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+
+mockgen-deps:		## Install mockgen if missing
+	@command -v mockgen >/dev/null 2>&1 || go install go.uber.org/mock/mockgen@latest
 
 migrate-up: migrate-deps ## Run database migrations up
 	$(MIGRATE) -path $(MIGRATIONS_DIR) -database $(DATABASE_URL) up
@@ -28,6 +34,8 @@ migrate-create: migrate-deps ## Create a new migration (usage: make migrate-crea
 
 migrate-deps:		## Install golang-migrate if missing
 	@command -v $(MIGRATE) >/dev/null 2>&1 || go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
+
+tools-deps: sqlc-deps mockgen-deps migrate-deps lint-deps		## Install all tools dependencies
 
 help:		## Show this help
 	@grep -h -E '^[a-zA-Z0-9_.-]+:.*?## .*$$' $(MAKEFILE_LIST) | \

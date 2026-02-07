@@ -8,11 +8,24 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
+	"github.com/vgy789/noemx21-bot/internal/fsm/actions/admin"
+	"github.com/vgy789/noemx21-bot/internal/fsm/actions/booking"
+	"github.com/vgy789/noemx21-bot/internal/fsm/actions/clubs"
+	"github.com/vgy789/noemx21-bot/internal/fsm/actions/common"
+	"github.com/vgy789/noemx21-bot/internal/fsm/actions/library"
+	"github.com/vgy789/noemx21-bot/internal/fsm/actions/registration"
+	"github.com/vgy789/noemx21-bot/internal/fsm/actions/settings"
+	"github.com/vgy789/noemx21-bot/internal/fsm/actions/statistics"
 	"github.com/vgy789/noemx21-bot/internal/service"
 )
 
 type registrar struct {
-	deps *Dependencies
+	cfg        *config.Config
+	log        *slog.Logger
+	studentSvc service.StudentService
+	queries    db.Querier
+	rcClient   *rocketchat.Client
+	s21Client  *s21.Client
 }
 
 // NewRegistrar creates a new action registrar.
@@ -25,21 +38,26 @@ func NewRegistrar(
 	s21Client *s21.Client,
 ) ActionRegistrar {
 	return &registrar{
-		deps: &Dependencies{
-			Config:     cfg,
-			Log:        log,
-			StudentSvc: studentSvc,
-			Queries:    queries,
-			RCClient:   rcClient,
-			S21Client:  s21Client,
-		},
+		cfg:        cfg,
+		log:        log,
+		studentSvc: studentSvc,
+		queries:    queries,
+		rcClient:   rcClient,
+		s21Client:  s21Client,
 	}
 }
 
 func (r *registrar) RegisterAll(registry *fsm.LogicRegistry, aliasRegistrar func(alias, target string)) {
-	r.deps.AliasRegistrar = aliasRegistrar
-	for _, p := range GetPlugins() {
-		r.deps.Log.Info("registering plugin", "plugin_id", p.ID())
-		p.Register(registry, r.deps)
-	}
+	common.RegisterBase(registry)
+	common.RegisterMainMenu(registry, aliasRegistrar)
+	common.RegisterReviews(registry, aliasRegistrar)
+
+	admin.Register(registry, aliasRegistrar)
+	booking.Register(registry, aliasRegistrar)
+	clubs.Register(registry, aliasRegistrar)
+	library.Register(registry, aliasRegistrar)
+
+	registration.Register(registry, r.cfg, r.log, r.queries, r.studentSvc, r.rcClient, r.s21Client)
+	settings.Register(registry, r.log, r.queries, aliasRegistrar)
+	statistics.Register(registry, r.log, r.queries, aliasRegistrar)
 }

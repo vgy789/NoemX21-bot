@@ -7,6 +7,7 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/clients/s21"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
+	"github.com/vgy789/noemx21-bot/internal/fsm/setup"
 	"github.com/vgy789/noemx21-bot/internal/service"
 	transportHttp "github.com/vgy789/noemx21-bot/internal/transport/http"
 	telegram "github.com/vgy789/noemx21-bot/internal/transport/telegram"
@@ -33,8 +34,10 @@ type App struct {
 // New creates a new application instance.
 func New(cfg *config.Config, log *slog.Logger, repo *db.DBWrapper, rcClient *rocketchat.Client, s21Client *s21.Client, seeder *service.CredentialSeeder, gitSync Starter, campusSvc Starter) *App {
 	studentSvc := service.NewStudentService(repo.Queries)
+	engine := setup.NewFSM(cfg, log, repo.Queries, studentSvc, rcClient, s21Client, "docs/specs/flows")
+
 	return &App{
-		tg:         telegram.NewTelegramService(cfg, log, studentSvc, repo.Queries, rcClient, s21Client),
+		tg:         telegram.NewTelegramService(cfg, log, studentSvc, engine),
 		httpServer: transportHttp.NewServer(cfg, log, repo.Queries),
 		gitSync:    gitSync,
 		campusSvc:  campusSvc,

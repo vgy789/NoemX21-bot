@@ -18,23 +18,23 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-type GitSyncService struct {
+type Service struct {
 	cfg     config.GitSync
 	queries db.Querier
 	log     *slog.Logger
 	cron    *cron.Cron
 }
 
-func NewGitSyncService(cfg config.GitSync, queries db.Querier, log *slog.Logger) *GitSyncService {
-	return &GitSyncService{
+func New(cfg config.GitSync, queries db.Querier, log *slog.Logger) *Service {
+	return &Service{
 		cfg:     cfg,
 		queries: queries,
-		log:     log.With("service", "gitsync"),
+		log:     log.With("worker", "gitsync"),
 		cron:    cron.New(),
 	}
 }
 
-func (s *GitSyncService) Start() error {
+func (s *Service) Start() error {
 	if s.cfg.RepoURL == "" {
 		s.log.Warn("git repo url not configured, gitsync disabled")
 		return nil
@@ -66,11 +66,11 @@ func (s *GitSyncService) Start() error {
 	return nil
 }
 
-func (s *GitSyncService) Stop() {
+func (s *Service) Stop() {
 	s.cron.Stop()
 }
 
-func (s *GitSyncService) Sync(ctx context.Context) error {
+func (s *Service) Sync(ctx context.Context) error {
 	s.log.Info("starting git sync")
 
 	// 1. Update repo
@@ -109,7 +109,7 @@ func (s *GitSyncService) Sync(ctx context.Context) error {
 	return nil
 }
 
-func (s *GitSyncService) updateRepo() error {
+func (s *Service) updateRepo() error {
 	auth := s.getAuth()
 
 	if _, err := os.Stat(filepath.Join(s.cfg.LocalPath, ".git")); os.IsNotExist(err) {
@@ -147,7 +147,7 @@ func (s *GitSyncService) updateRepo() error {
 	return nil
 }
 
-func (s *GitSyncService) getAuth() *http.BasicAuth {
+func (s *Service) getAuth() *http.BasicAuth {
 	if s.cfg.AuthToken == "" {
 		return nil
 	}
@@ -158,7 +158,7 @@ func (s *GitSyncService) getAuth() *http.BasicAuth {
 	}
 }
 
-func (s *GitSyncService) syncCampus(ctx context.Context, campus db.Campuse, path string) error {
+func (s *Service) syncCampus(ctx context.Context, campus db.Campuse, path string) error {
 	clubsPath := filepath.Join(path, "clubs.yaml")
 	if _, err := os.Stat(clubsPath); os.IsNotExist(err) {
 		return nil
