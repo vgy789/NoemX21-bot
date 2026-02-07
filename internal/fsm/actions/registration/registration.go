@@ -154,16 +154,31 @@ func Register(
 			return "", map[string]interface{}{"email_mismatch": true, "rocket_user_found": true}, nil
 		}
 
-		// 4. Update the Rocket.Chat ID in the database with the authoritative one from API
-		// We can get the existing student record to preserve other fields, or just use Upsert if we had partial update
-		// Since we only want to update rocketchat_id, let's fetch first.
+		// 4. Update the Rocket.Chat ID in the database
+		// If student doesn't exist, create it.
 		student, err := queries.GetStudentByS21Login(ctx, login)
 		if err != nil {
-			// Should not happen if validation pass passed, but handle it
-			return "", nil, fmt.Errorf("student not found in db: %w", err)
-		}
-
-		if student.RocketchatID != rcUser.User.ID {
+			log.Info("creating new student record during registration", "login", login)
+			_, err = queries.UpsertStudent(ctx, db.UpsertStudentParams{
+				S21Login:           login,
+				RocketchatID:       rcUser.User.ID,
+				Status:             db.NullEnumStudentStatus{EnumStudentStatus: db.EnumStudentStatusACTIVE, Valid: true},
+				Timezone:           "UTC",
+				CampusID:           pgtype.UUID{Valid: false},
+				CoalitionID:        pgtype.Int2{Valid: false},
+				AlternativeContact: pgtype.Text{Valid: false},
+				HasCoffeeBan:       pgtype.Bool{Valid: false},
+				Level:              pgtype.Int4{Valid: false},
+				ExpValue:           pgtype.Int4{Valid: false},
+				Prp:                pgtype.Int4{Valid: false},
+				Crp:                pgtype.Int4{Valid: false},
+				Coins:              pgtype.Int4{Valid: false},
+				ParallelName:       pgtype.Text{Valid: false},
+			})
+			if err != nil {
+				return "", nil, fmt.Errorf("failed to create student: %w", err)
+			}
+		} else if student.RocketchatID != rcUser.User.ID {
 			log.Info("updating rocketchat id for student", "login", login, "old_id", student.RocketchatID, "new_id", rcUser.User.ID)
 			_, err = queries.UpsertStudent(ctx, db.UpsertStudentParams{
 				S21Login:           student.S21Login,
@@ -174,6 +189,12 @@ func Register(
 				Timezone:           student.Timezone,
 				AlternativeContact: student.AlternativeContact,
 				HasCoffeeBan:       student.HasCoffeeBan,
+				Level:              student.Level,
+				ExpValue:           student.ExpValue,
+				Prp:                student.Prp,
+				Crp:                student.Crp,
+				Coins:              student.Coins,
+				ParallelName:       student.ParallelName,
 			})
 			if err != nil {
 				return "", nil, fmt.Errorf("failed to update rocketchat id: %w", err)

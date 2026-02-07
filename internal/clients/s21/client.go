@@ -13,10 +13,48 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
+func StringPtr(s string) *string {
+	return &s
+}
+
+type ParticipantCampusV1DTO struct {
+	ID        string `json:"id"`
+	ShortName string `json:"shortName"`
+}
+
 type ParticipantV1DTO struct {
-	Login        string      `json:"login"`
-	ParallelName string      `json:"parallelName"`
-	Status       interface{} `json:"status"`
+	Login          string                 `json:"login"`
+	ClassName      *string                `json:"className"`
+	ParallelName   *string                `json:"parallelName"`
+	ExpValue       int64                  `json:"expValue"`
+	Level          int32                  `json:"level"`
+	ExpToNextLevel int64                  `json:"expToNextLevel"`
+	Campus         ParticipantCampusV1DTO `json:"campus"`
+	Status         string                 `json:"status"`
+}
+
+type ParticipantPointsV1DTO struct {
+	PeerReviewPoints int32 `json:"peerReviewPoints"`
+	CodeReviewPoints int32 `json:"codeReviewPoints"`
+	Coins            int32 `json:"coins"`
+}
+
+type ParticipantSkillV1DTO struct {
+	Name        string     `json:"name"`
+	Points      int32      `json:"points"`
+	Level       *int32     `json:"level"`
+	LastUpdated *time.Time `json:"lastUpdated"`
+}
+
+type ParticipantSkillsV1DTO struct {
+	Skills           []ParticipantSkillV1DTO `json:"skills"`
+	TotalSkillPoints int64                   `json:"totalSkillPoints"`
+}
+
+type ParticipantCoalitionV1DTO struct {
+	CoalitionID    int64      `json:"id"`
+	CoalitionName  string     `json:"name"`
+	JoinedDateTime *time.Time `json:"joinedDateTime"`
 }
 
 type Client struct {
@@ -49,9 +87,25 @@ func NewClientForTest(apiBaseURL, authBaseURL string, hc *http.Client) *Client {
 
 func (c *Client) GetParticipant(ctx context.Context, token string, login string) (*ParticipantV1DTO, error) {
 	apiUrl := fmt.Sprintf("%s/participants/%s", c.baseURL, url.PathEscape(login))
-	// For debugging, we can log the URL (make sure it's not sensitive in prod)
-	// fmt.Printf("Calling URL: %s\n", url)
+	return getJSON[ParticipantV1DTO](ctx, c.httpClient, apiUrl, token)
+}
 
+func (c *Client) GetParticipantPoints(ctx context.Context, token string, login string) (*ParticipantPointsV1DTO, error) {
+	apiUrl := fmt.Sprintf("%s/participants/%s/points", c.baseURL, url.PathEscape(login))
+	return getJSON[ParticipantPointsV1DTO](ctx, c.httpClient, apiUrl, token)
+}
+
+func (c *Client) GetParticipantSkills(ctx context.Context, token string, login string) (*ParticipantSkillsV1DTO, error) {
+	apiUrl := fmt.Sprintf("%s/participants/%s/skills", c.baseURL, url.PathEscape(login))
+	return getJSON[ParticipantSkillsV1DTO](ctx, c.httpClient, apiUrl, token)
+}
+
+func (c *Client) GetParticipantCoalition(ctx context.Context, token string, login string) (*ParticipantCoalitionV1DTO, error) {
+	apiUrl := fmt.Sprintf("%s/participants/%s/coalition", c.baseURL, url.PathEscape(login))
+	return getJSON[ParticipantCoalitionV1DTO](ctx, c.httpClient, apiUrl, token)
+}
+
+func getJSON[T any](ctx context.Context, httpClient *http.Client, apiUrl string, token string) (*T, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET", apiUrl, nil)
 	if err != nil {
 		return nil, err
@@ -60,9 +114,7 @@ func (c *Client) GetParticipant(ctx context.Context, token string, login string)
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("User-Agent", "noemx21-bot/0.0.1")
 
-	resp, err := c.httpClient.Do(req)
-	// log for debug (optional, but helps with the user's report)
-	// fmt.Printf("API request: %s, token present: %v\n", apiUrl, token != "")
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -73,24 +125,16 @@ func (c *Client) GetParticipant(ctx context.Context, token string, login string)
 		return nil, fmt.Errorf("failed to read response body: %w", err)
 	}
 
-	// Check HTTP status code first
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("API error: status %d, url: %s, body: %s", resp.StatusCode, apiUrl, string(bodyBytes))
 	}
 
-	var participant ParticipantV1DTO
-	if err := json.Unmarshal(bodyBytes, &participant); err != nil {
+	var data T
+	if err := json.Unmarshal(bodyBytes, &data); err != nil {
 		return nil, fmt.Errorf("failed to decode response: %w, body: %s", err, string(bodyBytes))
 	}
 
-	// Check if the body contains an error status (some APIs return 200 OK with error body)
-	if status, ok := participant.Status.(float64); ok { // JSON numbers are float64 by default
-		if status != 200 && status != 0 { // 0 might mean field missing
-			return nil, fmt.Errorf("API body error: status %d, body: %s", int(status), string(bodyBytes))
-		}
-	}
-
-	return &participant, nil
+	return &data, nil
 }
 
 type AuthResponse struct {

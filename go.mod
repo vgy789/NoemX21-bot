@@ -1,6 +1,6 @@
 module github.com/vgy789/noemx21-bot
 
-go 1.25.6
+go 1.25.7
 
 require (
 	github.com/PaulSonOfLars/gotgbot/v2 v2.0.0-rc.33
@@ -28,7 +28,6 @@ require (
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.7.0 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
-	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect

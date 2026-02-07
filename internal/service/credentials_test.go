@@ -69,12 +69,12 @@ func TestCredentialSeeder_Verify(t *testing.T) {
 		participant: &s21.ParticipantV1DTO{
 			Login:        "alice",
 			Status:       "ACTIVE",
-			ParallelName: "Core program",
+			ParallelName: s21.StringPtr("Core program"),
 		},
 	}
 
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	seeder := NewCredentialSeeder(mockRepo, crypter, s21Fake, log)
+	seeder := NewCredentialService(mockRepo, crypter, s21Fake, log)
 
 	err = seeder.Verify(context.Background(), "alice")
 	assert.NoError(t, err)
@@ -91,7 +91,7 @@ func TestCredentialSeeder_Verify_getCredsFails(t *testing.T) {
 		Return(db.PlatformCredential{}, fmt.Errorf("db error"))
 
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	seeder := NewCredentialSeeder(mockRepo, crypter, &fakeS21Client{}, log)
+	seeder := NewCredentialService(mockRepo, crypter, &fakeS21Client{}, log)
 
 	err := seeder.Verify(context.Background(), "bob")
 	assert.Error(t, err)
@@ -115,7 +115,7 @@ func TestCredentialSeeder_Verify_decryptFails(t *testing.T) {
 	mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "bad").Return(creds, nil)
 
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	seeder := NewCredentialSeeder(mockRepo, crypter, &fakeS21Client{}, log)
+	seeder := NewCredentialService(mockRepo, crypter, &fakeS21Client{}, log)
 
 	err := seeder.Verify(context.Background(), "bad")
 	assert.Error(t, err)
@@ -136,7 +136,7 @@ func TestCredentialSeeder_Verify_authFails(t *testing.T) {
 
 	s21Fake := &fakeS21Client{authErr: fmt.Errorf("auth failed")}
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	seeder := NewCredentialSeeder(mockRepo, crypter, s21Fake, log)
+	seeder := NewCredentialService(mockRepo, crypter, s21Fake, log)
 
 	err := seeder.Verify(context.Background(), "u")
 	assert.Error(t, err)
@@ -163,7 +163,7 @@ func TestCredentialSeeder_Verify_apiFails(t *testing.T) {
 		participantErr: fmt.Errorf("API 500"),
 	}
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	seeder := NewCredentialSeeder(mockRepo, crypter, s21Fake, log)
+	seeder := NewCredentialService(mockRepo, crypter, s21Fake, log)
 
 	err = seeder.Verify(context.Background(), "apiuser")
 	assert.Error(t, err)
@@ -187,10 +187,10 @@ func TestCredentialSeeder_Verify_criteriaNotMet(t *testing.T) {
 
 	s21Fake := &fakeS21Client{
 		authResp:    &s21.AuthResponse{AccessToken: "tok"},
-		participant: &s21.ParticipantV1DTO{Login: "inactive", Status: "FROZEN", ParallelName: "Other"},
+		participant: &s21.ParticipantV1DTO{Login: "inactive", Status: "FROZEN", ParallelName: s21.StringPtr("Other")},
 	}
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	seeder := NewCredentialSeeder(mockRepo, crypter, s21Fake, log)
+	seeder := NewCredentialService(mockRepo, crypter, s21Fake, log)
 
 	err = seeder.Verify(context.Background(), "inactive")
 	assert.NoError(t, err)
@@ -201,7 +201,7 @@ func TestCredentialSeeder_Seed_noLogin(t *testing.T) {
 	defer ctrl.Finish()
 
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	seeder := NewCredentialSeeder(mock.NewMockQuerier(ctrl), nil, &fakeS21Client{}, log)
+	seeder := NewCredentialService(mock.NewMockQuerier(ctrl), nil, &fakeS21Client{}, log)
 
 	cfg := &config.Config{}
 	err := seeder.Seed(context.Background(), cfg)
@@ -221,7 +221,7 @@ func TestCredentialSeeder_Seed_getStudentError(t *testing.T) {
 	cfg.Init.SchoolLogin = "fail"
 	cfg.Init.SchoolPassword = config.Secret("")
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	seeder := NewCredentialSeeder(mockRepo, nil, &fakeS21Client{}, log)
+	seeder := NewCredentialService(mockRepo, nil, &fakeS21Client{}, log)
 
 	err := seeder.Seed(context.Background(), cfg)
 	assert.Error(t, err)
@@ -242,7 +242,7 @@ func TestCredentialSeeder_Seed_newStudent_missingRocketChatID(t *testing.T) {
 	cfg.Init.SchoolPassword = config.Secret("")
 	cfg.RocketChat.UserID = config.Secret("") // Empty RocketChat user ID
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	seeder := NewCredentialSeeder(mockRepo, nil, &fakeS21Client{}, log)
+	seeder := NewCredentialService(mockRepo, nil, &fakeS21Client{}, log)
 
 	err := seeder.Seed(context.Background(), cfg)
 	assert.Error(t, err)
@@ -262,7 +262,7 @@ func TestCredentialSeeder_Seed_studentExists_noPassword(t *testing.T) {
 	cfg.Init.SchoolLogin = "existing"
 	cfg.Init.SchoolPassword = config.Secret("")
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	seeder := NewCredentialSeeder(mockRepo, nil, &fakeS21Client{}, log)
+	seeder := NewCredentialService(mockRepo, nil, &fakeS21Client{}, log)
 
 	err := seeder.Seed(context.Background(), cfg)
 	assert.NoError(t, err)
@@ -295,7 +295,7 @@ func TestCredentialSeeder_Seed_upsertPlatformCreds(t *testing.T) {
 	cfg.Init.SchoolLogin = "stu"
 	cfg.Init.SchoolPassword = config.Secret("mypassword")
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	seeder := NewCredentialSeeder(mockRepo, crypter, &fakeS21Client{}, log)
+	seeder := NewCredentialService(mockRepo, crypter, &fakeS21Client{}, log)
 
 	err := seeder.Seed(context.Background(), cfg)
 	assert.NoError(t, err)
@@ -324,7 +324,7 @@ func TestCredentialSeeder_Seed_upsertRocketChat(t *testing.T) {
 	cfg.Init.SchoolPassword = config.Secret("p")
 	cfg.RocketChat.AuthToken = config.Secret("rctoken")
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	seeder := NewCredentialSeeder(mockRepo, crypter, &fakeS21Client{}, log)
+	seeder := NewCredentialService(mockRepo, crypter, &fakeS21Client{}, log)
 
 	err := seeder.Seed(context.Background(), cfg)
 	assert.NoError(t, err)
@@ -353,7 +353,7 @@ func TestCredentialSeeder_Seed_existingPlatformCredsPreserved(t *testing.T) {
 	cfg.Init.SchoolLogin = "preserve"
 	cfg.Init.SchoolPassword = config.Secret("newpwd")
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	seeder := NewCredentialSeeder(mockRepo, crypter, &fakeS21Client{}, log)
+	seeder := NewCredentialService(mockRepo, crypter, &fakeS21Client{}, log)
 
 	err := seeder.Seed(context.Background(), cfg)
 	assert.NoError(t, err)
@@ -372,7 +372,7 @@ func TestCredentialSeeder_Seed_getPlatformCredsError(t *testing.T) {
 	cfg.Init.SchoolLogin = "u"
 	cfg.Init.SchoolPassword = config.Secret("pwd")
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	seeder := NewCredentialSeeder(mockRepo, crypter, &fakeS21Client{}, log)
+	seeder := NewCredentialService(mockRepo, crypter, &fakeS21Client{}, log)
 
 	err := seeder.Seed(context.Background(), cfg)
 	assert.Error(t, err)
@@ -393,7 +393,7 @@ func TestCredentialSeeder_Seed_upsertPlatformFails(t *testing.T) {
 	cfg.Init.SchoolLogin = "u"
 	cfg.Init.SchoolPassword = config.Secret("pwd")
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	seeder := NewCredentialSeeder(mockRepo, crypter, &fakeS21Client{}, log)
+	seeder := NewCredentialService(mockRepo, crypter, &fakeS21Client{}, log)
 
 	err := seeder.Seed(context.Background(), cfg)
 	assert.Error(t, err)
@@ -413,7 +413,7 @@ func TestCredentialSeeder_Seed_newStudent_upsertStudentFails(t *testing.T) {
 	cfg.Init.SchoolPassword = config.Secret("")
 	cfg.RocketChat.UserID = config.Secret("rc-1")
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	seeder := NewCredentialSeeder(mockRepo, nil, &fakeS21Client{}, log)
+	seeder := NewCredentialService(mockRepo, nil, &fakeS21Client{}, log)
 
 	err := seeder.Seed(context.Background(), cfg)
 	assert.Error(t, err)
@@ -436,7 +436,7 @@ func TestCredentialSeeder_Seed_upsertRocketChatFails(t *testing.T) {
 	cfg.Init.SchoolPassword = config.Secret("p")
 	cfg.RocketChat.AuthToken = config.Secret("rctoken")
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	seeder := NewCredentialSeeder(mockRepo, crypter, &fakeS21Client{}, log)
+	seeder := NewCredentialService(mockRepo, crypter, &fakeS21Client{}, log)
 
 	err := seeder.Seed(context.Background(), cfg)
 	assert.Error(t, err)
@@ -464,7 +464,7 @@ func TestCredentialSeeder_Seed_newStudent_upsertStudent(t *testing.T) {
 	cfg.RocketChat.UserID = config.Secret("rc-id")
 	cfg.Init.SchoolPassword = config.Secret("")
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	seeder := NewCredentialSeeder(mockRepo, nil, &fakeS21Client{}, log)
+	seeder := NewCredentialService(mockRepo, nil, &fakeS21Client{}, log)
 
 	err := seeder.Seed(context.Background(), cfg)
 	assert.NoError(t, err)

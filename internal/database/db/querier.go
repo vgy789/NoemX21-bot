@@ -36,9 +36,11 @@ type Querier interface {
 	GetUserBotSettings(ctx context.Context, userAccountID int64) (UserBotSetting, error)
 	GetValidAuthVerificationCode(ctx context.Context, arg GetValidAuthVerificationCodeParams) (AuthVerificationCode, error)
 	RevokeOldApiKeys(ctx context.Context, userAccountID int64) error
+	UpdateStudentStats(ctx context.Context, arg UpdateStudentStatsParams) error
 	UpsertCampus(ctx context.Context, arg UpsertCampusParams) (Campuse, error)
 	UpsertClub(ctx context.Context, arg UpsertClubParams) (Club, error)
 	UpsertClubCategory(ctx context.Context, name string) (ClubCategory, error)
+	UpsertCoalition(ctx context.Context, arg UpsertCoalitionParams) error
 	UpsertFSMState(ctx context.Context, arg UpsertFSMStateParams) error
 	UpsertPlatformCredentials(ctx context.Context, arg UpsertPlatformCredentialsParams) error
 	UpsertRocketChatCredentials(ctx context.Context, arg UpsertRocketChatCredentialsParams) error

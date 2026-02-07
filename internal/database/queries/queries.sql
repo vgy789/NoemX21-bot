@@ -16,20 +16,38 @@ SELECT * FROM students WHERE rocketchat_id = $1;
 -- name: UpsertStudent :one
 INSERT INTO students (
     s21_login, rocketchat_id, campus_id, coalition_id, status, 
-    timezone, alternative_contact, has_coffee_ban
+    timezone, alternative_contact, has_coffee_ban,
+    level, exp_value, prp, crp, coins, parallel_name
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 )
 ON CONFLICT (s21_login) DO UPDATE SET
-    rocketchat_id = EXCLUDED.rocketchat_id,
-    campus_id = EXCLUDED.campus_id,
-    coalition_id = EXCLUDED.coalition_id,
-    status = EXCLUDED.status,
-    timezone = EXCLUDED.timezone,
-    alternative_contact = EXCLUDED.alternative_contact,
-    has_coffee_ban = EXCLUDED.has_coffee_ban,
+    rocketchat_id = COALESCE(EXCLUDED.rocketchat_id, students.rocketchat_id),
+    campus_id = COALESCE(EXCLUDED.campus_id, students.campus_id),
+    coalition_id = COALESCE(EXCLUDED.coalition_id, students.coalition_id),
+    status = COALESCE(EXCLUDED.status, students.status),
+    timezone = COALESCE(EXCLUDED.timezone, students.timezone),
+    alternative_contact = COALESCE(EXCLUDED.alternative_contact, students.alternative_contact),
+    has_coffee_ban = COALESCE(EXCLUDED.has_coffee_ban, students.has_coffee_ban),
+    level = COALESCE(EXCLUDED.level, students.level),
+    exp_value = COALESCE(EXCLUDED.exp_value, students.exp_value),
+    prp = COALESCE(EXCLUDED.prp, students.prp),
+    crp = COALESCE(EXCLUDED.crp, students.crp),
+    coins = COALESCE(EXCLUDED.coins, students.coins),
+    parallel_name = COALESCE(EXCLUDED.parallel_name, students.parallel_name),
     updated_at = CURRENT_TIMESTAMP
 RETURNING *;
+
+-- name: UpdateStudentStats :exec
+UPDATE students SET
+    level = $2,
+    exp_value = $3,
+    prp = $4,
+    crp = $5,
+    coins = $6,
+    coalition_id = $7,
+    updated_at = CURRENT_TIMESTAMP
+WHERE s21_login = $1;
 
 -- name: GetUserAccountByExternalId :one
 SELECT * FROM user_accounts 
@@ -179,6 +197,11 @@ SELECT * FROM campuses WHERE short_name = $1;
 INSERT INTO club_categories (name) VALUES ($1)
 ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
 RETURNING *;
+
+-- name: UpsertCoalition :exec
+INSERT INTO coalitions (id, name)
+VALUES ($1, $2)
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name;
 
 -- name: UpsertClub :one
 INSERT INTO clubs (

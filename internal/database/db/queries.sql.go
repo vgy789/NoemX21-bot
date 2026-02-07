@@ -590,6 +590,41 @@ func (q *Queries) RevokeOldApiKeys(ctx context.Context, userAccountID int64) err
 	return err
 }
 
+const updateStudentStats = `-- name: UpdateStudentStats :exec
+UPDATE students SET
+    level = $2,
+    exp_value = $3,
+    prp = $4,
+    crp = $5,
+    coins = $6,
+    coalition_id = $7,
+    updated_at = CURRENT_TIMESTAMP
+WHERE s21_login = $1
+`
+
+type UpdateStudentStatsParams struct {
+	S21Login    string      `json:"s21_login"`
+	Level       pgtype.Int4 `json:"level"`
+	ExpValue    pgtype.Int4 `json:"exp_value"`
+	Prp         pgtype.Int4 `json:"prp"`
+	Crp         pgtype.Int4 `json:"crp"`
+	Coins       pgtype.Int4 `json:"coins"`
+	CoalitionID pgtype.Int2 `json:"coalition_id"`
+}
+
+func (q *Queries) UpdateStudentStats(ctx context.Context, arg UpdateStudentStatsParams) error {
+	_, err := q.db.Exec(ctx, updateStudentStats,
+		arg.S21Login,
+		arg.Level,
+		arg.ExpValue,
+		arg.Prp,
+		arg.Crp,
+		arg.Coins,
+		arg.CoalitionID,
+	)
+	return err
+}
+
 const upsertCampus = `-- name: UpsertCampus :one
 INSERT INTO campuses (id, short_name, full_name, timezone, is_active)
 VALUES ($1, $2, $3, $4, $5)
@@ -702,6 +737,22 @@ func (q *Queries) UpsertClubCategory(ctx context.Context, name string) (ClubCate
 	var i ClubCategory
 	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
 	return i, err
+}
+
+const upsertCoalition = `-- name: UpsertCoalition :exec
+INSERT INTO coalitions (id, name)
+VALUES ($1, $2)
+ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+`
+
+type UpsertCoalitionParams struct {
+	ID   int16  `json:"id"`
+	Name string `json:"name"`
+}
+
+func (q *Queries) UpsertCoalition(ctx context.Context, arg UpsertCoalitionParams) error {
+	_, err := q.db.Exec(ctx, upsertCoalition, arg.ID, arg.Name)
+	return err
 }
 
 const upsertFSMState = `-- name: UpsertFSMState :exec
@@ -836,18 +887,25 @@ func (q *Queries) UpsertSkill(ctx context.Context, arg UpsertSkillParams) (Skill
 const upsertStudent = `-- name: UpsertStudent :one
 INSERT INTO students (
     s21_login, rocketchat_id, campus_id, coalition_id, status, 
-    timezone, alternative_contact, has_coffee_ban
+    timezone, alternative_contact, has_coffee_ban,
+    level, exp_value, prp, crp, coins, parallel_name
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
 )
 ON CONFLICT (s21_login) DO UPDATE SET
-    rocketchat_id = EXCLUDED.rocketchat_id,
-    campus_id = EXCLUDED.campus_id,
-    coalition_id = EXCLUDED.coalition_id,
-    status = EXCLUDED.status,
-    timezone = EXCLUDED.timezone,
-    alternative_contact = EXCLUDED.alternative_contact,
-    has_coffee_ban = EXCLUDED.has_coffee_ban,
+    rocketchat_id = COALESCE(EXCLUDED.rocketchat_id, students.rocketchat_id),
+    campus_id = COALESCE(EXCLUDED.campus_id, students.campus_id),
+    coalition_id = COALESCE(EXCLUDED.coalition_id, students.coalition_id),
+    status = COALESCE(EXCLUDED.status, students.status),
+    timezone = COALESCE(EXCLUDED.timezone, students.timezone),
+    alternative_contact = COALESCE(EXCLUDED.alternative_contact, students.alternative_contact),
+    has_coffee_ban = COALESCE(EXCLUDED.has_coffee_ban, students.has_coffee_ban),
+    level = COALESCE(EXCLUDED.level, students.level),
+    exp_value = COALESCE(EXCLUDED.exp_value, students.exp_value),
+    prp = COALESCE(EXCLUDED.prp, students.prp),
+    crp = COALESCE(EXCLUDED.crp, students.crp),
+    coins = COALESCE(EXCLUDED.coins, students.coins),
+    parallel_name = COALESCE(EXCLUDED.parallel_name, students.parallel_name),
     updated_at = CURRENT_TIMESTAMP
 RETURNING s21_login, rocketchat_id, campus_id, coalition_id, status, parallel_name, level, exp_value, prp, crp, coins, timezone, alternative_contact, has_coffee_ban, created_at, updated_at
 `
@@ -861,6 +919,12 @@ type UpsertStudentParams struct {
 	Timezone           string                `json:"timezone"`
 	AlternativeContact pgtype.Text           `json:"alternative_contact"`
 	HasCoffeeBan       pgtype.Bool           `json:"has_coffee_ban"`
+	Level              pgtype.Int4           `json:"level"`
+	ExpValue           pgtype.Int4           `json:"exp_value"`
+	Prp                pgtype.Int4           `json:"prp"`
+	Crp                pgtype.Int4           `json:"crp"`
+	Coins              pgtype.Int4           `json:"coins"`
+	ParallelName       pgtype.Text           `json:"parallel_name"`
 }
 
 func (q *Queries) UpsertStudent(ctx context.Context, arg UpsertStudentParams) (Student, error) {
@@ -873,6 +937,12 @@ func (q *Queries) UpsertStudent(ctx context.Context, arg UpsertStudentParams) (S
 		arg.Timezone,
 		arg.AlternativeContact,
 		arg.HasCoffeeBan,
+		arg.Level,
+		arg.ExpValue,
+		arg.Prp,
+		arg.Crp,
+		arg.Coins,
+		arg.ParallelName,
 	)
 	var i Student
 	err := row.Scan(

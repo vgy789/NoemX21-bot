@@ -80,16 +80,16 @@ func (b *Builder) BuildRocketChatClient() *rocketchat.Client {
 	return InitializeRocketChatClient(b.cfg)
 }
 
-// BuildSeeder initializes the credential seeder.
-func (b *Builder) BuildSeeder(repo *db.Queries, crypter *crypto.Crypter, s21Client *s21.Client) *service.CredentialSeeder {
-	return InitializeSeeder(repo, crypter, s21Client, b.log)
+// BuildCredentialService initializes the credential service.
+func (b *Builder) BuildCredentialService(repo *db.Queries, crypter *crypto.Crypter, s21Client *s21.Client) *service.CredentialService {
+	return service.NewCredentialService(repo, crypter, s21Client, b.log)
 }
 
 // BuildApp creates the application instance.
-func (b *Builder) BuildApp(repo *db.DBWrapper, rcClient *rocketchat.Client, s21Client *s21.Client, seeder *service.CredentialSeeder) *app.App {
+func (b *Builder) BuildApp(repo *db.DBWrapper, rcClient *rocketchat.Client, s21Client *s21.Client, credService *service.CredentialService) *app.App {
 	gitSync := gitsync.New(b.cfg.GitSync, repo.Queries, b.log)
-	campusSvc := service.NewCampusService(repo.Queries, s21Client, b.cfg, b.log, seeder)
-	return app.New(b.cfg, b.log, repo, rcClient, s21Client, seeder, gitSync, campusSvc)
+	campusSvc := service.NewCampusService(repo.Queries, s21Client, b.cfg, b.log, credService)
+	return app.New(b.cfg, b.log, repo, rcClient, s21Client, credService, gitSync, campusSvc)
 }
 
 // Run runs the application.
@@ -111,21 +111,21 @@ func (b *Builder) Run() error {
 	s21Client := b.BuildS21Client()
 
 	// Build and run the app
-	var seeder *service.CredentialSeeder
+	var credService *service.CredentialService
 	if b.aeadKey != "" {
 		crypter, err := b.BuildCrypter()
 		if err != nil {
 			return err
 		}
-		seeder = b.BuildSeeder(repo.Queries, crypter, s21Client)
-		if err := SeedCredentials(b.ctx, seeder, b.cfg, b.log); err != nil {
+		credService = b.BuildCredentialService(repo.Queries, crypter, s21Client)
+		if err := SeedCredentials(b.ctx, credService, b.cfg, b.log); err != nil {
 			return err
 		}
 	} else if b.school != "" {
 		b.log.Warn("SCHOOL21_USER_LOGIN provided but AEAD_KEY is missing. Skipping credential seeding.")
 	}
 
-	app := b.BuildApp(repo, rcClient, s21Client, seeder)
+	app := b.BuildApp(repo, rcClient, s21Client, credService)
 	app.Run()
 
 	return nil

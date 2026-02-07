@@ -19,10 +19,10 @@ type CampusService struct {
 	config   *config.Config
 	log      *slog.Logger
 	cron     *cron.Cron
-	credsSvc *CredentialSeeder
+	credsSvc *CredentialService
 }
 
-func NewCampusService(queries db.Querier, s21Client *s21.Client, cfg *config.Config, log *slog.Logger, credsSvc *CredentialSeeder) *CampusService {
+func NewCampusService(queries db.Querier, s21Client *s21.Client, cfg *config.Config, log *slog.Logger, credsSvc *CredentialService) *CampusService {
 	return &CampusService{
 		queries:  queries,
 		s21:      s21Client,
@@ -71,23 +71,13 @@ func (s *CampusService) UpdateCampuses(ctx context.Context) error {
 	}
 
 	// 1. Get token
-	creds, err := s.queries.GetPlatformCredentials(ctx, s.config.Init.SchoolLogin)
+	token, err := s.credsSvc.GetValidToken(ctx, s.config.Init.SchoolLogin)
 	if err != nil {
-		return fmt.Errorf("failed to get platform credentials: %w", err)
-	}
-
-	decryptedPassword, err := s.credsSvc.crypter.Decrypt(creds.PasswordEnc, creds.PasswordNonce, []byte(s.config.Init.SchoolLogin))
-	if err != nil {
-		return fmt.Errorf("failed to decrypt password: %w", err)
-	}
-
-	auth, err := s.s21.Auth(ctx, s.config.Init.SchoolLogin, string(decryptedPassword))
-	if err != nil {
-		return fmt.Errorf("auth failed: %w", err)
+		return fmt.Errorf("failed to get valid token: %w", err)
 	}
 
 	// 2. Fetch campuses
-	campuses, err := s.s21.GetCampuses(ctx, auth.AccessToken)
+	campuses, err := s.s21.GetCampuses(ctx, token)
 	if err != nil {
 		return fmt.Errorf("failed to fetch campuses: %w", err)
 	}

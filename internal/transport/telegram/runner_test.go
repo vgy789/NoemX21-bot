@@ -29,7 +29,7 @@ func TestNewTelegramService(t *testing.T) {
 	mockQuerier := dbMock.NewMockQuerier(ctrl)
 	mockRCClient := rocketchat.NewClient("", "", "")
 
-	engine := setup.NewFSM(cfg, logger, mockQuerier, mockStudentSvc, mockRCClient, nil, "docs/specs/flows")
+	engine := setup.NewFSM(cfg, logger, mockQuerier, mockStudentSvc, mockRCClient, nil, nil, "docs/specs/flows")
 	svc := NewTelegramService(cfg, logger, mockStudentSvc, engine)
 	ts, ok := svc.(*telegramService)
 	require.True(t, ok, "NewTelegramService did not return *telegramService")
