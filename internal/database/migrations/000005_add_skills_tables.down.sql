@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS student_skills;
+DROP TABLE IF EXISTS skills;

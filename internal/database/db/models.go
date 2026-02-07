@@ -225,6 +225,14 @@ type RocketchatCredential struct {
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
 }
 
+type Skill struct {
+	ID        int32              `json:"id"`
+	Name      string             `json:"name"`
+	Category  pgtype.Text        `json:"category"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Student struct {
 	S21Login           string                `json:"s21_login"`
 	RocketchatID       string                `json:"rocketchat_id"`
@@ -242,6 +250,13 @@ type Student struct {
 	HasCoffeeBan       pgtype.Bool           `json:"has_coffee_ban"`
 	CreatedAt          pgtype.Timestamptz    `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz    `json:"updated_at"`
+}
+
+type StudentSkill struct {
+	StudentID string             `json:"student_id"`
+	SkillID   int32              `json:"skill_id"`
+	Value     int32              `json:"value"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
 type UserAccount struct {

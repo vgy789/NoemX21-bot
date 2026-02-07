@@ -23,12 +23,14 @@ type Querier interface {
 	GetCampusByShortName(ctx context.Context, shortName string) (Campuse, error)
 	GetFSMState(ctx context.Context, userID int64) (FsmUserState, error)
 	GetLastAuthVerificationCode(ctx context.Context, studentID pgtype.Text) (AuthVerificationCode, error)
+	GetPeerProfile(ctx context.Context, s21Login string) (GetPeerProfileRow, error)
 	GetPlatformCredentials(ctx context.Context, studentID string) (PlatformCredential, error)
 	GetRocketChatCredentials(ctx context.Context, studentID string) (RocketchatCredential, error)
 	GetStudentByRocketChatId(ctx context.Context, rocketchatID string) (Student, error)
 	// queries.sql
 	GetStudentByS21Login(ctx context.Context, s21Login string) (Student, error)
 	GetStudentProfile(ctx context.Context, s21Login string) (GetStudentProfileRow, error)
+	GetStudentSkills(ctx context.Context, studentID string) ([]GetStudentSkillsRow, error)
 	GetUserAccountByExternalId(ctx context.Context, arg GetUserAccountByExternalIdParams) (UserAccount, error)
 	GetUserAccountByStudentId(ctx context.Context, studentID string) (UserAccount, error)
 	GetUserBotSettings(ctx context.Context, userAccountID int64) (UserBotSetting, error)
@@ -40,7 +42,9 @@ type Querier interface {
 	UpsertFSMState(ctx context.Context, arg UpsertFSMStateParams) error
 	UpsertPlatformCredentials(ctx context.Context, arg UpsertPlatformCredentialsParams) error
 	UpsertRocketChatCredentials(ctx context.Context, arg UpsertRocketChatCredentialsParams) error
+	UpsertSkill(ctx context.Context, arg UpsertSkillParams) (Skill, error)
 	UpsertStudent(ctx context.Context, arg UpsertStudentParams) (Student, error)
+	UpsertStudentSkill(ctx context.Context, arg UpsertStudentSkillParams) error
 	UpsertUserBotSettings(ctx context.Context, arg UpsertUserBotSettingsParams) (UserBotSetting, error)
 }
 
