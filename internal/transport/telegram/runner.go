@@ -2,17 +2,12 @@ package telegram
 
 import (
 	"log/slog"
-	"strings"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
-	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
-	"github.com/vgy789/noemx21-bot/internal/clients/s21"
 	"github.com/vgy789/noemx21-bot/internal/clients/telegram"
 	"github.com/vgy789/noemx21-bot/internal/config"
-	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
-	"github.com/vgy789/noemx21-bot/internal/fsm/actions"
 	"github.com/vgy789/noemx21-bot/internal/service"
 )
 
@@ -45,31 +40,12 @@ func (s *DefaultSender) AnswerCallbackQuery(id string, opts *gotgbot.AnswerCallb
 }
 
 // NewTelegramService creates new telegram service.
-func NewTelegramService(cfg *config.Config, log *slog.Logger, studentSvc service.StudentService, queries db.Querier, rcClient *rocketchat.Client, s21Client *s21.Client) TelegramService {
-	// Initialize FSM components
-	parser := fsm.NewFlowParser("docs/specs/flows", log) // Assuming CWD is root
-	repoFSM := fsm.NewPostgreSQLStateRepository(queries)
-
-	// Create registry and register actions
-	registry := fsm.NewLogicRegistry()
-	registrar := actions.NewRegistrar(cfg, log, studentSvc, queries, rcClient, s21Client)
-
-	// Initialize Engine with sanitizer
-	sanitizer := func(text string) string {
-		return strings.ReplaceAll(text, "_", "\\_")
-	}
-
-	engine := fsm.NewEngine(parser, repoFSM, log, registry, sanitizer)
-
-	// Register all actions and aliases from plugins
-	registrar.RegisterAll(registry, engine.AddAlias)
-
+func NewTelegramService(cfg *config.Config, log *slog.Logger, studentSvc service.StudentService, engine *fsm.Engine) TelegramService {
 	return &telegramService{
 		cfg:        cfg,
 		log:        log,
 		studentSvc: studentSvc,
 		engine:     engine,
-		db:         queries,
 	}
 }
 
@@ -79,7 +55,6 @@ type telegramService struct {
 	studentSvc service.StudentService
 	engine     *fsm.Engine
 	sender     Sender // For testing
-	db         db.Querier
 }
 
 func (s *telegramService) getSender(b *gotgbot.Bot) Sender {

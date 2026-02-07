@@ -1,21 +1,30 @@
-package actions
+package registration
 
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
+	"github.com/vgy789/noemx21-bot/internal/clients/s21"
+	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 	"github.com/vgy789/noemx21-bot/internal/service"
 )
 
-type registrationPlugin struct{}
-
-func (p *registrationPlugin) ID() string { return "registration" }
-
-func (p *registrationPlugin) Register(registry *fsm.LogicRegistry, deps *Dependencies) {
+// Register registers registration-related actions.
+func Register(
+	registry *fsm.LogicRegistry,
+	cfg *config.Config,
+	log *slog.Logger,
+	queries db.Querier,
+	studentSvc service.StudentService,
+	rcClient *rocketchat.Client,
+	s21Client *s21.Client,
+) {
 	// Helper to extract user info from payload/context
 	getUserInfo := func(ctx context.Context, userID int64, payload map[string]interface{}) fsm.UserInfo {
 		ui := fsm.UserInfo{
@@ -68,33 +77,33 @@ func (p *registrationPlugin) Register(registry *fsm.LogicRegistry, deps *Depende
 			platform = db.EnumPlatformRocketchat
 		}
 
-		_, err := deps.StudentSvc.GetProfileByExternalID(ctx, platform, fmt.Sprintf("%d", ui.ID))
+		_, err := studentSvc.GetProfileByExternalID(ctx, platform, fmt.Sprintf("%d", ui.ID))
 		isRegistered := err == nil
-		deps.Log.Debug("checking registration status", "user_id", ui.ID, "platform", ui.Platform, "registered", isRegistered)
+		log.Debug("checking registration status", "user_id", ui.ID, "platform", ui.Platform, "registered", isRegistered)
 		return "", map[string]interface{}{"registered": isRegistered}, nil
 	})
 
 	// Validate School21 user
 	registry.Register("validate_school21_user", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
 		login := payload["login"].(string)
-		deps.Log.Debug("validating school21 user", "login", login)
+		log.Debug("validating school21 user", "login", login)
 
 		// 1. Get bot's own token to use for verification
 		// In a real app, we should cache this token.
-		authResp, err := deps.S21Client.Auth(ctx, deps.Config.Init.SchoolLogin, deps.Config.Init.SchoolPassword.Expose())
+		authResp, err := s21Client.Auth(ctx, cfg.Init.SchoolLogin, cfg.Init.SchoolPassword.Expose())
 		if err != nil {
-			deps.Log.Error("failed to authenticate bot to School21 API", "error", err)
+			log.Error("failed to authenticate bot to School21 API", "error", err)
 			return "", map[string]interface{}{"api_status": 500}, nil
 		}
 
 		// 2. Check the student login via API
-		participant, err := deps.S21Client.GetParticipant(ctx, authResp.AccessToken, login)
+		participant, err := s21Client.GetParticipant(ctx, authResp.AccessToken, login)
 		if err != nil {
 			// Check if it was a 404 (user not found)
 			if strings.Contains(err.Error(), "status 404") || strings.Contains(err.Error(), "body error: status 404") {
 				return "", map[string]interface{}{"api_status": 404}, nil
 			}
-			deps.Log.Error("S21 API GetParticipant failed", "login", login, "error", err)
+			log.Error("S21 API GetParticipant failed", "login", login, "error", err)
 			return "", map[string]interface{}{"api_status": 502}, nil
 		}
 
@@ -114,19 +123,19 @@ func (p *registrationPlugin) Register(registry *fsm.LogicRegistry, deps *Depende
 		login := payload["login"].(string)
 
 		// 1. Check if account already registered/linked in our DB
-		ua, err := deps.Queries.GetUserAccountByStudentId(ctx, login)
+		ua, err := queries.GetUserAccountByStudentId(ctx, login)
 		if err == nil {
 			if ua.ExternalID != fmt.Sprintf("%d", userID) {
-				deps.Log.Debug("student already registered to another telegram account", "login", login)
+				log.Debug("student already registered to another telegram account", "login", login)
 				return "", map[string]interface{}{"email_already_registered": true}, nil
 			}
 		}
 
 		// 2. Call Rocket.Chat API to find the real user and verify email
 		// This ensures we get the *current* ID even if DB is outdated, and validates security
-		rcUser, err := deps.RCClient.GetUserInfo(ctx, login)
+		rcUser, err := rcClient.GetUserInfo(ctx, login)
 		if err != nil {
-			deps.Log.Error("failed to find user in RocketChat API", "login", login, "error", err)
+			log.Error("failed to find user in RocketChat API", "login", login, "error", err)
 			return "", map[string]interface{}{"rocket_user_not_found": true}, nil
 		}
 
@@ -141,22 +150,22 @@ func (p *registrationPlugin) Register(registry *fsm.LogicRegistry, deps *Depende
 		}
 
 		if !emailVerified {
-			deps.Log.Warn("rocketchat email verification failed", "login", login)
+			log.Warn("rocketchat email verification failed", "login", login)
 			return "", map[string]interface{}{"email_mismatch": true, "rocket_user_found": true}, nil
 		}
 
 		// 4. Update the Rocket.Chat ID in the database with the authoritative one from API
 		// We can get the existing student record to preserve other fields, or just use Upsert if we had partial update
 		// Since we only want to update rocketchat_id, let's fetch first.
-		student, err := deps.Queries.GetStudentByS21Login(ctx, login)
+		student, err := queries.GetStudentByS21Login(ctx, login)
 		if err != nil {
 			// Should not happen if validation pass passed, but handle it
 			return "", nil, fmt.Errorf("student not found in db: %w", err)
 		}
 
 		if student.RocketchatID != rcUser.User.ID {
-			deps.Log.Info("updating rocketchat id for student", "login", login, "old_id", student.RocketchatID, "new_id", rcUser.User.ID)
-			_, err = deps.Queries.UpsertStudent(ctx, db.UpsertStudentParams{
+			log.Info("updating rocketchat id for student", "login", login, "old_id", student.RocketchatID, "new_id", rcUser.User.ID)
+			_, err = queries.UpsertStudent(ctx, db.UpsertStudentParams{
 				S21Login:           student.S21Login,
 				RocketchatID:       rcUser.User.ID, // Update ID
 				CampusID:           student.CampusID,
@@ -171,7 +180,7 @@ func (p *registrationPlugin) Register(registry *fsm.LogicRegistry, deps *Depende
 			}
 		}
 
-		deps.Log.Debug("rocket user verified", "login", login, "rc_id", rcUser.User.ID)
+		log.Debug("rocket user verified", "login", login, "rc_id", rcUser.User.ID)
 		return "", map[string]interface{}{
 			"rocket_user_found": true,
 			"email_verified":    true,
@@ -185,17 +194,17 @@ func (p *registrationPlugin) Register(registry *fsm.LogicRegistry, deps *Depende
 		// 0. Check rate limits
 		rl := service.GetRateLimiter()
 		if err := rl.CheckAndRecord(userID, login); err != nil {
-			deps.Log.Warn("rate limit exceeded", "user_id", userID, "login", login, "error", err)
+			log.Warn("rate limit exceeded", "user_id", userID, "login", login, "error", err)
 			return "", nil, err // FSM will handle this as a generic error or we can signal specific state
 		}
 
-		otpSvc := service.NewOTPService(deps.Queries, deps.RCClient, deps.Config, deps.Log)
+		otpSvc := service.NewOTPService(queries, rcClient, cfg, log)
 
 		// Set student ID in context for verification
 		ctx = context.WithValue(ctx, fsm.ContextKeyStudentID, login)
 
 		ui := getUserInfo(ctx, userID, payload)
-		deps.Log.Debug("generating OTP with user info",
+		log.Debug("generating OTP with user info",
 			"user_id", ui.ID,
 			"username", ui.Username,
 			"platform", ui.Platform,
@@ -212,7 +221,7 @@ func (p *registrationPlugin) Register(registry *fsm.LogicRegistry, deps *Depende
 					"otp_retry_after_secs": remaining,
 				}, nil
 			}
-			deps.Log.Error("failed to generate OTP", "error", err)
+			log.Error("failed to generate OTP", "error", err)
 			return "", nil, err
 		}
 
@@ -225,7 +234,7 @@ func (p *registrationPlugin) Register(registry *fsm.LogicRegistry, deps *Depende
 	// Verify OTP code
 	registry.Register("verify_otp", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
 		code := payload["code"].(string)
-		otpSvc := service.NewOTPService(deps.Queries, deps.RCClient, deps.Config, deps.Log)
+		otpSvc := service.NewOTPService(queries, rcClient, cfg, log)
 
 		studentID, ok := payload["student_id"].(string)
 		if !ok {
@@ -240,12 +249,12 @@ func (p *registrationPlugin) Register(registry *fsm.LogicRegistry, deps *Depende
 
 		valid, err := otpSvc.VerifyOTP(ctx, userID, code)
 		if err != nil {
-			deps.Log.Error("OTP verification failed", "error", err)
+			log.Error("OTP verification failed", "error", err)
 			// Treat unexpected errors as invalid code to allow FSM to transition back
 			valid = false
 		}
 
-		ua, err := deps.Queries.GetUserAccountByStudentId(ctx, studentID)
+		ua, err := queries.GetUserAccountByStudentId(ctx, studentID)
 		accountExists := err == nil
 
 		isOwnAccount := false
@@ -272,7 +281,7 @@ func (p *registrationPlugin) Register(registry *fsm.LogicRegistry, deps *Depende
 				platform = db.EnumPlatformRocketchat
 			}
 
-			uaCreated, err := deps.Queries.CreateUserAccount(ctx, db.CreateUserAccountParams{
+			uaCreated, err := queries.CreateUserAccount(ctx, db.CreateUserAccountParams{
 				StudentID:    studentID,
 				Platform:     platform,
 				ExternalID:   fmt.Sprintf("%d", ui.ID),
@@ -281,23 +290,23 @@ func (p *registrationPlugin) Register(registry *fsm.LogicRegistry, deps *Depende
 				Role:         db.NullEnumUserRole{EnumUserRole: db.EnumUserRoleUser, Valid: true},
 			})
 			if err != nil {
-				deps.Log.Error("failed to create user account", "error", err, "student_id", studentID)
+				log.Error("failed to create user account", "error", err, "student_id", studentID)
 			} else {
-				deps.Log.Info("created user account", "user_account_id", uaCreated.ID, "student_id", studentID)
+				log.Info("created user account", "user_account_id", uaCreated.ID, "student_id", studentID)
 
 				langCode := fsm.LangRu
 				if val, ok := payload["language"].(string); ok {
 					langCode = val
 				}
 
-				_, err = deps.Queries.UpsertUserBotSettings(ctx, db.UpsertUserBotSettingsParams{
+				_, err = queries.UpsertUserBotSettings(ctx, db.UpsertUserBotSettingsParams{
 					UserAccountID:        uaCreated.ID,
 					LanguageCode:         pgtype.Text{String: langCode, Valid: true},
 					NotificationsEnabled: pgtype.Bool{Bool: true, Valid: true},
 					ReviewPostCampusIds:  []byte("[]"),
 				})
 				if err != nil {
-					deps.Log.Error("failed to save initial user settings", "error", err)
+					log.Error("failed to save initial user settings", "error", err)
 				}
 			}
 		}
@@ -327,13 +336,13 @@ func (p *registrationPlugin) Register(registry *fsm.LogicRegistry, deps *Depende
 			platform = db.EnumPlatformRocketchat
 		}
 
-		profile, err := deps.StudentSvc.GetProfileByExternalID(ctx, platform, fmt.Sprintf("%d", ui.ID))
+		profile, err := studentSvc.GetProfileByExternalID(ctx, platform, fmt.Sprintf("%d", ui.ID))
 		if err != nil {
-			deps.Log.Error("failed to load user profile", "user_id", ui.ID, "platform", ui.Platform, "error", err)
+			log.Error("failed to load user profile", "user_id", ui.ID, "platform", ui.Platform, "error", err)
 			return "", map[string]interface{}{"profile_loaded": false}, nil
 		}
 
-		deps.Log.Info("user profile loaded", "user_id", userID, "login", profile.Login)
+		log.Info("user profile loaded", "user_id", userID, "login", profile.Login)
 
 		return "", map[string]interface{}{
 			"profile_loaded": true,
@@ -348,8 +357,4 @@ func (p *registrationPlugin) Register(registry *fsm.LogicRegistry, deps *Depende
 			"coins":          profile.Coins,
 		}, nil
 	})
-}
-
-func init() {
-	Register(&registrationPlugin{})
 }

@@ -15,6 +15,7 @@ import (
 	dbMock "github.com/vgy789/noemx21-bot/internal/database/db/mock"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 	"github.com/vgy789/noemx21-bot/internal/fsm/actions"
+	"github.com/vgy789/noemx21-bot/internal/fsm/setup"
 	"github.com/vgy789/noemx21-bot/internal/service"
 	serviceMock "github.com/vgy789/noemx21-bot/internal/service/mock"
 	"go.uber.org/mock/gomock"
@@ -29,7 +30,8 @@ func prepareRegistrationTest(t *testing.T) (*telegramService, *serviceMock.MockS
 	mockQuerier := dbMock.NewMockQuerier(ctrl)
 	mockRCClient := rocketchat.NewClient("", "", "")
 
-	service := NewTelegramService(cfg, logger, mockStudentSvc, mockQuerier, mockRCClient, nil)
+	engine := setup.NewFSM(cfg, logger, mockQuerier, mockStudentSvc, mockRCClient, nil, "../../../docs/specs/flows")
+	service := NewTelegramService(cfg, logger, mockStudentSvc, engine)
 	ts := service.(*telegramService)
 
 	// Override engine with test settings

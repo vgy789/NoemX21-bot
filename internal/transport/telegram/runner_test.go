@@ -14,6 +14,7 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	dbMock "github.com/vgy789/noemx21-bot/internal/database/db/mock"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
+	"github.com/vgy789/noemx21-bot/internal/fsm/setup"
 	serviceMock "github.com/vgy789/noemx21-bot/internal/service/mock"
 	"go.uber.org/mock/gomock"
 )
@@ -28,7 +29,8 @@ func TestNewTelegramService(t *testing.T) {
 	mockQuerier := dbMock.NewMockQuerier(ctrl)
 	mockRCClient := rocketchat.NewClient("", "", "")
 
-	svc := NewTelegramService(cfg, logger, mockStudentSvc, mockQuerier, mockRCClient, nil)
+	engine := setup.NewFSM(cfg, logger, mockQuerier, mockStudentSvc, mockRCClient, nil, "docs/specs/flows")
+	svc := NewTelegramService(cfg, logger, mockStudentSvc, engine)
 	ts, ok := svc.(*telegramService)
 	require.True(t, ok, "NewTelegramService did not return *telegramService")
 	// Use memory repo for tests

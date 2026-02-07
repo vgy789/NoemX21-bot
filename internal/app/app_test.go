@@ -8,7 +8,7 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
-	"github.com/vgy789/noemx21-bot/internal/service/gitsync"
+	"github.com/vgy789/noemx21-bot/internal/sync/gitsync"
 	"go.uber.org/mock/gomock"
 )
 
@@ -37,7 +37,7 @@ func TestNew(t *testing.T) {
 	repo := &db.DBWrapper{}
 	rcClient := rocketchat.NewClient("", "", "")
 
-	gitSync := gitsync.NewGitSyncService(cfg.GitSync, nil, logger)
+	gitSync := gitsync.New(cfg.GitSync, nil, logger)
 	campusSvc := &mockStarter{}
 
 	a := New(cfg, logger, repo, rcClient, nil, nil, gitSync, campusSvc)

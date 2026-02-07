@@ -11,7 +11,7 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/crypto"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/service"
-	"github.com/vgy789/noemx21-bot/internal/service/gitsync"
+	"github.com/vgy789/noemx21-bot/internal/sync/gitsync"
 )
 
 // Builder provides a fluent interface for initializing the application components.
@@ -87,7 +87,7 @@ func (b *Builder) BuildSeeder(repo *db.Queries, crypter *crypto.Crypter, s21Clie
 
 // BuildApp creates the application instance.
 func (b *Builder) BuildApp(repo *db.DBWrapper, rcClient *rocketchat.Client, s21Client *s21.Client, seeder *service.CredentialSeeder) *app.App {
-	gitSync := gitsync.NewGitSyncService(b.cfg.GitSync, repo.Queries, b.log)
+	gitSync := gitsync.New(b.cfg.GitSync, repo.Queries, b.log)
 	campusSvc := service.NewCampusService(repo.Queries, s21Client, b.cfg, b.log, seeder)
 	return app.New(b.cfg, b.log, repo, rcClient, s21Client, seeder, gitSync, campusSvc)
 }
