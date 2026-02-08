@@ -12,6 +12,79 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/pkg/charts"
 )
 
+type skillDomain struct {
+	Name   string
+	Skills []string
+	Color  string
+}
+
+var skillDomains = []skillDomain{
+	{
+		Name:  "Fundamentals & Low-level",
+		Color: "#5470c6", // Blue
+		Skills: []string{
+			"Math", "Algorithms", "Types and Data Structures",
+			"Structured Programming", "C", "C++", "Parallel Computing",
+		},
+	},
+	{
+		Name:  "System & DevOps",
+		Color: "#91cc75", // Green
+		Skills: []string{
+			"Linux", "Shell/Bash", "Windows", "Powershell",
+			"Network & System Admin", "Network Architecture",
+			"Systems Integration", "DevOps",
+		},
+	},
+	{
+		Name:  "InfoSec",
+		Color: "#ee6666", // Red
+		Skills: []string{
+			"Information Security", "Cryptography", "Regulatory Docs & Standards",
+			"Network Attacks", "Web Security", "Social Engineering", "Physical Access",
+		},
+	},
+	{
+		Name:  "Back-end & Data",
+		Color: "#73c0de", // Light Blue
+		Skills: []string{
+			"Software Architecture", "OOP", "Functional Programming",
+			"Java", "C#", "Go", "SQL", "DB & Data", "Python", "ML & AI",
+		},
+	},
+	{
+		Name:  "Web & Mobile",
+		Color: "#fac858", // Yellow/Orange
+		Skills: []string{
+			"Web", "HTML/CSS", "Frontend Basics", "Frontend",
+			"JavaScript", "TypeScript", "Mobile", "Kotlin", "Swift",
+		},
+	},
+	{
+		Name:  "Design & Graphics",
+		Color: "#ea7ccc", // Pink
+		Skills: []string{
+			"Graphics", "3D Modeling", "UI & Design Tools", "UX & Design Tools",
+		},
+	},
+	{
+		Name:  "Quality & Analysis",
+		Color: "#3ba272", // Dark Green
+		Skills: []string{
+			"QA", "Code Review", "Research", "Analysis",
+			"Analytical Thinking", "Requirements Analysis", "Business Modeling",
+		},
+	},
+	{
+		Name:  "Management & Soft Skills",
+		Color: "#fc8452", // Orange
+		Skills: []string{
+			"Project Planning", "Project Management", "Change Management",
+			"Leadership", "Team Work", "Company Experience", "Copywriting",
+		},
+	},
+}
+
 // orderedSkills defines the fixed order of skills for the radar chart
 var orderedSkills = []string{
 	// 1. Фундаментальные знания и Low-level
@@ -151,7 +224,13 @@ func generateRadarChart(usersData map[string]map[string]int32) (string, error) {
 
 	// Step 2: Determine active skills (not 0 and >= 5% for at least one user)
 	var activeSkills []string
+	isIndividual := len(logins) == 1
 	for _, skillName := range orderedSkills {
+		if isIndividual {
+			activeSkills = append(activeSkills, skillName)
+			continue
+		}
+
 		keep := false
 		for _, login := range logins {
 			skills := usersData[login]
@@ -202,16 +281,51 @@ func generateRadarChart(usersData map[string]map[string]int32) (string, error) {
 		indicatorMaxValues = append(indicatorMaxValues, 100.0)
 	}
 
+	// Step 4: Calculate radar domains for active skills
+	var radarDomains []charts.RadarDomain
+	skillIndexMap := make(map[string]int)
+	for i, s := range activeSkills {
+		skillIndexMap[s] = i
+	}
+
+	for _, domain := range skillDomains {
+		firstIdx := -1
+		lastIdx := -1
+		for _, s := range domain.Skills {
+			if idx, ok := skillIndexMap[s]; ok {
+				if firstIdx == -1 {
+					firstIdx = idx
+				}
+				lastIdx = idx
+			}
+		}
+
+		if firstIdx != -1 {
+			radarDomains = append(radarDomains, charts.RadarDomain{
+				Name:  domain.Name,
+				Start: firstIdx,
+				End:   lastIdx,
+				Color: charts.ParseColor(domain.Color),
+			})
+		}
+	}
+
+	chartTitle := "Skills Comparison\n(logarithmic scale)"
+	if isIndividual {
+		chartTitle = fmt.Sprintf("Skills Profile: %s", logins[0])
+	}
+
 	// Generate chart
 	p, err := charts.RadarRender(
 		values,
-		charts.TitleTextOptionFunc("Skills Comparison"),
+		charts.TitleTextOptionFunc(chartTitle),
 		charts.LegendLabelsOptionFunc(logins),
 		charts.RadarIndicatorOptionFunc(activeSkills, indicatorMaxValues),
+		charts.RadarDomainsOptionFunc(radarDomains),
 		charts.WidthOptionFunc(1000),
 		charts.HeightOptionFunc(800),
 		charts.FontSizeOptionFunc(8.0),
-		charts.PaddingOptionFunc(charts.Box{Top: 50, Right: 50, Bottom: 50, Left: 50}),
+		charts.PaddingOptionFunc(charts.Box{Top: 100, Right: 100, Bottom: 100, Left: 100}), // Padding for domain labels
 	)
 	if err != nil {
 		return "", err

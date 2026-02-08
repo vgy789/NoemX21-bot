@@ -24,6 +24,7 @@ package charts
 
 import (
 	"errors"
+	"math"
 
 	"github.com/dustin/go-humanize"
 	"github.com/golang/freetype/truetype"
@@ -45,6 +46,17 @@ type RadarIndicator struct {
 	Min float64
 }
 
+type RadarDomain struct {
+	// Domain's name
+	Name string
+	// Start indicator index
+	Start int
+	// End indicator index (inclusive)
+	End int
+	// Background color
+	Color Color
+}
+
 type RadarChartOption struct {
 	// The theme
 	Theme ColorPalette
@@ -60,6 +72,8 @@ type RadarChartOption struct {
 	Legend LegendOption
 	// The radar indicator list
 	RadarIndicators []RadarIndicator
+	// The radar domain list
+	RadarDomains []RadarDomain
 	// background is filled
 	backgroundIsFilled bool
 	// The font size
@@ -132,27 +146,56 @@ func (r *radarChart) render(result *defaultRenderResult, seriesList SeriesList) 
 	divideRadius := float64(int(radius / float64(divideCount)))
 	radius = divideRadius * float64(divideCount)
 
-	seriesPainter.OverrideDrawingStyle(Style{
-		StrokeColor: theme.GetAxisSplitLineColor(),
-		StrokeWidth: 1,
-	})
+	angles := getPolygonPointAngles(sides)
+
 	center := Point{
 		X: cx,
 		Y: cy,
 	}
-	for i := 0; i < divideCount; i++ {
-		seriesPainter.Polygon(center, divideRadius*float64(i+1), sides)
-	}
-	points := getPolygonPoints(center, radius, sides)
-	for _, p := range points {
-		seriesPainter.MoveTo(center.X, center.Y)
-		seriesPainter.LineTo(p.X, p.Y)
-		seriesPainter.Stroke()
-	}
+
 	fontSize := opt.FontSize
 	if fontSize == 0 {
 		fontSize = labelFontSize
 	}
+
+	// 1. Draw domains background FIRST
+	if len(opt.RadarDomains) != 0 {
+		for _, domain := range opt.RadarDomains {
+			if domain.Start < 0 || domain.End >= sides || domain.Start > domain.End {
+				continue
+			}
+			angleStep := 2 * math.Pi / float64(sides)
+			startAngle := angles[domain.Start] - angleStep/2
+			endAngle := angles[domain.End] + angleStep/2
+			delta := endAngle - startAngle
+
+			seriesPainter.SetDrawingStyle(Style{
+				FillColor:   domain.Color.WithAlpha(40),
+				StrokeColor: drawing.ColorTransparent,
+			})
+			seriesPainter.MoveTo(center.X, center.Y)
+			segments := 15
+			for i := 0; i <= segments; i++ {
+				a := startAngle + (delta * float64(i) / float64(segments))
+				p := getPolygonPoint(center, radius, a)
+				seriesPainter.LineTo(p.X, p.Y)
+			}
+			seriesPainter.LineTo(center.X, center.Y)
+			seriesPainter.Fill()
+
+			labelAngle := (angles[domain.Start] + angles[domain.End]) / 2.0
+			labelPos := getPolygonPoint(center, radius+95, labelAngle)
+			seriesPainter.OverrideTextStyle(Style{
+				FontColor: domain.Color,
+				FontSize:  fontSize + 2,
+				Font:      opt.Font,
+			})
+			labelBox := seriesPainter.MeasureText(domain.Name)
+			seriesPainter.Text(domain.Name, labelPos.X-labelBox.Width()/2, labelPos.Y)
+		}
+	}
+
+	points := getPolygonPoints(center, radius, sides)
 	seriesPainter.OverrideTextStyle(Style{
 		FontColor: theme.GetTextColor(),
 		FontSize:  fontSize,
@@ -198,7 +241,6 @@ func (r *radarChart) render(result *defaultRenderResult, seriesList SeriesList) 
 	}
 
 	// 雷达图
-	angles := getPolygonPointAngles(sides)
 	maxCount := len(indicators)
 	for _, series := range seriesList {
 		linePoints := make([]Point, 0, maxCount)
@@ -247,6 +289,23 @@ func (r *radarChart) render(result *defaultRenderResult, seriesList SeriesList) 
 			}
 
 		}
+	}
+
+	// Move Grid and Axes drawing to the END of polar data drawing, so it's on top
+	// Use a subtle, semi-transparent grey for the grid
+	gridColor := Color{R: 128, G: 128, B: 128, A: 45}
+	seriesPainter.SetDrawingStyle(Style{
+		StrokeColor: gridColor,
+		StrokeWidth: 1,
+		FillColor:   drawing.ColorTransparent,
+	})
+	for i := 0; i < divideCount; i++ {
+		seriesPainter.Polygon(center, divideRadius*float64(i+1), sides)
+	}
+	for _, p := range points {
+		seriesPainter.MoveTo(center.X, center.Y)
+		seriesPainter.LineTo(p.X, p.Y)
+		seriesPainter.Stroke()
 	}
 
 	return r.p.box, nil
