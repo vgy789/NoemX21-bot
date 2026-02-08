@@ -3,66 +3,68 @@ meta:
   feature_id: STAT-001
   name: Статистика и поиск
   description: 'Центр аналитики: личный прогресс, поиск пиров и сравнение скиллов'
-  version: 2.0.1
+  version: 2.1.0
 
 initial_state: STATS_SEARCH_MENU
 states:
   ## TODO: на каком месте в трайбе
   STATS_SEARCH_MENU:
     type: interactive
-    description: Главное меню аналитики
+    description: Личный профиль
     interface:
       text:
         ru: |
-          🆔 *{my_s21login}*
+          👤 *Твой профиль: {my_s21login}*
 
-          🏰 Кампус | `{my_campus}`
-          🛡 Трайб | `{my_coalition}`
+          📍 {my_campus}
+          🎓 {my_class} | {my_coalition}
+          ⚙️ {my_status} | {my_parallel}
 
-          📈 *Мой прогресс*
-          ├─ 🎖 Уровень `{my_level}`
-          ├─ ✨ Опыт `{my_exp} xp`
-          ├─ 🤝 PRP `{my_prps}`
-          ├─ 🔎 CRP `{my_crps}`
-          └─ 💰 Коины `{my_coins}`
+          🏆 *Уровень:* `{my_level}`
+          ⭐️ *Опыт:* `{my_exp} XP`
+          💰 *Коины:* `{my_coins} ₡`
+          🤝 PRP: `{my_prps}` | CRP: `{my_crps}`
 
-          👇 *Выбери действие:*
+          *Social:*
+          🧐 ИНТ: `{my_interest}` | 🙂 ДОБ: `{my_friendliness}`
+          🕑 ПНК: `{my_punctuality}` | ⚖️ СТР: `{my_thoroughness}`
         en: |
-          🆔 *{my_s21login}*
+          👤 *Profile: {my_s21login}*
 
-          🏰 Campus | `{my_campus}`
-          🛡 Tribe | `{my_coalition}`
+          📍 {my_campus}
+          🎓 {my_class} | {my_coalition}
+          ⚙️ {my_status} | {my_parallel}
 
-          📈 *My progress*
-          ├─ 🎖 Level `{my_level}`
-          ├─ ✨ Experience `{my_exp} xp`
-          ├─ 🤝 PRP `{my_prps}`
-          ├─ 🔎 CRP `{my_crps}`
-          └─ 💰 Coins `{my_coins}`
+          🏆 *Level:* `{my_level}`
+          ⭐️ *XP:* `{my_exp}`
+          💰 *Coins:* `{my_coins} ₡`
+          🤝 PRP: `{my_prps}` | CRP: `{my_crps}`
 
-          👇 *Choose action:*
+          *Social:*
+          🧐 INT: `{my_interest}` | 🙂 FRD: `{my_friendliness}`
+          🕑 PNC: `{my_punctuality}` | ⚖️ THO: `{my_thoroughness}`
       buttons:
-        - id: update
-          label:
-            ru: 🔄 Обновить
-            en: 🔄 Update
-          next_state: FETCH_MY_STATS
-        - id: skills
-          label:
-            ru: 🕸️ Мои навыки
-            en: 🕸️ My Skills
-          row: 1
-          next_state: FETCH_MY_SKILLS
         - id: search
           label:
-            ru: 🕵️‍♂️ Найти пира
-            en: 🕵️‍♂️ Find peer
-          row: 1
+            ru: 🔎 Найти пира
+            en: 🔎 Find peer
           next_state: SEARCH_INPUT
+        - id: skills
+          label:
+            ru: 🕸 Мои навыки
+            en: 🕸 My Skills
+          row: 1
+          next_state: FETCH_MY_SKILLS
+        - id: update
+          label:
+            ru: 🔄 Обновить данные
+            en: 🔄 Refresh data
+          row: 1
+          next_state: FETCH_MY_STATS
         - id: back
           label:
-            ru: 🏠 Назад
-            en: 🏠 Back
+            ru: 🏠 В главное меню
+            en: 🏠 Main menu
           next_state: MAIN_MENU
 
   FETCH_MY_STATS:
@@ -102,20 +104,27 @@ states:
     interface:
       text:
         ru: |
-          🕸️ *Карта навыков*
-          Визуализация твоего текущего стека:
+          🕸 *Карта твоих навыков*
+
+          Это визуализация твоего опыта на основе сданных проектов.
 
           {radar_chart_mermaid}
         en: |
-          🕸️ *Skill Map*
-          Visualization of your current stack:
+          🕸 *Your Skill Map*
+
+          Visualization of your experience based on completed projects.
 
           {radar_chart_mermaid}
       buttons:
+        - id: update
+          label:
+            ru: 🔄 Обновить
+            en: 🔄 Update
+          next_state: FETCH_MY_SKILLS
         - id: back
           label:
-            ru: 🔙 В меню статистики
-            en: 🔙 Stats menu
+            ru: 🔙 Назад в меню
+            en: 🔙 Back to menu
           next_state: STATS_SEARCH_MENU
 
   SEARCH_INPUT:
@@ -124,20 +133,20 @@ states:
     interface:
       text:
         ru: |
-          🕵️‍♂️ *Поиск пира*
+          🕵️ *Поиск пира*
 
-          Введи никнейм студента, чтобы посмотреть его профиль.
+          Введи логин студента.
           _Например:_ `verter`
         en: |
-          🕵️‍♂️ *Find a Peer*
+          🕵️ *Find a Peer*
 
-          Enter a student's nickname to view their profile.
+          Enter the student's login.
           _Example:_ `verter`
       buttons:
         - id: back
           label:
-            ru: 🔙 Отмена
-            en: 🔙 Cancel
+            ru: 🙅‍♂️ Отмена
+            en: 🙅‍♂️ Cancel
           next_state: STATS_SEARCH_MENU
     validation:
       regex: ^[a-z0-9_]{4,9}$
@@ -165,47 +174,65 @@ states:
     interface:
       text:
         ru: |
-          📂 *Профиль пира: {peer_login}*
+          📂 *Пир: {peer_login}*
+          📍 {peer_campus}
+          🎓 {peer_class} | {peer_coalition}
+          ⚙️ {peer_status} | {peer_parallel}
 
-          📍 `{peer_campus}` | 🛡 `{peer_coalition}`
+          📊 *Показатели:*
+          • Уровень: `{peer_level}`
+          • Опыт: `{peer_exp} XP`
+          • Коины: `{peer_coins} ₡`
+          • PRP: `{peer_prps}` | CRP: `{peer_crps}`
 
-          📊 *Статистика:*
-          ├─ Уровень: `{peer_level}`
-          ├─ Опыт: `{peer_exp} XP`
-          └─ Баланс: `{peer_coins} 💰`
+          *Social:*
+          • ИНТ: `{peer_interest}` | ДОБ: `{peer_friendliness}`
+          • ПНК: `{peer_punctuality}` | СТР: `{peer_thoroughness}`
 
-          📞 *Связь:* @{peer_telegram}
+          📬 *Связь:* @{peer_telegram}
         en: |
-          📂 *Peer Profile: {peer_login}*
+          📂 *Peer: {peer_login}*
 
-          📍 `{peer_campus}` | 🛡 `{peer_coalition}`
+          📍 {peer_campus}
+          🎓 {peer_class} | {peer_coalition}
+          ⚙️ {peer_status} | {peer_parallel}
 
           📊 *Stats:*
-          ├─ Level: `{peer_level}`
-          ├─ XP: `{peer_exp}`
-          └─ Balance: `{peer_coins} 💰`
+          • Level: `{peer_level}`
+          • XP: `{peer_exp}`
+          • Coins: `{peer_coins} ₡`
+          • PRP: `{peer_prps}` | CRP: `{peer_crps}`
 
-          📞 *Contact:* @{peer_telegram}
+          *Social:*
+          • INT: `{peer_interest}` | FRD: `{peer_friendliness}`
+          • PNC: `{peer_punctuality}` | THO: `{peer_thoroughness}`
+
+          📬 *Contact:* @{peer_telegram}
       buttons:
-        - id: compare_stats
-          label:
-            ru: ⚔️ Сравнить статы
-            en: ⚔️ Compare stats
-          next_state: COMPARE_STATS
+        # Функция отключена
+        # 1. Надо нормально выводить текст
+        # 2. Если хочется сравнить, то можно посмотреть на свои немногочисленные показатели на предыдущем экране
+        # - id: compare_stats
+        #   label:
+        #     ru: ⚖️ Сравнить с собой
+        #     en: ⚖️ Compare with me
+        #   next_state: COMPARE_STATS
         - id: compare_skills
           label:
-            ru: 🕸️ Сравнить навыки
-            en: 🕸️ Compare skills
+            ru: 🕸 Сравнить навыки
+            en: 🕸 Compare skills
           next_state: COMPARE_SKILLS
         - id: new_search
           label:
-            ru: 🔍 Найти другого
+            ru: 🔍 Искать другого
             en: 🔍 Find another
+          row: 1
           next_state: SEARCH_INPUT
         - id: back
           label:
-            ru: 🔙 В меню
-            en: 🔙 To menu
+            ru: 🔙 В мой профиль
+            en: 🔙 My profile
+          row: 1
           next_state: STATS_SEARCH_MENU
 
   COMPARE_STATS:
@@ -214,26 +241,50 @@ states:
     interface:
       text:
         ru: |
-          ⚔️ *Сравнение показателей*
+          *Сравнение показателей*
 
-          🦁 *Ты* VS  🦄 *{peer_login}*
-          ──────────────────
-          🏅 *Lvl:* `{my_level}`  ⚡️  `{peer_level}`
-          ✨ *XP:* `{my_exp}`  ⚡️  `{peer_exp}`
-          💰 *Coins:* `{my_coins}`  ⚡️  `{peer_coins}`
+          🦁 *Ты* ...... 🦄 *{peer_login}*
+
+          {my_campus} | {peer_campus}
+          {my_coalition} | {peer_coalition}
+          {my_class} | {peer_class}
+          {my_status} | {peer_status}
+          {my_parallel} | {peer_parallel}
+
+          🏅 Lvl: `{my_level}` | `{peer_level}`
+          ✨ XP: `{my_exp}` | `{peer_exp}`
+          💰 Coins: `{my_coins}` | `{peer_coins}`
+
+          *Social:*
+          🧐 ИНТ: `{my_interest}` | `{peer_interest}`
+          🙂 ДОБ: `{my_friendliness}` | `{peer_friendliness}`
+          🕑 ПНК: `{my_punctuality}` | `{peer_punctuality}`
+          ⚖️ СТР: `{my_thoroughness}` | `{peer_thoroughness}`
         en: |
-          ⚔️ *Stats Comparison*
+          *Progress Comparison*
 
-          🦁 *You* VS  🦄 *{peer_login}*
-          ──────────────────
-          🏅 *Lvl:* `{my_level}`  ⚡️  `{peer_level}`
-          ✨ *XP:* `{my_exp}`  ⚡️  `{peer_exp}`
-          💰 *Coins:* `{my_coins}`  ⚡️  `{peer_coins}`
+          🦁 *You* ............... 🦄 *{peer_login}*
+          {my_campus} | {peer_campus}
+          {my_class} | {peer_class}
+          {my_coalition} | {peer_coalition}
+          {my_status} | {peer_status}
+          {my_parallel} | {peer_parallel}
+
+          🏅 Lvl: `{my_level}` | `{peer_level}`
+          ✨ XP: `{my_exp}` | `{peer_exp}`
+          💰 Coins: `{my_coins}` | `{peer_coins}`
+
+          *Social:*
+          🧐 INT: `{my_interest}` | `{peer_interest}`
+          🙂 FRD: `{my_friendliness}` | `{peer_friendliness}`
+          🕑 PNC: `{my_punctuality}` | `{peer_punctuality}`
+          ⚖️ THO: `{my_thoroughness}` | `{peer_thoroughness}`
+
       buttons:
         - id: back
           label:
-            ru: 🔙 К профилю пира
-            en: 🔙 To peer profile
+            ru: 🔙 Назад к пиру
+            en: 🔙 Back to peer
           next_state: DISPLAY_PEER_STATS
 
   COMPARE_SKILLS:
@@ -254,13 +305,13 @@ states:
     interface:
       text:
         ru: |
-          🕸️ *Битва скиллов*
+          🕸 *Наложение графов*
 
           🔵 Ты vs 🔴 {peer_login}
 
           {radar_comparison_mermaid}
         en: |
-          🕸️ *Skill Battle*
+          🕸 *Stack Overlay*
 
           🔵 You vs 🔴 {peer_login}
 
@@ -268,8 +319,8 @@ states:
       buttons:
         - id: back
           label:
-            ru: 🔙 К профилю пира
-            en: 🔙 To peer profile
+            ru: 🔙 Назад к пиру
+            en: 🔙 Back to peer
           next_state: DISPLAY_PEER_STATS
 
   ERROR_PEER_NOT_FOUND:
@@ -278,13 +329,15 @@ states:
     interface:
       text:
         ru: |
-          🤷‍♂️ *Пир не найден*
+          👻 *Пир не найден*
 
-          Мы искали везде, но пользователя с логином `{last_input}` не видно. Возможно, опечатка?
+          Мы не нашли `{last_input}` в базе.
+          Проверь, правильно ли написан логин (нужен именно Intra login, не Telegram).
         en: |
-          🤷‍♂️ *Peer not found*
+          👻 *Peer not found*
 
-          We looked everywhere, but `{last_input}` is nowhere to be seen. Maybe a typo?
+          We couldn't find `{last_input}`.
+          Check the spelling (we need the Intra login, not Telegram username).
       buttons:
         - id: retry
           label:
@@ -293,6 +346,6 @@ states:
           next_state: SEARCH_INPUT
         - id: back
           label:
-            ru: 🔙 В меню
-            en: 🔙 To menu
+            ru: 🔙 Отмена
+            en: 🔙 Cancel
           next_state: STATS_SEARCH_MENU

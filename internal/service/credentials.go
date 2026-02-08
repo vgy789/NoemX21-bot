@@ -181,6 +181,7 @@ func (s *CredentialService) Seed(ctx context.Context, cfg *config.Config) error 
 				Crp:                pgtype.Int4{Valid: false},
 				Coins:              pgtype.Int4{Valid: false},
 				ParallelName:       pgtype.Text{Valid: false},
+				ClassName:          pgtype.Text{Valid: false},
 			}
 
 			_, err = s.repo.UpsertStudent(ctx, upsertParams)

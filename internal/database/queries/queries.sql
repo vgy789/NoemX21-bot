@@ -17,9 +17,9 @@ SELECT * FROM students WHERE rocketchat_id = $1;
 INSERT INTO students (
     s21_login, rocketchat_id, campus_id, coalition_id, status, 
     timezone, alternative_contact, has_coffee_ban,
-    level, exp_value, prp, crp, coins, parallel_name
+    level, exp_value, prp, crp, coins, parallel_name, class_name
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
 )
 ON CONFLICT (s21_login) DO UPDATE SET
     rocketchat_id = COALESCE(EXCLUDED.rocketchat_id, students.rocketchat_id),
@@ -35,6 +35,7 @@ ON CONFLICT (s21_login) DO UPDATE SET
     crp = COALESCE(EXCLUDED.crp, students.crp),
     coins = COALESCE(EXCLUDED.coins, students.coins),
     parallel_name = COALESCE(EXCLUDED.parallel_name, students.parallel_name),
+    class_name = COALESCE(EXCLUDED.class_name, students.class_name),
     updated_at = CURRENT_TIMESTAMP
 RETURNING *;
 
@@ -46,6 +47,9 @@ UPDATE students SET
     crp = $5,
     coins = $6,
     coalition_id = $7,
+    status = $8,
+    parallel_name = $9,
+    class_name = $10,
     updated_at = CURRENT_TIMESTAMP
 WHERE s21_login = $1;
 
@@ -241,8 +245,7 @@ RETURNING *;
 -- name: UpsertSkill :one
 INSERT INTO skills (id, name, category)
 VALUES ($1, $2, $3)
-ON CONFLICT (id) DO UPDATE SET
-    name = EXCLUDED.name,
+ON CONFLICT (name) DO UPDATE SET
     category = EXCLUDED.category,
     updated_at = CURRENT_TIMESTAMP
 RETURNING *;
@@ -268,7 +271,10 @@ SELECT
     cool.name as coalition_name,
     s.level,
     s.exp_value,
-    s.coins
+    s.coins,
+    s.status,
+    s.parallel_name,
+    s.class_name
 FROM students s
 LEFT JOIN campuses c ON s.campus_id = c.id
 LEFT JOIN coalitions cool ON s.coalition_id = cool.id

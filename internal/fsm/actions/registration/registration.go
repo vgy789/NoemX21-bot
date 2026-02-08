@@ -174,6 +174,7 @@ func Register(
 				Crp:                pgtype.Int4{Valid: false},
 				Coins:              pgtype.Int4{Valid: false},
 				ParallelName:       pgtype.Text{Valid: false},
+				ClassName:          pgtype.Text{Valid: false},
 			})
 			if err != nil {
 				return "", nil, fmt.Errorf("failed to create student: %w", err)
@@ -195,6 +196,7 @@ func Register(
 				Crp:                student.Crp,
 				Coins:              student.Coins,
 				ParallelName:       student.ParallelName,
+				ClassName:          student.ClassName,
 			})
 			if err != nil {
 				return "", nil, fmt.Errorf("failed to update rocketchat id: %w", err)

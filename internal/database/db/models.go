@@ -250,6 +250,7 @@ type Student struct {
 	HasCoffeeBan       pgtype.Bool           `json:"has_coffee_ban"`
 	CreatedAt          pgtype.Timestamptz    `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz    `json:"updated_at"`
+	ClassName          pgtype.Text           `json:"class_name"`
 }
 
 type StudentSkill struct {

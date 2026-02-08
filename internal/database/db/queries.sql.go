@@ -269,7 +269,10 @@ SELECT
     cool.name as coalition_name,
     s.level,
     s.exp_value,
-    s.coins
+    s.coins,
+    s.status,
+    s.parallel_name,
+    s.class_name
 FROM students s
 LEFT JOIN campuses c ON s.campus_id = c.id
 LEFT JOIN coalitions cool ON s.coalition_id = cool.id
@@ -278,13 +281,16 @@ WHERE s.s21_login = $1
 `
 
 type GetPeerProfileRow struct {
-	S21Login         string      `json:"s21_login"`
-	TelegramUsername string      `json:"telegram_username"`
-	CampusName       pgtype.Text `json:"campus_name"`
-	CoalitionName    pgtype.Text `json:"coalition_name"`
-	Level            pgtype.Int4 `json:"level"`
-	ExpValue         pgtype.Int4 `json:"exp_value"`
-	Coins            pgtype.Int4 `json:"coins"`
+	S21Login         string                `json:"s21_login"`
+	TelegramUsername string                `json:"telegram_username"`
+	CampusName       pgtype.Text           `json:"campus_name"`
+	CoalitionName    pgtype.Text           `json:"coalition_name"`
+	Level            pgtype.Int4           `json:"level"`
+	ExpValue         pgtype.Int4           `json:"exp_value"`
+	Coins            pgtype.Int4           `json:"coins"`
+	Status           NullEnumStudentStatus `json:"status"`
+	ParallelName     pgtype.Text           `json:"parallel_name"`
+	ClassName        pgtype.Text           `json:"class_name"`
 }
 
 func (q *Queries) GetPeerProfile(ctx context.Context, s21Login string) (GetPeerProfileRow, error) {
@@ -298,6 +304,9 @@ func (q *Queries) GetPeerProfile(ctx context.Context, s21Login string) (GetPeerP
 		&i.Level,
 		&i.ExpValue,
 		&i.Coins,
+		&i.Status,
+		&i.ParallelName,
+		&i.ClassName,
 	)
 	return i, err
 }
@@ -342,7 +351,7 @@ func (q *Queries) GetRocketChatCredentials(ctx context.Context, studentID string
 }
 
 const getStudentByRocketChatId = `-- name: GetStudentByRocketChatId :one
-SELECT s21_login, rocketchat_id, campus_id, coalition_id, status, parallel_name, level, exp_value, prp, crp, coins, timezone, alternative_contact, has_coffee_ban, created_at, updated_at FROM students WHERE rocketchat_id = $1
+SELECT s21_login, rocketchat_id, campus_id, coalition_id, status, parallel_name, level, exp_value, prp, crp, coins, timezone, alternative_contact, has_coffee_ban, created_at, updated_at, class_name FROM students WHERE rocketchat_id = $1
 `
 
 func (q *Queries) GetStudentByRocketChatId(ctx context.Context, rocketchatID string) (Student, error) {
@@ -365,13 +374,14 @@ func (q *Queries) GetStudentByRocketChatId(ctx context.Context, rocketchatID str
 		&i.HasCoffeeBan,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ClassName,
 	)
 	return i, err
 }
 
 const getStudentByS21Login = `-- name: GetStudentByS21Login :one
 
-SELECT s21_login, rocketchat_id, campus_id, coalition_id, status, parallel_name, level, exp_value, prp, crp, coins, timezone, alternative_contact, has_coffee_ban, created_at, updated_at FROM students WHERE s21_login = $1
+SELECT s21_login, rocketchat_id, campus_id, coalition_id, status, parallel_name, level, exp_value, prp, crp, coins, timezone, alternative_contact, has_coffee_ban, created_at, updated_at, class_name FROM students WHERE s21_login = $1
 `
 
 // queries.sql
@@ -395,12 +405,13 @@ func (q *Queries) GetStudentByS21Login(ctx context.Context, s21Login string) (St
 		&i.HasCoffeeBan,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ClassName,
 	)
 	return i, err
 }
 
 const getStudentProfile = `-- name: GetStudentProfile :one
-SELECT s.s21_login, s.rocketchat_id, s.campus_id, s.coalition_id, s.status, s.parallel_name, s.level, s.exp_value, s.prp, s.crp, s.coins, s.timezone, s.alternative_contact, s.has_coffee_ban, s.created_at, s.updated_at, c.short_name as campus_name, cool.name as coalition_name
+SELECT s.s21_login, s.rocketchat_id, s.campus_id, s.coalition_id, s.status, s.parallel_name, s.level, s.exp_value, s.prp, s.crp, s.coins, s.timezone, s.alternative_contact, s.has_coffee_ban, s.created_at, s.updated_at, s.class_name, c.short_name as campus_name, cool.name as coalition_name
 FROM students s
 LEFT JOIN campuses c ON s.campus_id = c.id
 LEFT JOIN coalitions cool ON s.coalition_id = cool.id
@@ -424,6 +435,7 @@ type GetStudentProfileRow struct {
 	HasCoffeeBan       pgtype.Bool           `json:"has_coffee_ban"`
 	CreatedAt          pgtype.Timestamptz    `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz    `json:"updated_at"`
+	ClassName          pgtype.Text           `json:"class_name"`
 	CampusName         pgtype.Text           `json:"campus_name"`
 	CoalitionName      pgtype.Text           `json:"coalition_name"`
 }
@@ -448,6 +460,7 @@ func (q *Queries) GetStudentProfile(ctx context.Context, s21Login string) (GetSt
 		&i.HasCoffeeBan,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ClassName,
 		&i.CampusName,
 		&i.CoalitionName,
 	)
@@ -598,18 +611,24 @@ UPDATE students SET
     crp = $5,
     coins = $6,
     coalition_id = $7,
+    status = $8,
+    parallel_name = $9,
+    class_name = $10,
     updated_at = CURRENT_TIMESTAMP
 WHERE s21_login = $1
 `
 
 type UpdateStudentStatsParams struct {
-	S21Login    string      `json:"s21_login"`
-	Level       pgtype.Int4 `json:"level"`
-	ExpValue    pgtype.Int4 `json:"exp_value"`
-	Prp         pgtype.Int4 `json:"prp"`
-	Crp         pgtype.Int4 `json:"crp"`
-	Coins       pgtype.Int4 `json:"coins"`
-	CoalitionID pgtype.Int2 `json:"coalition_id"`
+	S21Login     string                `json:"s21_login"`
+	Level        pgtype.Int4           `json:"level"`
+	ExpValue     pgtype.Int4           `json:"exp_value"`
+	Prp          pgtype.Int4           `json:"prp"`
+	Crp          pgtype.Int4           `json:"crp"`
+	Coins        pgtype.Int4           `json:"coins"`
+	CoalitionID  pgtype.Int2           `json:"coalition_id"`
+	Status       NullEnumStudentStatus `json:"status"`
+	ParallelName pgtype.Text           `json:"parallel_name"`
+	ClassName    pgtype.Text           `json:"class_name"`
 }
 
 func (q *Queries) UpdateStudentStats(ctx context.Context, arg UpdateStudentStatsParams) error {
@@ -621,6 +640,9 @@ func (q *Queries) UpdateStudentStats(ctx context.Context, arg UpdateStudentStats
 		arg.Crp,
 		arg.Coins,
 		arg.CoalitionID,
+		arg.Status,
+		arg.ParallelName,
+		arg.ClassName,
 	)
 	return err
 }
@@ -858,8 +880,7 @@ func (q *Queries) UpsertRocketChatCredentials(ctx context.Context, arg UpsertRoc
 const upsertSkill = `-- name: UpsertSkill :one
 INSERT INTO skills (id, name, category)
 VALUES ($1, $2, $3)
-ON CONFLICT (id) DO UPDATE SET
-    name = EXCLUDED.name,
+ON CONFLICT (name) DO UPDATE SET
     category = EXCLUDED.category,
     updated_at = CURRENT_TIMESTAMP
 RETURNING id, name, category, created_at, updated_at
@@ -888,9 +909,9 @@ const upsertStudent = `-- name: UpsertStudent :one
 INSERT INTO students (
     s21_login, rocketchat_id, campus_id, coalition_id, status, 
     timezone, alternative_contact, has_coffee_ban,
-    level, exp_value, prp, crp, coins, parallel_name
+    level, exp_value, prp, crp, coins, parallel_name, class_name
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
 )
 ON CONFLICT (s21_login) DO UPDATE SET
     rocketchat_id = COALESCE(EXCLUDED.rocketchat_id, students.rocketchat_id),
@@ -906,8 +927,9 @@ ON CONFLICT (s21_login) DO UPDATE SET
     crp = COALESCE(EXCLUDED.crp, students.crp),
     coins = COALESCE(EXCLUDED.coins, students.coins),
     parallel_name = COALESCE(EXCLUDED.parallel_name, students.parallel_name),
+    class_name = COALESCE(EXCLUDED.class_name, students.class_name),
     updated_at = CURRENT_TIMESTAMP
-RETURNING s21_login, rocketchat_id, campus_id, coalition_id, status, parallel_name, level, exp_value, prp, crp, coins, timezone, alternative_contact, has_coffee_ban, created_at, updated_at
+RETURNING s21_login, rocketchat_id, campus_id, coalition_id, status, parallel_name, level, exp_value, prp, crp, coins, timezone, alternative_contact, has_coffee_ban, created_at, updated_at, class_name
 `
 
 type UpsertStudentParams struct {
@@ -925,6 +947,7 @@ type UpsertStudentParams struct {
 	Crp                pgtype.Int4           `json:"crp"`
 	Coins              pgtype.Int4           `json:"coins"`
 	ParallelName       pgtype.Text           `json:"parallel_name"`
+	ClassName          pgtype.Text           `json:"class_name"`
 }
 
 func (q *Queries) UpsertStudent(ctx context.Context, arg UpsertStudentParams) (Student, error) {
@@ -943,6 +966,7 @@ func (q *Queries) UpsertStudent(ctx context.Context, arg UpsertStudentParams) (S
 		arg.Crp,
 		arg.Coins,
 		arg.ParallelName,
+		arg.ClassName,
 	)
 	var i Student
 	err := row.Scan(
@@ -962,6 +986,7 @@ func (q *Queries) UpsertStudent(ctx context.Context, arg UpsertStudentParams) (S
 		&i.HasCoffeeBan,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.ClassName,
 	)
 	return i, err
 }

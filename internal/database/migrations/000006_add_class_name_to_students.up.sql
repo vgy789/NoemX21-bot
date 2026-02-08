@@ -1,0 +1,1 @@
+ALTER TABLE students ADD COLUMN class_name VARCHAR(100);
