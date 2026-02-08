@@ -79,10 +79,19 @@ type ChartOption struct {
 	Children []ChartOption
 	// The value formatter
 	ValueFormatter ValueFormatter
+	// The font size
+	FontSize float64
 }
 
 // OptionFunc option function
 type OptionFunc func(opt *ChartOption)
+
+// FontSizeOptionFunc set font size of chart
+func FontSizeOptionFunc(fontSize float64) OptionFunc {
+	return func(opt *ChartOption) {
+		opt.FontSize = fontSize
+	}
+}
 
 // SVGTypeOption set svg type of chart's output
 func SVGTypeOption() OptionFunc {
