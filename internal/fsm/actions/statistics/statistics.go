@@ -3,6 +3,7 @@ package statistics
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -71,10 +72,20 @@ func Register(
 		// 4. Save to DB
 		// Use specialized UpdateStudentStats if specific fields are present
 		updateParams := db.UpdateStudentStatsParams{
-			S21Login: acc.StudentID,
-			Level:    pgtype.Int4{Int32: participant.Level, Valid: true},
-			ExpValue: pgtype.Int4{Int32: int32(participant.ExpValue), Valid: true},
+			S21Login:     acc.StudentID,
+			Level:        pgtype.Int4{Int32: participant.Level, Valid: true},
+			ExpValue:     pgtype.Int4{Int32: int32(participant.ExpValue), Valid: true},
+			Status:       db.NullEnumStudentStatus{EnumStudentStatus: db.EnumStudentStatus(participant.Status), Valid: true},
+			ParallelName: pgtype.Text{String: "", Valid: false},
+			ClassName:    pgtype.Text{String: "", Valid: false},
 		}
+		if participant.ParallelName != nil {
+			updateParams.ParallelName = pgtype.Text{String: *participant.ParallelName, Valid: true}
+		}
+		if participant.ClassName != nil {
+			updateParams.ClassName = pgtype.Text{String: *participant.ClassName, Valid: true}
+		}
+
 		if points != nil {
 			updateParams.Prp = pgtype.Int4{Int32: points.PeerReviewPoints, Valid: true}
 			updateParams.Crp = pgtype.Int4{Int32: points.CodeReviewPoints, Valid: true}
@@ -99,15 +110,48 @@ func Register(
 
 		// Fetch and save skills? Not easily possible due to missing IDs. Skipping for now.
 
+		feedback, err := s21Client.GetParticipantFeedback(ctx, token, acc.StudentID)
+		if err != nil {
+			log.Error("failed to get feedback from API", "login", acc.StudentID, "error", err)
+		}
+
 		// 5. Prepare variables
 		vars := map[string]interface{}{
-			"my_s21login":  participant.Login,
-			"my_exp":       participant.ExpValue,
-			"my_level":     participant.Level,
-			"my_campus":    participant.Campus.ShortName,
-			"my_coalition": "Нет коалиции",
+			"my_s21login":     participant.Login,
+			"my_exp":          participant.ExpValue,
+			"my_level":        participant.Level,
+			"my_campus":       participant.Campus.ShortName,
+			"my_status":       participant.Status,
+			"my_coalition":    "Нет коалиции",
+			"my_interest":     "0.00",
+			"my_friendliness": "0.00",
+			"my_punctuality":  "0.00",
+			"my_thoroughness": "0.00",
+			"peer_status":     "—", // Placeholder as it's used in the template
 		}
-		log.Info("get_user_stats vars", "vars", vars)
+
+		if participant.ClassName != nil {
+			vars["my_class"] = *participant.ClassName
+		} else {
+			vars["my_class"] = "—"
+		}
+		if participant.ParallelName != nil {
+			vars["my_parallel"] = *participant.ParallelName
+		} else {
+			vars["my_parallel"] = "—"
+		}
+
+		if feedback != nil {
+			log.Info("got feedback from API", "interest", feedback.Integrity, "friendliness", feedback.Friendliness, "punctuality", feedback.Punctuality, "thoroughness", feedback.Thoroughness)
+			vars["my_interest"] = fmt.Sprintf("%.2f", feedback.Integrity)
+			vars["my_friendliness"] = fmt.Sprintf("%.2f", feedback.Friendliness)
+			vars["my_punctuality"] = fmt.Sprintf("%.2f", feedback.Punctuality)
+			vars["my_thoroughness"] = fmt.Sprintf("%.2f", feedback.Thoroughness)
+		} else {
+			log.Warn("feedback from API is nil", "login", acc.StudentID)
+		}
+
+		log.Info("get_user_stats vars final", "vars", vars)
 
 		if points != nil {
 			vars["my_prps"] = points.PeerReviewPoints
@@ -145,35 +189,151 @@ func Register(
 
 		points, _ := s21Client.GetParticipantPoints(ctx, token, login)
 		coalition, _ := s21Client.GetParticipantCoalition(ctx, token, login)
+		feedback, _ := s21Client.GetParticipantFeedback(ctx, token, login)
 
 		// 3. Prepare variables
 		vars := map[string]interface{}{
-			"peer_found":     true,
-			"peer_login":     participant.Login,
-			"peer_campus":    participant.Campus.ShortName,
-			"peer_coalition": "Нет коалиции",
-			"peer_level":     participant.Level,
-			"peer_exp":       participant.ExpValue,
-			"peer_coins":     0,
-			"peer_telegram":  "",
-			"peer_id":        0,
+			"peer_found":        true,
+			"peer_login":        participant.Login,
+			"peer_campus":       participant.Campus.ShortName,
+			"peer_coalition":    "Нет коалиции",
+			"peer_level":        participant.Level,
+			"peer_exp":          participant.ExpValue,
+			"peer_status":       participant.Status,
+			"peer_coins":        0,
+			"peer_telegram":     "",
+			"peer_id":           0,
+			"peer_interest":     "0.00",
+			"peer_friendliness": "0.00",
+			"peer_punctuality":  "0.00",
+			"peer_thoroughness": "0.00",
+			"peer_prps":         0,
+			"peer_crps":         0,
+			"my_status":         "—",
+			"my_class":          "—",
+			"my_parallel":       "—",
+			"my_campus":         "—",
+			"my_coalition":      "—",
+			"my_level":          0,
+			"my_exp":            0,
+			"my_interest":       "0.00",
+			"my_friendliness":   "0.00",
+			"my_punctuality":    "0.00",
+			"my_thoroughness":   "0.00",
+			"my_prps":           0,
+			"my_crps":           0,
+		}
+
+		// Fill current user info for comparison
+		userAcc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
+			Platform:   db.EnumPlatformTelegram,
+			ExternalID: fmt.Sprintf("%d", userID),
+		})
+		if err == nil {
+			// Try API for current user to get fresh stats and social metrics
+			myParticipant, pErr := s21Client.GetParticipant(ctx, token, userAcc.StudentID)
+			myPoints, _ := s21Client.GetParticipantPoints(ctx, token, userAcc.StudentID)
+			myCoalition, _ := s21Client.GetParticipantCoalition(ctx, token, userAcc.StudentID)
+			myFeedback, _ := s21Client.GetParticipantFeedback(ctx, token, userAcc.StudentID)
+
+			if pErr == nil {
+				vars["my_status"] = myParticipant.Status
+				vars["my_level"] = myParticipant.Level
+				vars["my_exp"] = myParticipant.ExpValue
+				vars["my_campus"] = myParticipant.Campus.ShortName
+				if myParticipant.ClassName != nil {
+					vars["my_class"] = *myParticipant.ClassName
+				}
+				if myParticipant.ParallelName != nil {
+					vars["my_parallel"] = *myParticipant.ParallelName
+				}
+			} else {
+				// Fallback to DB
+				userProfile, err := queries.GetStudentProfile(ctx, userAcc.StudentID)
+				if err == nil {
+					vars["my_status"] = string(userProfile.Status.EnumStudentStatus)
+					vars["my_level"] = userProfile.Level.Int32
+					vars["my_exp"] = userProfile.ExpValue.Int32
+					vars["my_prps"] = userProfile.Prp.Int32
+					vars["my_crps"] = userProfile.Crp.Int32
+					if userProfile.ClassName.Valid {
+						vars["my_class"] = userProfile.ClassName.String
+					}
+					if userProfile.ParallelName.Valid {
+						vars["my_parallel"] = userProfile.ParallelName.String
+					}
+					if userProfile.CampusName.Valid {
+						vars["my_campus"] = userProfile.CampusName.String
+					}
+					if userProfile.CoalitionName.Valid {
+						vars["my_coalition"] = userProfile.CoalitionName.String
+					}
+				}
+			}
+
+			if myPoints != nil {
+				vars["my_prps"] = myPoints.PeerReviewPoints
+				vars["my_crps"] = myPoints.CodeReviewPoints
+				vars["my_coins"] = myPoints.Coins
+			}
+			if myCoalition != nil {
+				vars["my_coalition"] = myCoalition.CoalitionName
+			}
+			if myFeedback != nil {
+				vars["my_interest"] = fmt.Sprintf("%.2f", myFeedback.Integrity)
+				vars["my_friendliness"] = fmt.Sprintf("%.2f", myFeedback.Friendliness)
+				vars["my_punctuality"] = fmt.Sprintf("%.2f", myFeedback.Punctuality)
+				vars["my_thoroughness"] = fmt.Sprintf("%.2f", myFeedback.Thoroughness)
+			}
+		}
+
+		if participant.ClassName != nil {
+			vars["peer_class"] = *participant.ClassName
+		} else {
+			vars["peer_class"] = "—"
+		}
+		if participant.ParallelName != nil {
+			vars["peer_parallel"] = *participant.ParallelName
+		} else {
+			vars["peer_parallel"] = "—"
 		}
 
 		if points != nil {
 			vars["peer_coins"] = points.Coins
+			vars["peer_prps"] = points.PeerReviewPoints
+			vars["peer_crps"] = points.CodeReviewPoints
 		}
 		if coalition != nil {
 			vars["peer_coalition"] = coalition.CoalitionName
 		}
+		if feedback != nil {
+			log.Info("got peer feedback from API", "login", login, "interest", feedback.Integrity, "friendliness", feedback.Friendliness, "punctuality", feedback.Punctuality, "thoroughness", feedback.Thoroughness)
+			vars["peer_interest"] = fmt.Sprintf("%.2f", feedback.Integrity)
+			vars["peer_friendliness"] = fmt.Sprintf("%.2f", feedback.Friendliness)
+			vars["peer_punctuality"] = fmt.Sprintf("%.2f", feedback.Punctuality)
+			vars["peer_thoroughness"] = fmt.Sprintf("%.2f", feedback.Thoroughness)
+		} else {
+			log.Warn("peer feedback from API is nil", "login", login)
+		}
 
-		// 4. Update DB if peer exists in our records
+		log.Info("get_peer_data_with_permissions vars final", "vars", vars)
 		_, err = queries.GetStudentByS21Login(ctx, login)
 		if err == nil {
 			updateParams := db.UpdateStudentStatsParams{
-				S21Login: login,
-				Level:    pgtype.Int4{Int32: participant.Level, Valid: true},
-				ExpValue: pgtype.Int4{Int32: int32(participant.ExpValue), Valid: true},
+				S21Login:     login,
+				Level:        pgtype.Int4{Int32: participant.Level, Valid: true},
+				ExpValue:     pgtype.Int4{Int32: int32(participant.ExpValue), Valid: true},
+				Status:       db.NullEnumStudentStatus{EnumStudentStatus: db.EnumStudentStatus(participant.Status), Valid: true},
+				ParallelName: pgtype.Text{String: "", Valid: false},
+				ClassName:    pgtype.Text{String: "", Valid: false},
 			}
+			if participant.ParallelName != nil {
+				updateParams.ParallelName = pgtype.Text{String: *participant.ParallelName, Valid: true}
+			}
+			if participant.ClassName != nil {
+				updateParams.ClassName = pgtype.Text{String: *participant.ClassName, Valid: true}
+			}
+
 			if points != nil {
 				updateParams.Prp = pgtype.Int4{Int32: points.PeerReviewPoints, Valid: true}
 				updateParams.Crp = pgtype.Int4{Int32: points.CodeReviewPoints, Valid: true}
@@ -227,6 +387,23 @@ func Register(
 				skillMap := make(map[string]int32)
 				for _, s := range skillsResp.Skills {
 					skillMap[s.Name] = s.Points
+					// Save to DB
+					hash := fnv.New32a()
+					hash.Write([]byte(s.Name))
+					skillID := int32(hash.Sum32())
+
+					skill, err := queries.UpsertSkill(ctx, db.UpsertSkillParams{
+						ID:       skillID,
+						Name:     s.Name,
+						Category: pgtype.Text{String: "General", Valid: true},
+					})
+					if err == nil {
+						_ = queries.UpsertStudentSkill(ctx, db.UpsertStudentSkillParams{
+							StudentID: acc.StudentID,
+							SkillID:   skill.ID,
+							Value:     s.Points,
+						})
+					}
 				}
 				return "", map[string]interface{}{
 					"my_skills": skillMap,
@@ -266,13 +443,25 @@ func Register(
 		}
 
 		mermaid := "```mermaid\npie title Навыки\n"
+		hasData := false
 
 		for _, uRaw := range usersRaw {
 			var login string
 
 			switch v := uRaw.(type) {
 			case string:
-				login = v
+				if v == "$context.user_id" {
+					// Handle unparsed variable from FSM
+					acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
+						Platform:   db.EnumPlatformTelegram,
+						ExternalID: fmt.Sprintf("%d", userID),
+					})
+					if err == nil {
+						login = acc.StudentID
+					}
+				} else {
+					login = v
+				}
 			case int64:
 				// Try to get login from ID
 				acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
@@ -293,8 +482,11 @@ func Register(
 			}
 
 			if login == "" {
+				log.Warn("login is empty in generate_radar_chart", "uRaw", uRaw)
 				continue
 			}
+
+			log.Info("generating radar chart for", "login", login)
 
 			// Try API if we have a token
 			var skillsMap map[string]int32
@@ -304,38 +496,55 @@ func Register(
 					skillsMap = make(map[string]int32)
 					for _, s := range skillsResp.Skills {
 						skillsMap[s.Name] = s.Points
+
+						// While we are here, save to DB if it's the current user or someone we care about
+						hash := fnv.New32a()
+						hash.Write([]byte(s.Name))
+						skillID := int32(hash.Sum32())
+
+						skill, _ := queries.UpsertSkill(ctx, db.UpsertSkillParams{
+							ID:       skillID,
+							Name:     s.Name,
+							Category: pgtype.Text{String: "General", Valid: true},
+						})
+						_ = queries.UpsertStudentSkill(ctx, db.UpsertStudentSkillParams{
+							StudentID: login,
+							SkillID:   skill.ID,
+							Value:     s.Points,
+						})
 					}
+					log.Info("got skills from API", "login", login, "count", len(skillsMap))
+				} else {
+					log.Error("failed to get skills from API", "login", login, "error", err)
 				}
 			}
 
 			// Fallback to DB
 			if skillsMap == nil {
-				skills, _ := queries.GetStudentSkills(ctx, login)
-				if len(skills) > 0 {
+				skills, err := queries.GetStudentSkills(ctx, login)
+				if err == nil && len(skills) > 0 {
 					skillsMap = make(map[string]int32)
 					for _, s := range skills {
 						skillsMap[s.Name] = s.Value
 					}
+					log.Info("got skills from DB", "login", login, "count", len(skillsMap))
+				} else {
+					log.Warn("no skills found in DB", "login", login, "error", err)
 				}
 			}
 
-			if skillsMap != nil {
-				// For radar chart, we usually want top skills or grouped.
-				// But mermaid pie chart (as used here) just takes values.
-				// Wait, the action name is "generate_radar_chart" but it generates "pie"?
-				// The user asked for "radar chart". Mermaid doesn't support radar charts natively comfortably in all versions?
-				// Actually, `quadrantChart` or similar might be better, or `xychart`.
-				// But let's stick to what was there: "pie title Skills".
-
-				// To avoid overcrowding, maybe limit to top 5?
-				// Or just dump all.
+			if skillsMap != nil && len(skillsMap) > 0 {
+				hasData = true
 				for name, val := range skillsMap {
-					// sanitize name
-					mermaid += fmt.Sprintf("    \"%s (%s)\" : %d\n", name, login, val)
+					mermaid += fmt.Sprintf("    \"%s\" : %d\n", name, val)
 				}
 			}
 		}
 		mermaid += "```"
+
+		if !hasData {
+			mermaid = ""
+		}
 
 		return "", map[string]interface{}{
 			"radar_chart_mermaid":      mermaid,
@@ -352,14 +561,22 @@ func getStatsFromDB(ctx context.Context, studentID string, queries db.Querier, l
 	}
 
 	vars := map[string]interface{}{
-		"my_s21login":  profile.S21Login,
-		"my_exp":       profile.ExpValue.Int32,
-		"my_level":     profile.Level.Int32,
-		"my_prps":      profile.Prp.Int32,
-		"my_crps":      profile.Crp.Int32,
-		"my_coins":     profile.Coins.Int32,
-		"my_campus":    "Неизвестный кампус",
-		"my_coalition": "Нет коалиции",
+		"my_s21login":     profile.S21Login,
+		"my_exp":          profile.ExpValue.Int32,
+		"my_level":        profile.Level.Int32,
+		"my_prps":         profile.Prp.Int32,
+		"my_crps":         profile.Crp.Int32,
+		"my_coins":        profile.Coins.Int32,
+		"my_campus":       "Неизвестный кампус",
+		"my_coalition":    "Нет коалиции",
+		"my_status":       string(profile.Status.EnumStudentStatus),
+		"my_class":        "—",
+		"my_parallel":     "—",
+		"my_interest":     "0.00",
+		"my_friendliness": "0.00",
+		"my_punctuality":  "0.00",
+		"my_thoroughness": "0.00",
+		"peer_status":     "—",
 	}
 
 	if profile.CampusName.Valid {
@@ -367,6 +584,12 @@ func getStatsFromDB(ctx context.Context, studentID string, queries db.Querier, l
 	}
 	if profile.CoalitionName.Valid {
 		vars["my_coalition"] = profile.CoalitionName.String
+	}
+	if profile.ClassName.Valid {
+		vars["my_class"] = profile.ClassName.String
+	}
+	if profile.ParallelName.Valid {
+		vars["my_parallel"] = profile.ParallelName.String
 	}
 
 	return "", vars, nil
@@ -381,15 +604,23 @@ func getPeerStatsFromDB(ctx context.Context, login string, queries db.Querier, l
 	}
 
 	vars := map[string]interface{}{
-		"peer_found":     true,
-		"peer_login":     profile.S21Login,
-		"peer_campus":    "Неизвестный кампус",
-		"peer_coalition": "Нет коалиции",
-		"peer_level":     profile.Level.Int32,
-		"peer_exp":       profile.ExpValue.Int32,
-		"peer_coins":     profile.Coins.Int32,
-		"peer_telegram":  profile.TelegramUsername,
-		"peer_id":        0,
+		"peer_found":        true,
+		"peer_login":        profile.S21Login,
+		"peer_campus":       "Неизвестный кампус",
+		"peer_coalition":    "Нет коалиции",
+		"peer_level":        profile.Level.Int32,
+		"peer_exp":          profile.ExpValue.Int32,
+		"peer_coins":        profile.Coins.Int32,
+		"peer_telegram":     profile.TelegramUsername,
+		"peer_status":       string(profile.Status.EnumStudentStatus),
+		"peer_class":        "—",
+		"peer_parallel":     "—",
+		"peer_id":           0,
+		"peer_interest":     "0.00",
+		"peer_friendliness": "0.00",
+		"peer_punctuality":  "0.00",
+		"peer_thoroughness": "0.00",
+		"my_status":         "—",
 	}
 
 	if profile.CampusName.Valid {
@@ -397,6 +628,12 @@ func getPeerStatsFromDB(ctx context.Context, login string, queries db.Querier, l
 	}
 	if profile.CoalitionName.Valid {
 		vars["peer_coalition"] = profile.CoalitionName.String
+	}
+	if profile.ClassName.Valid {
+		vars["peer_class"] = profile.ClassName.String
+	}
+	if profile.ParallelName.Valid {
+		vars["peer_parallel"] = profile.ParallelName.String
 	}
 
 	acc, err := queries.GetUserAccountByStudentId(ctx, login)

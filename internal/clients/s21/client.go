@@ -85,6 +85,13 @@ func NewClientForTest(apiBaseURL, authBaseURL string, hc *http.Client) *Client {
 	return &Client{baseURL: apiBaseURL, authURL: authURL, httpClient: hc}
 }
 
+type ParticipantFeedbackV1DTO struct {
+	Integrity    float64 `json:"averageVerifierInterest"`
+	Friendliness float64 `json:"averageVerifierFriendliness"`
+	Punctuality  float64 `json:"averageVerifierPunctuality"`
+	Thoroughness float64 `json:"averageVerifierThoroughness"`
+}
+
 func (c *Client) GetParticipant(ctx context.Context, token string, login string) (*ParticipantV1DTO, error) {
 	apiUrl := fmt.Sprintf("%s/participants/%s", c.baseURL, url.PathEscape(login))
 	return getJSON[ParticipantV1DTO](ctx, c.httpClient, apiUrl, token)
@@ -103,6 +110,11 @@ func (c *Client) GetParticipantSkills(ctx context.Context, token string, login s
 func (c *Client) GetParticipantCoalition(ctx context.Context, token string, login string) (*ParticipantCoalitionV1DTO, error) {
 	apiUrl := fmt.Sprintf("%s/participants/%s/coalition", c.baseURL, url.PathEscape(login))
 	return getJSON[ParticipantCoalitionV1DTO](ctx, c.httpClient, apiUrl, token)
+}
+
+func (c *Client) GetParticipantFeedback(ctx context.Context, token string, login string) (*ParticipantFeedbackV1DTO, error) {
+	apiUrl := fmt.Sprintf("%s/participants/%s/feedback", c.baseURL, url.PathEscape(login))
+	return getJSON[ParticipantFeedbackV1DTO](ctx, c.httpClient, apiUrl, token)
 }
 
 func getJSON[T any](ctx context.Context, httpClient *http.Client, apiUrl string, token string) (*T, error) {
@@ -126,8 +138,10 @@ func getJSON[T any](ctx context.Context, httpClient *http.Client, apiUrl string,
 	}
 
 	if resp.StatusCode != http.StatusOK {
+		fmt.Printf("DEBUG: API Error Body from %s: %s\n", apiUrl, string(bodyBytes))
 		return nil, fmt.Errorf("API error: status %d, url: %s, body: %s", resp.StatusCode, apiUrl, string(bodyBytes))
 	}
+	fmt.Printf("DEBUG: API Success Body from %s: %s\n", apiUrl, string(bodyBytes))
 
 	var data T
 	if err := json.Unmarshal(bodyBytes, &data); err != nil {
