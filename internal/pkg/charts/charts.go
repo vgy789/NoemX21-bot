@@ -434,6 +434,7 @@ func Render(opt ChartOption, opts ...OptionFunc) (*Painter, error) {
 				Font:  opt.font,
 				// 相应值
 				RadarIndicators: opt.RadarIndicators,
+				RadarDomains:    opt.RadarDomains,
 				FontSize:        opt.FontSize,
 			}).render(renderResult, radarSeriesList)
 			return err

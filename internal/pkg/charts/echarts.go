@@ -61,7 +61,7 @@ type EChartStyle struct {
 }
 
 func (es *EChartStyle) ToStyle() Style {
-	color := parseColor(es.Color)
+	color := ParseColor(es.Color)
 	return Style{
 		FillColor:   color,
 		FontColor:   color,
@@ -345,7 +345,7 @@ func (esList EChartsSeriesList) ToSeriesList() SeriesList {
 					Max:  item.Max,
 					Min:  item.Min,
 					Label: SeriesLabel{
-						Color:    parseColor(item.Label.Color),
+						Color:    ParseColor(item.Label.Color),
 						Show:     item.Label.Show,
 						Distance: item.Label.Distance,
 					},
@@ -366,7 +366,7 @@ func (esList EChartsSeriesList) ToSeriesList() SeriesList {
 			AxisIndex: item.YAxisIndex,
 			Style:     item.ItemStyle.ToStyle(),
 			Label: SeriesLabel{
-				Color:    parseColor(item.Label.Color),
+				Color:    ParseColor(item.Label.Color),
 				Show:     item.Label.Show,
 				Distance: item.Label.Distance,
 			},
@@ -387,7 +387,7 @@ type EChartsTextStyle struct {
 func (et *EChartsTextStyle) ToStyle() chart.Style {
 	s := chart.Style{
 		FontSize:  et.FontSize,
-		FontColor: parseColor(et.Color),
+		FontColor: ParseColor(et.Color),
 	}
 	if et.FontFamily != "" {
 		s.Font, _ = GetFont(et.FontFamily)
@@ -489,7 +489,7 @@ func (eo *EChartsOption) ToOption() ChartOption {
 			Min:       item.Min,
 			Max:       item.Max,
 			Formatter: item.AxisLabel.Formatter,
-			Color:     parseColor(item.AxisLine.LineStyle.Color),
+			Color:     ParseColor(item.AxisLine.LineStyle.Color),
 			Data:      item.Data,
 		}
 	}

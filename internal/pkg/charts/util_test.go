@@ -154,10 +154,10 @@ func TestConvertPercent(t *testing.T) {
 func TestParseColor(t *testing.T) {
 	assert := assert.New(t)
 
-	c := parseColor("")
+	c := ParseColor("")
 	assert.True(c.IsZero())
 
-	c = parseColor("#333")
+	c = ParseColor("#333")
 	assert.Equal(drawing.Color{
 		R: 51,
 		G: 51,
@@ -165,7 +165,7 @@ func TestParseColor(t *testing.T) {
 		A: 255,
 	}, c)
 
-	c = parseColor("#313233")
+	c = ParseColor("#313233")
 	assert.Equal(drawing.Color{
 		R: 49,
 		G: 50,
@@ -173,7 +173,7 @@ func TestParseColor(t *testing.T) {
 		A: 255,
 	}, c)
 
-	c = parseColor("rgb(31,32,33)")
+	c = ParseColor("rgb(31,32,33)")
 	assert.Equal(drawing.Color{
 		R: 31,
 		G: 32,
@@ -181,7 +181,7 @@ func TestParseColor(t *testing.T) {
 		A: 255,
 	}, c)
 
-	c = parseColor("rgba(50,51,52,250)")
+	c = ParseColor("rgba(50,51,52,250)")
 	assert.Equal(drawing.Color{
 		R: 50,
 		G: 51,

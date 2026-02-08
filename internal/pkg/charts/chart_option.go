@@ -59,6 +59,8 @@ type ChartOption struct {
 	SeriesList SeriesList
 	// The radar indicator list
 	RadarIndicators []RadarIndicator
+	// The radar domain list
+	RadarDomains []RadarDomain
 	// The background color of chart
 	BackgroundColor Color
 	// The flag for show symbol of line, set this to *false will hide symbol
@@ -234,6 +236,13 @@ func ChildOptionFunc(child ...ChartOption) OptionFunc {
 func RadarIndicatorOptionFunc(names []string, values []float64) OptionFunc {
 	return func(opt *ChartOption) {
 		opt.RadarIndicators = NewRadarIndicators(names, values)
+	}
+}
+
+// RadarDomainsOptionFunc set radar domains of chart
+func RadarDomainsOptionFunc(domains []RadarDomain) OptionFunc {
+	return func(opt *ChartOption) {
+		opt.RadarDomains = domains
 	}
 }
 
