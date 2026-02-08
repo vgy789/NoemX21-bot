@@ -2,6 +2,7 @@ package telegram
 
 import (
 	"context"
+	"os"
 	"strings"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
@@ -137,6 +138,22 @@ func (s *telegramService) handleCallback(b *gotgbot.Bot, ctx *ext.Context) error
 }
 
 func (s *telegramService) sendRender(sender Sender, chatID int64, render *fsm.RenderObject) error {
+	if render.Image != "" {
+		f, err := os.Open(render.Image)
+		if err != nil {
+			s.log.Error("failed to open image", "path", render.Image, "error", err)
+		} else {
+			defer func() { _ = f.Close() }()
+			// Trying InputFileByReader as NamedFile was undefined
+			_, err = sender.SendPhoto(chatID, gotgbot.InputFileByReader("chart.png", f), &gotgbot.SendPhotoOpts{
+				Caption:     render.Text,
+				ParseMode:   "Markdown",
+				ReplyMarkup: buildMarkup(render.Buttons),
+			})
+			return err
+		}
+	}
+
 	_, err := sender.SendMessage(chatID, render.Text, &gotgbot.SendMessageOpts{
 		ParseMode:   "Markdown",
 		ReplyMarkup: buildMarkup(render.Buttons),
@@ -145,6 +162,12 @@ func (s *telegramService) sendRender(sender Sender, chatID int64, render *fsm.Re
 }
 
 func (s *telegramService) updateMessageRender(sender Sender, chatID int64, messageID int64, render *fsm.RenderObject) error {
+	if render.Image != "" {
+		s.log.Debug("render has image, switching to photo message", "image", render.Image)
+		_, _ = sender.DeleteMessage(chatID, messageID)
+		return s.sendRender(sender, chatID, render)
+	}
+
 	_, _, err := sender.EditMessageText(render.Text, &gotgbot.EditMessageTextOpts{
 		ChatId:      chatID,
 		MessageId:   messageID,
@@ -154,6 +177,12 @@ func (s *telegramService) updateMessageRender(sender Sender, chatID int64, messa
 	if err != nil && strings.Contains(err.Error(), "message is not modified") {
 		s.log.Debug("message not modified, ignoring error")
 		return nil
+	}
+	// If edit failed (e.g. trying to edit photo caption with text edit), try delete/send
+	if err != nil && !strings.Contains(err.Error(), "message is not modified") {
+		s.log.Warn("edit failed, fallback to delete/send", "error", err)
+		_, _ = sender.DeleteMessage(chatID, messageID)
+		return s.sendRender(sender, chatID, render)
 	}
 	return err
 }

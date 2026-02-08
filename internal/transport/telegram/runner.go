@@ -18,7 +18,9 @@ type TelegramService interface {
 // Sender defines interface for sending messages to Telegram.
 type Sender interface {
 	SendMessage(chatID int64, text string, opts *gotgbot.SendMessageOpts) (*gotgbot.Message, error)
+	SendPhoto(chatID int64, photo gotgbot.InputFile, opts *gotgbot.SendPhotoOpts) (*gotgbot.Message, error)
 	EditMessageText(text string, opts *gotgbot.EditMessageTextOpts) (*gotgbot.Message, bool, error)
+	DeleteMessage(chatID int64, messageID int64) (bool, error)
 	AnswerCallbackQuery(callbackQueryId string, opts *gotgbot.AnswerCallbackQueryOpts) (bool, error)
 }
 
@@ -31,8 +33,16 @@ func (s *DefaultSender) SendMessage(chatID int64, text string, opts *gotgbot.Sen
 	return s.Bot.SendMessage(chatID, text, opts)
 }
 
+func (s *DefaultSender) SendPhoto(chatID int64, photo gotgbot.InputFile, opts *gotgbot.SendPhotoOpts) (*gotgbot.Message, error) {
+	return s.Bot.SendPhoto(chatID, photo, opts)
+}
+
 func (s *DefaultSender) EditMessageText(text string, opts *gotgbot.EditMessageTextOpts) (*gotgbot.Message, bool, error) {
 	return s.Bot.EditMessageText(text, opts)
+}
+
+func (s *DefaultSender) DeleteMessage(chatID int64, messageID int64) (bool, error) {
+	return s.Bot.DeleteMessage(chatID, messageID, nil)
 }
 
 func (s *DefaultSender) AnswerCallbackQuery(id string, opts *gotgbot.AnswerCallbackQueryOpts) (bool, error) {

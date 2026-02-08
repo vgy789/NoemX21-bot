@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log/slog"
+	"strconv"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/vgy789/noemx21-bot/internal/clients/s21"
@@ -431,7 +433,6 @@ func Register(
 	registry.Register("generate_radar_chart", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
 		usersRaw, ok := payload["users"].([]interface{})
 		if !ok {
-			// Try single user? No, payload usually has list.
 			return "", nil, fmt.Errorf("users list not found in payload")
 		}
 
@@ -439,14 +440,14 @@ func Register(
 		token, err := credService.GetValidToken(ctx, cfg.Init.SchoolLogin)
 		if err != nil {
 			log.Warn("no valid token for chart generation, will use DB only")
-			// proceed with token=""
 		}
 
-		mermaid := "```mermaid\npie title Навыки\n"
-		hasData := false
+		usersData := make(map[string]map[string]int32)
 
 		for _, uRaw := range usersRaw {
 			var login string
+
+			log.Debug("processing user identifier", "raw", uRaw)
 
 			switch v := uRaw.(type) {
 			case string:
@@ -459,6 +460,23 @@ func Register(
 					if err == nil {
 						login = acc.StudentID
 					}
+				} else if v == "$context.peer_login" {
+					// Try to get from context if possible (though system actions don't have easy access to full context here,
+					// we can rely on the fact that peer_login should be passed as a resolved string if it worked)
+					log.Warn("peer_login reached action as unresolved placeholder", "v", v)
+					// We don't have the context here, so if it's not resolved by engine, we can't do much unless we pass it specifically.
+				} else if _, err := strconv.ParseInt(v, 10, 64); err == nil {
+					// If it's a numeric string, it's likely a Telegram user ID
+					acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
+						Platform:   db.EnumPlatformTelegram,
+						ExternalID: v,
+					})
+					if err == nil {
+						login = acc.StudentID
+					} else {
+						// Not found in DB, assume it might be a login that just happens to be numeric
+						login = v
+					}
 				} else {
 					login = v
 				}
@@ -466,7 +484,7 @@ func Register(
 				// Try to get login from ID
 				acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
 					Platform:   db.EnumPlatformTelegram,
-					ExternalID: fmt.Sprintf("%d", v),
+					ExternalID: strconv.FormatInt(v, 10),
 				})
 				if err == nil {
 					login = acc.StudentID
@@ -481,12 +499,12 @@ func Register(
 				}
 			}
 
-			if login == "" {
-				log.Warn("login is empty in generate_radar_chart", "uRaw", uRaw)
+			if login == "" || strings.HasPrefix(login, "$context.") {
+				log.Warn("login is empty or unresolved in generate_radar_chart", "uRaw", uRaw, "resolved", login)
 				continue
 			}
 
-			log.Info("generating radar chart for", "login", login)
+			log.Info("collecting skills for radar chart", "login", login)
 
 			// Try API if we have a token
 			var skillsMap map[string]int32
@@ -496,8 +514,7 @@ func Register(
 					skillsMap = make(map[string]int32)
 					for _, s := range skillsResp.Skills {
 						skillsMap[s.Name] = s.Points
-
-						// While we are here, save to DB if it's the current user or someone we care about
+						// Save to DB
 						hash := fnv.New32a()
 						hash.Write([]byte(s.Name))
 						skillID := int32(hash.Sum32())
@@ -533,22 +550,25 @@ func Register(
 				}
 			}
 
-			if skillsMap != nil && len(skillsMap) > 0 {
-				hasData = true
-				for name, val := range skillsMap {
-					mermaid += fmt.Sprintf("    \"%s\" : %d\n", name, val)
-				}
+			if skillsMap != nil {
+				usersData[login] = skillsMap
 			}
 		}
-		mermaid += "```"
 
-		if !hasData {
-			mermaid = ""
+		if len(usersData) == 0 {
+			log.Warn("no data found for any user in generate_radar_chart")
+			return "", nil, nil
+		}
+
+		chartPath, err := generateRadarChart(usersData)
+		if err != nil {
+			log.Error("failed to generate radar chart image", "error", err)
+			return "", nil, err
 		}
 
 		return "", map[string]interface{}{
-			"radar_chart_mermaid":      mermaid,
-			"radar_comparison_mermaid": mermaid,
+			"radar_chart_path":      chartPath,
+			"radar_comparison_path": chartPath,
 		}, nil
 	})
 }
@@ -598,6 +618,7 @@ func getStatsFromDB(ctx context.Context, studentID string, queries db.Querier, l
 func getPeerStatsFromDB(ctx context.Context, login string, queries db.Querier, log *slog.Logger) (string, map[string]interface{}, error) {
 	profile, err := queries.GetPeerProfile(ctx, login)
 	if err != nil {
+		log.Debug("peer not found in DB", "login", login, "error", err)
 		return "", map[string]interface{}{
 			"peer_found": false,
 		}, nil

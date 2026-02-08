@@ -24,7 +24,7 @@ func NewServer(cfg *config.Config, log *slog.Logger, queries db.Querier) *Server
 	mux := http.NewServeMux()
 	mux.HandleFunc("/api/v1/webhook/register", handler.Register)
 
-	port := 8081 // Default
+	port := cfg.APIServer.Port
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
