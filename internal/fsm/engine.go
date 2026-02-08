@@ -55,6 +55,7 @@ func (e *Engine) AddAlias(alias, target string) {
 // RenderObject represents the data to be sent to the user.
 type RenderObject struct {
 	Text    string
+	Image   string
 	Buttons [][]ButtonRender
 }
 
@@ -305,6 +306,16 @@ func (e *Engine) evaluateSystemState(ctx context.Context, spec *State, state *Us
 						} else {
 							payload[k] = v
 						}
+					case []interface{}:
+						newList := make([]interface{}, len(val))
+						for i, item := range val {
+							if s, ok := item.(string); ok {
+								newList[i] = e.replaceVariables(s, state)
+							} else {
+								newList[i] = item
+							}
+						}
+						payload[k] = newList
 					default:
 						payload[k] = v
 					}
@@ -480,9 +491,16 @@ func (e *Engine) renderState(userState *UserState, flowState *State) *RenderObje
 		}
 	}
 
+	// Image
+	imagePath := flowState.Interface.Image
+	if imagePath != "" {
+		imagePath = e.replaceVariablesOpts(imagePath, userState, false)
+	}
+
 	return &RenderObject{
 		Text:    text,
 		Buttons: buttons,
+		Image:   imagePath,
 	}
 }
 
@@ -504,6 +522,10 @@ func (e *Engine) getButtonLabel(btn Button, userState *UserState) string {
 
 // replaceVariables replaces {var} placeholders with values from UserState.Context or defaults
 func (e *Engine) replaceVariables(text string, state *UserState) string {
+	return e.replaceVariablesOpts(text, state, true)
+}
+
+func (e *Engine) replaceVariablesOpts(text string, state *UserState, sanitize bool) string {
 	replacements := e.getReplacementMap(state)
 
 	// Apply all replacements
@@ -513,9 +535,15 @@ func (e *Engine) replaceVariables(text string, state *UserState) string {
 	for key, val := range replacements {
 		if strings.Contains(result, key) {
 			e.log.Info("replacing template variable", "key", key, "val", val)
-			// Escape values using the configured sanitizer
-			escapedVal := e.sanitizer(val)
-			result = strings.ReplaceAll(result, key, escapedVal)
+
+			var finalVal string
+			if sanitize && e.sanitizer != nil {
+				finalVal = e.sanitizer(val)
+			} else {
+				finalVal = val
+			}
+
+			result = strings.ReplaceAll(result, key, finalVal)
 		}
 	}
 

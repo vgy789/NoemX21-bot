@@ -65,6 +65,36 @@ func (m *MockSender) EditMessageText(text string, opts *gotgbot.EditMessageTextO
 	return ret0, ret1, ret2
 }
 
+// DeleteMessage mocks base method.
+func (m *MockSender) DeleteMessage(chatID int64, messageID int64) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteMessage", chatID, messageID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteMessage indicates an expected call of DeleteMessage.
+func (mr *MockSenderMockRecorder) DeleteMessage(chatID, messageID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteMessage", reflect.TypeOf((*MockSender)(nil).DeleteMessage), chatID, messageID)
+}
+
+// SendPhoto mocks base method.
+func (m *MockSender) SendPhoto(chatID int64, photo gotgbot.InputFile, opts *gotgbot.SendPhotoOpts) (*gotgbot.Message, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SendPhoto", chatID, photo, opts)
+	ret0, _ := ret[0].(*gotgbot.Message)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SendPhoto indicates an expected call of SendPhoto.
+func (mr *MockSenderMockRecorder) SendPhoto(chatID, photo, opts any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendPhoto", reflect.TypeOf((*MockSender)(nil).SendPhoto), chatID, photo, opts)
+}
+
 // EditMessageText indicates an expected call of EditMessageText.
 func (mr *MockSenderMockRecorder) EditMessageText(text, opts any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()

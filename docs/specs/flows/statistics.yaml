@@ -102,19 +102,16 @@ states:
     type: interactive
     description: Отображение радар-диаграммы навыков
     interface:
+      image: "{radar_chart_path}"
       text:
         ru: |
           🕸 *Карта твоих навыков*
 
           Это визуализация твоего опыта на основе сданных проектов.
-
-          {radar_chart_mermaid}
         en: |
           🕸 *Your Skill Map*
 
           Visualization of your experience based on completed projects.
-
-          {radar_chart_mermaid}
       buttons:
         - id: update
           label:
@@ -295,7 +292,7 @@ states:
       payload:
         users:
           - $context.user_id
-          - $context.peer_id
+          - $context.peer_login
     transitions:
       - next_state: DISPLAY_SKILLS_COMPARISON
 
@@ -303,19 +300,16 @@ states:
     type: interactive
     description: Отображение сравнения навыков
     interface:
+      image: "{radar_comparison_path}"
       text:
         ru: |
           🕸 *Наложение графов*
 
           🔵 Ты vs 🔴 {peer_login}
-
-          {radar_comparison_mermaid}
         en: |
           🕸 *Stack Overlay*
 
           🔵 You vs 🔴 {peer_login}
-
-          {radar_comparison_mermaid}
       buttons:
         - id: back
           label:
