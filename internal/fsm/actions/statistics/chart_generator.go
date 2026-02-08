@@ -208,6 +208,10 @@ func generateRadarChart(usersData map[string]map[string]int32) (string, error) {
 		charts.TitleTextOptionFunc("Skills Comparison"),
 		charts.LegendLabelsOptionFunc(logins),
 		charts.RadarIndicatorOptionFunc(activeSkills, indicatorMaxValues),
+		charts.WidthOptionFunc(1000),
+		charts.HeightOptionFunc(800),
+		charts.FontSizeOptionFunc(8.0),
+		charts.PaddingOptionFunc(charts.Box{Top: 50, Right: 50, Bottom: 50, Left: 50}),
 	)
 	if err != nil {
 		return "", err
