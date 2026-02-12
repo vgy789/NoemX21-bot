@@ -1,20 +1,19 @@
 ---
 meta:
   feature_id: REG-001
-  name: Регистрация нового пользователя
-  description: Процесс создания аккаунта с валидацией через S21 API и проверкой OTP в Rocket.Chat
-  version: 2.3.0
+  name: Регистрация (Onboarding)
+  description: Валидация через S21 API + Rocket.Chat OTP
+  version: 2.4.0
 
-## интерфейс settings.yaml/SET_LANGUAGE и registration.yaml/SELECT_LANGUAGE должны совпадать
 initial_state: SELECT_LANGUAGE
 states:
   SELECT_LANGUAGE:
     type: interactive
-    description: Первый экран после /start. Выбор локализации.
+    description: Инициализация локализации
     interface:
       text:
-        en: 🌐 Выбери язык `/` Choose language
-        ru: 🌐 Выбери язык `/` Choose language
+        ru: "🌐 Выбери язык / Choose language"
+        en: "🌐 Выбери язык / Choose language"
       buttons:
         - id: set_ru
           label: 🇷🇺 Русский
@@ -27,7 +26,7 @@ states:
 
   START:
     type: system
-    description: Проверка статуса регистрации пользователя
+    description: Проверка текущей сессии
     logic:
       action: is_user_registered
     transitions:
@@ -35,41 +34,42 @@ states:
         next_state: MAIN_MENU
       - condition: registered == false
         next_state: INPUT_LOGIN
-      - next_state: INPUT_LOGIN
     interface:
       text:
-        ru: "⏳ Проверка регистрации..."
-        en: "⏳ Checking registration..."
+        ru: "🔍 *Auth Check:* Проверка статуса..."
+        en: "🔍 *Auth Check:* Verifying status..."
 
   INPUT_LOGIN:
     type: input
-    description: Ожидание ввода логина School21
+    description: Идентификация по логину S21
     interface:
       text:
         ru: |
-          👇 Введи свой логин School21 (например `verter`):
+          🔑 *Идентификация*
+
+          Укажи свой School21 Login:
+          _Пример:_ `verter`
         en: |
-          👇 Enter your School21 login (example `verter`):
+          🔑 *Identification*
+
+          Specify your School21 Login:
+          _Example:_ `verter`
       error_invalid:
         ru: |
-          ⚠️ Неверный формат!
-
-          👇 *Попробуй ещё раз:*
+          ⚠️ *Format Error:* Неверный формат логина.
+          👇 Попробуй ввести снова:
         en: |
-          ⚠️ Invalid format!
-
-          👇 *Try again:*
+          ⚠️ *Format Error:* Invalid login format.
+          👇 Try again:
     validation:
       regex: ^[a-z]{4,9}$
     transitions:
       - trigger: on_valid_input
         next_state: VALIDATE_VIA_API
-      - trigger: on_invalid_input
-        next_state: ERROR_NOT_FOUND
 
   VALIDATE_VIA_API:
     type: system
-    description: Проверка существования пользователя в системе Школы
+    description: Синхронизация с API Школы
     logic:
       action: validate_school21_user
       payload:
@@ -88,217 +88,8 @@ states:
       - next_state: ERROR_API
     interface:
       text:
-        ru: "⏳ Проверяю логин..."
-        en: "⏳ Verifying login..."
-
-  FIND_ROCKET_USER:
-    type: system
-    description: Поиск пользователя в Rocket.Chat с проверкой email для защиты от подмены никнейма
-    # security_note: Email verification защищает от race condition. Злоумышленник может сменить nickname, но не может подделать verified email
-    logic:
-      action: find_and_verify_rocket_user
-      payload:
-        login: $context.last_input
-    # checks:
-    #   - name: User exists in RocketChat
-    #     api_call: GET /api/v1/users.info?username={login}
-    #     required: true
-    #   - name: Email verification (CRITICAL SECURITY CHECK)
-    #     description: Проверка что email совпадает с School21 email и verified
-    #     steps:
-    #       - Extract user.emails[0].address from RocketChat response
-    #       - 'Verify format: {login}@student.21-school.ru'
-    #       - Verify user.emails[0].verified == true
-    #     critical: true
-    transitions:
-      - condition: rocket_user_found == true && email_verified == true
-        # security_level: SAFE
-        next_state: GENERATE_OTP
-      - condition: rocket_user_found == true && email_mismatch == true
-        # security_level: CRITICAL_REJECT
-        next_state: ERROR_EMAIL_MISMATCH
-      - condition: rocket_user_not_found == true
-        next_state: ROCKET_USER_NOT_FOUND
-      - condition: rocket_api_error == true
-        next_state: ROCKET_API_ERROR
-      - condition: email_already_registered == true
-        next_state: ERROR_EMAIL_ALREADY_REGISTERED
-      - next_state: ROCKET_API_ERROR
-    interface:
-      text:
-        ru: "⏳ Ищу тебя в Rocket.Chat..."
-        en: "⏳ Looking for you in Rocket.Chat..."
-
-  GENERATE_OTP:
-    type: system
-    description: Генерация и отправка OTP кода в Rocket.Chat
-    logic:
-      action: generate_otp
-      payload:
-        login: $context.s21_login
-    transitions:
-      - condition: otp_sent == true
-        next_state: PREPARE_AWAITING_OTP
-      - condition: otp_rate_limited == true
-        next_state: SET_RATE_LIMIT_ERROR
-      - condition: otp_sent == false
-        next_state: ERROR_OTP_SEND_FAILED
-      - next_state: ERROR_OTP_SEND_FAILED
-    interface:
-      text:
-        ru: "🔐 Генерирую код безопасности..."
-        en: "🔐 Generating security code..."
-
-  PREPARE_AWAITING_OTP:
-    type: system
-    description: Установка начальных настроек для ввода OTP
-    logic:
-      action: set_variables
-      payload:
-        last_input_invalid: false
-        error_reason:
-          ru: "Неверный формат! Нужно ввести 6 цифр."
-          en: "Invalid format! 6 digits expected."
-    transitions:
-      - next_state: AWAITING_OTP
-
-  SET_RATE_LIMIT_ERROR:
-    type: system
-    description: Настройка сообщения о лимите отправки OTP
-    logic:
-      action: set_variables
-      payload:
-        last_input_invalid: true
-        error_reason:
-          ru: "Подожди немного перед повторным запросом кода (еще {otp_retry_after_secs} сек)."
-          en: "Please wait before requesting code again (wait {otp_retry_after_secs} more sec)."
-    transitions:
-      - next_state: AWAITING_OTP
-
-  AWAITING_OTP:
-    # requirement: Безопасная обработка OTP-кодов в памяти и при передаче (см. security_policy.yaml)
-    type: input
-    description: Ввод OTP-кода, отправленного в Rocket.Chat
-    interface:
-      text:
-        ru: |
-          🔐 Код подтверждения отправлен в Rocket.Chat.
-
-          👇 *Введи его для завершения регистрации:*
-        en: |
-          🔐 A confirmation code was sent to your Rocket.Chat account.
-
-          👇 *Enter it here to complete registration:*
-      error_invalid:
-        ru: |
-          ❌ {error_reason}
-
-          👇 *Попробуй ввести снова, или нажми кнопку ниже:*
-        en: |
-          ❌ {error_reason}
-
-          👇 *Try again, or press the button below:*
-      buttons:
-        - id: resend_otp
-          label:
-            ru: "🔄 Отправить код ещё раз"
-            en: "🔄 Resend code"
-          next_state: GENERATE_OTP
-          row: 1
-    validation:
-      regex: ^[0-9]{6}$
-    transitions:
-      - trigger: on_valid_input
-        next_state: VALIDATE_OTP
-      - trigger: code_expired
-        next_state: INPUT_LOGIN
-        action: "notify: code_expired"
-  # verification: Проверка отсутствия OTP в логах при тестах
-  # risks:
-  #   - Утечка OTP через дампы памяти или логи
-  # forbidden_practices:
-  #   - Вывод OTP в логи
-  #   - Сохранение OTP в БД
-
-  VALIDATE_OTP:
-    type: system
-    description: Верификация OTP кода и проверка уникальности email
-    logic:
-      action: verify_otp
-      payload:
-        code: "{last_input}"
-        student_id: "{s21_login}"
-    transitions:
-      - condition: code_correct == true && email_unique == true
-        next_state: LOAD_PROFILE
-      - condition: code_correct == true && email_unique == false
-        next_state: ERROR_EMAIL_ALREADY_REGISTERED
-      - condition: code_correct == false
-        next_state: SET_OTP_ERROR
-      - next_state: SET_OTP_ERROR
-
-  SET_OTP_ERROR:
-    type: system
-    description: Настройка сообщения об ошибке OTP
-    logic:
-      action: set_variables
-      payload:
-        last_input_invalid: true
-        error_reason:
-          ru: "Неверный код или срок его действия истёк!"
-          en: "Invalid code or it has expired!"
-    transitions:
-      - next_state: AWAITING_OTP
-    interface:
-      text:
-        ru: "⏳ Сохраняю настройки..."
-        en: "⏳ Saving settings..."
-
-  LOAD_PROFILE:
-    type: system
-    description: Загрузка профиля пользователя после успешной регистрации
-    logic:
-      action: load_user_profile
-    transitions:
-      - condition: profile_loaded == true
-        next_state: REGISTRATION_COMPLETE
-      - next_state: REGISTRATION_COMPLETE
-    interface:
-      text:
-        ru: "⏳ Загружаю профиль..."
-        en: "⏳ Loading profile..."
-
-  ERROR_WRONG_PARALLEL:
-    type: interactive
-    description: Неверная параллель обучения
-    interface:
-      text:
-        ru: |
-          ❌ Регистрация доступна только для студентов основы.
-        en: |
-          ❌ Registration is only available for Core students.
-      buttons:
-        - id: retry
-          label:
-            ru: Попробовать снова
-            en: Try again
-          next_state: INPUT_LOGIN
-
-  ERROR_ACCESS_DENIED:
-    type: interactive
-    description: Доступ запрещен
-    interface:
-      text:
-        ru: |
-          ❌ Регистрация доступна только для действующих студентов.
-        en: |
-          ❌ Registration is only available for active students.
-      buttons:
-        - id: retry
-          label:
-            ru: 🔁 Попробовать снова
-            en: 🔁 Try again
-          next_state: INPUT_LOGIN
+        ru: "📡 *API Request:* School21... `WAIT`"
+        en: "📡 *API Request:* School21... `WAIT`"
 
   ERROR_NOT_FOUND:
     type: interactive
@@ -318,77 +109,176 @@ states:
             en: 🔁 Try again
           next_state: INPUT_LOGIN
 
-  ERROR_API:
-    type: interactive
-    description: Ошибка API School21
+
+  FIND_ROCKET_USER:
+    type: system
+    description: Верификация узла Rocket.Chat
+    logic:
+      action: find_and_verify_rocket_user
+      payload:
+        login: $context.last_input
+    transitions:
+      - condition: rocket_user_found == true && email_verified == true
+        next_state: GENERATE_OTP
+      - condition: rocket_user_found == true && email_mismatch == true
+        next_state: ERROR_EMAIL_MISMATCH
+      - condition: rocket_user_not_found == true
+        next_state: ROCKET_USER_NOT_FOUND
+      - condition: rocket_api_error == true
+        next_state: ROCKET_API_ERROR
+      - condition: email_already_registered == true
+        next_state: ERROR_EMAIL_ALREADY_REGISTERED
+      - next_state: ROCKET_API_ERROR
+    interface:
+      text:
+        ru: "📡 *API Request:* Rocket.Chat... `WAIT`"
+        en: "📡 *API Request:* Rocket.Chat... `WAIT`"
+
+  GENERATE_OTP:
+    type: system
+    description: Инициация протокола OTP
+    logic:
+      action: generate_otp
+      payload:
+        login: $context.s21_login
+    transitions:
+      - condition: otp_sent == true
+        next_state: AWAITING_OTP
+      - condition: otp_rate_limited == true
+        next_state: ERROR_RATE_LIMIT
+      - next_state: ERROR_OTP_SEND_FAILED
+    interface:
+      text:
+        ru: "🔐 *Security:* Генерация OTP..."
+        en: "🔐 *Security:* OTP Generation..."
+
+  AWAITING_OTP:
+    type: input
+    description: Ввод проверочного кода
     interface:
       text:
         ru: |
-          ❌ Временная ошибка связи с School21 API. Попробуй позже.
+          📥 *Verification Required*
+
+          Код подтверждения отправлен в твой *Rocket.Chat*.
+          👇 Введи `6 цифр` для авторизации:
         en: |
-          ❌ Temporary School21 API error. Try again later.
+          📥 *Verification Required*
+
+          Confirmation code sent to your *Rocket.Chat*.
+          👇 Enter `6 digits` to authorize:
+      error_invalid:
+        ru: |
+          ❌ *Invalid Code:* Ошибка ввода или превышено время ожидания.
+
+          👇 Попробуй ввести снова или запроси новый код.
+        en: |
+          ❌ *Invalid Code:* Input error or time limit exceeded.
+
+          👇 Try entering again or request a new code.
+      buttons:
+        - id: resend_otp
+          label:
+            ru: "🔄 Переотправить код"
+            en: "🔄 Resend code"
+          next_state: GENERATE_OTP
+          row: 1
+    validation:
+      regex: ^[0-9]{6}$
+    transitions:
+      - trigger: on_valid_input
+        next_state: VALIDATE_OTP
+      - trigger: code_expired
+        next_state: INPUT_LOGIN
+        action: "notify: code_expired"
+
+  VALIDATE_OTP:
+    type: system
+    description: Финальная сверка OTP
+    logic:
+      action: verify_otp
+      payload:
+        code: "{last_input}"
+        student_id: "{s21_login}"
+    transitions:
+      - condition: code_correct == true
+        next_state: LOAD_PROFILE
+      - next_state: AWAITING_OTP
+
+  LOAD_PROFILE:
+    type: system
+    description: Загрузка данных профиля
+    logic:
+      action: load_user_profile
+    transitions:
+      - next_state: REGISTRATION_COMPLETE
+    interface:
+      text:
+        ru: "💾 *Sync:* Загрузка данных профиля..."
+        en: "💾 *Sync:* Loading profile data..."
+
+  REGISTRATION_COMPLETE:
+    type: system
+    description: Успешный финиш
+    interface:
+      text:
+        ru: |
+          🎉 *Access Granted*
+
+          Регистрация завершена. Аккаунт привязан к `{s21_login}`.
+        en: |
+          🎉 *Access Granted*
+
+          Registration complete. Account linked to `{s21_login}`.
+    transitions:
+      - next_state: MAIN_MENU
+
+  # Ошибки (Interactive)
+  ERROR_WRONG_PARALLEL:
+    type: interactive
+    interface:
+      text:
+        ru: "❌ *Access Denied:* Только для студентов основной программы."
+        en: "❌ *Access Denied:* Core program students only."
       buttons:
         - id: retry
           label:
-            ru: 🔁 Попробовать снова
-            en: 🔁 Try again
+            ru: "🔄 Повторить"
+            en: "🔄 Retry"
           next_state: INPUT_LOGIN
 
-  ROCKET_USER_NOT_FOUND:
+  ERROR_ACCESS_DENIED:
     type: interactive
-    description: Пользователь не найден в Rocket.Chat
     interface:
       text:
-        ru: |
-          ❌ Пользователь не найден в Rocket.Chat.
-          Убедись что в твоём Rocket.Chat профиле установлен верный никнейм.
-        en: |
-          ❌ User not found in Rocket.Chat.
-          Make sure you set the correct nickname in your Rocket.Chat profile.
+        ru: "❌ *Access Denied:* Статус аккаунта неактивен (Expelled/Blocked)."
+        en: "❌ *Access Denied:* Account status is inactive (Expelled/Blocked)."
       buttons:
         - id: retry
           label:
-            ru: 🔁 Попробовать снова
-            en: 🔁 Try again
-          next_state: INPUT_LOGIN
-
-  ROCKET_API_ERROR:
-    type: interactive
-    description: Ошибка API Rocket.Chat
-    interface:
-      text:
-        ru: |
-          ❌ Временная ошибка Rocket.Chat. Попробуй через 1 минуту.
-        en: |
-          ❌ Temporary Rocket.Chat API error. Try again in 1 minute.
-      buttons:
-        - id: retry
-          label:
-            ru: 🔁 Попробовать снова
-            en: 🔁 Try again
+            ru: "🔄 Повторить"
+            en: "🔄 Retry"
           next_state: INPUT_LOGIN
 
   ERROR_EMAIL_MISMATCH:
     type: interactive
-    description: Email в RocketChat не совпадает с логином School21
     interface:
       text:
         ru: |
-          ❌ Пользователь не связан с твоим текущим аккаунтом Rocket.Chat.
-          Пожалуйста, введи именно свой логин School21.
+          ❌ *Security Alert*
+          Email в Rocket.Chat не совпадает с логином S21.
         en: |
-          ❌ User is not associated with your current Rocket.Chat account.
-          Please enter your actual School21 login.
+          ❌ *Security Alert*
+          Rocket.Chat email mismatch with S21 login.
       buttons:
         - id: retry
           label:
-            ru: 🔁 Попробовать снова
-            en: 🔁 Try again
+            ru: "🔄 Попробовать снова"
+            en: "🔄 Try again"
           next_state: INPUT_LOGIN
 
-  ERROR_EMAIL_ALREADY_REGISTERED:
+  ERROR_RATE_LIMIT:
     type: interactive
-    description: Этот email уже был использован для другого аккаунта
     interface:
       text:
         ru: |
@@ -449,20 +339,6 @@ states:
             en: /start
           next_state: START
 
-  REGISTRATION_COMPLETE:
-    type: system
-    description: Завершение регистрации и переход в главное меню
-    logic:
-      action: not_reset_user_context
-    interface:
-      text:
-        ru: |
-          🎉 Регистрация завершена! Добро пожаловать!
-        en: |
-          🎉 Registration successful! Welcome!
-    transitions:
-      - next_state: MAIN_MENU
-
   ERROR_OTP_SEND_FAILED:
     type: interactive
     description: Ошибка отправки OTP кода
@@ -480,3 +356,55 @@ states:
             ru: 🔁 Попробовать снова
             en: 🔁 Try again
           next_state: INPUT_LOGIN
+
+  ERROR_API:
+    type: interactive
+    description: Ошибка School21 API
+    interface:
+      text:
+        ru: |
+          ❌ Ошибка API School21.
+          Попробуй позже.
+        en: |
+          ❌ School21 API error.
+          Try again later.
+      buttons:
+        - id: retry
+          label:
+            ru: 🔁 Повторить
+            en: 🔁 Retry
+          next_state: START
+
+  ROCKET_USER_NOT_FOUND:
+    type: interactive
+    description: Пользователь не найден в Rocket.Chat
+    interface:
+      text:
+        ru: |
+          ❌ Твой логин не найден в Rocket.Chat.
+          Убедись, что ты активировал свой аккаунт.
+        en: |
+          ❌ Your login not found in Rocket.Chat.
+          Make sure you have activated your account.
+
+  ROCKET_API_ERROR:
+    type: interactive
+    description: Ошибка Rocket.Chat API
+    interface:
+      text:
+        ru: |
+          ❌ Ошибка API Rocket.Chat.
+          Попробуй позже.
+        en: |
+          ❌ Rocket.Chat API error.
+          Try again later.
+
+  ERROR_EMAIL_ALREADY_REGISTERED:
+    type: interactive
+    description: Логин уже зарегистрирован
+    interface:
+      text:
+        ru: |
+          ❌ Этот логин уже привязан к другому аккаунту!
+        en: |
+          ❌ This login is already linked to another account!

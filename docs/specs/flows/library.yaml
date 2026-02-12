@@ -3,85 +3,135 @@ meta:
   feature_id: LIB-001
   name: Библиотека
   description: 'Управление книгами: Поиск, фильтрация, пагинация и бронирование'
-  version: 2.0.1
+  version: 2.1.0
 
-initial_state: LIBRARY_MENU
+initial_state: AUTO_SYNC_LIB
+
 states:
+  AUTO_SYNC_LIB:
+    type: system
+    description: "Pre-load basic library stats"
+    logic:
+      action: get_library_stats
+      payload:
+        campus_id: $context.campus_id
+    transitions:
+      - next_state: LIBRARY_MENU
+
   LIBRARY_MENU:
     type: interactive
     description: Главное меню библиотеки
-    ## TODO: реализуй поиск по названию/автору, state: → BOOK_SEARCH_INPUT
-    transitions:
-      - trigger: on_input
-        next_state: BOOK_SEARCH_INPUT
     interface:
       text:
         ru: |
-          📚 *Библиотека* `{my_campus}`
+          📚 *Библиотека: {my_campus}*
 
-          📊 *Статистика*: Книг доступно: `{available_count}`
+          Здесь ты можешь найти книги для обучения, забронировать их или продлить срок сдачи.
 
-          🔎 *Отправь мне название книги или нажми на кнопки ниже:*
+          📊 *Сейчас в библиотеке:*
+          • Всего книг: `{total_books_count}`
+          • Доступно: `{available_count}`
+          • У тебя на руках: `{my_active_loans_count}`
         en: |
-          📚 *Library* `({my_campus})`
+          📚 *Library: {my_campus}*
 
-          📊 *Statistics*: Available books: `{available_count}`
+          Here you can find books for learning, reserve them, or extend the deadline.
 
-          🔎 *Send me the book title or click the buttons below:*
+          📊 *Library Stats:*
+          • Total books: `{total_books_count}`
+          • Available: `{available_count}`
+          • You have: `{my_active_loans_count}`
       buttons:
-        - id: list_all
+        - id: search
           label:
-            ru: 📋 Весь список
-            en: 📋 List all
-          row: 1
-          next_state: FETCH_BOOKS
+            ru: 🔎 Найти книгу
+            en: 🔎 Find book
+          next_state: BOOK_SEARCH_INPUT
         - id: available
           label:
-            ru: ✅ Доступно сейчас
+            ru: ✅ Доступные сейчас
             en: ✅ Available now
           row: 1
           next_state: FETCH_AVAILABLE_BOOKS
-        - id: filters
+        - id: categories
           label:
             ru: 🏷️ Категории
             en: 🏷️ Categories
-          row: 2
+          row: 1
           next_state: FILTER_SELECTION
         - id: my_books
           label:
             ru: 📖 Мои книги
             en: 📖 My books
           row: 2
-          next_state: MY_BOOKS
+          next_state: FETCH_MY_BOOKS
         - id: back
           label:
-            ru: 🏠 Назад
-            en: 🏠 Back
+            ru: 🏠 В главное меню
+            en: 🏠 Main menu
           next_state: MAIN_MENU
 
-  FILTER_SELECTION:
-    type: interactive
-    description: Выбор критерия фильтрации
+  BOOK_SEARCH_INPUT:
+    type: input
+    description: Ввод названия или автора для поиска
     interface:
       text:
         ru: |
-          🏷️ *Фильтрация книг*
+          🕵️ *Поиск книги*
 
+          Введи название книги или фамилию автора.
+          _Например:_ `Knuth` или `C Programming`
         en: |
-          🏷️ *Filter books*
+          🕵️ *Book Search*
 
+          Enter the book title or author's name.
+          _Example:_ `Knuth` or `C Programming`
+      buttons:
+        - id: back
+          label:
+            ru: 🙅‍♂️ Отмена
+            en: 🙅‍♂️ Cancel
+          next_state: LIBRARY_MENU
+    transitions:
+      - trigger: on_input
+        next_state: SEARCHING_BOOKS
+
+  SEARCHING_BOOKS:
+    type: system
+    description: Промежуточное состояние поиска
+    logic:
+      action: get_books
+      payload:
+        campus_id: $context.campus_id
+        search: $context.last_input
+        limit: 10
+        offset: 0
+    transitions:
+      - condition: total_count == 0
+        next_state: BOOKS_NOT_FOUND
+      - next_state: DISPLAY_BOOKS
+
+  FILTER_SELECTION:
+    type: interactive
+    description: Меню выбора фильтров
+    interface:
+      text:
+        ru: |
+          🏷️ *Фильтрация*
+          Как будем искать?
+        en: |
+          🏷️ *Filtering*
+          How should we search?
       buttons:
         - id: by_category
           label:
-            ru: По категориям
-            en: By categories
-          row: 1
+            ru: 📂 По категориям
+            en: 📂 By categories
           next_state: SELECT_CATEGORY
         - id: by_author
           label:
-            ru: По автору
-            en: By author
-          row: 1
+            ru: ✍️ По авторам
+            en: ✍️ By authors
           next_state: SELECT_AUTHOR
         - id: back
           label:
@@ -91,17 +141,17 @@ states:
 
   SELECT_CATEGORY:
     type: interactive
-    description: Выбор конкретной категории
+    description: Выбор категории из списка
+    logic:
+      action: get_categories
     interface:
       text:
-        ru: |
-          🗂️ *Выбери категорию:*
-        en: |
-          🗂️ *Choose category:*
+        ru: 🗂️ *Выбери категорию:*
+        en: 🗂️ *Choose category:*
       buttons:
-        - id: cat_{book_category_id}
-          label: "{book_category_name}"
-          next_state: FETCH_BOOKS
+        - id: cat_{category_id}
+          label: "{category_name}"
+          next_state: FETCH_BOOKS_BY_FILTER
         - id: back
           label:
             ru: 🔙 Назад
@@ -110,79 +160,80 @@ states:
 
   SELECT_AUTHOR:
     type: interactive
-    description: Выбор конкретного автора
+    description: Выбор автора из списка
+    logic:
+      action: get_authors
     interface:
       text:
-        ru: |
-          ✍️ *Выбери автора:*
-        en: |
-          ✍️ *Choose author:*
+        ru: ✍️ *Выбери автора:*
+        en: ✍️ *Choose author:*
       buttons:
-        - id: auth_{book_author_id}
-          label: "{book_author_name}"
-          next_state: FETCH_BOOKS
+        - id: auth_{author_id}
+          label: "{author_name}"
+          next_state: FETCH_BOOKS_BY_FILTER
         - id: back
           label:
             ru: 🔙 Назад
             en: 🔙 Back
           next_state: FILTER_SELECTION
 
-  FETCH_BOOKS:
+  FETCH_BOOKS_BY_FILTER:
     type: system
-    description: Загрузка списка книг с учётом фильтров и пагинации
+    description: Загрузка книг по выбранному фильтру
     logic:
       action: get_books
       payload:
         campus_id: $context.campus_id
-        search: $context.search_query
-        category_id: $context.category_id
-        author_id: $context.author_id
-        only_available: $context.only_available
-        offset: $context.books_offset
+        category_id: $context.selected_category_id
+        author_id: $context.selected_author_id
         limit: 10
+        offset: 0
     transitions:
+      - condition: total_count == 0
+        next_state: BOOKS_NOT_FOUND
       - next_state: DISPLAY_BOOKS
 
   FETCH_AVAILABLE_BOOKS:
     type: system
-    description: Загрузка только доступных книг
+    description: Загрузка только доступных
     logic:
       action: get_books
       payload:
         campus_id: $context.campus_id
         only_available: true
         limit: 10
+        offset: 0
     transitions:
+      - condition: total_count == 0
+        next_state: BOOKS_NOT_FOUND
       - next_state: DISPLAY_BOOKS
 
   DISPLAY_BOOKS:
     type: interactive
-    description: Список книг с пагинацией
+    description: Вывод списка книг с пагинацией
     interface:
       text:
         ru: |
-          *Результаты поиска ({total_count})*
-
+          📚 *Результаты поиска ({total_count})*
           Страница {current_page} из {total_pages}
 
           {books_list_numbered}
         en: |
-          *Search results ({total_count})*
-
+          📚 *Search results ({total_count})*
           Page {current_page} of {total_pages}
 
           {books_list_numbered}
       buttons:
         - id: book_{book_id}
-          label: "{index}"
-        - id: prev_page
-          label: ⬅️
-          next_state: FETCH_BOOKS
+          label: "{index}. {book_short_title}"
+        - id: prev
+          label: "⬅️"
+          next_state: FETCH_PREV_PAGE
           condition: current_page > 1
           row: 1
-        - id: next_page
-          label: ➡️
-          next_state: FETCH_BOOKS
+        - id: next
+          label: "➡️"
+          next_state: FETCH_NEXT_PAGE
           condition: current_page < total_pages
           row: 1
         - id: back
@@ -193,135 +244,182 @@ states:
     transitions:
       - trigger: button_click
         condition: id.startswith('book_')
-        next_state: BOOK_DETAILS
+        next_state: FETCH_BOOK_DETAILS
+
+  BOOKS_NOT_FOUND:
+    type: interactive
+    description: Пустой результат поиска
+    interface:
+      text:
+        ru: |
+          🤷‍♂️ *Ничего не найдено*
+
+          Мы перерыли все полки, но книг по запросу не нашли.
+          Попробуй изменить запрос или категорию.
+        en: |
+          🤷‍♂️ *Nothing found*
+
+          We checked all shelves but couldn't find any books.
+          Try changing your query or category.
+      buttons:
+        - id: retry
+          label:
+            ru: 🔄 Новый поиск
+            en: 🔄 New search
+          next_state: BOOK_SEARCH_INPUT
+        - id: back
+          label:
+            ru: 🏠 В меню
+            en: 🏠 To menu
+          next_state: LIBRARY_MENU
+
+  FETCH_BOOK_DETAILS:
+    type: system
+    description: Получение деталей одной книги
+    logic:
+      action: get_book_details
+      payload:
+        book_id: $context.selected_book_id
+    transitions:
+      - next_state: BOOK_DETAILS
 
   BOOK_DETAILS:
     type: interactive
-    description: Детальная информация о книге
+    description: Карточка книги
     interface:
       text:
         ru: |
           📖 *{book_title}*
-          ───
+
           👤 *Автор:* {book_author}
           🗂️ *Категория:* {book_category}
-
+          ---
           {status_emoji} *Статус:* {status_description}
           {loan_info}
-          ───
-          {notification_text}
         en: |
           📖 *{book_title}*
-          ───
+
           👤 *Author:* {book_author}
           🗂️ *Category:* {book_category}
-
+          ---
           {status_emoji} *Status:* {status_description}
           {loan_info}
-          ───
-          {notification_text}
       buttons:
         - id: borrow
           label:
-            ru: ⚡ Взять книгу
-            en: ⚡ Borrow book
-          next_state: BORROW_BOOK
+            ru: ⚡ Взять почитать
+            en: ⚡ Borrow now
+          next_state: BORROW_BOOK_ACTION
           condition: is_available == true
-        - id: notify_when_free
+        - id: notify
           label:
-            ru: 🔔 Уведомить о возврате
-            en: 🔔 Notify when back
-          next_state: SET_BOOK_NOTIFICATION
+            ru: 🔔 Жду возврата
+            en: 🔔 Notify me
+          next_state: SUBSCRIBE_BOOK_ACTION
           condition: is_available == false
         - id: back
           label:
-            ru: ⬅️ К списку
-            en: ⬅️ Back to list
+            ru: 🔙 К списку
+            en: 🔙 Back to list
           next_state: DISPLAY_BOOKS
 
-  BORROW_BOOK:
+  BORROW_BOOK_ACTION:
     type: system
-    description: Логика выдачи книги
+    description: Попытка взять книгу
     logic:
       action: borrow_book
       payload:
         book_id: $context.selected_book_id
-        student_id: $context.user_id
+        user_id: $context.user_id
     transitions:
       - condition: success == true
-        next_state: BORROW_CONFIRMED
+        next_state: BORROW_SUCCESS
       - condition: success == false
-        next_state: ERROR_UNAVAILABLE
+        next_state: BORROW_ERROR
 
-  BORROW_CONFIRMED:
+  BORROW_SUCCESS:
     type: interactive
-    description: Подтверждение успешной выдачи
+    description: Успешная выдача
     interface:
       text:
         ru: |
-          ✅ Книга «{book_title}» за тобой! Пожалуйста, верни её до {due_date}.
-        en: |
-          ✅ Book "{book_title}" is yours! Please return it by {due_date}.
-    transitions:
-      - next_state: MAIN_MENU
+          ✅ *Книга забронирована!*
 
-  SET_BOOK_NOTIFICATION:
-    type: interactive
-    description: Подписка на уведомление о возврате
-    interface:
-      text:
-        ru: |
-          🔔 Мы уведомим тебя, когда «{book_title}» в кампусе {my_campus} снова будет свободна.
+          Ты взял «{book_title}».
+          🗓 *Вернуть до:* {due_date}
+
+          Не забудь отметить получение на стойке администратора, если это требуется в твоем кампусе.
         en: |
-          🔔 We will notify you when "{book_title}" in {my_campus} campus is available again.
+          ✅ *Book reserved!*
+
+          You borrowed "{book_title}".
+          🗓 *Return by:* {due_date}
+
+          Don't forget to confirm pickup at the admin desk if required in your campus.
+      buttons:
+        - id: my_books
+          label:
+            ru: 📚 К моим книгам
+            en: 📚 My books
+          next_state: FETCH_MY_BOOKS
+        - id: menu
+          label:
+            ru: 🏠 В меню
+            en: 🏠 Main menu
+          next_state: LIBRARY_MENU
+
+  FETCH_MY_BOOKS:
+    type: system
+    description: Получение списка моих книг
+    logic:
+      action: get_user_loans
+      payload:
+        user_id: $context.user_id
     transitions:
-      - next_state: DISPLAY_BOOKS
+      - next_state: MY_BOOKS
 
   MY_BOOKS:
     type: interactive
-    description: Книги у пользователя на руках
+    description: Список книг пользователя
     interface:
       text:
-        ## 🟢 (более 3 дней), 🟡 (1-2 дня), 🔴 (просрочено).
         ru: |
-          *Твои книги:*
+          👤 *Твои книги*
 
-          {my_books_list}
+          Здесь список всего, что ты сейчас читаешь.
+          Следи за дедлайнами! ⏰
+
+          {my_books_list_formatted}
         en: |
-          *Your books:*
+          👤 *Your Books*
 
-          {my_books_list}
+          Here is the list of everything you are reading.
+          Watch the deadlines! ⏰
+
+          {my_books_list_formatted}
       buttons:
-        - id: return_{book_id}
-          label:
-            ru: Вернуть «{book_title}»
-            en: Return «{book_title}»
-          next_state: RETURN_BOOK
         - id: back
           label:
             ru: 🔙 Назад
             en: 🔙 Back
           next_state: LIBRARY_MENU
 
-  RETURN_BOOK:
-    type: system
-    description: Логика возврата книги
-    logic:
-      action: return_book
-      payload:
-        book_id: $context.selected_book_id
-        student_id: $context.user_id
-    transitions:
-      - next_state: MY_BOOKS
-
-  ERROR_UNAVAILABLE:
+  BORROW_ERROR:
     type: interactive
-    description: 'Ошибка: книга занята'
+    description: Ошибка при выдаче
     interface:
       text:
         ru: |
-          ❌ Упс! Кто-то успел забрать книгу раньше тебя.
+          ❌ *Упс!*
+
+          Кто-то успел забрать книгу прямо перед тобой, или у тебя превышен лимит книг на руках.
         en: |
-          ❌ Oops! Someone already borrowed this book.
-    transitions:
-      - next_state: DISPLAY_BOOKS
+          ❌ *Oops!*
+
+          Someone grabbed the book just before you, or you reached your borrowing limit.
+      buttons:
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: BOOK_DETAILS
