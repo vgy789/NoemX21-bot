@@ -1,86 +1,174 @@
 # noemx21-bot
 BINARY		:= noemx21-bot
 BUILD_PKG	:= ./cmd/noemx21-bot
-GOFLAGS		?=
-SQLC		:= "$(shell go env GOPATH)/bin/sqlc"
-MIGRATE		:= "$(shell go env GOPATH)/bin/migrate"
+LDFLAGS := -s -w
+
+LOCAL_BIN := $(CURDIR)/bin
+
+GOLANGCI_VERSION 	:= v2.9.0
+GOVULN_VERSION		:= v1.1.4
+SQLC_VERSION     	:= v1.30.0
+MIGRATE_VERSION  	:= v4.19.1
+MOCKGEN_VERSION  	:= v0.6.0
+
+GOLANGCI 	:= $(LOCAL_BIN)/golangci-lint
+GOVULN 		:= $(LOCAL_BIN)/govulncheck
+SQLC     	:= $(LOCAL_BIN)/sqlc
+MIGRATE  	:= $(LOCAL_BIN)/migrate
+MOCKGEN  	:= $(LOCAL_BIN)/mockgen
+
+DATABASE_URL	?= $(shell cat env/database_url 2>/dev/null)
 MIGRATIONS_DIR	:= internal/database/migrations
-DATABASE_URL	?= "$(shell cat env/database_url 2>/dev/null)"
-GOLANGCI	:= "$(shell go env GOPATH)/bin/golangci-lint"
-GO_SRCS		:= $(shell find . -name '*.go' -not -path './vendor/*')
 
-.PHONY: help build test lint vet security yaml lint-deps deps tidy ci clean clean_gcov generate sqlc migrate-up migrate-down migrate-create migrate-deps
+.PHONY: \
+	help \
+	build run release \
+	test cover \
+	lint fmt vet security \
+	generate sqlc mockgen \
+	migrate-up migrate-down migrate-create \
+	docker-build docker-save \
+	deps tidy verify \
+	clean clean-tools \
+	ci-check
 
-generate: sqlc		## Generate code (sqlc, mocks, etc)
-	@go generate ./... 2>/dev/null || true
+# =========================
+# Build & Run
+# =========================
+build: deps ## Build binary
+	go build -ldflags "$(LDFLAGS)" -o $(BINARY) $(BUILD_PKG)
 
-sqlc: sqlc-deps		## Generate SQL code with sqlc
+run: build ## Run binary
+	./$(BINARY)
+
+# =========================
+# Tests
+# =========================
+
+test:		## Run tests
+	go test -race -cover ./...
+
+cover:		## Coverage HTML report
+	go test -race -coverprofile=coverage.out ./...
+	go tool cover -html=coverage.out -o coverage.html
+
+# =========================
+# Quality
+# =========================
+
+lint: $(GOLANGCI)		## Run linter
+	$(GOLANGCI) run ./...
+
+fmt: tidy		## Run go fmt and go fix
+	go fix ./...
+	gofmt -s -w .
+
+vet:		## go vet
+	go vet ./...
+
+security: $(GOVULN)		## Vulnerability scan
+	$(GOVULN) ./...
+
+yaml:		## Lint YAML files
+	yamllint . 2> /dev/null || docker run --rm -v "$(shell pwd):/data" cytopia/yamllint:latest . || echo "yamllint not found"
+
+ci: .github/workflows/ci.yml		## Run CI pipeline locally (act)
+	act push -P ubuntu-22.04=catthehacker/ubuntu:act-22.04
+
+ci-check: fmt vet lint test security yaml		## Full CI check locally
+
+# =========================
+# Code generation
+# =========================
+
+generate: sqlc mockgen		## Generate all code
+
+sqlc: $(SQLC)		## Generate SQL code
 	$(SQLC) generate
 
-sqlc-deps:		## Install sqlc if missing
-	@command -v $(SQLC) >/dev/null 2>&1 || go install github.com/sqlc-dev/sqlc/cmd/sqlc@latest
+mockgen: $(MOCKGEN)		## Generate mocks
+	$(MOCKGEN) \
+		-source=internal/database/db/querier.go \
+		-destination=internal/database/db/mock/querier_mock.go \
+		-package=mock
 
-mockgen-deps:		## Install mockgen if missing
-	@command -v mockgen >/dev/null 2>&1 || go install go.uber.org/mock/mockgen@latest
+# =========================
+# Migrations
+# =========================
 
-migrate-up: migrate-deps ## Run database migrations up
-	$(MIGRATE) -path $(MIGRATIONS_DIR) -database $(DATABASE_URL) up
+migrate-up: $(MIGRATE)		## Apply migrations
+	$(MIGRATE) -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" up
 
-migrate-down: migrate-deps ## Run database migrations down
-	$(MIGRATE) -path $(MIGRATIONS_DIR) -database $(DATABASE_URL) down 1
+migrate-down: $(MIGRATE)		## Rollback last migration
+	$(MIGRATE) -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" down 1
 
-migrate-create: migrate-deps ## Create a new migration (usage: make migrate-create name=migration_name)
+migrate-create: $(MIGRATE)		## Create migration (name=init)
 	$(MIGRATE) create -ext sql -dir $(MIGRATIONS_DIR) -seq $(name)
 
-migrate-deps:		## Install golang-migrate if missing
-	@command -v $(MIGRATE) >/dev/null 2>&1 || go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@latest
-
-tools-deps: sqlc-deps mockgen-deps migrate-deps lint-deps		## Install all tools dependencies
+# =========================
+# Help
+# =========================
 
 help:		## Show this help
 	@grep -h -E '^[a-zA-Z0-9_.-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 	awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-18s\033[0m %s\n", $$1, $$2}'
 
-$(BINARY): go.mod go.sum $(GO_SRCS)
-	go build $(GOFLAGS) -o $@ $(BUILD_PKG)
-
-build: deps $(BINARY)		## Build binary
+# =========================
+# Docker
+# =========================
 
 docker-build:		## Build docker image
 	docker build -t $(BINARY):local .
 
-docker-save:		## Save docker image
+docker-save:		## Save docker image tar
 	docker save $(BINARY):local -o $(BINARY).tar
 
-test: deps		## Run tests with race and coverage
-	go test -race -cover ./...
+# =========================
+# Go modules
+# =========================
 
-vet: deps		## Run go vet
-	go vet ./...
-
-lint: lint-deps		## Run golangci-lint
-	$(GOLANGCI) run ./...
-
-lint-deps:		## Install golangci-lint if missing
-	@command -v $(GOLANGCI) >/dev/null 2>&1 || go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
-
-security: deps		## Run govulncheck
-	go run golang.org/x/vuln/cmd/govulncheck@latest ./...
-
-yaml:		## Lint YAML files
-	yamllint . 2> /dev/null || docker run --rm -v "$(shell pwd):/data" cytopia/yamllint:latest . || echo "yamllint not found"
-
-deps: go.mod go.sum		## Download Go modules
+deps:		## Download modules
 	go mod download
 
-tidy:		## Tidy Go modules
+tidy:		## Tidy modules
 	go mod tidy
 
-ci: .github/workflows/ci.yml		## Run CI pipeline locally (act)
-	act push -P ubuntu-22.04=catthehacker/ubuntu:act-22.04
+verify:		## Verify modules
+	go mod verify
 
-clean: clean_gcov		## Remove build artifacts
-	rm -rf $(BINARY) $(BINARY).tar
+# =========================
+# Tool installation
+# =========================
 
-clean_gcov:		## Remove coverage artifacts
-	rm -f *.out coverage.* *.coverprofile profile.cov
+$(LOCAL_BIN):
+	mkdir -p $(LOCAL_BIN)
+
+$(GOLANGCI): | $(LOCAL_BIN)
+	@echo "Installing golangci-lint $(GOLANGCI_VERSION)..."
+	@curl -sSfL https://golangci-lint.run/install.sh | sh -s -- -b $(LOCAL_BIN) $(GOLANGCI_VERSION)
+
+$(GOVULN): | $(LOCAL_BIN)
+	@echo "Installing govulncheck $(GOVULN_VERSION)..."
+	GOBIN=$(LOCAL_BIN) go install golang.org/x/vuln/cmd/govulncheck@$(GOVULN_VERSION)
+
+$(SQLC): | $(LOCAL_BIN)
+	@echo "Installing sqlc $(SQLC_VERSION)..."
+	GOBIN=$(LOCAL_BIN) go install github.com/sqlc-dev/sqlc/cmd/sqlc@$(SQLC_VERSION)
+
+$(MIGRATE): | $(LOCAL_BIN)
+	@echo "Installing migrate $(MIGRATE_VERSION)..."
+	GOBIN=$(LOCAL_BIN) go install -tags 'postgres' github.com/golang-migrate/migrate/v4/cmd/migrate@$(MIGRATE_VERSION)
+
+$(MOCKGEN): | $(LOCAL_BIN)
+	@echo "Installing mockgen $(MOCKGEN_VERSION)..."
+	GOBIN=$(LOCAL_BIN) go install go.uber.org/mock/mockgen@$(MOCKGEN_VERSION)
+
+# =========================
+# Cleanup
+# =========================
+
+clean:		## Remove build artifacts
+	rm -rf $(BINARY) $(BINARY).tar coverage.out coverage.html
+
+clean-tools:		## Remove local tools
+	rm -rf $(LOCAL_BIN)
