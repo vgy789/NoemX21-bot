@@ -1,6 +1,7 @@
 # Binaries for programs and plugins
 noemx21-bot
 !cmd/noemx21-bot
+bin/
 *.exe
 *.exe~
 *.dll
