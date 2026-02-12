@@ -2,34 +2,32 @@
 meta:
   feature_id: CLB-001
   name: Клубы и группы
-  description: Отображение списка доступных клубов и групп с фильтрацией по кампусу
-  version: 2.0.0
+  description: 'Каталог клубов: локальные и глобальные сообщества'
+  version: 2.0.1
 
 initial_state: CLUBS_MENU
 states:
   CLUBS_MENU:
     type: interactive
-    description: Меню клубов
+    description: Меню выбора типа клубов
     interface:
       text:
         ru: |
           🎲 *Клубы и сообщества*
 
-          Находи единомышленников и создавай свои движения.
+          📍 *Локация:* `{my_campus}`
 
-          📍 *Локальные* – внутри твоего кампуса `{my_campus}`.
-          🌍 *Глобальные* – межкампусные проекты и онлайн-группы.
-
-          👇 *Выбери категорию для поиска:*
+          📂 *Категории:*
+          • *Local:* Клубы твоего кампуса
+          • *Global:* Межкампусные проекты
         en: |
-          🎲 *Clubs and Communities*
+          🎲 *Clubs & Communities*
 
-          Find like-minded people and create your own movement.
+          📍 *Location:* `{my_campus}`
 
-          📍 *Local* – inside your campus `{my_campus}`.
-          🌍 *Global* – inter-campus projects and online groups.
-
-          👇 *Choose a search category:*
+          📂 *Categories:*
+          • *Local:* Your campus clubs
+          • *Global:* Inter-campus projects
       buttons:
         - id: local
           label:
@@ -45,14 +43,14 @@ states:
           row: 1
         - id: create_club
           label:
-            ru: 🧩 Создать свой клуб
-            en: 🧩 Create your club
+            ru: 🧩 Создать клуб
+            en: 🧩 Create club
           next_state: CREATE_CLUB_INFO
           row: 2
         - id: back
           label:
-            ru: 🏠 Назад
-            en: 🏠 Back
+            ru: 🏠 Главное меню
+            en: 🏠 Main menu
           next_state: MAIN_MENU
 
   FETCH_LOCAL_CLUBS:
@@ -82,18 +80,18 @@ states:
     interface:
       text:
         ru: |
-          👥 *Доступные сообщества*
+          👥 *Каталог клубов*
 
           {clubs_list}
         en: |
-          👥 *Available communities*
+          👥 *Club Catalog*
 
           {clubs_list}
       buttons:
         - id: back
           label:
-            ru: 🔙 Назад
-            en: 🔙 Back
+            ru: 🔙 В меню клубов
+            en: 🔙 To Clubs menu
           next_state: CLUBS_MENU
 
   CREATE_CLUB_INFO:
@@ -102,26 +100,26 @@ states:
     interface:
       text:
         ru: |
-          🧩 *Создание клуба*
+          🧩 *Новый клуб*
 
-          Хочешь собрать свою команду? Отличная идея!
-          В кампусе *{my_campus}* за клубы отвечает *{leader_name}*.
+          📍 Кампус: `{my_campus}`
+          👤 Лидер комьюнити: *{leader_name}*
 
-          📝 *Что делать дальше:*
-          Заполни форму заявки, и с тобой свяжутся:
-          {leader_form_link}
+          📝 *Регистрация:*
+          Заполни официальную форму заявки на создание.
+          🔗 {leader_form_link}
         en: |
-          🧩 *Club Creation*
+          🧩 *New Club*
 
-          Want to gather your own team? Great idea!
-          In *{my_campus}*, *{leader_name}* is responsible for clubs.
+          📍 Campus: `{my_campus}`
+          👤 Community Lead: *{leader_name}*
 
-          📝 *Next steps:*
-          Fill out the application form, and you will be contacted:
-          {leader_form_link}
+          📝 *Registration:*
+          Fill out the official application form.
+          🔗 {leader_form_link}
       buttons:
         - id: back
           label:
-            ru: 🔙 Назад
-            en: 🔙 Back
+            ru: 🔙 В меню клубов
+            en: 🔙 To Clubs menu
           next_state: CLUBS_MENU

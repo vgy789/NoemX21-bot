@@ -10,6 +10,8 @@ states:
   MAIN_MENU:
     type: interactive
     description: Главное меню бота
+    on_enter:
+      - action: get_user_stats
     interface:
       text:
         ru: |-

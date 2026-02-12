@@ -2,54 +2,55 @@
 meta:
   feature_id: REV-001
   name: Проверка проектов (Review)
-  description: 'Система P2P проверок: создание запросов и поиск слотов'
-  version: 2.0.1
+  description: Система P2P проверок
+  version: 2.1.1
 
 initial_state: REVIEW_MENU
 states:
   REVIEW_MENU:
     type: interactive
-    description: Главное меню раздела Review
+    description: Главное меню P2P модуля
     interface:
       text:
         ru: |
-          🤝 *P2P Review*
+          🤝 *P2P-Обмен слотами*
 
-          *Нужна проверка?* Опубликуй запрос и дождись отклика пира. 📢
-
-          *Хочешь помочь другим?* Найди проект в списке и заработай Review Points. 💎
+          📝 *Запросы:* Публикация заявок на проверку.
+          🔭 *Лента:* Поиск доступных слотов.
+          ⚙️ *Фильтры:* Настройка видимости.
         en: |
-          🤝 *P2P Review*
+          🤝 *P2P Exchange*
 
-          *Need a review?* Publish a request and wait for a peer's response. 📢
-          *Want to earn Review Points?* Find someone to check. 💎
+          📝 *Requests:* Create review tickets.
+          🔭 *Feed:* Browse available slots.
+          ⚙️ *Filters:* Visibility config.
       buttons:
         - id: request
           label:
-            ru: 📢 Создать запрос
-            en: 📢 Create request
+            ru: 📢 Опубликовать запрос
+            en: 📢 Publish request
           next_state: FETCH_MY_PROJECTS_IN_REVIEW
         - id: respond
           label:
-            ru: 🔭 Найти проект
-            en: 🔭 Find project
+            ru: 🔭 Лента запросов
+            en: 🔭 Requests Feed
           next_state: FETCH_ALL_REVIEW_REQUESTS
         - id: settings
           label:
-            ru: 🔔 Настройки
-            en: 🔔 Settings
+            ru: ⚙️ Фильтры кампусов
+            en: ⚙️ Campus filters
           next_state: MANAGE_NOTIFICATION_FILTERS
           row: 2
         - id: back
           label:
-            ru: 🏠 Назад
-            en: 🏠 Back
+            ru: 🏠 Главное меню
+            en: 🏠 Main menu
           next_state: MAIN_MENU
           row: 2
 
   FETCH_MY_PROJECTS_IN_REVIEW:
     type: system
-    description: 'Получение списка проектов пользователя (Status: IN_REVIEWS)'
+    description: 'Получение списка проектов (Status: IN_REVIEWS)'
     logic:
       action: get_user_projects
       payload:
@@ -63,17 +64,17 @@ states:
 
   SELECT_PROJECT:
     type: interactive
-    description: Выбор проекта для создания запроса
+    description: Выбор проекта
     interface:
       text:
         ru: |
-          📂 *Выбери проект*
+          📂 *Выбор проекта*
 
-          Ниже список твоих проектов, которые уже переведены в статус ревью на платформе.
+          Статус на платформе: `IN_REVIEW`
         en: |
-          📂 *Select project*
+          📂 *Select Project*
 
-          Below is the list of your projects currently in review status on the platform.
+          Platform status: `IN_REVIEW`
       buttons:
         - id: project_{project_id}
           label: "{project_name}"
@@ -86,28 +87,26 @@ states:
 
   INPUT_TIME_DESCRIPTION:
     type: input
-    description: Ввод комментария (времени) к запросу
+    description: Ввод временного слота
     interface:
       text:
         ru: |
-          🕒 *Когда ты доступен?*
+          🕒 *Настройка слота*
 
-          Напиши коротко время или статус. Это увидят другие пиры в списке.
-          _Пример: «Сейчас», «С 18:00», «Завтра утро»._
-
-          ⚠️ *Лимит: 20 символов.*
+          Укажи время или статус доступности.
+          _Пример:_ `Сейчас`, `19:00`, `Завтра` (до 20 симв.).
         en: |
-          🕒 *When are you available?*
+          🕒 *Time Slot Config*
 
-          Write a short time or status. Peers will see this in the list.
-          _Ex: "Now", "From 18:00", "Tomorrow am"._
-
-          ⚠️ *Limit: 20 chars.*
+          Specify availability status or time slot.
+          _Example:_ `Now`, `19:00`, `Tomorrow` (max 20 chars).
       error_invalid:
         ru: |
-          🤏 Слишком длинно! Сократи до 20 символов, пожалуйста.
+          ⚠️ *Ошибка формата*
+          Лимит: 20 символов.
         en: |
-          🤏 Too long! Please shorten to 20 characters.
+          ⚠️ *Format Error*
+          Limit: 20 chars.
     validation:
       regex: ^.{1,20}$
     transitions:
@@ -117,7 +116,7 @@ states:
 
   CREATE_REVIEW_REQUEST:
     type: system
-    description: Сабмит запроса в БД
+    description: Запись запроса в БД
     logic:
       action: create_review_request
       payload:
@@ -129,29 +128,29 @@ states:
 
   REQUEST_SUCCESS_SUMMARY:
     type: interactive
-    description: Подтверждение создания запроса
+    description: Лог успешного создания
     interface:
       text:
         ru: |
-          ✅ *Запрос опубликован!*
+          ✅ *Запрос опубликован*
 
           📌 Проект: `{project_name}`
-          💬 Инфо: `{description}`
+          💬 Описание: `{description}`
 
-          Мы уведомим пиров в выбранных кампусах. Жди сообщений!
+          📡 *Статус:* Рассылка уведомлений пирам...
         en: |
-          ✅ *Request published!*
+          ✅ *Request Published*
 
           📌 Project: `{project_name}`
           💬 Info: `{description}`
 
-          We will notify peers in selected campuses. Wait for messages!
+          📡 *Status:* Broadcasting to peers...
     transitions:
       - next_state: REVIEW_MENU
 
   FETCH_ALL_REVIEW_REQUESTS:
     type: system
-    description: Загрузка списка активных запросов (Feed)
+    description: Загрузка фида запросов
     logic:
       action: get_review_requests
       payload:
@@ -163,20 +162,18 @@ states:
 
   DISPLAY_REQUESTS:
     type: interactive
-    description: Список доступных ревью (Пагинация)
+    description: Список ревью (Лента)
     interface:
       text:
         ru: |
-          🔭 *Доска объявлений*
+          🔭 *Лента активных запросов*
 
-          Выбери номер запроса, чтобы посмотреть профиль пира и записаться на проверку.
-
+          Выбери номер для просмотра деталей:
           {requests_list_numbered}
         en: |
-          🔭 *Quest Board*
+          🔭 *Active Requests Feed*
 
-          Select a request number to view the peer's profile and book the review.
-
+          Select index for details:
           {requests_list_numbered}
       buttons:
         - id: req_{request_id}
@@ -202,32 +199,32 @@ states:
 
   VIEW_PEER_PROFILE:
     type: interactive
-    description: Карточка пира перед взятием проверки
+    description: Просмотр слота
     interface:
       text:
         ru: |
-          👤 *Карточка пира*
+          📂 *Детали запроса*
 
-          🆔 `{peer_login}` (Lvl {peer_level})
-          🏰 Кампус: {peer_campus}
-          🛡 Трайб: {peer_coalition}
+          👤 *Пир:* `{peer_login}`
+          📍 {peer_campus} | {peer_coalition}
+          🏆 Lvl: `{peer_level}`
 
-          ⚔️ *Проект:* {project_name}
-          🕒 *Время:* {request_description}
+          🧪 *Проект:* `{project_name}`
+          🕒 *Время:* `{request_description}`
         en: |
-          👤 *Peer Card*
+          📂 *Review Slot Details*
 
-          🆔 `{peer_login}` (Lvl {peer_level})
-          🏰 Campus: {peer_campus}
-          🛡 Tribe: {peer_coalition}
+          👤 *Peer:* `{peer_login}`
+          📍 {peer_campus} | {peer_coalition}
+          🏆 Lvl: `{peer_level}`
 
-          ⚔️ *Project:* {project_name}
-          🕒 *Time:* {request_description}
+          🧪 *Target:* `{project_name}`
+          🕒 *Time:* `{request_description}`
       buttons:
         - id: confirm_respond
           label:
-            ru: 🤝 Беру проверку!
-            en: 🤝 I'll take it!
+            ru: 🤝 Записаться на проверку
+            en: 🤝 Confirm Booking
           next_state: COMPLETE_RESPOND
         - id: back
           label:
@@ -237,7 +234,7 @@ states:
 
   COMPLETE_RESPOND:
     type: system
-    description: Попытка занять слот
+    description: Транзакция бронирования
     logic:
       action: respond_to_review
       payload:
@@ -251,39 +248,37 @@ states:
 
   RESPOND_SUCCESS:
     type: interactive
-    description: Успешная запись на проверку
+    description: Успешное бронирование
     interface:
       text:
         ru: |
-          🎉 *Матч!*
+          🔒 *Слот забронирован*
 
-          Ты записался на проверку к `{peer_login}`.
-          Пир получил уведомление с твоими контактами.
-          Спишитесь в личке, чтобы договориться о деталях.
+          Проверяющий: *Вы* ➡️ Пир: `{peer_login}`
+
+          📬 *Связь в Telegram:* @{peer_telegram}
         en: |
-          🎉 *It's a Match!*
+          🔒 *Slot Reserved*
 
-          You signed up to review `{peer_login}`.
-          The peer has been notified with your contacts.
-          DM them to agree on the details.
+          Reviewer: *You* ➡️ Peer: `{peer_login}`
+
+          📬 *Telegram Contact:* @{peer_telegram}
     transitions:
       - next_state: REVIEW_MENU
 
   MANAGE_NOTIFICATION_FILTERS:
     type: interactive
-    description: Фильтр кампусов
+    description: Конфигурация фильтров
     interface:
       text:
         ru: |
-          ⚙️ *Где ищем?*
+          ⚙️ *Настройка фильтров*
 
-          Выбери кампусы, в которых будут видны твои запросы.
-          (Нажми на кнопку, чтобы включить/выключить)
+          Выбери кампусы для поиска и уведомлений:
         en: |
-          ⚙️ *Where to search?*
+          ⚙️ *Filter Config*
 
-          Select campuses where your requests will be visible.
-          (Click button to toggle)
+          Select campuses for search and notifications:
       buttons:
         - id: toggle_{campus_id}
           label: "{status_emoji} {my_campus}"
@@ -300,44 +295,42 @@ states:
 
   ERROR_NO_PROJECTS_IN_REVIEW:
     type: interactive
-    description: 'Ошибка: нет проектов для сдачи'
+    description: Ошибка - нет проектов
     interface:
       text:
         ru: |
-          📭 *Пусто*
+          ⚠️ *Нет данных*
 
-          У тебя сейчас нет активных проектов в статусе *Review* на платформе.
-          Сначала сдай проект в интре, а потом возвращайся сюда за пиром.
+          Не найдено активных проектов в статусе `Review`.
+          _Сначала сдай проект на платформе._
         en: |
-          📭 *Empty*
+          ⚠️ *Null Result*
 
-          You don't have active projects in *Review* status on the platform.
-          Submit the project on the intranet first, then come back here.
+          No active projects with status `Review` found.
+          _Submit project on the intranet first._
       buttons:
         - id: back
           label:
-            ru: Ок
-            en: Ok
+            ru: Понятно
+            en: OK
           next_state: REVIEW_MENU
 
   ERROR_REQUEST_TAKEN:
     type: interactive
-    description: 'Ошибка: слот уже занят (Race condition)'
+    description: Ошибка - Race condition
     interface:
       text:
         ru: |
-          🏃💨 *Не успел!*
+          ❌ *Ошибка бронирования*
 
-          Кто-то оказался быстрее и уже забрал этот слот.
-          Посмотри список, там наверняка есть еще!
+          Слот уже занят другим пиром.
         en: |
-          🏃💨 *Too slow!*
+          ❌ *Race Condition*
 
-          Someone was faster and already took this slot.
-          Check the list, there must be others!
+          Slot already reserved by another peer.
       buttons:
         - id: back
           label:
-            ru: 🔄 Обновить список
-            en: 🔄 Refresh list
+            ru: 🔄 Обновить ленту
+            en: 🔄 Refresh Feed
           next_state: FETCH_ALL_REVIEW_REQUESTS

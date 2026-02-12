@@ -431,7 +431,7 @@ coalitions ||--o{ chats
 students ||--o{ coffee_matches : "student_1_id"
 students ||--o{ coffee_matches : "student_2_id"
 
-students ||--o{ student_skills
+participant_stats_cache ||--o{ student_skills
 skills ||--o{ student_skills
 
 campuses ||--o{ cached_events

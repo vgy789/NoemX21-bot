@@ -2,32 +2,32 @@
 meta:
   feature_id: SET-001
   name: Настройки пользователя
-  description: Управление настройками профиля, API-токенами и данными Data-Provider
-  version: 2.0.3
+  description: Конфигурация профиля и API
+  version: 2.2.0
 
 initial_state: SETTINGS_MENU
 states:
   SETTINGS_MENU:
     type: interactive
-    description: Меню настроек
+    description: Главное меню конфигурации
     interface:
       text:
         ru: |
-          ⚙️ *Настройки*
+          ⚙️ *System Config*
 
-          🆔 *Профиль*
-          Укажи контакты (email, телефон) и настрой разрешения на входящие сообщения от пиров.
+          🆔 *Profile Config*
+          Приватность, контакты, уведомления.
 
-          🔑 *API*
-          Подключи интеграцию с кампусом. Получи токен для аутентификации пиров в *своём* боте.
+          🔑 *Dev Tools*
+          API Gateway, токены, Data-Provider.
         en: |
-          ⚙️ *Settings*
+          ⚙️ *System Config*
 
-          🆔 *Profile*
-          Set your contacts (email, phone) and configure incoming message permissions for peers.
+          🆔 *Profile Config*
+          Privacy, contacts, notifications.
 
-          🔑 *API*
-          Connect your campus to your bot. Get a token for authentication of peers in *your* bot.
+          🔑 *Dev Tools*
+          API Gateway, tokens, Data-Provider.
       buttons:
         - id: profile
           label:
@@ -37,69 +37,118 @@ states:
           row: 1
         - id: api
           label:
-            ru: |
-              🔑 API
-            en: |
-              🔑 API
+            ru: 🔑 API / Dev
+            en: 🔑 API / Dev
           next_state: API_SETTINGS
           row: 1
         - id: language
           label:
-            ru: "{my_lang_emoji} Язык бота"
-            en: "{my_lang_emoji} Bot language"
+            ru: "🌐 Язык: {my_lang_emoji}"
+            en: "🌐 Lang: {my_lang_emoji}"
           next_state: SET_LANGUAGE
         - id: back
           label:
-            ru: 🏠 Назад
-            en: 🏠 Back
+            ru: 🏠 Главное меню
+            en: 🏠 Main menu
           next_state: MAIN_MENU
 
   PROFILE_SETTINGS:
     type: interactive
-    description: Настройки профиля
+    description: Меню настроек профиля
     interface:
       text:
         ru: |
-          🆔 *Профиль*
+          🆔 *Profile Configuration*
         en: |
-          🆔 *Profile*
+          🆔 *Profile Configuration*
       buttons:
         - id: searchable
           label:
-            ru: "Видимость Telegram-профиля: {is_searchable_label_ru}"
-            en: "Profile visibility: {is_searchable_label_en}"
+            ru: "👁️ Видимость: {is_searchable_label_ru}"
+            en: "👁️ Visibility: {is_searchable_label_en}"
           next_state: TOGGLE_SEARCHABLE
         - id: contact
           label:
-            ru: Альтернативный способ связи
-            en: Alternative Contact
+            ru: 📞 Внешний контакт
+            en: 📞 Ext. Contact
           next_state: SET_ALTERNATIVE_CONTACT
+        - id: delete_profile
+          label:
+            ru: 🗑️ Удалить профиль
+            en: 🗑️ Delete Profile
+          next_state: DELETE_PROFILE_CONFIRMATION
         - id: back
           label:
-            ru: ⬅️ Назад
-            en: ⬅️ Back
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: SETTINGS_MENU
 
-  API_SETTINGS:
+  DELETE_PROFILE_CONFIRMATION:
     type: interactive
-    description: Настройки API
+    description: Подтверждение удаления профиля
     interface:
       text:
         ru: |
-          🔑 *API*
+          ⚠️ *Подтверждение удаления*
 
+          Действительно хочешь удалить свой профиль?
         en: |
-          🔑 *API*
+          ⚠️ *Delete Confirmation*
+
+          Are you sure you want to delete your profile?
+      buttons:
+        - id: confirm
+          label:
+            ru: 🗑️ Да, удалить
+            en: 🗑️ Yes, delete
+          next_state: DELETE_PROFILE
+        - id: cancel
+          label:
+            ru: ❌ Отмена
+            en: ❌ Cancel
+          next_state: PROFILE_SETTINGS
+
+  DELETE_PROFILE:
+    type: system
+    description: Удаление профиля
+    interface:
+      text:
+        ru: |
+          🗑️ *Profile Deletion*
+
+          Профиль удален. До новых встреч!
+          Введите /start для регистрации нового профиля.
+        en: |
+          🗑️ *Profile Deletion*
+
+          Profile deleted. See you next time!
+          Type /start to register a new profile.
+    logic:
+      action: delete_profile
+      payload:
+        user_id: $context.user_id
+    transitions:
+      - next_state: registration.yaml/START
+
+  API_SETTINGS:
+    type: interactive
+    description: Меню настроек API
+    interface:
+      text:
+        ru: |
+          🔑 *Developer Tools*
+        en: |
+          🔑 *Developer Tools*
       buttons:
         - id: provider
           label:
-            ru: Data-Provider
-            en: Data-Provider
+            ru: 📡 Data-Provider
+            en: 📡 Data-Provider
           next_state: CHECK_PROVIDER_CREDENTIALS
         - id: api_token
           label:
-            ru: API-токен
-            en: API Token
+            ru: 🔑 Access Token
+            en: 🔑 Access Token
           next_state: LOAD_API_TOKEN
         - id: back
           label:
@@ -109,18 +158,26 @@ states:
 
   SET_ALTERNATIVE_CONTACT:
     type: input
-    description: Альтернативный способ связи
+    description: Ввод альтернативного контакта
     interface:
       text:
         ru: |
-          Введи дополнительный способ связи (например, email или Telegram), либо удали текущий способ связи.
+          📞 *Внешний контакт*
+
+          Введи `email` или `telegram_alias` для экстренной связи.
+          _Отправь пустую строку для удаления._
         en: |
-          Enter additional contact (e.g., email or Telegram), or delete the current contact.
+          📞 *External Contact*
+
+          Input `email` or `telegram_alias` for emergency downlink.
+          _Send empty string to purge._
       error_invalid:
         ru: |
-          ⚠️ Слишком длинный текст! Максимум 42 символов.
+          ⚠️ *Ошибка формата*
+          Максимум 42 символа.
         en: |
-          ⚠️ Text too long! Max 42 characters.
+          ⚠️ *Format Error*
+          Max 42 characters.
     validation:
       regex: ^.{1,42}$
     transitions:
@@ -133,7 +190,7 @@ states:
 
   DELETE_ALTERNATIVE_CONTACT:
     type: system
-    description: Удаление альтернативного способа связи
+    description: Удаление контакта
     logic:
       action: delete_alternative_contact
       payload:
@@ -143,28 +200,29 @@ states:
 
   CONFIRM_ALTERNATIVE_CONTACT:
     type: interactive
-    description: Подтверждение альтернативного способа связи
+    description: Подтверждение сохранения контакта
     interface:
       text:
         ru: |
-          ✅ Дополнительный контакт сохранен: {my_alt_contact}
+          ✅ *Контакт обновлен*
+          Value: `{my_alt_contact}`
         en: |
-          ✅ Additional contact saved: {my_alt_contact}
+          ✅ *Contact Updated*
+          Value: `{my_alt_contact}`
       buttons:
         - id: back
           label:
-            ru: 💾 Готово / Назад
-            en: 💾 Done / Back
+            ru: 💾 OK
+            en: 💾 OK
           next_state: PROFILE_SETTINGS
 
-  ## интерфейс settings.yaml/SET_LANGUAGE и registration.yaml/SELECT_LANGUAGE должны совпадать
   SET_LANGUAGE:
     type: interactive
-    description: Выбор языка бота
+    description: Выбор локали
     interface:
       text:
-        ru: 🌐 Выбери язык `/` Choose language
-        en: 🌐 Выбери язык `/` Choose language
+        ru: 🌐 *System Locale*
+        en: 🌐 *System Locale*
       buttons:
         - id: ru
           label:
@@ -177,10 +235,9 @@ states:
             en: 🇺🇸 English
           next_state: SETTINGS_MENU
 
-
   LOAD_API_TOKEN:
     type: system
-    description: Загрузка текущего API-токена
+    description: Загрузка токена
     logic:
       action: load_api_token
     transitions:
@@ -188,26 +245,28 @@ states:
 
   MANAGE_API_TOKEN:
     type: interactive
-    description: Управление API-токеном
+    description: Управление токеном
     interface:
       text:
         ru: |
-          🔑 *Хочешь проверить является ли пользователь учеником Школы 21?* Используй для этого наш API! Подробнее в документации.
+          🔑 *Access Token*
 
-          Твой текущий токен: `{my_botapi_token}`
+          Используй этот ключ для интеграции внешних сервисов с School 21 API.
 
-          Нажми "Сгенерировать новый" для обновления.
+          🔰 *Current Token:*
+          `{my_botapi_token}`
         en: |
-          🔑 *Want to check if the user is a current student of School 21? Use our API! See documentation for details.*
+          🔑 *Access Token*
 
-          Your current token: `{my_botapi_token}`
+          Use this key to integrate external services with School 21 API.
 
-          Click "Generate new" to update.
+          🔰 *Current Token:*
+          `{my_botapi_token}`
       buttons:
         - id: regenerate
           label:
-            ru: 🔁 Сгенерировать новый
-            en: 🔁 Generate new
+            ru: 🔁 Регенерация ключа
+            en: 🔁 Regenerate Key
           next_state: GENERATE_API_TOKEN
         - id: back
           label:
@@ -217,7 +276,7 @@ states:
 
   GENERATE_API_TOKEN:
     type: system
-    description: Генерация нового API-токена
+    description: Генерация токена
     logic:
       action: generate_api_token
       payload:
@@ -227,15 +286,15 @@ states:
 
   SHOW_NEW_API_TOKEN:
     type: interactive
-    description: Отображение нового API-токена
+    description: Показ нового токена
     interface:
       text:
         ru: |
-          ✅ Новый API-токен сгенерирован:
+          ✅ *Token Generated*
 
           `{my_botapi_token}`
         en: |
-          ✅ New API token generated:
+          ✅ *Token Generated*
 
           `{my_botapi_token}`
       buttons:
@@ -247,7 +306,7 @@ states:
 
   CHECK_PROVIDER_CREDENTIALS:
     type: system
-    description: Проверка наличия Data-Provider
+    description: Проверка статуса провайдера
     logic:
       action: is_provider_credentials
       payload:
@@ -260,18 +319,24 @@ states:
 
   ALREADY_PROVIDER_CREDENTIALS:
     type: interactive
-    description: Пользователь уже стал провайдером
+    description: Статус активного провайдера
     interface:
       text:
         ru: |
-          Ты действующий провайдер! Спасибо! 🌟
+          📡 *Data Provider Status*
+
+          ✅ *Active*
+          Твоя нода успешно передает данные.
         en: |
-          You are an active provider! Thank you! 🌟
+          📡 *Data Provider Status*
+
+          ✅ *Active*
+          Your node is successfully transmitting data.
       buttons:
         - id: refuse
           label:
-            ru: Отказаться от провайдерства
-            en: Refuse to be a provider
+            ru: 🛑 Остановить ноду
+            en: 🛑 Stop Node
           next_state: RESET_PROVIDER_CREDENTIALS
         - id: back
           label:
@@ -281,13 +346,15 @@ states:
 
   RESET_PROVIDER_CREDENTIALS:
     type: system
-    description: Сброс данных Data-Provider
+    description: Отключение провайдера
     interface:
       text:
         ru: |
-          ✅ Ты больше не провайдер!
+          🚫 *Node Stopped*
+          Провайдер отключен.
         en: |
-          ✅ You are no longer a provider!
+          🚫 *Node Stopped*
+          Provider disabled.
     logic:
       action: reset_provider_credentials
       payload:
@@ -297,20 +364,26 @@ states:
 
   NEED_PROVIDER_CREDENTIALS:
     type: interactive
-    description: Необходимость ввода данных Data-Provider
+    description: Предложение стать провайдером
     interface:
       text:
         ru: |
-          ℹ️ *Помоги боту получать данные из твоего кампуса – стань провайдером 😎.*
-          Провайдеров в {my_campus} сейчас *{count}*.
+          📡 *Data Provider: Inactive*
+
+          Требуется подключение локальной ноды для синхронизации данных кампуса.
+
+          🟢 *Active Nodes ({my_campus}):* `{count}`
         en: |
-          ℹ️ *Help the bot get data from your campus – become a provider 😎.*
-          There are currently *{count}* providers in {my_campus}.
+          📡 *Data Provider: Inactive*
+
+          Local node connection required for campus data synchronization.
+
+          🟢 *Active Nodes ({my_campus}):* `{count}`
       buttons:
         - id: set_provider_credentials
           label:
-            ru: Стать провайдером
-            en: Become a provider
+            ru: 🔌 Подключить
+            en: 🔌 Connect
           next_state: SET_PROVIDER_CREDENTIALS
         - id: back
           label:
@@ -320,20 +393,26 @@ states:
 
   SET_PROVIDER_CREDENTIALS:
     type: input
-    description: Ввод данных Data-Provider
+    description: Ввод креденшалов
     interface:
       text:
         ru: |
-          Введи данные Data-Provider (логин, пароль, токен):
-          (можно ввести все или часть)
+          🔐 *Node Authorization*
+
+          Введи данные для подключения к School 21 API.
+          *Format:* `Login` | `Password` | `Token`
         en: |
-          Enter Data-Provider credentials (login, password, token):
-          (can enter all or part)
+          🔐 *Node Authorization*
+
+          Enter credentials to connect to School 21 API.
+          *Format:* `Login` | `Password` | `Token`
       error_invalid:
         ru: |
-          ⚠️ Я не нашёл токен или логин. Попробуй снова.
+          ⚠️ *Auth Error*
+          Токен или логин не распознан.
         en: |
-          ⚠️ I didn't find a token or login. Try again.
+          ⚠️ *Auth Error*
+          Token or login not recognized.
     validation:
       regex: (?:ey[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+)|(?<![A-Za-z0-9\-_])[a-z]{4,9}(?![A-Za-z0-9\-_])
     transitions:
@@ -344,33 +423,37 @@ states:
 
   FAULT_PROVIDER_CREDENTIALS:
     type: interactive
-    description: Неверные данные Data-Provider
+    description: Ошибка подключения провайдера
     interface:
       text:
         ru: |
-          ❌ Не удалось обратиться к API Школы с твоими данными. Перепроверь и попробуй снова.
+          ❌ *Connection Failed*
+          API Школы отклонил запрос. Проверь данные.
         en: |
-          ❌ Failed to connect to School API with your credentials. Check and try again.
+          ❌ *Connection Failed*
+          School API rejected request. Verify credentials.
       buttons:
         - id: back
           next_state: SET_PROVIDER_CREDENTIALS
 
   CONFIRM_PROVIDER_CREDENTIALS:
     type: interactive
-    description: Подтверждение данных Data-Provider
+    description: Успешное подключение провайдера
     interface:
       text:
         ru: |
-          ✅ Спасибо! Теперь бот будет получать данные из твоего кампуса.
+          ✅ *Node Connected*
+          Синхронизация данных активирована.
         en: |
-          ✅ Thanks! Now the bot will receive data from your campus.
+          ✅ *Node Connected*
+          Data synchronization activated.
       buttons:
         - id: back
           next_state: API_SETTINGS
 
   TOGGLE_SEARCHABLE:
     type: system
-    description: Переключение видимости профиля
+    description: Переключение видимости
     logic:
       action: toggle_searchable
       payload:
@@ -380,14 +463,18 @@ states:
 
   SEARCHABLE_STATUS_NOTIFICATION:
     type: interactive
-    description: Уведомление об изменении видимости
+    description: Уведомление о смене видимости
     interface:
       text:
         ru: |
-          {status_emoji} Видимость профиля: {is_searchable_label_ru}.
+          👁️ *Visibility Update*
+
+          Status: {is_searchable_label_ru}
           {search_restriction_ru}
         en: |
-          {status_emoji} Profile visibility: {is_searchable_label_en}.
+          👁️ *Visibility Update*
+
+          Status: {is_searchable_label_en}
           {search_restriction_en}
       buttons:
         - id: back

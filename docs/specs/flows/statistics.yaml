@@ -3,10 +3,19 @@ meta:
   feature_id: STAT-001
   name: Статистика и поиск
   description: 'Центр аналитики: личный прогресс, поиск пиров и сравнение скиллов'
-  version: 2.1.0
+  version: 2.2.0
 
-initial_state: STATS_SEARCH_MENU
+initial_state: AUTO_SYNC_STATS
+
 states:
+  AUTO_SYNC_STATS:
+    type: system
+    description: "Automatically refresh user stats on entry"
+    logic:
+      action: get_user_stats
+    transitions:
+      - next_state: STATS_SEARCH_MENU
+
   ## TODO: на каком месте в трайбе
   STATS_SEARCH_MENU:
     type: interactive
@@ -43,6 +52,7 @@ states:
           *Social:*
           🧐 INT: `{my_interest}` | 🙂 FRD: `{my_friendliness}`
           🕑 PNC: `{my_punctuality}` | ⚖️ THO: `{my_thoroughness}`
+          {cooldown_msg}
       buttons:
         - id: search
           label:
@@ -54,7 +64,7 @@ states:
             ru: 🕸 Мои навыки
             en: 🕸 My Skills
           row: 1
-          next_state: FETCH_MY_SKILLS
+          next_state: TRY_SHOW_SKILLS
         - id: update
           label:
             ru: 🔄 Обновить данные
@@ -76,6 +86,35 @@ states:
         user_id: $context.user_id
     transitions:
       - next_state: STATS_SEARCH_MENU
+
+  TRY_SHOW_SKILLS:
+    type: system
+    description: Проверка состояния обновления навыков
+    transitions:
+      - condition: is_generating_chart == true
+        next_state: SKILLS_UPDATING_INFO
+      - next_state: FETCH_MY_SKILLS
+
+  SKILLS_UPDATING_INFO:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          ⏳ *Ваши навыки обновляются...*
+
+          Мы запросили свежие данные в Школе 21 и перерисовываем график.
+          Попробуйте нажать кнопку ещё раз через пару секунд.
+        en: |
+          ⏳ *Your skills are being updated...*
+
+          We requested fresh data from School 21 and are redrawing the chart.
+          Please try again in a few seconds.
+      buttons:
+        - id: back
+          label:
+            ru: "⬅️ Назад"
+            en: "⬅️ Back"
+          next_state: STATS_SEARCH_MENU
 
   FETCH_MY_SKILLS:
     type: system
@@ -100,28 +139,17 @@ states:
 
   DISPLAY_MY_SKILLS:
     type: interactive
-    description: Отображение радар-диаграммы навыков
+    description: "Display user's skills radar chart"
     interface:
       image: "{radar_chart_path}"
       text:
-        ru: |
-          🕸 *Карта твоих навыков*
-
-          Это визуализация твоего опыта на основе сданных проектов.
-        en: |
-          🕸 *Your Skill Map*
-
-          Visualization of your experience based on completed projects.
+        ru: "📊 *Ваш профиль навыков*\n\nЭтот график показывает владение различными доменами разработки на основе ваших достижений в Школе 21."
+        en: "📊 *Your Skills Profile*\n\nThis chart shows your proficiency in various development domains based on your achievements in School 21."
       buttons:
-        - id: update
-          label:
-            ru: 🔄 Обновить
-            en: 🔄 Update
-          next_state: FETCH_MY_SKILLS
         - id: back
           label:
-            ru: 🔙 Назад в меню
-            en: 🔙 Back to menu
+            ru: "⬅️ Назад"
+            en: "⬅️ Back"
           next_state: STATS_SEARCH_MENU
 
   SEARCH_INPUT:
@@ -160,6 +188,8 @@ states:
         login: $context.last_input
         requester_id: $context.user_id
     transitions:
+      - condition: peer_found == true && peer_status == 'EXPELLED'
+        next_state: DISPLAY_EXPELLED_PEER_STATS
       - condition: peer_found == true
         next_state: DISPLAY_PEER_STATS
       - condition: peer_found == false
@@ -187,6 +217,8 @@ states:
           • ПНК: `{peer_punctuality}` | СТР: `{peer_thoroughness}`
 
           📬 *Связь:* @{peer_telegram}
+          `{alternative_contact}`
+        ## TODO: ДОДЕЛАЙ СВЯЗЬ
         en: |
           📂 *Peer: {peer_login}*
 
@@ -205,15 +237,8 @@ states:
           • PNC: `{peer_punctuality}` | THO: `{peer_thoroughness}`
 
           📬 *Contact:* @{peer_telegram}
+          `{alternative_contact}`
       buttons:
-        # Функция отключена
-        # 1. Надо нормально выводить текст
-        # 2. Если хочется сравнить, то можно посмотреть на свои немногочисленные показатели на предыдущем экране
-        # - id: compare_stats
-        #   label:
-        #     ru: ⚖️ Сравнить с собой
-        #     en: ⚖️ Compare with me
-        #   next_state: COMPARE_STATS
         - id: compare_skills
           label:
             ru: 🕸 Сравнить навыки
@@ -232,61 +257,55 @@ states:
           row: 1
           next_state: STATS_SEARCH_MENU
 
-  COMPARE_STATS:
+  DISPLAY_EXPELLED_PEER_STATS:
     type: interactive
-    description: Сравнение статистики двух пользователей
+    description: Отображение статистики найденного отчисленного пира
     interface:
       text:
         ru: |
-          *Сравнение показателей*
+          📂 *Пир: {peer_login}*
+          📍 {peer_campus}
+          ⚙️ {peer_status}
 
-          🦁 *Ты* ...... 🦄 *{peer_login}*
-
-          {my_campus} | {peer_campus}
-          {my_coalition} | {peer_coalition}
-          {my_class} | {peer_class}
-          {my_status} | {peer_status}
-          {my_parallel} | {peer_parallel}
-
-          🏅 Lvl: `{my_level}` | `{peer_level}`
-          ✨ XP: `{my_exp}` | `{peer_exp}`
-          💰 Coins: `{my_coins}` | `{peer_coins}`
-
-          *Social:*
-          🧐 ИНТ: `{my_interest}` | `{peer_interest}`
-          🙂 ДОБ: `{my_friendliness}` | `{peer_friendliness}`
-          🕑 ПНК: `{my_punctuality}` | `{peer_punctuality}`
-          ⚖️ СТР: `{my_thoroughness}` | `{peer_thoroughness}`
+          📊 *Показатели:*
+          • Уровень: `{peer_level}`
+          • Опыт: `{peer_exp} XP`
+          • Коины: `{peer_coins} ₡`
+          • PRP: `{peer_prps}` | CRP: `{peer_crps}`
+        ## TODO: ДОДЕЛАЙ СВЯЗЬ
         en: |
-          *Progress Comparison*
+          📂 *Peer: {peer_login}*
 
-          🦁 *You* ............... 🦄 *{peer_login}*
-          {my_campus} | {peer_campus}
-          {my_class} | {peer_class}
-          {my_coalition} | {peer_coalition}
-          {my_status} | {peer_status}
-          {my_parallel} | {peer_parallel}
+          📍 {peer_campus}
+          ⚙️ {peer_status}
 
-          🏅 Lvl: `{my_level}` | `{peer_level}`
-          ✨ XP: `{my_exp}` | `{peer_exp}`
-          💰 Coins: `{my_coins}` | `{peer_coins}`
-
-          *Social:*
-          🧐 INT: `{my_interest}` | `{peer_interest}`
-          🙂 FRD: `{my_friendliness}` | `{peer_friendliness}`
-          🕑 PNC: `{my_punctuality}` | `{peer_punctuality}`
-          ⚖️ THO: `{my_thoroughness}` | `{peer_thoroughness}`
-
+          📊 *Stats:*
+          • Level: `{peer_level}`
+          • XP: `{peer_exp}`
+          • Coins: `{peer_coins} ₡`
+          • PRP: `{peer_prps}` | CRP: `{peer_crps}`
       buttons:
+        - id: compare_skills
+          label:
+            ru: 🕸 Сравнить навыки
+            en: 🕸 Compare skills
+          next_state: COMPARE_SKILLS
+        - id: new_search
+          label:
+            ru: 🔍 Искать другого
+            en: 🔍 Find another
+          row: 1
+          next_state: SEARCH_INPUT
         - id: back
           label:
-            ru: 🔙 Назад к пиру
-            en: 🔙 Back to peer
-          next_state: DISPLAY_PEER_STATS
+            ru: 🔙 В мой профиль
+            en: 🔙 My profile
+          row: 1
+          next_state: STATS_SEARCH_MENU
 
   COMPARE_SKILLS:
     type: system
-    description: Генерация сравнительной Mermaid диаграммы
+    description: Генерация сравнительной диаграммы
     logic:
       action: generate_radar_chart
       payload:
@@ -326,12 +345,12 @@ states:
           👻 *Пир не найден*
 
           Мы не нашли `{last_input}` в базе.
-          Проверь, правильно ли написан логин (нужен именно Intra login, не Telegram).
+          Проверь, правильно ли написан логин (нужен именно S21 login, не Telegram).
         en: |
           👻 *Peer not found*
 
           We couldn't find `{last_input}`.
-          Check the spelling (we need the Intra login, not Telegram username).
+          Check the spelling (we need the S21 login, not Telegram username).
       buttons:
         - id: retry
           label:
