@@ -24,7 +24,7 @@ func (s *telegramService) handleStart(b *gotgbot.Bot, ctx *ext.Context) error {
 	s.log.Info("user started the bot", "user_id", userID, "username", ctx.EffectiveUser.Username)
 
 	bgCtx := context.Background()
-	initialContext := make(map[string]interface{})
+	initialContext := make(map[string]any)
 
 	// 1. Try to identify the student via Service
 	profile, err := s.userSvc.GetProfileByTelegramID(bgCtx, userID)

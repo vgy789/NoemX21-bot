@@ -96,7 +96,7 @@ func TestLoadUserProfile_LogsUpsertError(t *testing.T) {
 	}
 
 	// Call the action with userID=123
-	_, _, err = act(context.Background(), 123, map[string]interface{}{})
+	_, _, err = act(context.Background(), 123, map[string]any{})
 	if err != nil {
 		t.Fatalf("action returned error: %v", err)
 	}

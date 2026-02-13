@@ -15,17 +15,17 @@ type MockDBTX struct {
 	mock.Mock
 }
 
-func (m *MockDBTX) Exec(ctx context.Context, sql string, args ...interface{}) (pgconn.CommandTag, error) {
+func (m *MockDBTX) Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error) {
 	a := m.Called(ctx, sql, args)
 	return a.Get(0).(pgconn.CommandTag), a.Error(1)
 }
 
-func (m *MockDBTX) Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error) {
+func (m *MockDBTX) Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error) {
 	a := m.Called(ctx, sql, args)
 	return a.Get(0).(pgx.Rows), a.Error(1)
 }
 
-func (m *MockDBTX) QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row {
+func (m *MockDBTX) QueryRow(ctx context.Context, sql string, args ...any) pgx.Row {
 	a := m.Called(ctx, sql, args)
 	return a.Get(0).(pgx.Row)
 }
@@ -34,7 +34,7 @@ type MockRow struct {
 	mock.Mock
 }
 
-func (m *MockRow) Scan(dest ...interface{}) error {
+func (m *MockRow) Scan(dest ...any) error {
 	return m.Called(dest...).Error(0)
 }
 
@@ -46,7 +46,7 @@ func TestQueries_GetRegisteredUserByS21Login(t *testing.T) {
 	mockRow := new(MockRow)
 	mockDB.On("QueryRow", ctx, getRegisteredUserByS21Login, mock.Anything).Return(mockRow)
 	// RegisteredUser has 7 fields
-	scans := make([]interface{}, 7)
+	scans := make([]any, 7)
 	for i := range scans {
 		scans[i] = mock.Anything
 	}
@@ -88,7 +88,7 @@ func TestQueries_GetMyProfile(t *testing.T) {
 	mockRow := new(MockRow)
 	mockDB.On("QueryRow", ctx, getMyProfile, mock.Anything).Return(mockRow)
 	// GetMyProfileRow has 19 fields
-	scans := make([]interface{}, 19)
+	scans := make([]any, 19)
 	for i := range scans {
 		scans[i] = mock.Anything
 	}
@@ -116,7 +116,7 @@ func TestQueries_UpsertRegisteredUser(t *testing.T) {
 
 	mockRow := new(MockRow)
 	// UpsertRegisteredUser has 6 arguments
-	args := make([]interface{}, 6+2) // ctx, query, then 6 args
+	args := make([]any, 6+2) // ctx, query, then 6 args
 	args[0] = ctx
 	args[1] = upsertRegisteredUser
 	for i := 2; i < len(args); i++ {
@@ -125,7 +125,7 @@ func TestQueries_UpsertRegisteredUser(t *testing.T) {
 	mockDB.On("QueryRow", args...).Return(mockRow)
 
 	// Result scan (same as RegisteredUser - 7 fields)
-	scans := make([]interface{}, 7)
+	scans := make([]any, 7)
 	for i := range scans {
 		scans[i] = mock.Anything
 	}
@@ -171,7 +171,7 @@ func TestQueries_Remaining(t *testing.T) {
 		mockRow := new(MockRow)
 		mockDB.On("QueryRow", ctx, getRegisteredUserByRocketChatId, mock.Anything).Return(mockRow)
 		// 7 fields
-		scans := make([]interface{}, 7)
+		scans := make([]any, 7)
 		for i := range scans {
 			scans[i] = mock.Anything
 		}
@@ -197,7 +197,7 @@ func TestQueries_Remaining(t *testing.T) {
 		mockRow := new(MockRow)
 		mockDB.On("QueryRow", ctx, getPeerProfile, mock.Anything).Return(mockRow)
 		// GetPeerProfileRow has 17 fields
-		scans := make([]interface{}, 17)
+		scans := make([]any, 17)
 		for i := range scans {
 			scans[i] = mock.Anything
 		}

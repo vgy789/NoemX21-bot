@@ -299,7 +299,7 @@ func (r *radarChart) render(result *defaultRenderResult, seriesList SeriesList) 
 		StrokeWidth: 1,
 		FillColor:   drawing.ColorTransparent,
 	})
-	for i := 0; i < divideCount; i++ {
+	for i := range divideCount {
 		seriesPainter.Polygon(center, divideRadius*float64(i+1), sides)
 	}
 	for _, p := range points {

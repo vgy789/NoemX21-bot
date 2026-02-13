@@ -13,8 +13,9 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 )
 
+//go:fix inline
 func StringPtr(s string) *string {
-	return &s
+	return new(s)
 }
 
 type ParticipantCampusV1DTO struct {

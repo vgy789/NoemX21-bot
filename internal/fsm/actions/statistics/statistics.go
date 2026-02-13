@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log/slog"
+	"maps"
 
 	// "os"
 	"strconv"
@@ -60,7 +61,7 @@ func Register(
 		aliasRegistrar("STATS_MENU", "statistics.yaml/AUTO_SYNC_STATS")
 	}
 
-	registry.Register("get_user_stats", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+	registry.Register("get_user_stats", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		log.Info("get_user_stats action invoked", "user_id", userID, "payload", payload)
 
 		// 1. Get FSM state to check cooldown and busy status
@@ -93,7 +94,7 @@ func Register(
 			_, dbVars, _ := getStatsFromDB(ctx, acc.S21Login, queries, log)
 			return "", dbVars, nil
 		}
-		var dbVars map[string]interface{}
+		var dbVars map[string]any
 
 		log.Info("checking busy status", "user_id", userID, "is_generating_chart", state.Context["is_generating_chart"])
 
@@ -103,7 +104,7 @@ func Register(
 				lastUpdate, _ := time.Parse(time.RFC3339, lastUpdateRaw)
 				if time.Since(lastUpdate) < statsUpdateSafetyTimeout {
 					log.Debug("ignoring refresh request, already updating", "user_id", userID)
-					return "", map[string]interface{}{"_alert": alertAlreadyUpdating}, nil
+					return "", map[string]any{"_alert": alertAlreadyUpdating}, nil
 				}
 				log.Warn("background update seems stuck, allowing retry", "user_id", userID)
 			}
@@ -132,7 +133,7 @@ func Register(
 
 				_, dbVars, _ = getStatsFromDB(ctx, acc.S21Login, queries, log)
 				if dbVars == nil {
-					dbVars = make(map[string]interface{})
+					dbVars = make(map[string]any)
 				}
 				dbVars["_alert"] = cooldownMsg
 				dbVars["cooldown_msg"] = cooldownMsg
@@ -144,7 +145,7 @@ func Register(
 		// Load current stats from DB for initial display
 		_, dbVars, _ = getStatsFromDB(ctx, acc.S21Login, queries, log)
 		if dbVars == nil {
-			dbVars = make(map[string]interface{})
+			dbVars = make(map[string]any)
 		}
 
 		// If it's a full update request or we have no level data (empty cache), proceed synchronously
@@ -184,7 +185,7 @@ func Register(
 			participant, err := s21Client.GetParticipant(ctx, token, acc.S21Login)
 			if err != nil {
 				log.Error("failed to get participant", "error", err)
-				return "", map[string]interface{}{"_alert": alertErrorData, "is_generating_chart": false}, nil
+				return "", map[string]any{"_alert": alertErrorData, "is_generating_chart": false}, nil
 			}
 			log.Info("got participant data", "login", acc.S21Login, "status", participant.Status)
 
@@ -324,15 +325,13 @@ func Register(
 			_ = repo.SetState(ctx, state)
 
 			// Update dbVars to return them immediately to the user
-			for k, v := range state.Context {
-				dbVars[k] = v
-			}
+			maps.Copy(dbVars, state.Context)
 		}
 
 		return "", dbVars, nil
 	})
 
-	registry.Register("get_peer_data_with_permissions", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+	registry.Register("get_peer_data_with_permissions", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		login, ok := payload["login"].(string)
 		if !ok {
 			return "", nil, fmt.Errorf("login not found in payload")
@@ -382,7 +381,7 @@ func Register(
 		}
 
 		// 3. Prepare variables
-		vars := map[string]interface{}{
+		vars := map[string]any{
 			"peer_found":        true,
 			"peer_login":        participant.Login,
 			"peer_campus":       participant.Campus.ShortName,
@@ -490,7 +489,7 @@ func Register(
 		return "", vars, nil
 	})
 
-	registry.Register("get_user_skills", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+	registry.Register("get_user_skills", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		// Find login
 		acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
 			Platform:   db.EnumPlatformTelegram,
@@ -511,13 +510,13 @@ func Register(
 			skillMap[s.Name] = s.Value
 		}
 
-		return "", map[string]interface{}{
+		return "", map[string]any{
 			"my_skills": skillMap,
 		}, nil
 	})
 
-	registry.Register("generate_radar_chart", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
-		usersRaw, ok := payload["users"].([]interface{})
+	registry.Register("generate_radar_chart", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		usersRaw, ok := payload["users"].([]any)
 		if !ok {
 			return "", nil, fmt.Errorf("users list not found in payload")
 		}
@@ -607,7 +606,7 @@ func Register(
 			return "", nil, err
 		}
 
-		return "", map[string]interface{}{
+		return "", map[string]any{
 			"radar_chart_path":      chartPath,
 			"radar_comparison_path": chartPath,
 		}, nil
@@ -616,14 +615,14 @@ func Register(
 
 // getStatsFromDB загружает статистику зарегистрированного пользователя через GetMyProfile
 // (registered_users JOIN participant_stats_cache).
-func getStatsFromDB(ctx context.Context, s21Login string, queries db.Querier, log *slog.Logger) (string, map[string]interface{}, error) {
+func getStatsFromDB(ctx context.Context, s21Login string, queries db.Querier, log *slog.Logger) (string, map[string]any, error) {
 	profile, err := queries.GetMyProfile(ctx, s21Login)
 	if err != nil {
 		log.Error("failed to get my profile from DB", "login", s21Login, "error", err)
 		return "", nil, err
 	}
 
-	vars := map[string]interface{}{
+	vars := map[string]any{
 		"my_s21login": profile.S21Login,
 	}
 
@@ -675,8 +674,8 @@ func getStatsFromDB(ctx context.Context, s21Login string, queries db.Querier, lo
 }
 
 // getPeerStatsFromCache строит vars для FSM из строки participant_stats_cache (и при необходимости — telegram из user_accounts).
-func getPeerStatsFromCache(ctx context.Context, login string, row db.GetParticipantStatsCacheRow, queries db.Querier, log *slog.Logger) (string, map[string]interface{}, error) {
-	vars := map[string]interface{}{
+func getPeerStatsFromCache(ctx context.Context, login string, row db.GetParticipantStatsCacheRow, queries db.Querier, log *slog.Logger) (string, map[string]any, error) {
+	vars := map[string]any{
 		"peer_found":        true,
 		"peer_login":        row.S21Login,
 		"peer_campus":       defaultCampusValue,
@@ -731,16 +730,16 @@ func getPeerStatsFromCache(ctx context.Context, login string, row db.GetParticip
 }
 
 // getPeerStatsFromDB — fallback для пиров, у которых нет записи в кеше, но есть в participant_stats_cache через GetPeerProfile.
-func getPeerStatsFromDB(ctx context.Context, login string, queries db.Querier, log *slog.Logger) (string, map[string]interface{}, error) {
+func getPeerStatsFromDB(ctx context.Context, login string, queries db.Querier, log *slog.Logger) (string, map[string]any, error) {
 	profile, err := queries.GetPeerProfile(ctx, login)
 	if err != nil {
 		log.Debug("peer not found in DB", "login", login, "error", err)
-		return "", map[string]interface{}{
+		return "", map[string]any{
 			"peer_found": false,
 		}, nil
 	}
 
-	vars := map[string]interface{}{
+	vars := map[string]any{
 		"peer_found":        true,
 		"peer_login":        profile.S21Login,
 		"peer_campus":       defaultCampusValue,
