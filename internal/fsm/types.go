@@ -43,10 +43,10 @@ type Interface struct {
 }
 
 type Button struct {
-	ID        string      `yaml:"id"`
-	Label     interface{} `yaml:"label"`      // String or Map[string]string
-	NextState string      `yaml:"next_state"` // can be "STATE" or "file.yaml/STATE"
-	Row       int         `yaml:"row"`        // Optional: buttons with same Row ID will be in the same row
+	ID        string `yaml:"id"`
+	Label     any    `yaml:"label"`      // String or Map[string]string
+	NextState string `yaml:"next_state"` // can be "STATE" or "file.yaml/STATE"
+	Row       int    `yaml:"row"`        // Optional: buttons with same Row ID will be in the same row
 }
 
 type Transition struct {
@@ -56,17 +56,17 @@ type Transition struct {
 }
 
 type Logic struct {
-	Action  string                 `yaml:"action"`
-	Payload map[string]interface{} `yaml:"payload"`
+	Action  string         `yaml:"action"`
+	Payload map[string]any `yaml:"payload"`
 }
 
 // UserState represents the current state of a user.
 type UserState struct {
-	UserID       int64                  `json:"user_id"`
-	CurrentFlow  string                 `json:"current_flow"`  // e.g. "registration.yaml"
-	CurrentState string                 `json:"current_state"` // e.g. "AWAITING_OTP"
-	Context      map[string]interface{} `json:"context"`       // Store arbitrary data
-	Language     string                 `json:"language"`      // "ru" or "en"
+	UserID       int64          `json:"user_id"`
+	CurrentFlow  string         `json:"current_flow"`  // e.g. "registration.yaml"
+	CurrentState string         `json:"current_state"` // e.g. "AWAITING_OTP"
+	Context      map[string]any `json:"context"`       // Store arbitrary data
+	Language     string         `json:"language"`      // "ru" or "en"
 }
 
 // ContextKey is a type for context keys

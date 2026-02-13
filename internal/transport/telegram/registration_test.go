@@ -69,8 +69,8 @@ func TestRegistration_APIErrors(t *testing.T) {
 
 	t.Run("wrong parallel", func(t *testing.T) {
 		_ = ts.engine.InitState(ctx, userID, fsm.FlowRegistration, fsm.StateInputLogin, nil)
-		ts.engine.Registry().Register("validate_school21_user", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
-			return "", map[string]interface{}{"api_status": 200, "s21_user": map[string]interface{}{"status": "ACTIVE", "parallelName": "Discovery"}}, nil
+		ts.engine.Registry().Register("validate_school21_user", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+			return "", map[string]any{"api_status": 200, "s21_user": map[string]any{"status": "ACTIVE", "parallelName": "Discovery"}}, nil
 		})
 
 		render, err := ts.engine.Process(ctx, userID, "discovery")
@@ -82,8 +82,8 @@ func TestRegistration_APIErrors(t *testing.T) {
 	t.Run("user not found", func(t *testing.T) {
 		_ = ts.engine.InitState(ctx, userID, fsm.FlowRegistration, fsm.StateInputLogin, nil)
 		// Mock valid_school21_user to return 404
-		ts.engine.Registry().Register("validate_school21_user", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
-			return "", map[string]interface{}{"api_status": 404}, nil
+		ts.engine.Registry().Register("validate_school21_user", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+			return "", map[string]any{"api_status": 404}, nil
 		})
 
 		render, err := ts.engine.Process(ctx, userID, "maslenok")
@@ -100,7 +100,7 @@ func TestRegistration_UniquenessAndOTP(t *testing.T) {
 	userID := int64(300)
 
 	t.Run("login taken", func(t *testing.T) {
-		_ = ts.engine.InitState(ctx, userID, fsm.FlowRegistration, fsm.StateAwaitingOTP, map[string]interface{}{
+		_ = ts.engine.InitState(ctx, userID, fsm.FlowRegistration, fsm.StateAwaitingOTP, map[string]any{
 			"s21_login": "otheruser",
 		})
 
@@ -118,7 +118,7 @@ func TestRegistration_UniquenessAndOTP(t *testing.T) {
 
 	t.Run("success", func(t *testing.T) {
 		userID = 301
-		_ = ts.engine.InitState(ctx, userID, fsm.FlowRegistration, fsm.StateAwaitingOTP, map[string]interface{}{
+		_ = ts.engine.InitState(ctx, userID, fsm.FlowRegistration, fsm.StateAwaitingOTP, map[string]any{
 			"s21_login": "newuser",
 		})
 

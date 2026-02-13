@@ -623,10 +623,7 @@ func (p *Painter) Ticks(opt TicksOption) *Painter {
 	first := opt.First
 	width := p.Width()
 	height := p.Height()
-	unit := 1
-	if opt.Unit > 1 {
-		unit = opt.Unit
-	}
+	unit := max(opt.Unit, 1)
 	var values []int
 	isVertical := opt.Orient == OrientVertical
 	if isVertical {

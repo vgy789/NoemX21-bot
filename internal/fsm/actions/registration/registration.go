@@ -34,7 +34,7 @@ func Register(
 		aliasRegistrar("START", "registration.yaml/START")
 	}
 	// Helper to extract user info from payload/context
-	getUserInfo := func(ctx context.Context, userID int64, payload map[string]interface{}) fsm.UserInfo {
+	getUserInfo := func(ctx context.Context, userID int64, payload map[string]any) fsm.UserInfo {
 		ui := fsm.UserInfo{
 			ID:        userID,
 			Platform:  "Unknown",
@@ -77,7 +77,7 @@ func Register(
 	}
 
 	// Register System actions for registration flow
-	registry.Register("is_user_registered", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+	registry.Register("is_user_registered", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		ui := getUserInfo(ctx, userID, payload)
 
 		platform := db.EnumPlatformTelegram
@@ -88,11 +88,11 @@ func Register(
 		_, err := userSvc.GetProfileByExternalID(ctx, platform, fmt.Sprintf("%d", ui.ID))
 		isRegistered := err == nil
 		log.Debug("checking registration status", "user_id", ui.ID, "platform", ui.Platform, "registered", isRegistered)
-		return "", map[string]interface{}{"registered": isRegistered}, nil
+		return "", map[string]any{"registered": isRegistered}, nil
 	})
 
 	// Validate School21 user
-	registry.Register("validate_school21_user", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+	registry.Register("validate_school21_user", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		login := payload["login"].(string)
 		log.Debug("validating school21 user", "login", login)
 
@@ -101,7 +101,7 @@ func Register(
 		authResp, err := s21Client.Auth(ctx, cfg.Init.SchoolLogin, cfg.Init.SchoolPassword.Expose())
 		if err != nil {
 			log.Error("failed to authenticate bot to School21 API", "error", err)
-			return "", map[string]interface{}{"api_status": 500}, nil
+			return "", map[string]any{"api_status": 500}, nil
 		}
 
 		// 2. Check the student login via API
@@ -109,10 +109,10 @@ func Register(
 		if err != nil {
 			// Check if it was a 404 (user not found)
 			if strings.Contains(err.Error(), "status 404") || strings.Contains(err.Error(), "body error: status 404") {
-				return "", map[string]interface{}{"api_status": 404}, nil
+				return "", map[string]any{"api_status": 404}, nil
 			}
 			log.Error("S21 API GetParticipant failed", "login", login, "error", err)
-			return "", map[string]interface{}{"api_status": 502}, nil
+			return "", map[string]any{"api_status": 502}, nil
 		}
 
 		// 3. Return successful validation data
@@ -120,10 +120,10 @@ func Register(
 		if participant.ParallelName != nil {
 			parallelName = *participant.ParallelName
 		}
-		return "", map[string]interface{}{
+		return "", map[string]any{
 			"api_status": 200,
 			"s21_login":  login,
-			"s21_user": map[string]interface{}{
+			"s21_user": map[string]any{
 				"status":       participant.Status,
 				"parallelName": parallelName,
 			},
@@ -131,7 +131,7 @@ func Register(
 	})
 
 	// Find and verify RocketChat user and update ID in DB
-	registry.Register("find_and_verify_rocket_user", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+	registry.Register("find_and_verify_rocket_user", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		login := payload["login"].(string)
 
 		// 1. Check if account already registered/linked in our DB
@@ -139,7 +139,7 @@ func Register(
 		if err == nil {
 			if ua.ExternalID != fmt.Sprintf("%d", userID) {
 				log.Debug("student already registered to another telegram account", "login", login)
-				return "", map[string]interface{}{"email_already_registered": true}, nil
+				return "", map[string]any{"email_already_registered": true}, nil
 			}
 		}
 
@@ -148,7 +148,7 @@ func Register(
 		rcUser, err := rcClient.GetUserInfo(ctx, login)
 		if err != nil {
 			log.Error("failed to find user in RocketChat API", "login", login, "error", err)
-			return "", map[string]interface{}{"rocket_user_not_found": true}, nil
+			return "", map[string]any{"rocket_user_not_found": true}, nil
 		}
 
 		// 3. Verify email
@@ -163,7 +163,7 @@ func Register(
 
 		if !emailVerified {
 			log.Warn("rocketchat email verification failed", "login", login)
-			return "", map[string]interface{}{"email_mismatch": true, "rocket_user_found": true}, nil
+			return "", map[string]any{"email_mismatch": true, "rocket_user_found": true}, nil
 		}
 
 		// 4. Update the Rocket.Chat ID in the database
@@ -196,14 +196,14 @@ func Register(
 		}
 
 		log.Debug("rocket user verified", "login", login, "rc_id", rcUser.User.ID)
-		return "", map[string]interface{}{
+		return "", map[string]any{
 			"rocket_user_found": true,
 			"email_verified":    true,
 		}, nil
 	})
 
 	// Generate and send OTP
-	registry.Register("generate_otp", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+	registry.Register("generate_otp", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		login := payload["login"].(string)
 
 		// 0. Check rate limits
@@ -230,7 +230,7 @@ func Register(
 			if strings.HasPrefix(err.Error(), "RATE_LIMIT:") {
 				var remaining int
 				_, _ = fmt.Sscanf(err.Error(), "RATE_LIMIT:%d", &remaining)
-				return "", map[string]interface{}{
+				return "", map[string]any{
 					"otp_sent":             false,
 					"otp_rate_limited":     true,
 					"otp_retry_after_secs": remaining,
@@ -240,14 +240,14 @@ func Register(
 			return "", nil, err
 		}
 
-		return "", map[string]interface{}{
+		return "", map[string]any{
 			"otp_sent":  true,
 			"s21_login": login,
 		}, nil
 	})
 
 	// Verify OTP code
-	registry.Register("verify_otp", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+	registry.Register("verify_otp", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		code := payload["code"].(string)
 		otpSvc := service.NewOTPService(queries, rcClient, cfg, log)
 
@@ -326,7 +326,7 @@ func Register(
 			}
 		}
 
-		updates := map[string]interface{}{
+		updates := map[string]any{
 			"code_correct": valid,
 			"email_unique": emailUnique,
 			"is_own_email": isOwnAccount,
@@ -343,7 +343,7 @@ func Register(
 	})
 
 	// Load user profile after successful registration
-	registry.Register("load_user_profile", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+	registry.Register("load_user_profile", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		ui := getUserInfo(ctx, userID, payload)
 
 		platform := db.EnumPlatformTelegram
@@ -358,7 +358,7 @@ func Register(
 		})
 		if err != nil {
 			log.Error("failed to get user account", "user_id", ui.ID, "error", err)
-			return "", map[string]interface{}{"profile_loaded": false}, nil
+			return "", map[string]any{"profile_loaded": false}, nil
 		}
 
 		studentLogin := ua.S21Login
@@ -470,12 +470,12 @@ func Register(
 		profile, err := userSvc.GetProfileByExternalID(ctx, platform, fmt.Sprintf("%d", ui.ID))
 		if err != nil {
 			log.Error("failed to load user profile", "user_id", ui.ID, "platform", ui.Platform, "error", err)
-			return "", map[string]interface{}{"profile_loaded": false}, nil
+			return "", map[string]any{"profile_loaded": false}, nil
 		}
 
 		log.Info("user profile loaded", "user_id", userID, "login", profile.Login)
 
-		return "", map[string]interface{}{
+		return "", map[string]any{
 			"profile_loaded": true,
 			"name":           profile.Login,
 			"s21_login":      profile.Login,

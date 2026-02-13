@@ -49,29 +49,29 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 		}
 	}
 
-	registry.Register("input:set_ru", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+	registry.Register("input:set_ru", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		log.Info("switching language to RU", "user_id", userID)
 		updateLanguage(ctx, userID, fsm.LangRu)
-		return "", map[string]interface{}{"language": fsm.LangRu}, nil
+		return "", map[string]any{"language": fsm.LangRu}, nil
 	})
-	registry.Register("input:set_en", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+	registry.Register("input:set_en", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		log.Info("switching language to EN", "user_id", userID)
 		updateLanguage(ctx, userID, fsm.LangEn)
-		return "", map[string]interface{}{"language": fsm.LangEn}, nil
+		return "", map[string]any{"language": fsm.LangEn}, nil
 	})
-	registry.Register("input:ru", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+	registry.Register("input:ru", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		log.Info("settings: switching language to RU", "user_id", userID)
 		updateLanguage(ctx, userID, fsm.LangRu)
-		return "", map[string]interface{}{"language": fsm.LangRu}, nil
+		return "", map[string]any{"language": fsm.LangRu}, nil
 	})
-	registry.Register("input:en", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+	registry.Register("input:en", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		log.Info("settings: switching language to EN", "user_id", userID)
 		updateLanguage(ctx, userID, fsm.LangEn)
-		return "", map[string]interface{}{"language": fsm.LangEn}, nil
+		return "", map[string]any{"language": fsm.LangEn}, nil
 	})
 
 	// API Token actions
-	registry.Register("generate_api_token", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+	registry.Register("generate_api_token", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		ua, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
 			Platform:   db.EnumPlatformTelegram,
 			ExternalID: fmt.Sprintf("%d", userID),
@@ -86,12 +86,12 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 			return "", nil, err
 		}
 
-		return "", map[string]interface{}{
+		return "", map[string]any{
 			"my_botapi_token": token,
 		}, nil
 	})
 
-	registry.Register("load_api_token", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+	registry.Register("load_api_token", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		ua, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
 			Platform:   db.EnumPlatformTelegram,
 			ExternalID: fmt.Sprintf("%d", userID),
@@ -110,13 +110,13 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 			prefix = "нет / none"
 		}
 
-		return "", map[string]interface{}{
+		return "", map[string]any{
 			"my_botapi_token": prefix,
 		}, nil
 	})
 
 	// Delete profile action: remove user account record
-	registry.Register("delete_profile", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+	registry.Register("delete_profile", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		ua, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
 			Platform:   db.EnumPlatformTelegram,
 			ExternalID: fmt.Sprintf("%d", userID),

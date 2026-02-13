@@ -67,7 +67,7 @@ func TestMemoryStateRepository(t *testing.T) {
 			CurrentFlow:  "main_menu.yaml",
 			CurrentState: "MAIN_MENU",
 			Language:     "ru",
-			Context:      map[string]interface{}{"test": "value"},
+			Context:      map[string]any{"test": "value"},
 		}
 
 		err := repo.SetState(ctx, testState)
@@ -90,7 +90,7 @@ func TestMemoryStateRepository(t *testing.T) {
 			CurrentFlow:  "settings.yaml",
 			CurrentState: "SETTINGS_MENU",
 			Language:     "en",
-			Context:      map[string]interface{}{"updated": true},
+			Context:      map[string]any{"updated": true},
 		}
 
 		err := repo.SetState(ctx, updatedState)
@@ -246,7 +246,7 @@ func TestEngine_ReplaceVariables(t *testing.T) {
 	t.Run("replace default variables", func(t *testing.T) {
 		state := &UserState{
 			Language: DefaultLanguage,
-			Context:  map[string]interface{}{},
+			Context:  map[string]any{},
 		}
 
 		text := fmt.Sprintf("Login: %s, Level: %s", VarS21Login, VarLevel)
@@ -259,7 +259,7 @@ func TestEngine_ReplaceVariables(t *testing.T) {
 	t.Run("replace language flag for ru", func(t *testing.T) {
 		state := &UserState{
 			Language: "ru",
-			Context:  map[string]interface{}{},
+			Context:  map[string]any{},
 		}
 
 		text := "Flag: {my_lang_emoji}"
@@ -271,7 +271,7 @@ func TestEngine_ReplaceVariables(t *testing.T) {
 	t.Run("replace language flag for en", func(t *testing.T) {
 		state := &UserState{
 			Language: "en",
-			Context:  map[string]interface{}{},
+			Context:  map[string]any{},
 		}
 
 		text := "Flag: {my_lang_emoji}"
@@ -288,7 +288,7 @@ func TestEngine_ReplaceVariables(t *testing.T) {
 
 		state := &UserState{
 			Language: "ru",
-			Context: map[string]interface{}{
+			Context: map[string]any{
 				"s21_login": "vgy_789", // With underscore
 				"level":     "5*",      // With asterisk
 			},
@@ -308,8 +308,8 @@ func TestEngine_RegistrationFlow(t *testing.T) {
 	parser := NewFlowParser("../../docs/specs/flows", logger)
 	repo := NewMemoryStateRepository()
 	registry := NewLogicRegistry()
-	registry.Register("is_user_registered", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
-		return "", map[string]interface{}{"registered": true}, nil
+	registry.Register("is_user_registered", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		return "", map[string]any{"registered": true}, nil
 	})
 	engine := NewEngine(parser, repo, logger, registry, nil)
 	engine.AddAlias("MAIN_MENU", "main_menu.yaml/MAIN_MENU")
@@ -338,7 +338,7 @@ func TestLogicRegistry(t *testing.T) {
 	registry := NewLogicRegistry()
 
 	t.Run("register and get", func(t *testing.T) {
-		action := func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+		action := func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 			return "NEXT", nil, nil
 		}
 		registry.Register("test_action", action)
@@ -361,17 +361,17 @@ func TestEngine_EvaluateCondition(t *testing.T) {
 	tests := []struct {
 		name      string
 		condition string
-		ctx       map[string]interface{}
+		ctx       map[string]any
 		want      bool
 	}{
-		{"equal string", "key == value", map[string]interface{}{"key": "value"}, true},
-		{"not equal string", "key == value", map[string]interface{}{"key": "other"}, false},
-		{"quoted value", "key == 'value'", map[string]interface{}{"key": "value"}, true},
-		{"double quoted value", "key == \"value\"", map[string]interface{}{"key": "value"}, true},
-		{"numeric value", "count == 10", map[string]interface{}{"count": 10}, true},
-		{"boolean value", "flag == true", map[string]interface{}{"flag": true}, true},
-		{"missing key", "missing == val", map[string]interface{}{"key": "val"}, false},
-		{"invalid format", "invalid condition", map[string]interface{}{"key": "val"}, false},
+		{"equal string", "key == value", map[string]any{"key": "value"}, true},
+		{"not equal string", "key == value", map[string]any{"key": "other"}, false},
+		{"quoted value", "key == 'value'", map[string]any{"key": "value"}, true},
+		{"double quoted value", "key == \"value\"", map[string]any{"key": "value"}, true},
+		{"numeric value", "count == 10", map[string]any{"count": 10}, true},
+		{"boolean value", "flag == true", map[string]any{"flag": true}, true},
+		{"missing key", "missing == val", map[string]any{"key": "val"}, false},
+		{"invalid format", "invalid condition", map[string]any{"key": "val"}, false},
 	}
 
 	for _, tt := range tests {
@@ -386,9 +386,9 @@ func TestEngine_SystemStateWithRegistry(t *testing.T) {
 	repo := NewMemoryStateRepository()
 	registry := NewLogicRegistry()
 
-	registry.Register("check_auth", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+	registry.Register("check_auth", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		if userID == 1 {
-			return "", map[string]interface{}{"is_auth": true}, nil
+			return "", map[string]any{"is_auth": true}, nil
 		}
 		return "FORCED_STATE", nil, nil
 	})
@@ -412,7 +412,7 @@ func TestEngine_SystemStateWithRegistry(t *testing.T) {
 				{Condition: "is_auth == false", NextState: "AUTH_FAIL"},
 			},
 		}
-		state := &UserState{UserID: 1, Context: make(map[string]interface{})}
+		state := &UserState{UserID: 1, Context: make(map[string]any)}
 		next := engine.evaluateSystemState(context.Background(), spec, state)
 		assert.Equal(t, "AUTH_SUCCESS", next)
 		assert.Equal(t, true, state.Context["is_auth"])
@@ -500,7 +500,7 @@ func TestEngine_MoreEdgeCases(t *testing.T) {
 	})
 
 	t.Run("Process with action error", func(t *testing.T) {
-		registry.Register("fail_action", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+		registry.Register("fail_action", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 			return "", nil, fmt.Errorf("action failed")
 		})
 
@@ -514,18 +514,18 @@ func TestEngine_MoreEdgeCases(t *testing.T) {
 
 	t.Run("replaceVariables with missing key", func(t *testing.T) {
 		text := "Hello {{name}}"
-		state := &UserState{Context: map[string]interface{}{}}
+		state := &UserState{Context: map[string]any{}}
 		result := engine.replaceVariables(text, state)
 		assert.Equal(t, "Hello {}", result) // Unknown tags are removed
 	})
 
 	t.Run("Process success with real flow", func(t *testing.T) {
 		userID := int64(2001)
-		registry.Register("input:set_ru", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
-			return "", map[string]interface{}{"language": "ru"}, nil
+		registry.Register("input:set_ru", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+			return "", map[string]any{"language": "ru"}, nil
 		})
-		registry.Register("is_user_registered", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
-			return "", map[string]interface{}{"registered": true}, nil
+		registry.Register("is_user_registered", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+			return "", map[string]any{"registered": true}, nil
 		})
 		_ = engine.InitState(ctx, userID, "registration.yaml", "SELECT_LANGUAGE", nil)
 
@@ -549,11 +549,11 @@ func TestEngine_MoreEdgeCases(t *testing.T) {
 			},
 		}
 
-		state := &UserState{Context: map[string]interface{}{}}
+		state := &UserState{Context: map[string]any{}}
 
 		// Registered = true
-		registry.Register("is_registered", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
-			return "", map[string]interface{}{"registered": true}, nil
+		registry.Register("is_registered", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+			return "", map[string]any{"registered": true}, nil
 		})
 
 		next := engine.evaluateSystemState(context.Background(), spec, state)
@@ -561,8 +561,8 @@ func TestEngine_MoreEdgeCases(t *testing.T) {
 		assert.True(t, state.Context["registered"].(bool))
 
 		// Registered = false
-		registry.Register("is_registered", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
-			return "", map[string]interface{}{"registered": false}, nil
+		registry.Register("is_registered", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+			return "", map[string]any{"registered": false}, nil
 		})
 		next = engine.evaluateSystemState(context.Background(), spec, state)
 		assert.Equal(t, "NEXT_FAIL", next)
