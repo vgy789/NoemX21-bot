@@ -2,13 +2,19 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"testing"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vgy789/noemx21-bot/internal/clients/s21"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/crypto"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
@@ -87,7 +93,7 @@ func TestCampusService_UpdateCampuses_decryptFails(t *testing.T) {
 	require.NoError(t, err)
 	// Tampered credentials so Decrypt fails
 	creds := db.PlatformCredential{
-		StudentID:     "school",
+		S21Login:      "school",
 		PasswordEnc:   []byte("bad"),
 		PasswordNonce: []byte("bad"),
 	}
@@ -106,4 +112,93 @@ func TestCampusService_UpdateCampuses_decryptFails(t *testing.T) {
 	err = svc.UpdateCampuses(context.Background())
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to decrypt")
+}
+
+// --- EnsureCampusPresent tests ---
+
+func TestEnsureCampusPresent_EmptyID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockQ := mock.NewMockQuerier(ctrl)
+	// No expectations: should return early
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	if err := EnsureCampusPresent(context.Background(), mockQ, &s21.Client{}, "", logger, ""); err != nil {
+		t.Fatalf("expected nil error for empty campus id, got: %v", err)
+	}
+}
+
+func TestEnsureCampusPresent_CampusExists(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockQ := mock.NewMockQuerier(ctrl)
+	// If campus exists, GetCampusByID returns without error
+	mockQ.EXPECT().GetCampusByID(gomock.Any(), gomock.Any()).Return(db.Campuse{ID: pgtype.UUID{}}, nil)
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	// Use a valid UUID so pgtype.UUID.Scan succeeds and the mock is invoked
+	if err := EnsureCampusPresent(context.Background(), mockQ, &s21.Client{}, "token", logger, "ff19a3a7-12f5-4332-9582-624519c3eaea"); err != nil {
+		t.Fatalf("expected nil error when campus exists, got: %v", err)
+	}
+}
+
+func TestEnsureCampusPresent_FetchAndUpsert(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockQ := mock.NewMockQuerier(ctrl)
+
+	// First call: GetCampusByID -> not found
+	mockQ.EXPECT().GetCampusByID(gomock.Any(), gomock.Any()).Return(db.Campuse{}, fmt.Errorf("not found"))
+	// Expect UpsertCampus to be called when matching campus found in API
+	mockQ.EXPECT().UpsertCampus(gomock.Any(), gomock.Any()).Return(db.Campuse{}, nil)
+
+	// Prepare test server returning campuses list containing our campus ID
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := s21.CampusesResponse{
+			Campuses: []s21.CampusV1DTO{{ID: "ff19a3a7-12f5-4332-9582-624519c3eaea", ShortName: "TST", FullName: "Test Campus", Timezone: "UTC"}},
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	// Use real client pointing to test server
+	client := s21.NewClientWithHTTPClient(srv.URL, srv.Client())
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	if err := EnsureCampusPresent(context.Background(), mockQ, client, "token", logger, "ff19a3a7-12f5-4332-9582-624519c3eaea"); err != nil {
+		t.Fatalf("expected nil error when campus fetched and upserted, got: %v", err)
+	}
+}
+
+func TestEnsureCampusPresent_NotFoundInAPI(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockQ := mock.NewMockQuerier(ctrl)
+
+	// GetCampusByID returns not found
+	mockQ.EXPECT().GetCampusByID(gomock.Any(), gomock.Any()).Return(db.Campuse{}, fmt.Errorf("not found"))
+
+	// Test server returns a list without our campus id
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := s21.CampusesResponse{
+			Campuses: []s21.CampusV1DTO{{ID: "11111111-1111-1111-1111-111111111111", ShortName: "X", FullName: "X", Timezone: "UTC"}},
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	}))
+	defer srv.Close()
+
+	client := s21.NewClientWithHTTPClient(srv.URL, srv.Client())
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	if err := EnsureCampusPresent(context.Background(), mockQ, client, "token", logger, "ff19a3a7-12f5-4332-9582-624519c3eaea"); err != nil {
+		t.Fatalf("expected nil error when campus not found in API, got: %v", err)
+	}
 }

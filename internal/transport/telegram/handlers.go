@@ -27,7 +27,7 @@ func (s *telegramService) handleStart(b *gotgbot.Bot, ctx *ext.Context) error {
 	initialContext := make(map[string]interface{})
 
 	// 1. Try to identify the student via Service
-	profile, err := s.studentSvc.GetProfileByTelegramID(bgCtx, userID)
+	profile, err := s.userSvc.GetProfileByTelegramID(bgCtx, userID)
 	if err == nil {
 		// User recognized! Populate context if data is present.
 		if profile.Login != "" {
@@ -87,6 +87,11 @@ func (s *telegramService) handleTextMessage(b *gotgbot.Bot, ctx *ext.Context) er
 	// Process the text message through FSM
 	render, err := s.engine.Process(bgCtx, userID, text)
 	if err != nil {
+		if err == fsm.ErrEngineBusy {
+			s.log.Debug("engine is busy, ignoring text message", "user_id", userID)
+			_, _ = s.getSender(b).SendMessage(ctx.EffectiveChat.Id, "⏳ Пожалуйста, подождите, идёт обновление данных...", nil)
+			return nil
+		}
 		s.log.Warn("fsm text processing failed", "error", err, "user_id", userID, "text", text)
 
 		// Fallback: try to just get the current state and re-render it
@@ -117,6 +122,14 @@ func (s *telegramService) handleCallback(b *gotgbot.Bot, ctx *ext.Context) error
 
 	render, err := s.engine.Process(bgCtx, userID, cb.Data)
 	if err != nil {
+		if err == fsm.ErrEngineBusy {
+			s.log.Debug("engine is busy, ignoring callback", "user_id", userID)
+			_, _ = s.getSender(b).AnswerCallbackQuery(cb.Id, &gotgbot.AnswerCallbackQueryOpts{
+				Text:      "⏳ Пожалуйста, подождите...",
+				ShowAlert: false,
+			})
+			return nil
+		}
 		s.log.Warn("fsm transition failed, attempting fallback to current state", "error", err, "user_id", userID, "data", cb.Data)
 
 		// Fallback: try to just get the current state and re-render it
@@ -131,7 +144,13 @@ func (s *telegramService) handleCallback(b *gotgbot.Bot, ctx *ext.Context) error
 		_, _ = s.getSender(b).AnswerCallbackQuery(cb.Id, &gotgbot.AnswerCallbackQueryOpts{Text: "Кнопка устарела, обновляю меню..."})
 	} else {
 		s.log.Debug("callback processed successfully", "user_id", userID)
-		_, _ = s.getSender(b).AnswerCallbackQuery(cb.Id, nil)
+		opts := &gotgbot.AnswerCallbackQueryOpts{}
+		if render != nil && render.Alert != "" {
+			s.log.Debug("sending callback alert", "text", render.Alert)
+			opts.Text = render.Alert
+			opts.ShowAlert = false // Use toast notification
+		}
+		_, _ = s.getSender(b).AnswerCallbackQuery(cb.Id, opts)
 	}
 
 	return s.updateMessageRender(s.getSender(b), ctx.EffectiveChat.Id, cb.Message.GetMessageId(), render)
@@ -162,29 +181,43 @@ func (s *telegramService) sendRender(sender Sender, chatID int64, render *fsm.Re
 }
 
 func (s *telegramService) updateMessageRender(sender Sender, chatID int64, messageID int64, render *fsm.RenderObject) error {
+	// If message has an image, we MUST use delete/send because Telegram doesn't support
+	// converting a photo message to a text message via EditMessageText, or vice versa.
+	// We use the presence of render.Image to determine the NEW type.
+	// Note: We don't easily know if the OLD message had a photo, but we hit the error fallback if it did.
+
 	if render.Image != "" {
 		s.log.Debug("render has image, switching to photo message", "image", render.Image)
 		_, _ = sender.DeleteMessage(chatID, messageID)
 		return s.sendRender(sender, chatID, render)
 	}
 
+	// Try editing text. If it fails because the original was a photo, fallback to delete/send.
 	_, _, err := sender.EditMessageText(render.Text, &gotgbot.EditMessageTextOpts{
 		ChatId:      chatID,
 		MessageId:   messageID,
 		ParseMode:   "Markdown",
 		ReplyMarkup: buildMarkup(render.Buttons),
 	})
-	if err != nil && strings.Contains(err.Error(), "message is not modified") {
-		s.log.Debug("message not modified, ignoring error")
-		return nil
-	}
-	// If edit failed (e.g. trying to edit photo caption with text edit), try delete/send
-	if err != nil && !strings.Contains(err.Error(), "message is not modified") {
+	if err != nil {
+		if strings.Contains(err.Error(), "message is not modified") {
+			s.log.Debug("message not modified, ignoring error")
+			return nil
+		}
+
+		// Bad Request: there is no text in the message to edit (happens when editing a photo message)
+		if strings.Contains(err.Error(), "there is no text in the message to edit") ||
+			strings.Contains(err.Error(), "message can't be edited") {
+			s.log.Debug("message type mismatch (photo/text), using delete/send fallback")
+			_, _ = sender.DeleteMessage(chatID, messageID)
+			return s.sendRender(sender, chatID, render)
+		}
+
 		s.log.Warn("edit failed, fallback to delete/send", "error", err)
 		_, _ = sender.DeleteMessage(chatID, messageID)
 		return s.sendRender(sender, chatID, render)
 	}
-	return err
+	return nil
 }
 
 func buildMarkup(rows [][]fsm.ButtonRender) gotgbot.InlineKeyboardMarkup {

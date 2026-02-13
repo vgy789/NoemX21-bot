@@ -75,8 +75,8 @@ func TestWebhookHandler_Register(t *testing.T) {
 				ExternalID: "123456",
 			}).
 			Return(db.UserAccount{
-				ID:        1,
-				StudentID: "testuser",
+				ID:       1,
+				S21Login: "testuser",
 			}, nil)
 
 		body := RegisterRequest{ExternalID: "123456", Login: "testuser"}
@@ -113,8 +113,8 @@ func TestWebhookHandler_Register(t *testing.T) {
 				ExternalID: "123456",
 			}).
 			Return(db.UserAccount{
-				ID:        1,
-				StudentID: "differentuser",
+				ID:       1,
+				S21Login: "differentuser",
 			}, nil)
 
 		body := RegisterRequest{ExternalID: "123456", Login: "testuser"}

@@ -5,8 +5,10 @@ import (
 	"fmt"
 	"hash/fnv"
 	"log/slog"
+
+	// "os"
 	"strconv"
-	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/vgy789/noemx21-bot/internal/clients/s21"
@@ -14,6 +16,33 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 	"github.com/vgy789/noemx21-bot/internal/service"
+)
+
+const (
+	// Cooldown and timeout durations
+	statsUpdateCooldownDuration    = 5 * time.Minute  // Дефолтный кулдаун для автоматических обновлений
+	statsUpdateManualCooldown      = 10 * time.Second // Кулдаун для ручного обновления (кнопка Refresh)
+	statsUpdateSafetyTimeout       = 30 * time.Second // Таймаут для проверки зависшего обновления
+	peerDataCacheFreshnessDuration = 1 * time.Minute  // Время, в течение которого данные пира считаются свежими
+
+	// Default skill category
+	defaultSkillCategory = "General"
+
+	// Alert messages
+	alertDone            = "✔️ Готово"
+	alertUpdating        = "🔄 Обновляю..."
+	alertAlreadyUpdating = "⏳ Обновление уже идёт..."
+	alertErrorToken      = "❌ Ошибка получения токена"
+	alertErrorData       = "❌ Ошибка получения данных"
+
+	// Default values for display
+	defaultEmptyValue        = "—"
+	defaultSocialMetricValue = "0.00"
+	defaultCoalitionValue    = "Нет коалиции"
+	defaultCampusValue       = "Неизвестный кампус"
+
+	// Number formatting
+	socialMetricFormat = "%.2f" // Формат для отображения социальных метрик (2 знака после запятой)
 )
 
 // Register registers statistics-related actions.
@@ -24,14 +53,27 @@ func Register(
 	queries db.Querier,
 	s21Client *s21.Client,
 	credService *service.CredentialService,
+	repo fsm.StateRepository,
 	aliasRegistrar func(alias, target string),
 ) {
 	if aliasRegistrar != nil {
-		aliasRegistrar("STATS_MENU", "statistics.yaml/STATS_SEARCH_MENU")
+		aliasRegistrar("STATS_MENU", "statistics.yaml/AUTO_SYNC_STATS")
 	}
 
 	registry.Register("get_user_stats", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
-		// 1. Get user account
+		log.Info("get_user_stats action invoked", "user_id", userID, "payload", payload)
+
+		// 1. Get FSM state to check cooldown and busy status
+		state, err := repo.GetState(ctx, userID)
+		if err != nil {
+			log.Error("failed to get FSM state", "user_id", userID, "error", err)
+			return "", nil, err
+		}
+		if state == nil {
+			return "", nil, fmt.Errorf("fsm state not found")
+		}
+
+		// 2. Get user account
 		acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
 			Platform:   db.EnumPlatformTelegram,
 			ExternalID: fmt.Sprintf("%d", userID),
@@ -41,131 +83,253 @@ func Register(
 			return "", nil, err
 		}
 
-		// 2. Try to get API token (using Bot's credentials to fetch data)
-		token, err := credService.GetValidToken(ctx, cfg.Init.SchoolLogin)
-		if err != nil {
-			log.Warn("failed to get valid token, falling back to DB stats", "error", err)
-			return getStatsFromDB(ctx, acc.StudentID, queries, log)
-		}
-		log.Info("got valid token", "token_len", len(token))
+		// Extract request type early
+		requestType, _ := payload["request_type"].(string)
 
-		// 3. Call API
-		participant, err := s21Client.GetParticipant(ctx, token, acc.StudentID)
-		if err != nil {
-			log.Error("failed to get participant from API", "login", acc.StudentID, "error", err)
-			return getStatsFromDB(ctx, acc.StudentID, queries, log)
+		// If we have a pending "Done" alert, show it first without overwriting
+		// BUT ONLY if this is NOT a forced update request
+		if alert, ok := state.Context["_alert"].(string); ok && alert == alertDone && requestType != "full_update" {
+			log.Debug("returning early due to pending alert", "user_id", userID)
+			_, dbVars, _ := getStatsFromDB(ctx, acc.S21Login, queries, log)
+			return "", dbVars, nil
 		}
-		log.Info("got participant from API", "login", participant.Login, "level", participant.Level, "exp", participant.ExpValue)
+		var dbVars map[string]interface{}
 
-		points, err := s21Client.GetParticipantPoints(ctx, token, acc.StudentID)
-		if err != nil {
-			log.Error("failed to get points from API", "login", acc.StudentID, "error", err)
-		} else {
-			log.Info("got points from API", "coins", points.Coins, "peer_points", points.PeerReviewPoints)
-		}
+		log.Info("checking busy status", "user_id", userID, "is_generating_chart", state.Context["is_generating_chart"])
 
-		coalition, err := s21Client.GetParticipantCoalition(ctx, token, acc.StudentID)
-		if err != nil {
-			log.Error("failed to get coalition from API", "login", acc.StudentID, "error", err)
-		} else if coalition != nil {
-			log.Info("got coalition from API", "id", coalition.CoalitionID, "name", coalition.CoalitionName)
-		}
-
-		// 4. Save to DB
-		// Use specialized UpdateStudentStats if specific fields are present
-		updateParams := db.UpdateStudentStatsParams{
-			S21Login:     acc.StudentID,
-			Level:        pgtype.Int4{Int32: participant.Level, Valid: true},
-			ExpValue:     pgtype.Int4{Int32: int32(participant.ExpValue), Valid: true},
-			Status:       db.NullEnumStudentStatus{EnumStudentStatus: db.EnumStudentStatus(participant.Status), Valid: true},
-			ParallelName: pgtype.Text{String: "", Valid: false},
-			ClassName:    pgtype.Text{String: "", Valid: false},
-		}
-		if participant.ParallelName != nil {
-			updateParams.ParallelName = pgtype.Text{String: *participant.ParallelName, Valid: true}
-		}
-		if participant.ClassName != nil {
-			updateParams.ClassName = pgtype.Text{String: *participant.ClassName, Valid: true}
-		}
-
-		if points != nil {
-			updateParams.Prp = pgtype.Int4{Int32: points.PeerReviewPoints, Valid: true}
-			updateParams.Crp = pgtype.Int4{Int32: points.CodeReviewPoints, Valid: true}
-			updateParams.Coins = pgtype.Int4{Int32: points.Coins, Valid: true}
-		}
-
-		if coalition != nil {
-			err = queries.UpsertCoalition(ctx, db.UpsertCoalitionParams{
-				ID:   int16(coalition.CoalitionID),
-				Name: coalition.CoalitionName,
-			})
-			if err != nil {
-				log.Error("failed to upsert coalition", "login", acc.StudentID, "error", err)
+		// Check if it's already updating (with safety timeout)
+		if busy, ok := state.Context["is_generating_chart"].(bool); ok && busy {
+			if lastUpdateRaw, ok := state.Context["last_stats_update"].(string); ok {
+				lastUpdate, _ := time.Parse(time.RFC3339, lastUpdateRaw)
+				if time.Since(lastUpdate) < statsUpdateSafetyTimeout {
+					log.Debug("ignoring refresh request, already updating", "user_id", userID)
+					return "", map[string]interface{}{"_alert": alertAlreadyUpdating}, nil
+				}
+				log.Warn("background update seems stuck, allowing retry", "user_id", userID)
 			}
-			updateParams.CoalitionID = pgtype.Int2{Int16: int16(coalition.CoalitionID), Valid: true}
 		}
 
-		err = queries.UpdateStudentStats(ctx, updateParams)
-		if err != nil {
-			log.Error("failed to update student stats in DB", "login", acc.StudentID, "error", err)
+		// Check cooldown
+		cooldown := statsUpdateCooldownDuration
+		if requestType == "full_update" {
+			cooldown = statsUpdateManualCooldown
 		}
 
-		// Fetch and save skills? Not easily possible due to missing IDs. Skipping for now.
+		if lastUpdateRaw, ok := state.Context["last_stats_update"].(string); ok {
+			lastUpdate, _ := time.Parse(time.RFC3339, lastUpdateRaw)
+			elapsed := time.Since(lastUpdate)
+			if elapsed < cooldown {
+				remaining := int(cooldown.Seconds() - elapsed.Seconds())
+				if remaining <= 0 {
+					remaining = 1
+				}
+				log.Info("stats refresh cooldown active", "user_id", userID, "remaining", remaining, "type", requestType)
 
-		feedback, err := s21Client.GetParticipantFeedback(ctx, token, acc.StudentID)
-		if err != nil {
-			log.Error("failed to get feedback from API", "login", acc.StudentID, "error", err)
+				cooldownMsg := ""
+				if requestType == "full_update" {
+					cooldownMsg = fmt.Sprintf("⏳ Не так быстро! Подожди %d сек.", remaining)
+				}
+
+				_, dbVars, _ = getStatsFromDB(ctx, acc.S21Login, queries, log)
+				if dbVars == nil {
+					dbVars = make(map[string]interface{})
+				}
+				dbVars["_alert"] = cooldownMsg
+				dbVars["cooldown_msg"] = cooldownMsg
+				dbVars["is_cooldown"] = true
+				return "", dbVars, nil
+			}
 		}
 
-		// 5. Prepare variables
-		vars := map[string]interface{}{
-			"my_s21login":     participant.Login,
-			"my_exp":          participant.ExpValue,
-			"my_level":        participant.Level,
-			"my_campus":       participant.Campus.ShortName,
-			"my_status":       participant.Status,
-			"my_coalition":    "Нет коалиции",
-			"my_interest":     "0.00",
-			"my_friendliness": "0.00",
-			"my_punctuality":  "0.00",
-			"my_thoroughness": "0.00",
-			"peer_status":     "—", // Placeholder as it's used in the template
+		// Load current stats from DB for initial display
+		_, dbVars, _ = getStatsFromDB(ctx, acc.S21Login, queries, log)
+		if dbVars == nil {
+			dbVars = make(map[string]interface{})
 		}
 
-		if participant.ClassName != nil {
-			vars["my_class"] = *participant.ClassName
-		} else {
-			vars["my_class"] = "—"
-		}
-		if participant.ParallelName != nil {
-			vars["my_parallel"] = *participant.ParallelName
-		} else {
-			vars["my_parallel"] = "—"
+		// If it's a full update request or we have no level data (empty cache), proceed synchronously
+		// Debug logging to see why it enters or skips
+		log.Info("checking update condition", "requests_type", requestType, "has_level", dbVars["my_level"] != nil)
+
+		if requestType == "full_update" || dbVars["my_level"] == nil {
+			log.Info("performing synchronous stats update", "user_id", userID, "login", acc.S21Login)
+
+			// Update context to indicate busy
+			state.Context["is_generating_chart"] = true
+			state.Context["last_stats_update"] = time.Now().Format(time.RFC3339)
+			state.Context["_alert"] = alertUpdating
+
+			// Save state IMMEDIATELY to lock concurrent requests
+			if err := repo.SetState(ctx, state); err != nil {
+				log.Error("failed to lock state for update", "user_id", userID, "error", err)
+			}
+
+			// Copy dbVars to return them immediately to the user
+			dbVars["is_generating_chart"] = true
+			dbVars["last_stats_update"] = state.Context["last_stats_update"]
+			dbVars["_alert"] = state.Context["_alert"]
+
+			// 2. Try to get API token
+			token, err := credService.GetValidToken(ctx, cfg.Init.SchoolLogin)
+			if err != nil {
+				log.Warn("update: failed to get token", "error", err)
+				state.Context["is_generating_chart"] = false
+				state.Context["_alert"] = alertErrorToken
+				_ = repo.SetState(ctx, state)
+				return "", dbVars, nil
+			}
+
+			// 3. Call API for fresh stats
+			log.Info("fetching participant data from API", "login", acc.S21Login)
+			participant, err := s21Client.GetParticipant(ctx, token, acc.S21Login)
+			if err != nil {
+				log.Error("failed to get participant", "error", err)
+				return "", map[string]interface{}{"_alert": alertErrorData, "is_generating_chart": false}, nil
+			}
+			log.Info("got participant data", "login", acc.S21Login, "status", participant.Status)
+
+			// Check if XP changed (through stats cache)
+			oldCache, _ := queries.GetParticipantStatsCache(ctx, acc.S21Login)
+			xpChanged := oldCache.S21Login == "" || oldCache.ExpValue != int32(participant.ExpValue)
+
+			// Save stats to participant_stats_cache (единое хранилище статистики)
+			points, errPoints := s21Client.GetParticipantPoints(ctx, token, acc.S21Login)
+			coalition, errCoalition := s21Client.GetParticipantCoalition(ctx, token, acc.S21Login)
+			feedback, errFeedback := s21Client.GetParticipantFeedback(ctx, token, acc.S21Login)
+
+			log.Debug("API calls for stats update",
+				"points_nil", points == nil, "points_err", errPoints,
+				"coalition_nil", coalition == nil, "coalition_err", errCoalition,
+				"feedback_nil", feedback == nil, "feedback_err", errFeedback)
+
+			cacheParams := db.UpsertParticipantStatsCacheParams{
+				S21Login:     acc.S21Login,
+				Level:        participant.Level,
+				ExpValue:     int32(participant.ExpValue),
+				Status:       db.EnumStudentStatus(participant.Status),
+				ParallelName: pgtype.Text{Valid: false},
+				ClassName:    pgtype.Text{Valid: false},
+			}
+			if participant.Campus.ID != "" {
+				var campusUUID pgtype.UUID
+				if err := campusUUID.Scan(participant.Campus.ID); err != nil {
+					log.Warn("failed to parse campus UUID", "campus_id", participant.Campus.ID, "error", err)
+					// Don't set CampusID if UUID parsing failed
+				} else {
+					cacheParams.CampusID = campusUUID
+					// Ensure campus exists in DB; fetch & upsert if missing
+					if err := service.EnsureCampusPresent(ctx, queries, s21Client, token, log, participant.Campus.ID); err != nil {
+						log.Error("failed to ensure campus present during stats update", "login", acc.S21Login, "campus_id", participant.Campus.ID, "error", err)
+					}
+				}
+			}
+			if participant.ParallelName != nil {
+				cacheParams.ParallelName = pgtype.Text{String: *participant.ParallelName, Valid: true}
+			}
+			if participant.ClassName != nil {
+				cacheParams.ClassName = pgtype.Text{String: *participant.ClassName, Valid: true}
+			}
+			if points != nil {
+				cacheParams.Prp = points.PeerReviewPoints
+				cacheParams.Crp = points.CodeReviewPoints
+				cacheParams.Coins = points.Coins
+			}
+			if coalition != nil && coalition.CoalitionID != 0 {
+				cacheParams.CoalitionID = pgtype.Int2{Int16: int16(coalition.CoalitionID), Valid: true}
+				if err := service.EnsureCoalitionPresent(ctx, queries, coalition, log); err != nil {
+					log.Error("failed to ensure coalition present during stats update", "login", acc.S21Login, "coalition_id", coalition.CoalitionID, "error", err)
+				}
+			}
+			if feedback != nil {
+				cacheParams.Integrity = pgtype.Float4{Float32: float32(feedback.Integrity), Valid: true}
+				cacheParams.Friendliness = pgtype.Float4{Float32: float32(feedback.Friendliness), Valid: true}
+				cacheParams.Punctuality = pgtype.Float4{Float32: float32(feedback.Punctuality), Valid: true}
+				cacheParams.Thoroughness = pgtype.Float4{Float32: float32(feedback.Thoroughness), Valid: true}
+			}
+
+			log.Info("upserting participant stats cache",
+				"login", cacheParams.S21Login,
+				"level", cacheParams.Level,
+				"exp", cacheParams.ExpValue,
+				"status", cacheParams.Status,
+				"campus_id_valid", cacheParams.CampusID.Valid,
+				"campus_id_value", cacheParams.CampusID,
+				"coalition_id_valid", cacheParams.CoalitionID.Valid,
+				"coalition_id_value", cacheParams.CoalitionID,
+				"prp", cacheParams.Prp,
+				"crp", cacheParams.Crp,
+				"coins", cacheParams.Coins)
+
+			if err := queries.UpsertParticipantStatsCache(ctx, cacheParams); err != nil {
+				log.Error("failed to upsert participant stats cache in get_user_stats", "login", acc.S21Login, "error", err)
+			} else {
+				log.Info("successfully upserted participant stats cache", "login", acc.S21Login)
+			}
+
+			var chartPath string
+			if xpChanged || requestType == "full_update" {
+				log.Info("XP changed, refreshing skills and chart", "login", acc.S21Login)
+				skillsResp, err := s21Client.GetParticipantSkills(ctx, token, acc.S21Login)
+				if err == nil {
+					skillMap := make(map[string]int32)
+					for _, s := range skillsResp.Skills {
+						skillMap[s.Name] = s.Points
+						hash := hashSkillName(s.Name)
+						_, _ = queries.UpsertSkill(ctx, db.UpsertSkillParams{
+							ID: hash, Name: s.Name, Category: pgtype.Text{String: defaultSkillCategory, Valid: true},
+						})
+						_ = queries.UpsertParticipantSkill(ctx, db.UpsertParticipantSkillParams{
+							S21Login: acc.S21Login, SkillID: hash, Value: s.Points,
+						})
+					}
+					chartPath, _ = generateRadarChart(map[string]map[string]int32{acc.S21Login: skillMap}, []string{acc.S21Login})
+				} else {
+					log.Warn("failed to refresh skills from API, falling back to DB for chart", "login", acc.S21Login, "error", err)
+				}
+			} else {
+				// XP не изменился — используем сохранённые в БД навыки.
+				skills, err := queries.GetParticipantSkills(ctx, acc.S21Login)
+				if err == nil && len(skills) > 0 {
+					skillMap := make(map[string]int32)
+					for _, s := range skills {
+						skillMap[s.Name] = s.Value
+					}
+					chartPath, _ = generateRadarChart(map[string]map[string]int32{acc.S21Login: skillMap}, []string{acc.S21Login})
+				} else if err != nil {
+					log.Warn("failed to load skills from DB for chart", "login", acc.S21Login, "error", err)
+				}
+			}
+
+			// Prepare updates for context
+			state.Context["is_generating_chart"] = false
+			state.Context["_alert"] = alertDone
+			state.Context["my_exp"] = participant.ExpValue
+			state.Context["my_level"] = participant.Level
+			if feedback != nil {
+				state.Context["my_interest"] = fmt.Sprintf(socialMetricFormat, feedback.Integrity)
+				state.Context["my_friendliness"] = fmt.Sprintf(socialMetricFormat, feedback.Friendliness)
+				state.Context["my_punctuality"] = fmt.Sprintf(socialMetricFormat, feedback.Punctuality)
+				state.Context["my_thoroughness"] = fmt.Sprintf(socialMetricFormat, feedback.Thoroughness)
+			}
+			if points != nil {
+				state.Context["my_prps"] = points.PeerReviewPoints
+				state.Context["my_crps"] = points.CodeReviewPoints
+				state.Context["my_coins"] = points.Coins
+			}
+			if chartPath != "" {
+				state.Context["radar_chart_path"] = chartPath
+			}
+
+			// Save final state
+			_ = repo.SetState(ctx, state)
+
+			// Update dbVars to return them immediately to the user
+			for k, v := range state.Context {
+				dbVars[k] = v
+			}
 		}
 
-		if feedback != nil {
-			log.Info("got feedback from API", "interest", feedback.Integrity, "friendliness", feedback.Friendliness, "punctuality", feedback.Punctuality, "thoroughness", feedback.Thoroughness)
-			vars["my_interest"] = fmt.Sprintf("%.2f", feedback.Integrity)
-			vars["my_friendliness"] = fmt.Sprintf("%.2f", feedback.Friendliness)
-			vars["my_punctuality"] = fmt.Sprintf("%.2f", feedback.Punctuality)
-			vars["my_thoroughness"] = fmt.Sprintf("%.2f", feedback.Thoroughness)
-		} else {
-			log.Warn("feedback from API is nil", "login", acc.StudentID)
-		}
-
-		log.Info("get_user_stats vars final", "vars", vars)
-
-		if points != nil {
-			vars["my_prps"] = points.PeerReviewPoints
-			vars["my_crps"] = points.CodeReviewPoints
-			vars["my_coins"] = points.Coins
-		}
-
-		if coalition != nil {
-			vars["my_coalition"] = coalition.CoalitionName
-		}
-
-		return "", vars, nil
+		return "", dbVars, nil
 	})
 
 	registry.Register("get_peer_data_with_permissions", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
@@ -174,10 +338,23 @@ func Register(
 			return "", nil, fmt.Errorf("login not found in payload")
 		}
 
+		// 0. Cache check: используем таблицу participant_stats_cache.
+		if cacheRow, err := queries.GetParticipantStatsCache(ctx, login); err == nil {
+			isExpelled := cacheRow.Status == db.EnumStudentStatusEXPELLED
+			isFresh := cacheRow.LatSyncedAt.Valid && time.Since(cacheRow.LatSyncedAt.Time) < peerDataCacheFreshnessDuration
+			if isExpelled || isFresh {
+				log.Info("using cached peer data", "login", login, "is_expelled", isExpelled, "is_fresh", isFresh)
+				return getPeerStatsFromCache(ctx, login, cacheRow, queries, log)
+			}
+		}
+
 		// 1. Get token
 		token, err := credService.GetValidToken(ctx, cfg.Init.SchoolLogin)
 		if err != nil {
-			log.Warn("failed to get valid token, falling back to DB", "error", err)
+			log.Warn("failed to get valid token, falling back to cache/DB", "error", err)
+			if cacheRow, cErr := queries.GetParticipantStatsCache(ctx, login); cErr == nil {
+				return getPeerStatsFromCache(ctx, login, cacheRow, queries, log)
+			}
 			return getPeerStatsFromDB(ctx, login, queries, log)
 		}
 
@@ -185,119 +362,54 @@ func Register(
 		participant, err := s21Client.GetParticipant(ctx, token, login)
 		if err != nil {
 			log.Error("failed to get peer from API", "peer", login, "error", err)
-			// Return fallback or not found
+			if cacheRow, cErr := queries.GetParticipantStatsCache(ctx, login); cErr == nil {
+				return getPeerStatsFromCache(ctx, login, cacheRow, queries, log)
+			}
 			return getPeerStatsFromDB(ctx, login, queries, log)
 		}
 
 		points, _ := s21Client.GetParticipantPoints(ctx, token, login)
-		coalition, _ := s21Client.GetParticipantCoalition(ctx, token, login)
-		feedback, _ := s21Client.GetParticipantFeedback(ctx, token, login)
+
+		// If peer is expelled, do NOT query coalition (unnecessary call)
+		var coalition *s21.ParticipantCoalitionV1DTO
+		if participant.Status != string(db.EnumStudentStatusEXPELLED) {
+			coalition, _ = s21Client.GetParticipantCoalition(ctx, token, login)
+		}
+
+		var feedback *s21.ParticipantFeedbackV1DTO
+		if participant.Status != string(db.EnumStudentStatusEXPELLED) {
+			feedback, _ = s21Client.GetParticipantFeedback(ctx, token, login)
+		}
 
 		// 3. Prepare variables
 		vars := map[string]interface{}{
 			"peer_found":        true,
 			"peer_login":        participant.Login,
 			"peer_campus":       participant.Campus.ShortName,
-			"peer_coalition":    "Нет коалиции",
+			"peer_coalition":    defaultCoalitionValue,
 			"peer_level":        participant.Level,
 			"peer_exp":          participant.ExpValue,
 			"peer_status":       participant.Status,
 			"peer_coins":        0,
 			"peer_telegram":     "",
 			"peer_id":           0,
-			"peer_interest":     "0.00",
-			"peer_friendliness": "0.00",
-			"peer_punctuality":  "0.00",
-			"peer_thoroughness": "0.00",
+			"peer_interest":     defaultSocialMetricValue,
+			"peer_friendliness": defaultSocialMetricValue,
+			"peer_punctuality":  defaultSocialMetricValue,
+			"peer_thoroughness": defaultSocialMetricValue,
 			"peer_prps":         0,
 			"peer_crps":         0,
-			"my_status":         "—",
-			"my_class":          "—",
-			"my_parallel":       "—",
-			"my_campus":         "—",
-			"my_coalition":      "—",
-			"my_level":          0,
-			"my_exp":            0,
-			"my_interest":       "0.00",
-			"my_friendliness":   "0.00",
-			"my_punctuality":    "0.00",
-			"my_thoroughness":   "0.00",
-			"my_prps":           0,
-			"my_crps":           0,
-		}
-
-		// Fill current user info for comparison
-		userAcc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
-			Platform:   db.EnumPlatformTelegram,
-			ExternalID: fmt.Sprintf("%d", userID),
-		})
-		if err == nil {
-			// Try API for current user to get fresh stats and social metrics
-			myParticipant, pErr := s21Client.GetParticipant(ctx, token, userAcc.StudentID)
-			myPoints, _ := s21Client.GetParticipantPoints(ctx, token, userAcc.StudentID)
-			myCoalition, _ := s21Client.GetParticipantCoalition(ctx, token, userAcc.StudentID)
-			myFeedback, _ := s21Client.GetParticipantFeedback(ctx, token, userAcc.StudentID)
-
-			if pErr == nil {
-				vars["my_status"] = myParticipant.Status
-				vars["my_level"] = myParticipant.Level
-				vars["my_exp"] = myParticipant.ExpValue
-				vars["my_campus"] = myParticipant.Campus.ShortName
-				if myParticipant.ClassName != nil {
-					vars["my_class"] = *myParticipant.ClassName
-				}
-				if myParticipant.ParallelName != nil {
-					vars["my_parallel"] = *myParticipant.ParallelName
-				}
-			} else {
-				// Fallback to DB
-				userProfile, err := queries.GetStudentProfile(ctx, userAcc.StudentID)
-				if err == nil {
-					vars["my_status"] = string(userProfile.Status.EnumStudentStatus)
-					vars["my_level"] = userProfile.Level.Int32
-					vars["my_exp"] = userProfile.ExpValue.Int32
-					vars["my_prps"] = userProfile.Prp.Int32
-					vars["my_crps"] = userProfile.Crp.Int32
-					if userProfile.ClassName.Valid {
-						vars["my_class"] = userProfile.ClassName.String
-					}
-					if userProfile.ParallelName.Valid {
-						vars["my_parallel"] = userProfile.ParallelName.String
-					}
-					if userProfile.CampusName.Valid {
-						vars["my_campus"] = userProfile.CampusName.String
-					}
-					if userProfile.CoalitionName.Valid {
-						vars["my_coalition"] = userProfile.CoalitionName.String
-					}
-				}
-			}
-
-			if myPoints != nil {
-				vars["my_prps"] = myPoints.PeerReviewPoints
-				vars["my_crps"] = myPoints.CodeReviewPoints
-				vars["my_coins"] = myPoints.Coins
-			}
-			if myCoalition != nil {
-				vars["my_coalition"] = myCoalition.CoalitionName
-			}
-			if myFeedback != nil {
-				vars["my_interest"] = fmt.Sprintf("%.2f", myFeedback.Integrity)
-				vars["my_friendliness"] = fmt.Sprintf("%.2f", myFeedback.Friendliness)
-				vars["my_punctuality"] = fmt.Sprintf("%.2f", myFeedback.Punctuality)
-				vars["my_thoroughness"] = fmt.Sprintf("%.2f", myFeedback.Thoroughness)
-			}
 		}
 
 		if participant.ClassName != nil {
 			vars["peer_class"] = *participant.ClassName
 		} else {
-			vars["peer_class"] = "—"
+			vars["peer_class"] = defaultEmptyValue
 		}
 		if participant.ParallelName != nil {
 			vars["peer_parallel"] = *participant.ParallelName
 		} else {
-			vars["peer_parallel"] = "—"
+			vars["peer_parallel"] = defaultEmptyValue
 		}
 
 		if points != nil {
@@ -310,58 +422,65 @@ func Register(
 		}
 		if feedback != nil {
 			log.Info("got peer feedback from API", "login", login, "interest", feedback.Integrity, "friendliness", feedback.Friendliness, "punctuality", feedback.Punctuality, "thoroughness", feedback.Thoroughness)
-			vars["peer_interest"] = fmt.Sprintf("%.2f", feedback.Integrity)
-			vars["peer_friendliness"] = fmt.Sprintf("%.2f", feedback.Friendliness)
-			vars["peer_punctuality"] = fmt.Sprintf("%.2f", feedback.Punctuality)
-			vars["peer_thoroughness"] = fmt.Sprintf("%.2f", feedback.Thoroughness)
-		} else {
+			vars["peer_interest"] = fmt.Sprintf(socialMetricFormat, feedback.Integrity)
+			vars["peer_friendliness"] = fmt.Sprintf(socialMetricFormat, feedback.Friendliness)
+			vars["peer_punctuality"] = fmt.Sprintf(socialMetricFormat, feedback.Punctuality)
+			vars["peer_thoroughness"] = fmt.Sprintf(socialMetricFormat, feedback.Thoroughness)
+		} else if participant.Status != string(db.EnumStudentStatusEXPELLED) {
 			log.Warn("peer feedback from API is nil", "login", login)
 		}
 
 		log.Info("get_peer_data_with_permissions vars final", "vars", vars)
-		_, err = queries.GetStudentByS21Login(ctx, login)
-		if err == nil {
-			updateParams := db.UpdateStudentStatsParams{
-				S21Login:     login,
-				Level:        pgtype.Int4{Int32: participant.Level, Valid: true},
-				ExpValue:     pgtype.Int4{Int32: int32(participant.ExpValue), Valid: true},
-				Status:       db.NullEnumStudentStatus{EnumStudentStatus: db.EnumStudentStatus(participant.Status), Valid: true},
-				ParallelName: pgtype.Text{String: "", Valid: false},
-				ClassName:    pgtype.Text{String: "", Valid: false},
-			}
-			if participant.ParallelName != nil {
-				updateParams.ParallelName = pgtype.Text{String: *participant.ParallelName, Valid: true}
-			}
-			if participant.ClassName != nil {
-				updateParams.ClassName = pgtype.Text{String: *participant.ClassName, Valid: true}
-			}
 
-			if points != nil {
-				updateParams.Prp = pgtype.Int4{Int32: points.PeerReviewPoints, Valid: true}
-				updateParams.Crp = pgtype.Int4{Int32: points.CodeReviewPoints, Valid: true}
-				updateParams.Coins = pgtype.Int4{Int32: points.Coins, Valid: true}
-			}
-			if coalition != nil {
-				err = queries.UpsertCoalition(ctx, db.UpsertCoalitionParams{
-					ID:   int16(coalition.CoalitionID),
-					Name: coalition.CoalitionName,
-				})
-				if err != nil {
-					log.Error("failed to upsert coalition for peer", "login", login, "error", err)
-				}
-				updateParams.CoalitionID = pgtype.Int2{Int16: int16(coalition.CoalitionID), Valid: true}
-			}
-			err = queries.UpdateStudentStats(ctx, updateParams)
-			if err != nil {
-				log.Error("failed to update peer stats in DB", "login", login, "error", err)
+		// 4. Сохраняем в кеш (participant_stats_cache) — единственное место хранения статистики.
+		upsertParams := db.UpsertParticipantStatsCacheParams{
+			S21Login:     login,
+			Level:        participant.Level,
+			ExpValue:     int32(participant.ExpValue),
+			Status:       db.EnumStudentStatus(participant.Status),
+			ParallelName: pgtype.Text{Valid: false},
+			ClassName:    pgtype.Text{Valid: false},
+		}
+		if participant.Campus.ID != "" {
+			var campusUUID pgtype.UUID
+			if err := campusUUID.Scan(participant.Campus.ID); err != nil {
+				log.Warn("failed to parse campus UUID in get_peer_data_with_permissions", "campus_id", participant.Campus.ID, "error", err)
+				// Don't set CampusID if UUID parsing failed
+			} else {
+				upsertParams.CampusID = campusUUID
+				// Ensure campus exists in DB; fetch & upsert if missing
+				_ = service.EnsureCampusPresent(ctx, queries, s21Client, token, log, participant.Campus.ID)
 			}
 		}
+		if participant.ParallelName != nil {
+			upsertParams.ParallelName = pgtype.Text{String: *participant.ParallelName, Valid: true}
+		}
+		if participant.ClassName != nil {
+			upsertParams.ClassName = pgtype.Text{String: *participant.ClassName, Valid: true}
+		}
+		if points != nil {
+			upsertParams.Prp = points.PeerReviewPoints
+			upsertParams.Crp = points.CodeReviewPoints
+			upsertParams.Coins = points.Coins
+		}
+		if coalition != nil {
+			upsertParams.CoalitionID = pgtype.Int2{Int16: int16(coalition.CoalitionID), Valid: true}
+		}
+		if feedback != nil {
+			upsertParams.Integrity = pgtype.Float4{Float32: float32(feedback.Integrity), Valid: true}
+			upsertParams.Friendliness = pgtype.Float4{Float32: float32(feedback.Friendliness), Valid: true}
+			upsertParams.Punctuality = pgtype.Float4{Float32: float32(feedback.Punctuality), Valid: true}
+			upsertParams.Thoroughness = pgtype.Float4{Float32: float32(feedback.Thoroughness), Valid: true}
+		}
+		if err := queries.UpsertParticipantStatsCache(ctx, upsertParams); err != nil {
+			log.Error("failed to upsert participant stats cache", "login", login, "error", err)
+		}
 
-		// 5. Try to get telegram and platform ID from our DB if they exist
-		peerAcc, err := queries.GetUserAccountByStudentId(ctx, login)
+		// 5. Telegram/peer_id — только если пир зарегистрирован в боте (есть в user_accounts)
+		peerAcc, err := queries.GetUserAccountByS21Login(ctx, login)
 		if err == nil {
 			vars["peer_id"] = peerAcc.ExternalID
-			// Get telegram username from students table
+			// Get telegram username from peer profile (via participant_stats_cache + user_accounts)
 			peerProfile, err := queries.GetPeerProfile(ctx, login)
 			if err == nil {
 				vars["peer_telegram"] = peerProfile.TelegramUsername
@@ -381,41 +500,8 @@ func Register(
 			return "", nil, err
 		}
 
-		// Try API
-		token, err := credService.GetValidToken(ctx, cfg.Init.SchoolLogin)
-		if err == nil {
-			skillsResp, err := s21Client.GetParticipantSkills(ctx, token, acc.StudentID)
-			if err == nil {
-				skillMap := make(map[string]int32)
-				for _, s := range skillsResp.Skills {
-					skillMap[s.Name] = s.Points
-					// Save to DB
-					hash := fnv.New32a()
-					hash.Write([]byte(s.Name))
-					skillID := int32(hash.Sum32())
-
-					skill, err := queries.UpsertSkill(ctx, db.UpsertSkillParams{
-						ID:       skillID,
-						Name:     s.Name,
-						Category: pgtype.Text{String: "General", Valid: true},
-					})
-					if err == nil {
-						_ = queries.UpsertStudentSkill(ctx, db.UpsertStudentSkillParams{
-							StudentID: acc.StudentID,
-							SkillID:   skill.ID,
-							Value:     s.Points,
-						})
-					}
-				}
-				return "", map[string]interface{}{
-					"my_skills": skillMap,
-				}, nil
-			}
-			log.Error("failed to fetch skills from API", "login", acc.StudentID, "error", err)
-		}
-
-		// Fallback to DB
-		skills, err := queries.GetStudentSkills(ctx, acc.StudentID)
+		// ONLY use DB for own skills to avoid API lag as requested
+		skills, err := queries.GetParticipantSkills(ctx, acc.S21Login)
 		if err != nil {
 			return "", nil, err
 		}
@@ -436,133 +522,88 @@ func Register(
 			return "", nil, fmt.Errorf("users list not found in payload")
 		}
 
-		// Get requester token for API calls
-		token, err := credService.GetValidToken(ctx, cfg.Init.SchoolLogin)
-		if err != nil {
-			log.Warn("no valid token for chart generation, will use DB only")
-		}
-
 		usersData := make(map[string]map[string]int32)
+		var orderedLogins []string
+		var token string
 
 		for _, uRaw := range usersRaw {
 			var login string
-
-			log.Debug("processing user identifier", "raw", uRaw)
-
+			isSelf := false
 			switch v := uRaw.(type) {
 			case string:
 				if v == "$context.user_id" {
-					// Handle unparsed variable from FSM
-					acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
-						Platform:   db.EnumPlatformTelegram,
-						ExternalID: fmt.Sprintf("%d", userID),
+					acc, _ := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
+						Platform: db.EnumPlatformTelegram, ExternalID: fmt.Sprintf("%d", userID),
 					})
-					if err == nil {
-						login = acc.StudentID
-					}
-				} else if v == "$context.peer_login" {
-					// Try to get from context if possible (though system actions don't have easy access to full context here,
-					// we can rely on the fact that peer_login should be passed as a resolved string if it worked)
-					log.Warn("peer_login reached action as unresolved placeholder", "v", v)
-					// We don't have the context here, so if it's not resolved by engine, we can't do much unless we pass it specifically.
+					login = acc.S21Login
+					isSelf = true
 				} else if _, err := strconv.ParseInt(v, 10, 64); err == nil {
-					// If it's a numeric string, it's likely a Telegram user ID
 					acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
-						Platform:   db.EnumPlatformTelegram,
-						ExternalID: v,
+						Platform: db.EnumPlatformTelegram, ExternalID: v,
 					})
 					if err == nil {
-						login = acc.StudentID
+						login = acc.S21Login
+						isSelf = (v == fmt.Sprintf("%d", userID))
 					} else {
-						// Not found in DB, assume it might be a login that just happens to be numeric
 						login = v
 					}
 				} else {
 					login = v
 				}
-			case int64:
-				// Try to get login from ID
-				acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
-					Platform:   db.EnumPlatformTelegram,
-					ExternalID: strconv.FormatInt(v, 10),
-				})
-				if err == nil {
-					login = acc.StudentID
-				}
-			case float64:
-				acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
-					Platform:   db.EnumPlatformTelegram,
-					ExternalID: fmt.Sprintf("%.0f", v),
-				})
-				if err == nil {
-					login = acc.StudentID
+			}
+
+			if login == "" {
+				continue
+			}
+			orderedLogins = append(orderedLogins, login)
+
+			// Try payload first (if passed from get_user_skills)
+			if isSelf {
+				if skillsFromPayload, ok := payload["my_skills"].(map[string]int32); ok && len(skillsFromPayload) > 0 {
+					usersData[login] = skillsFromPayload
+					continue
 				}
 			}
 
-			if login == "" || strings.HasPrefix(login, "$context.") {
-				log.Warn("login is empty or unresolved in generate_radar_chart", "uRaw", uRaw, "resolved", login)
+			// Try DB
+			skills, err := queries.GetParticipantSkills(ctx, login)
+			if err == nil && len(skills) > 0 {
+				skillsMap := make(map[string]int32)
+				for _, s := range skills {
+					skillsMap[s.Name] = s.Value
+				}
+				usersData[login] = skillsMap
 				continue
 			}
 
-			log.Info("collecting skills for radar chart", "login", login)
-
-			// Try API if we have a token
-			var skillsMap map[string]int32
-			if token != "" {
-				skillsResp, err := s21Client.GetParticipantSkills(ctx, token, login)
-				if err == nil {
-					skillsMap = make(map[string]int32)
-					for _, s := range skillsResp.Skills {
-						skillsMap[s.Name] = s.Points
-						// Save to DB
-						hash := fnv.New32a()
-						hash.Write([]byte(s.Name))
-						skillID := int32(hash.Sum32())
-
-						skill, _ := queries.UpsertSkill(ctx, db.UpsertSkillParams{
-							ID:       skillID,
-							Name:     s.Name,
-							Category: pgtype.Text{String: "General", Valid: true},
-						})
-						_ = queries.UpsertStudentSkill(ctx, db.UpsertStudentSkillParams{
-							StudentID: login,
-							SkillID:   skill.ID,
-							Value:     s.Points,
-						})
-					}
-					log.Info("got skills from API", "login", login, "count", len(skillsMap))
-				} else {
-					log.Error("failed to get skills from API", "login", login, "error", err)
+			// If not in DB and not self, try API
+			if !isSelf {
+				if token == "" {
+					token, _ = credService.GetValidToken(ctx, cfg.Init.SchoolLogin)
 				}
-			}
-
-			// Fallback to DB
-			if skillsMap == nil {
-				skills, err := queries.GetStudentSkills(ctx, login)
-				if err == nil && len(skills) > 0 {
-					skillsMap = make(map[string]int32)
-					for _, s := range skills {
-						skillsMap[s.Name] = s.Value
+				if token != "" {
+					skillsResp, err := s21Client.GetParticipantSkills(ctx, token, login)
+					if err == nil {
+						skillsMap := make(map[string]int32)
+						for _, s := range skillsResp.Skills {
+							skillsMap[s.Name] = s.Points
+							// Background save
+							hash := hashSkillName(s.Name)
+							_, _ = queries.UpsertSkill(ctx, db.UpsertSkillParams{ID: hash, Name: s.Name, Category: pgtype.Text{String: defaultSkillCategory, Valid: true}})
+							_ = queries.UpsertParticipantSkill(ctx, db.UpsertParticipantSkillParams{S21Login: login, SkillID: hash, Value: s.Points})
+						}
+						usersData[login] = skillsMap
 					}
-					log.Info("got skills from DB", "login", login, "count", len(skillsMap))
-				} else {
-					log.Warn("no skills found in DB", "login", login, "error", err)
 				}
-			}
-
-			if skillsMap != nil {
-				usersData[login] = skillsMap
 			}
 		}
 
 		if len(usersData) == 0 {
-			log.Warn("no data found for any user in generate_radar_chart")
 			return "", nil, nil
 		}
 
-		chartPath, err := generateRadarChart(usersData)
+		chartPath, err := generateRadarChart(usersData, orderedLogins)
 		if err != nil {
-			log.Error("failed to generate radar chart image", "error", err)
 			return "", nil, err
 		}
 
@@ -573,48 +614,123 @@ func Register(
 	})
 }
 
-func getStatsFromDB(ctx context.Context, studentID string, queries db.Querier, log *slog.Logger) (string, map[string]interface{}, error) {
-	profile, err := queries.GetStudentProfile(ctx, studentID)
+// getStatsFromDB загружает статистику зарегистрированного пользователя через GetMyProfile
+// (registered_users JOIN participant_stats_cache).
+func getStatsFromDB(ctx context.Context, s21Login string, queries db.Querier, log *slog.Logger) (string, map[string]interface{}, error) {
+	profile, err := queries.GetMyProfile(ctx, s21Login)
 	if err != nil {
-		log.Error("failed to get student profile from DB", "login", studentID, "error", err)
+		log.Error("failed to get my profile from DB", "login", s21Login, "error", err)
 		return "", nil, err
 	}
 
 	vars := map[string]interface{}{
-		"my_s21login":     profile.S21Login,
-		"my_exp":          profile.ExpValue.Int32,
-		"my_level":        profile.Level.Int32,
-		"my_prps":         profile.Prp.Int32,
-		"my_crps":         profile.Crp.Int32,
-		"my_coins":        profile.Coins.Int32,
-		"my_campus":       "Неизвестный кампус",
-		"my_coalition":    "Нет коалиции",
-		"my_status":       string(profile.Status.EnumStudentStatus),
-		"my_class":        "—",
-		"my_parallel":     "—",
-		"my_interest":     "0.00",
-		"my_friendliness": "0.00",
-		"my_punctuality":  "0.00",
-		"my_thoroughness": "0.00",
-		"peer_status":     "—",
+		"my_s21login": profile.S21Login,
 	}
 
-	if profile.CampusName.Valid {
+	if profile.ExpValue.Valid {
+		vars["my_exp"] = profile.ExpValue.Int32
+	}
+	if profile.Level.Valid {
+		vars["my_level"] = profile.Level.Int32
+	}
+	if profile.Status.Valid {
+		vars["my_status"] = string(profile.Status.EnumStudentStatus)
+	}
+
+	if profile.CampusName.Valid && profile.CampusName.String != "" {
 		vars["my_campus"] = profile.CampusName.String
 	}
-	if profile.CoalitionName.Valid {
+	if profile.CoalitionName.Valid && profile.CoalitionName.String != "" {
 		vars["my_coalition"] = profile.CoalitionName.String
 	}
-	if profile.ClassName.Valid {
+	if profile.ClassName.Valid && profile.ClassName.String != "" {
 		vars["my_class"] = profile.ClassName.String
 	}
-	if profile.ParallelName.Valid {
+	if profile.ParallelName.Valid && profile.ParallelName.String != "" {
 		vars["my_parallel"] = profile.ParallelName.String
+	}
+	if profile.Prp.Valid {
+		vars["my_prps"] = profile.Prp.Int32
+	}
+	if profile.Crp.Valid {
+		vars["my_crps"] = profile.Crp.Int32
+	}
+	if profile.Coins.Valid {
+		vars["my_coins"] = profile.Coins.Int32
+	}
+	if profile.Integrity.Valid {
+		vars["my_interest"] = fmt.Sprintf(socialMetricFormat, profile.Integrity.Float32)
+	}
+	if profile.Friendliness.Valid {
+		vars["my_friendliness"] = fmt.Sprintf(socialMetricFormat, profile.Friendliness.Float32)
+	}
+	if profile.Punctuality.Valid {
+		vars["my_punctuality"] = fmt.Sprintf(socialMetricFormat, profile.Punctuality.Float32)
+	}
+	if profile.Thoroughness.Valid {
+		vars["my_thoroughness"] = fmt.Sprintf(socialMetricFormat, profile.Thoroughness.Float32)
 	}
 
 	return "", vars, nil
 }
 
+// getPeerStatsFromCache строит vars для FSM из строки participant_stats_cache (и при необходимости — telegram из user_accounts).
+func getPeerStatsFromCache(ctx context.Context, login string, row db.GetParticipantStatsCacheRow, queries db.Querier, log *slog.Logger) (string, map[string]interface{}, error) {
+	vars := map[string]interface{}{
+		"peer_found":        true,
+		"peer_login":        row.S21Login,
+		"peer_campus":       defaultCampusValue,
+		"peer_coalition":    defaultCoalitionValue,
+		"peer_level":        row.Level,
+		"peer_exp":          row.ExpValue,
+		"peer_coins":        row.Coins,
+		"peer_prps":         row.Prp,
+		"peer_crps":         row.Crp,
+		"peer_telegram":     "",
+		"peer_id":           0,
+		"peer_status":       string(row.Status),
+		"peer_class":        defaultEmptyValue,
+		"peer_parallel":     defaultEmptyValue,
+		"peer_interest":     defaultSocialMetricValue,
+		"peer_friendliness": defaultSocialMetricValue,
+		"peer_punctuality":  defaultSocialMetricValue,
+		"peer_thoroughness": defaultSocialMetricValue,
+	}
+	if row.CampusName.Valid {
+		vars["peer_campus"] = row.CampusName.String
+	}
+	if row.CoalitionName.Valid {
+		vars["peer_coalition"] = row.CoalitionName.String
+	}
+	if row.ClassName.Valid {
+		vars["peer_class"] = row.ClassName.String
+	}
+	if row.ParallelName.Valid {
+		vars["peer_parallel"] = row.ParallelName.String
+	}
+	if row.Integrity.Valid {
+		vars["peer_interest"] = fmt.Sprintf(socialMetricFormat, row.Integrity.Float32)
+	}
+	if row.Friendliness.Valid {
+		vars["peer_friendliness"] = fmt.Sprintf(socialMetricFormat, row.Friendliness.Float32)
+	}
+	if row.Punctuality.Valid {
+		vars["peer_punctuality"] = fmt.Sprintf(socialMetricFormat, row.Punctuality.Float32)
+	}
+	if row.Thoroughness.Valid {
+		vars["peer_thoroughness"] = fmt.Sprintf(socialMetricFormat, row.Thoroughness.Float32)
+	}
+	acc, err := queries.GetUserAccountByS21Login(ctx, login)
+	if err == nil {
+		vars["peer_id"] = acc.ExternalID
+		if acc.Username.Valid {
+			vars["peer_telegram"] = acc.Username.String
+		}
+	}
+	return "", vars, nil
+}
+
+// getPeerStatsFromDB — fallback для пиров, у которых нет записи в кеше, но есть в participant_stats_cache через GetPeerProfile.
 func getPeerStatsFromDB(ctx context.Context, login string, queries db.Querier, log *slog.Logger) (string, map[string]interface{}, error) {
 	profile, err := queries.GetPeerProfile(ctx, login)
 	if err != nil {
@@ -627,21 +743,21 @@ func getPeerStatsFromDB(ctx context.Context, login string, queries db.Querier, l
 	vars := map[string]interface{}{
 		"peer_found":        true,
 		"peer_login":        profile.S21Login,
-		"peer_campus":       "Неизвестный кампус",
-		"peer_coalition":    "Нет коалиции",
-		"peer_level":        profile.Level.Int32,
-		"peer_exp":          profile.ExpValue.Int32,
-		"peer_coins":        profile.Coins.Int32,
+		"peer_campus":       defaultCampusValue,
+		"peer_coalition":    defaultCoalitionValue,
+		"peer_level":        profile.Level,
+		"peer_exp":          profile.ExpValue,
+		"peer_coins":        profile.Coins,
+		"peer_prps":         profile.Prp,
+		"peer_crps":         profile.Crp,
 		"peer_telegram":     profile.TelegramUsername,
-		"peer_status":       string(profile.Status.EnumStudentStatus),
-		"peer_class":        "—",
-		"peer_parallel":     "—",
-		"peer_id":           0,
-		"peer_interest":     "0.00",
-		"peer_friendliness": "0.00",
-		"peer_punctuality":  "0.00",
-		"peer_thoroughness": "0.00",
-		"my_status":         "—",
+		"peer_status":       string(profile.Status),
+		"peer_class":        defaultEmptyValue,
+		"peer_parallel":     defaultEmptyValue,
+		"peer_interest":     defaultSocialMetricValue,
+		"peer_friendliness": defaultSocialMetricValue,
+		"peer_punctuality":  defaultSocialMetricValue,
+		"peer_thoroughness": defaultSocialMetricValue,
 	}
 
 	if profile.CampusName.Valid {
@@ -656,11 +772,25 @@ func getPeerStatsFromDB(ctx context.Context, login string, queries db.Querier, l
 	if profile.ParallelName.Valid {
 		vars["peer_parallel"] = profile.ParallelName.String
 	}
-
-	acc, err := queries.GetUserAccountByStudentId(ctx, login)
-	if err == nil {
-		vars["peer_id"] = acc.ExternalID
+	if profile.Integrity.Valid {
+		vars["peer_interest"] = fmt.Sprintf(socialMetricFormat, profile.Integrity.Float32)
+	}
+	if profile.Friendliness.Valid {
+		vars["peer_friendliness"] = fmt.Sprintf(socialMetricFormat, profile.Friendliness.Float32)
+	}
+	if profile.Punctuality.Valid {
+		vars["peer_punctuality"] = fmt.Sprintf(socialMetricFormat, profile.Punctuality.Float32)
+	}
+	if profile.Thoroughness.Valid {
+		vars["peer_thoroughness"] = fmt.Sprintf(socialMetricFormat, profile.Thoroughness.Float32)
 	}
 
+	vars["peer_id"] = profile.ExternalID
 	return "", vars, nil
+}
+
+func hashSkillName(name string) int32 {
+	h := fnv.New32a()
+	h.Write([]byte(name))
+	return int32(h.Sum32())
 }

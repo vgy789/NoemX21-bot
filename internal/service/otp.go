@@ -58,13 +58,13 @@ func (s *OTPService) GenerateAndSendOTP(ctx context.Context, s21Login string, ui
 	expiresAt := time.Now().Add(5 * time.Minute)
 
 	// 2. Get RocketChat user ID from database (it was verified in previous step)
-	student, err := s.db.GetStudentByS21Login(ctx, s21Login)
+	regUser, err := s.db.GetRegisteredUserByS21Login(ctx, s21Login)
 	if err != nil {
-		return fmt.Errorf("failed to get student info: %w", err)
+		return fmt.Errorf("failed to get registered user info: %w", err)
 	}
 
-	if student.RocketchatID == "" {
-		return fmt.Errorf("student has no rocketchat_id")
+	if regUser.RocketchatID == "" {
+		return fmt.Errorf("registered user has no rocketchat_id")
 	}
 
 	// 3. Delete all previous verification codes for this student (invalidate old codes)
@@ -76,7 +76,7 @@ func (s *OTPService) GenerateAndSendOTP(ctx context.Context, s21Login string, ui
 
 	// 4. Create new verification code in database
 	_, err = s.db.CreateAuthVerificationCode(ctx, db.CreateAuthVerificationCodeParams{
-		StudentID: pgtype.Text{Valid: true, String: s21Login},
+		S21Login:  pgtype.Text{Valid: true, String: s21Login},
 		Code:      code,
 		ExpiresAt: pgtype.Timestamptz{Valid: true, Time: expiresAt},
 	})
@@ -85,7 +85,7 @@ func (s *OTPService) GenerateAndSendOTP(ctx context.Context, s21Login string, ui
 	}
 
 	// 4. Send OTP via RocketChat using stored ID
-	rcUserID := student.RocketchatID
+	rcUserID := regUser.RocketchatID
 	fullName := strings.TrimSpace(fmt.Sprintf("%s %s", ui.FirstName, ui.LastName))
 	if fullName == "" {
 		fullName = "No Name"
@@ -117,18 +117,17 @@ func (s *OTPService) GenerateAndSendOTP(ctx context.Context, s21Login string, ui
 
 // VerifyOTP verifies the provided code
 func (s *OTPService) VerifyOTP(ctx context.Context, telegramUserID int64, code string) (bool, error) {
-	// Get the student from telegram user ID (need to map telegram user to student)
-	// For now, we'll use the context to get the student ID
-	studentID, ok := ctx.Value(fsm.ContextKeyStudentID).(string)
+	// Get the S21 login from context
+	s21Login, ok := ctx.Value(fsm.ContextKeyS21Login).(string)
 	if !ok {
-		return false, fmt.Errorf("student ID not found in context")
+		return false, fmt.Errorf("S21 login not found in context")
 	}
 
 	// Get valid verification code
 	var err error
 	_, err = s.db.GetValidAuthVerificationCode(ctx, db.GetValidAuthVerificationCodeParams{
-		StudentID: pgtype.Text{Valid: true, String: studentID},
-		Code:      code,
+		S21Login: pgtype.Text{Valid: true, String: s21Login},
+		Code:     code,
 	})
 	if err != nil {
 		if strings.Contains(err.Error(), "no rows") || strings.Contains(err.Error(), "not found") {
@@ -139,8 +138,8 @@ func (s *OTPService) VerifyOTP(ctx context.Context, telegramUserID int64, code s
 
 	// Delete the used code
 	if err := s.db.DeleteAuthVerificationCode(ctx, db.DeleteAuthVerificationCodeParams{
-		StudentID: pgtype.Text{Valid: true, String: studentID},
-		Code:      code,
+		S21Login: pgtype.Text{Valid: true, String: s21Login},
+		Code:     code,
 	}); err != nil {
 		s.log.Error("failed to delete used verification code", "error", err)
 	}

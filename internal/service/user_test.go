@@ -12,12 +12,12 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func TestStudentService_GetProfileByTelegramID(t *testing.T) {
+func TestUserService_GetProfileByTelegramID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockRepo := mock.NewMockQuerier(ctrl)
-	svc := NewStudentService(mockRepo)
+	svc := NewUserService(mockRepo)
 	ctx := context.Background()
 	tgID := int64(12345)
 
@@ -27,11 +27,11 @@ func TestStudentService_GetProfileByTelegramID(t *testing.T) {
 				Platform:   db.EnumPlatformTelegram,
 				ExternalID: "12345",
 			}).
-			Return(db.UserAccount{StudentID: "peer-login"}, nil)
+			Return(db.UserAccount{S21Login: "peer-login"}, nil)
 
 		mockRepo.EXPECT().
-			GetStudentProfile(ctx, "peer-login").
-			Return(db.GetStudentProfileRow{
+			GetMyProfile(ctx, "peer-login").
+			Return(db.GetMyProfileRow{
 				S21Login:      "peer-login",
 				CampusName:    pgtype.Text{String: "Novisibirsk", Valid: true},
 				CoalitionName: pgtype.Text{String: "Sapphires", Valid: true},
@@ -61,28 +61,28 @@ func TestStudentService_GetProfileByTelegramID(t *testing.T) {
 		assert.Contains(t, err.Error(), "user account not found")
 	})
 
-	t.Run("student profile not found", func(t *testing.T) {
+	t.Run("user profile not found", func(t *testing.T) {
 		mockRepo.EXPECT().
 			GetUserAccountByExternalId(ctx, gomock.Any()).
-			Return(db.UserAccount{StudentID: "peer-login"}, nil)
+			Return(db.UserAccount{S21Login: "peer-login"}, nil)
 
 		mockRepo.EXPECT().
-			GetStudentProfile(ctx, "peer-login").
-			Return(db.GetStudentProfileRow{}, fmt.Errorf("not found"))
+			GetMyProfile(ctx, "peer-login").
+			Return(db.GetMyProfileRow{}, fmt.Errorf("not found"))
 
 		profile, err := svc.GetProfileByTelegramID(ctx, tgID)
 		assert.Error(t, err)
 		assert.Nil(t, profile)
-		assert.Contains(t, err.Error(), "student profile not found")
+		assert.Contains(t, err.Error(), "user profile not found")
 	})
 }
 
-func TestStudentService_GetProfileByExternalID(t *testing.T) {
+func TestUserService_GetProfileByExternalID(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
 	mockRepo := mock.NewMockQuerier(ctrl)
-	svc := NewStudentService(mockRepo)
+	svc := NewUserService(mockRepo)
 	ctx := context.Background()
 
 	t.Run("success with rocketchat platform", func(t *testing.T) {
@@ -91,11 +91,11 @@ func TestStudentService_GetProfileByExternalID(t *testing.T) {
 				Platform:   db.EnumPlatformRocketchat,
 				ExternalID: "rc-id-123",
 			}).
-			Return(db.UserAccount{StudentID: "student-login"}, nil)
+			Return(db.UserAccount{S21Login: "student-login"}, nil)
 
 		mockRepo.EXPECT().
-			GetStudentProfile(ctx, "student-login").
-			Return(db.GetStudentProfileRow{
+			GetMyProfile(ctx, "student-login").
+			Return(db.GetMyProfileRow{
 				S21Login:      "student-login",
 				CampusName:    pgtype.Text{String: "Moscow", Valid: true},
 				CoalitionName: pgtype.Text{String: "Reds", Valid: true},

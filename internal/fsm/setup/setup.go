@@ -18,7 +18,7 @@ func NewFSM(
 	cfg *config.Config,
 	log *slog.Logger,
 	queries db.Querier,
-	studentSvc service.StudentService,
+	userSvc service.UserService,
 	rcClient *rocketchat.Client,
 	s21Client *s21.Client,
 	credService *service.CredentialService,
@@ -30,7 +30,7 @@ func NewFSM(
 
 	// Create registry and register actions
 	registry := fsm.NewLogicRegistry()
-	registrar := actions.NewRegistrar(cfg, log, studentSvc, queries, rcClient, s21Client, credService)
+	registrar := actions.NewRegistrar(cfg, log, userSvc, queries, rcClient, s21Client, credService, repoFSM)
 
 	// Initialize Engine with sanitizer
 	sanitizer := func(text string) string {

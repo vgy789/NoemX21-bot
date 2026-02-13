@@ -22,7 +22,7 @@ func TestTelegramService_Handlers(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockStudentSvc := serviceMock.NewMockStudentService(ctrl)
+	mockUserSvc := serviceMock.NewMockUserService(ctrl)
 	mockSender := mock.NewMockSender(ctrl)
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -46,15 +46,15 @@ func TestTelegramService_Handlers(t *testing.T) {
 	engine.AddAlias("MAIN_MENU", "main_menu.yaml/MAIN_MENU")
 
 	s := &telegramService{
-		log:        logger,
-		engine:     engine,
-		studentSvc: mockStudentSvc,
-		sender:     mockSender,
+		log:     logger,
+		engine:  engine,
+		userSvc: mockUserSvc,
+		sender:  mockSender,
 	}
 
 	t.Run("handleStart - new user", func(t *testing.T) {
 		userID := int64(123)
-		mockStudentSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), userID).Return(nil, assert.AnError)
+		mockUserSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), userID).Return(nil, assert.AnError)
 
 		// Expect SendMessage to be called when rendering SELECT_LANGUAGE
 		mockSender.EXPECT().SendMessage(userID, gomock.Any(), gomock.Any()).Return(nil, nil)
@@ -175,6 +175,10 @@ func TestTelegramService_Handlers(t *testing.T) {
 	t.Run("updateMessageRender - error", func(t *testing.T) {
 		render := &fsm.RenderObject{Text: "fail"}
 		mockSender.EXPECT().EditMessageText("fail", gomock.Any()).Return(nil, false, assert.AnError)
+		// When EditMessageText fails with a non-"message is not modified" error,
+		// the code calls DeleteMessage and then sendRender
+		mockSender.EXPECT().DeleteMessage(int64(1), int64(1)).Return(true, nil)
+		mockSender.EXPECT().SendMessage(int64(1), "fail", gomock.Any()).Return(nil, assert.AnError)
 
 		err := s.updateMessageRender(mockSender, 1, 1, render)
 		assert.Error(t, err)
@@ -191,10 +195,10 @@ func TestTelegramService_Handlers(t *testing.T) {
 
 	t.Run("handleStart - recognized user", func(t *testing.T) {
 		userID := int64(456)
-		profile := &service.StudentProfile{
+		profile := &service.UserProfile{
 			Login: "recognised_user",
 		}
-		mockStudentSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), userID).Return(profile, nil)
+		mockUserSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), userID).Return(profile, nil)
 		mockSender.EXPECT().SendMessage(userID, gomock.Any(), gomock.Any()).Return(nil, nil)
 
 		update := &gotgbot.Update{

@@ -1,69 +1,41 @@
 -- queries.sql
 
--- name: GetStudentByS21Login :one
-SELECT * FROM students WHERE s21_login = $1;
+-- name: GetRegisteredUserByS21Login :one
+SELECT * FROM registered_users WHERE s21_login = $1;
 
--- name: GetStudentProfile :one
-SELECT s.*, c.short_name as campus_name, cool.name as coalition_name
-FROM students s
-LEFT JOIN campuses c ON s.campus_id = c.id
-LEFT JOIN coalitions cool ON s.coalition_id = cool.id
-WHERE s.s21_login = $1;
+-- name: GetRegisteredUserByRocketChatId :one
+SELECT * FROM registered_users WHERE rocketchat_id = $1;
 
--- name: GetStudentByRocketChatId :one
-SELECT * FROM students WHERE rocketchat_id = $1;
-
--- name: UpsertStudent :one
-INSERT INTO students (
-    s21_login, rocketchat_id, campus_id, coalition_id, status, 
-    timezone, alternative_contact, has_coffee_ban,
-    level, exp_value, prp, crp, coins, parallel_name, class_name
+-- name: UpsertRegisteredUser :one
+INSERT INTO registered_users (
+    s21_login, rocketchat_id,
+    timezone, alternative_contact, has_coffee_ban
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
+    $1, $2, $3, $4, $5
 )
 ON CONFLICT (s21_login) DO UPDATE SET
-    rocketchat_id = COALESCE(EXCLUDED.rocketchat_id, students.rocketchat_id),
-    campus_id = COALESCE(EXCLUDED.campus_id, students.campus_id),
-    coalition_id = COALESCE(EXCLUDED.coalition_id, students.coalition_id),
-    status = COALESCE(EXCLUDED.status, students.status),
-    timezone = COALESCE(EXCLUDED.timezone, students.timezone),
-    alternative_contact = COALESCE(EXCLUDED.alternative_contact, students.alternative_contact),
-    has_coffee_ban = COALESCE(EXCLUDED.has_coffee_ban, students.has_coffee_ban),
-    level = COALESCE(EXCLUDED.level, students.level),
-    exp_value = COALESCE(EXCLUDED.exp_value, students.exp_value),
-    prp = COALESCE(EXCLUDED.prp, students.prp),
-    crp = COALESCE(EXCLUDED.crp, students.crp),
-    coins = COALESCE(EXCLUDED.coins, students.coins),
-    parallel_name = COALESCE(EXCLUDED.parallel_name, students.parallel_name),
-    class_name = COALESCE(EXCLUDED.class_name, students.class_name),
+    rocketchat_id = COALESCE(EXCLUDED.rocketchat_id, registered_users.rocketchat_id),
+    timezone = COALESCE(EXCLUDED.timezone, registered_users.timezone),
+    alternative_contact = COALESCE(EXCLUDED.alternative_contact, registered_users.alternative_contact),
+    has_coffee_ban = COALESCE(EXCLUDED.has_coffee_ban, registered_users.has_coffee_ban),
     updated_at = CURRENT_TIMESTAMP
 RETURNING *;
-
--- name: UpdateStudentStats :exec
-UPDATE students SET
-    level = $2,
-    exp_value = $3,
-    prp = $4,
-    crp = $5,
-    coins = $6,
-    coalition_id = $7,
-    status = $8,
-    parallel_name = $9,
-    class_name = $10,
-    updated_at = CURRENT_TIMESTAMP
-WHERE s21_login = $1;
 
 -- name: GetUserAccountByExternalId :one
 SELECT * FROM user_accounts 
 WHERE platform = $1 AND external_id = $2;
 
--- name: GetUserAccountByStudentId :one
+-- name: DeleteUserAccountByExternalId :exec
+DELETE FROM user_accounts
+WHERE platform = $1 AND external_id = $2;
+
+-- name: GetUserAccountByS21Login :one
 SELECT * FROM user_accounts
-WHERE student_id = $1;
+WHERE s21_login = $1;
 
 -- name: CreateUserAccount :one
 INSERT INTO user_accounts (
-    student_id, platform, external_id, username, is_searchable, role
+    s21_login, platform, external_id, username, is_searchable, role
 ) VALUES (
     $1, $2, $3, $4, $5, $6
 )
@@ -88,17 +60,17 @@ RETURNING *;
 
 -- name: GetPlatformCredentials :one
 SELECT * FROM platform_credentials 
-WHERE student_id = $1;
+WHERE s21_login = $1;
 
 -- name: UpsertPlatformCredentials :exec
 INSERT INTO platform_credentials (
-    student_id, password_enc, password_nonce, 
+    s21_login, password_enc, password_nonce, 
     access_token, access_expires_at, refresh_token_enc, 
     refresh_nonce, refresh_expires_at
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8
 )
-ON CONFLICT (student_id) DO UPDATE SET
+ON CONFLICT (s21_login) DO UPDATE SET
     password_enc = EXCLUDED.password_enc,
     password_nonce = EXCLUDED.password_nonce,
     access_token = EXCLUDED.access_token,
@@ -110,22 +82,22 @@ ON CONFLICT (student_id) DO UPDATE SET
 
 -- name: GetRocketChatCredentials :one
 SELECT * FROM rocketchat_credentials
-WHERE student_id = $1;
+WHERE s21_login = $1;
 
 -- name: UpsertRocketChatCredentials :exec
 INSERT INTO rocketchat_credentials (
-    student_id, rc_token_enc, rc_nonce
+    s21_login, rc_token_enc, rc_nonce
 ) VALUES (
     $1, $2, $3
 )
-ON CONFLICT (student_id) DO UPDATE SET
+ON CONFLICT (s21_login) DO UPDATE SET
     rc_token_enc = EXCLUDED.rc_token_enc,
     rc_nonce = EXCLUDED.rc_nonce,
     updated_at = CURRENT_TIMESTAMP;
 
 -- name: CreateAuthVerificationCode :one
 INSERT INTO auth_verification_codes (
-    student_id, code, expires_at
+    s21_login, code, expires_at
 ) VALUES (
     $1, $2, $3
 )
@@ -133,23 +105,23 @@ RETURNING *;
 
 -- name: GetLastAuthVerificationCode :one
 SELECT * FROM auth_verification_codes
-WHERE student_id = $1
+WHERE s21_login = $1
 ORDER BY created_at DESC
 LIMIT 1;
 
 -- name: GetValidAuthVerificationCode :one
 SELECT * FROM auth_verification_codes
-WHERE student_id = $1 AND code = $2 AND expires_at > CURRENT_TIMESTAMP
+WHERE s21_login = $1 AND code = $2 AND expires_at > CURRENT_TIMESTAMP
 ORDER BY created_at DESC
 LIMIT 1;
 
 -- name: DeleteAuthVerificationCode :exec
 DELETE FROM auth_verification_codes
-WHERE student_id = $1 AND code = $2;
+WHERE s21_login = $1 AND code = $2;
 
 -- name: DeleteAllAuthVerificationCodes :exec
 DELETE FROM auth_verification_codes
-WHERE student_id = $1;
+WHERE s21_login = $1;
 
 -- name: DeleteExpiredAuthVerificationCodes :exec
 DELETE FROM auth_verification_codes
@@ -194,10 +166,11 @@ WHERE user_account_id = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR exp
 ORDER BY created_at DESC
 LIMIT 1;
 
--- name: GetCampusByShortName :one
 SELECT * FROM campuses WHERE short_name = $1;
 
--- name: UpsertClubCategory :one
+-- name: GetCampusByID :one
+SELECT id, short_name, full_name, timezone, is_active, created_at, updated_at FROM campuses WHERE id = $1;
+ 
 INSERT INTO club_categories (name) VALUES ($1)
 ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
 RETURNING *;
@@ -250,33 +223,130 @@ ON CONFLICT (name) DO UPDATE SET
     updated_at = CURRENT_TIMESTAMP
 RETURNING *;
 
--- name: UpsertStudentSkill :exec
-INSERT INTO student_skills (student_id, skill_id, value)
+-- name: UpsertParticipantSkill :exec
+INSERT INTO participant_skills (s21_login, skill_id, value)
 VALUES ($1, $2, $3)
-ON CONFLICT (student_id, skill_id) DO UPDATE SET
+ON CONFLICT (s21_login, skill_id) DO UPDATE SET
     value = EXCLUDED.value,
     updated_at = CURRENT_TIMESTAMP;
 
--- name: GetStudentSkills :many
+-- name: GetParticipantSkills :many
 SELECT s.name, s.category, ss.value
-FROM student_skills ss
+FROM participant_skills ss
 JOIN skills s ON ss.skill_id = s.id
-WHERE ss.student_id = $1;
+WHERE ss.s21_login = $1;
+
+-- name: GetParticipantStatsCache :one
+SELECT
+    c.s21_login,
+    camp.short_name AS campus_name,
+    co.name AS coalition_name,
+    c.status,
+    c.level,
+    c.exp_value,
+    c.prp,
+    c.crp,
+    c.coins,
+    c.parallel_name,
+    c.class_name,
+    c.integrity,
+    c.friendliness,
+    c.punctuality,
+    c.thoroughness,
+    c.updated_at,
+    c.lat_synced_at
+FROM participant_stats_cache c
+LEFT JOIN campuses camp ON c.campus_id = camp.id
+LEFT JOIN coalitions co ON c.coalition_id = co.id
+WHERE c.s21_login = $1;
+
+-- name: UpsertParticipantStatsCache :exec
+INSERT INTO participant_stats_cache (
+    s21_login, campus_id, coalition_id, status, level, exp_value,
+    prp, crp, coins, parallel_name, class_name,
+    integrity, friendliness, punctuality, thoroughness,
+    lat_synced_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+    CURRENT_TIMESTAMP
+)
+ON CONFLICT (s21_login) DO UPDATE SET
+    campus_id = EXCLUDED.campus_id,
+    coalition_id = EXCLUDED.coalition_id,
+    status = EXCLUDED.status,
+    level = EXCLUDED.level,
+    exp_value = EXCLUDED.exp_value,
+    prp = EXCLUDED.prp,
+    crp = EXCLUDED.crp,
+    coins = EXCLUDED.coins,
+    parallel_name = EXCLUDED.parallel_name,
+    class_name = EXCLUDED.class_name,
+    integrity = EXCLUDED.integrity,
+    friendliness = EXCLUDED.friendliness,
+    punctuality = EXCLUDED.punctuality,
+    thoroughness = EXCLUDED.thoroughness,
+    updated_at = CURRENT_TIMESTAMP,
+    lat_synced_at = CURRENT_TIMESTAMP;
+
+-- name: GetMyProfile :one
+-- Профиль зарегистрированного пользователя: регистрационные данные + статистика из кеша.
+SELECT
+    r.s21_login,
+    r.rocketchat_id,
+    r.timezone,
+    r.alternative_contact,
+    r.has_coffee_ban,
+    camp.short_name AS campus_name,
+    co.name AS coalition_name,
+    c.status,
+    c.level,
+    c.exp_value,
+    c.prp,
+    c.crp,
+    c.coins,
+    c.parallel_name,
+    c.class_name,
+    c.integrity,
+    c.friendliness,
+    c.punctuality,
+    c.thoroughness
+FROM registered_users r
+LEFT JOIN participant_stats_cache c ON r.s21_login = c.s21_login
+LEFT JOIN campuses camp ON c.campus_id = camp.id
+LEFT JOIN coalitions co ON c.coalition_id = co.id
+WHERE r.s21_login = $1;
 
 -- name: GetPeerProfile :one
-SELECT 
-    s.s21_login, 
-    COALESCE(ua.username, '') as telegram_username,
-    c.short_name as campus_name,
-    cool.name as coalition_name,
-    s.level,
-    s.exp_value,
-    s.coins,
-    s.status,
-    s.parallel_name,
-    s.class_name
-FROM students s
-LEFT JOIN campuses c ON s.campus_id = c.id
-LEFT JOIN coalitions cool ON s.coalition_id = cool.id
-LEFT JOIN user_accounts ua ON s.s21_login = ua.student_id AND ua.platform = 'telegram'
-WHERE s.s21_login = $1;
+-- Профиль пира: из кеша статистики + telegram username если зарегистрирован.
+SELECT
+    c.s21_login,
+    COALESCE(ua.username, '') AS telegram_username,
+    COALESCE(ua.external_id, '') AS external_id,
+    camp.short_name AS campus_name,
+    co.name AS coalition_name,
+    c.status,
+    c.level,
+    c.exp_value,
+    c.prp,
+    c.crp,
+    c.coins,
+    c.parallel_name,
+    c.class_name,
+    c.integrity,
+    c.friendliness,
+    c.punctuality,
+    c.thoroughness
+FROM participant_stats_cache c
+LEFT JOIN campuses camp ON c.campus_id = camp.id
+LEFT JOIN coalitions co ON c.coalition_id = co.id
+LEFT JOIN user_accounts ua ON c.s21_login = ua.s21_login AND ua.platform = 'telegram'
+WHERE c.s21_login = $1;
+-- name: GetCampusByShortName :one
+SELECT * FROM campuses WHERE short_name = $1;
+
+-- name: UpsertClubCategory :one
+INSERT INTO club_categories (name)
+VALUES ($1)
+ON CONFLICT (name) DO UPDATE SET
+    name = EXCLUDED.name
+RETURNING *;

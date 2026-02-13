@@ -73,7 +73,7 @@ func (h *WebhookHandler) Register(w http.ResponseWriter, r *http.Request) {
 
 	registered := false
 	if err == nil {
-		if strings.EqualFold(userAccount.StudentID, req.Login) {
+		if strings.EqualFold(userAccount.S21Login, req.Login) {
 			registered = true
 		}
 	} else if !strings.Contains(err.Error(), "no rows") {

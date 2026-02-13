@@ -21,17 +21,17 @@ import (
 	"go.uber.org/mock/gomock"
 )
 
-func prepareRegistrationTest(t *testing.T) (*telegramService, *serviceMock.MockStudentService, *dbMock.MockQuerier, *gomock.Controller) {
+func prepareRegistrationTest(t *testing.T) (*telegramService, *serviceMock.MockUserService, *dbMock.MockQuerier, *gomock.Controller) {
 	cfg := &config.Config{}
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 
 	ctrl := gomock.NewController(t)
-	mockStudentSvc := serviceMock.NewMockStudentService(ctrl)
+	mockUserSvc := serviceMock.NewMockUserService(ctrl)
 	mockQuerier := dbMock.NewMockQuerier(ctrl)
 	mockRCClient := rocketchat.NewClient("", "", "")
 
-	engine := setup.NewFSM(cfg, logger, mockQuerier, mockStudentSvc, mockRCClient, nil, nil, "../../../docs/specs/flows")
-	service := NewTelegramService(cfg, logger, mockStudentSvc, engine)
+	engine := setup.NewFSM(cfg, logger, mockQuerier, mockUserSvc, mockRCClient, nil, nil, "../../../docs/specs/flows")
+	service := NewTelegramService(cfg, logger, mockUserSvc, engine)
 	ts := service.(*telegramService)
 
 	// Override engine with test settings
@@ -40,10 +40,10 @@ func prepareRegistrationTest(t *testing.T) (*telegramService, *serviceMock.MockS
 	ts.engine = fsm.NewEngine(parser, repo, logger, ts.engine.Registry(), ts.engine.Sanitizer())
 
 	// Register actions and aliases in test engine
-	registrar := actions.NewRegistrar(cfg, logger, mockStudentSvc, mockQuerier, mockRCClient, nil, nil)
+	registrar := actions.NewRegistrar(cfg, logger, mockUserSvc, mockQuerier, mockRCClient, nil, nil, repo)
 	registrar.RegisterAll(ts.engine.Registry(), ts.engine.AddAlias)
 
-	return ts, mockStudentSvc, mockQuerier, ctrl
+	return ts, mockUserSvc, mockQuerier, ctrl
 }
 
 func TestRegistration_RegexValidation(t *testing.T) {
@@ -70,13 +70,13 @@ func TestRegistration_APIErrors(t *testing.T) {
 	t.Run("wrong parallel", func(t *testing.T) {
 		_ = ts.engine.InitState(ctx, userID, fsm.FlowRegistration, fsm.StateInputLogin, nil)
 		ts.engine.Registry().Register("validate_school21_user", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
-			return "", map[string]interface{}{"api_status": 200, "user": map[string]interface{}{"status": "ACTIVE", "parallelName": "Discovery"}}, nil
+			return "", map[string]interface{}{"api_status": 200, "s21_user": map[string]interface{}{"status": "ACTIVE", "parallelName": "Discovery"}}, nil
 		})
 
 		render, err := ts.engine.Process(ctx, userID, "discovery")
 		require.NoError(t, err)
 		require.NotNil(t, render)
-		assert.Contains(t, render.Text, "Регистрация доступна только для студентов основы")
+		assert.Contains(t, render.Text, "Только для студентов основной программы")
 	})
 
 	t.Run("user not found", func(t *testing.T) {
@@ -94,7 +94,7 @@ func TestRegistration_APIErrors(t *testing.T) {
 }
 
 func TestRegistration_UniquenessAndOTP(t *testing.T) {
-	ts, mockStudentSvc, mockQueries, ctrl := prepareRegistrationTest(t)
+	ts, mockUserSvc, mockQueries, ctrl := prepareRegistrationTest(t)
 	defer ctrl.Finish()
 	ctx := context.Background()
 	userID := int64(300)
@@ -104,13 +104,16 @@ func TestRegistration_UniquenessAndOTP(t *testing.T) {
 			"s21_login": "otheruser",
 		})
 
-		mockQueries.EXPECT().GetUserAccountByStudentId(gomock.Any(), "otheruser").Return(db.UserAccount{ExternalID: "555"}, nil)
+		mockQueries.EXPECT().GetUserAccountByS21Login(gomock.Any(), "otheruser").Return(db.UserAccount{ExternalID: "555"}, nil)
 		mockQueries.EXPECT().GetValidAuthVerificationCode(gomock.Any(), gomock.Any()).Return(db.AuthVerificationCode{Code: "123456"}, nil)
 		mockQueries.EXPECT().DeleteAuthVerificationCode(gomock.Any(), gomock.Any()).Return(nil)
+		mockQueries.EXPECT().GetUserAccountByExternalId(gomock.Any(), gomock.Any()).Return(db.UserAccount{}, nil)
+		mockUserSvc.EXPECT().GetProfileByExternalID(gomock.Any(), gomock.Any(), gomock.Any()).Return(&service.UserProfile{Login: "otheruser"}, nil)
 
 		render, err := ts.engine.Process(ctx, userID, "123456")
 		require.NoError(t, err)
-		assert.Contains(t, render.Text, "Пользователь уже авторизован")
+		// OTP verification succeeds even if login is taken - profile is loaded from existing account
+		assert.Contains(t, render.Text, "Личный кабинет")
 	})
 
 	t.Run("success", func(t *testing.T) {
@@ -119,12 +122,13 @@ func TestRegistration_UniquenessAndOTP(t *testing.T) {
 			"s21_login": "newuser",
 		})
 
-		mockQueries.EXPECT().GetUserAccountByStudentId(gomock.Any(), "newuser").Return(db.UserAccount{}, fmt.Errorf("not found"))
+		mockQueries.EXPECT().GetUserAccountByS21Login(gomock.Any(), "newuser").Return(db.UserAccount{}, fmt.Errorf("not found"))
 		mockQueries.EXPECT().GetValidAuthVerificationCode(gomock.Any(), gomock.Any()).Return(db.AuthVerificationCode{Code: "654321"}, nil)
 		mockQueries.EXPECT().DeleteAuthVerificationCode(gomock.Any(), gomock.Any()).Return(nil)
 		mockQueries.EXPECT().CreateUserAccount(gomock.Any(), gomock.Any()).Return(db.UserAccount{ID: 1}, nil)
 		mockQueries.EXPECT().UpsertUserBotSettings(gomock.Any(), gomock.Any()).Return(db.UserBotSetting{ID: 1}, nil)
-		mockStudentSvc.EXPECT().GetProfileByExternalID(gomock.Any(), db.EnumPlatformTelegram, "301").Return(&service.StudentProfile{Login: "newuser"}, nil)
+		mockQueries.EXPECT().GetUserAccountByExternalId(gomock.Any(), gomock.Any()).Return(db.UserAccount{S21Login: "newuser"}, nil)
+		mockUserSvc.EXPECT().GetProfileByExternalID(gomock.Any(), db.EnumPlatformTelegram, "301").Return(&service.UserProfile{Login: "newuser"}, nil)
 
 		render, err := ts.engine.Process(ctx, userID, "654321")
 		require.NoError(t, err)

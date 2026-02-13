@@ -70,7 +70,7 @@ func (s *CredentialService) GetValidToken(ctx context.Context, login string) (st
 	refreshExpiration := time.Now().Add(time.Duration(authResp.RefreshExpiresIn) * time.Second)
 
 	err = s.repo.UpsertPlatformCredentials(ctx, db.UpsertPlatformCredentialsParams{
-		StudentID:        login,
+		S21Login:         login,
 		PasswordEnc:      creds.PasswordEnc,   // Keep existing
 		PasswordNonce:    creds.PasswordNonce, // Keep existing
 		AccessToken:      pgtype.Text{String: authResp.AccessToken, Valid: true},
@@ -151,48 +151,34 @@ func (s *CredentialService) Seed(ctx context.Context, cfg *config.Config) error 
 
 	s.log.Info("Seeding credentials for user", "login", cfg.Init.SchoolLogin)
 
-	// 1. Ensure Student Record Exists
-	_, err := s.repo.GetStudentByS21Login(ctx, cfg.Init.SchoolLogin)
+	// 1. Ensure Registered User Record Exists
+	_, err := s.repo.GetRegisteredUserByS21Login(ctx, cfg.Init.SchoolLogin)
 	if err != nil {
 		if err == pgx.ErrNoRows {
-			// Create new student
+			// Create new registered user
 			if cfg.RocketChat.UserID.Expose() == "" {
-				return fmt.Errorf("cannot create student: ROCKETCHAT_USER_ID is missing")
+				return fmt.Errorf("cannot create registered user: ROCKETCHAT_USER_ID is missing")
 			}
 
-			s.log.Info("Creating new student record", "login", cfg.Init.SchoolLogin)
-			// Assuming other fields can be default/null.
-			// Status defaults to ACTIVE.
-			// Timezone defaults to UTC (if not provided, but schema says NOT NULL DEFAULT 'UTC')
-			// But UpsertStudentParams requires Timezone string.
+			s.log.Info("Creating new registered user record", "login", cfg.Init.SchoolLogin)
 
-			upsertParams := db.UpsertStudentParams{
+			upsertParams := db.UpsertRegisteredUserParams{
 				S21Login:           cfg.Init.SchoolLogin,
 				RocketchatID:       cfg.RocketChat.UserID.Expose(),
-				Status:             db.NullEnumStudentStatus{Valid: true, EnumStudentStatus: db.EnumStudentStatusACTIVE},
-				Timezone:           "UTC", // Default
-				CampusID:           pgtype.UUID{Valid: false},
-				CoalitionID:        pgtype.Int2{Valid: false},
+				Timezone:           "UTC",
 				AlternativeContact: pgtype.Text{Valid: false},
 				HasCoffeeBan:       pgtype.Bool{Valid: false},
-				Level:              pgtype.Int4{Valid: false},
-				ExpValue:           pgtype.Int4{Valid: false},
-				Prp:                pgtype.Int4{Valid: false},
-				Crp:                pgtype.Int4{Valid: false},
-				Coins:              pgtype.Int4{Valid: false},
-				ParallelName:       pgtype.Text{Valid: false},
-				ClassName:          pgtype.Text{Valid: false},
 			}
 
-			_, err = s.repo.UpsertStudent(ctx, upsertParams)
+			_, err = s.repo.UpsertRegisteredUser(ctx, upsertParams)
 			if err != nil {
-				return fmt.Errorf("failed to create student: %w", err)
+				return fmt.Errorf("failed to create registered user: %w", err)
 			}
 		} else {
-			return fmt.Errorf("failed to check student existence: %w", err)
+			return fmt.Errorf("failed to check registered user existence: %w", err)
 		}
 	} else {
-		s.log.Info("Student record already exists", "login", cfg.Init.SchoolLogin)
+		s.log.Info("Registered user record already exists", "login", cfg.Init.SchoolLogin)
 	}
 
 	// 2. Encrypt and Upsert Platform Credentials (School21)
@@ -210,7 +196,7 @@ func (s *CredentialService) Seed(ctx context.Context, cfg *config.Config) error 
 			// Found existing, check what to preserve
 			// Map existing to params
 			params = db.UpsertPlatformCredentialsParams{
-				StudentID:        cfg.Init.SchoolLogin,
+				S21Login:         cfg.Init.SchoolLogin,
 				PasswordEnc:      pwdEnc,   // Update this
 				PasswordNonce:    pwdNonce, // Update this
 				AccessToken:      existing.AccessToken,
@@ -225,7 +211,7 @@ func (s *CredentialService) Seed(ctx context.Context, cfg *config.Config) error 
 			}
 			// Not found, create new with just password
 			params = db.UpsertPlatformCredentialsParams{
-				StudentID:     cfg.Init.SchoolLogin,
+				S21Login:      cfg.Init.SchoolLogin,
 				PasswordEnc:   pwdEnc,
 				PasswordNonce: pwdNonce,
 				// Others nil/invalid
@@ -252,7 +238,7 @@ func (s *CredentialService) Seed(ctx context.Context, cfg *config.Config) error 
 		// Currently UpsertRocketChatCredentials sets everything.
 
 		rcParams := db.UpsertRocketChatCredentialsParams{
-			StudentID:  cfg.Init.SchoolLogin,
+			S21Login:   cfg.Init.SchoolLogin,
 			RcTokenEnc: rcEnc,
 			RcNonce:    rcNonce,
 		}

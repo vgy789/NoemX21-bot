@@ -77,14 +77,12 @@ states:
     transitions:
       - condition: api_status == 404
         next_state: ERROR_NOT_FOUND
-      - condition: api_status == 200 && user.status == 'ACTIVE' && user.parallelName != 'Core program'
+      - condition: api_status == 200 && s21_user.status == 'ACTIVE' && s21_user.parallelName != 'Core program'
         next_state: ERROR_WRONG_PARALLEL
-      - condition: user.status == 'EXPELLED' || user.status == 'BLOCKED'
+      - condition: s21_user.status == 'EXPELLED' || s21_user.status == 'BLOCKED'
         next_state: ERROR_ACCESS_DENIED
-      - condition: api_status == 200 && user.status == 'ACTIVE' && user.parallelName == 'Core program'
+      - condition: api_status == 200 && s21_user.status == 'ACTIVE' && s21_user.parallelName == 'Core program'
         next_state: FIND_ROCKET_USER
-      - condition: api_status != 200
-        next_state: ERROR_API
       - next_state: ERROR_API
     interface:
       text:

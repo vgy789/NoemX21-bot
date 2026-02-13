@@ -114,4 +114,28 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 			"my_botapi_token": prefix,
 		}, nil
 	})
+
+	// Delete profile action: remove user account record
+	registry.Register("delete_profile", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
+		ua, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
+			Platform:   db.EnumPlatformTelegram,
+			ExternalID: fmt.Sprintf("%d", userID),
+		})
+		if err != nil {
+			log.Warn("user account not found for deletion", "user_id", userID)
+			return "", nil, nil
+		}
+
+		// Delete the user account record
+		if err := queries.DeleteUserAccountByExternalId(ctx, db.DeleteUserAccountByExternalIdParams{
+			Platform:   db.EnumPlatformTelegram,
+			ExternalID: fmt.Sprintf("%d", userID),
+		}); err != nil {
+			log.Error("failed to delete user account", "error", err, "user_id", userID)
+			return "", nil, err
+		}
+
+		log.Info("deleted user account", "user_account_id", ua.ID, "user_id", userID)
+		return "", nil, nil
+	})
 }
