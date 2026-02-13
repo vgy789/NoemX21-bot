@@ -220,18 +220,32 @@ func (q *Queries) GetApiKeyByHash(ctx context.Context, keyHash string) (ApiKey, 
 }
 
 const getCampusByID = `-- name: GetCampusByID :one
-SELECT id, short_name, full_name, timezone, is_active, created_at, updated_at FROM campuses WHERE id = $1
+SELECT id, short_name, full_name, timezone, is_active, leader_name, leader_form_link, created_at, updated_at FROM campuses WHERE id = $1
 `
 
-func (q *Queries) GetCampusByID(ctx context.Context, id pgtype.UUID) (Campuse, error) {
+type GetCampusByIDRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	ShortName      string             `json:"short_name"`
+	FullName       string             `json:"full_name"`
+	Timezone       pgtype.Text        `json:"timezone"`
+	IsActive       bool               `json:"is_active"`
+	LeaderName     pgtype.Text        `json:"leader_name"`
+	LeaderFormLink pgtype.Text        `json:"leader_form_link"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) GetCampusByID(ctx context.Context, id pgtype.UUID) (GetCampusByIDRow, error) {
 	row := q.db.QueryRow(ctx, getCampusByID, id)
-	var i Campuse
+	var i GetCampusByIDRow
 	err := row.Scan(
 		&i.ID,
 		&i.ShortName,
 		&i.FullName,
 		&i.Timezone,
 		&i.IsActive,
+		&i.LeaderName,
+		&i.LeaderFormLink,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
@@ -239,7 +253,7 @@ func (q *Queries) GetCampusByID(ctx context.Context, id pgtype.UUID) (Campuse, e
 }
 
 const getCampusByShortName = `-- name: GetCampusByShortName :one
-SELECT id, short_name, full_name, timezone, is_active, created_at, updated_at FROM campuses WHERE short_name = $1
+SELECT id, short_name, full_name, timezone, is_active, created_at, updated_at, leader_name, leader_form_link FROM campuses WHERE short_name = $1
 `
 
 func (q *Queries) GetCampusByShortName(ctx context.Context, shortName string) (Campuse, error) {
@@ -253,6 +267,8 @@ func (q *Queries) GetCampusByShortName(ctx context.Context, shortName string) (C
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LeaderName,
+		&i.LeaderFormLink,
 	)
 	return i, err
 }
@@ -275,6 +291,66 @@ func (q *Queries) GetFSMState(ctx context.Context, userID int64) (FsmUserState, 
 	return i, err
 }
 
+const getGlobalClubs = `-- name: GetGlobalClubs :many
+SELECT 
+    c.id,
+    c.name,
+    c.description,
+    c.leader_login,
+    c.external_link,
+    cat.name as category_name,
+    c.is_local,
+    c.is_active,
+    camp.short_name as campus_name
+FROM clubs c
+JOIN club_categories cat ON c.category_id = cat.id
+JOIN campuses camp ON c.campus_id = camp.id
+WHERE c.is_active = true AND c.is_local = false
+ORDER BY c.name
+`
+
+type GetGlobalClubsRow struct {
+	ID           int16       `json:"id"`
+	Name         string      `json:"name"`
+	Description  pgtype.Text `json:"description"`
+	LeaderLogin  pgtype.Text `json:"leader_login"`
+	ExternalLink pgtype.Text `json:"external_link"`
+	CategoryName string      `json:"category_name"`
+	IsLocal      pgtype.Bool `json:"is_local"`
+	IsActive     pgtype.Bool `json:"is_active"`
+	CampusName   string      `json:"campus_name"`
+}
+
+func (q *Queries) GetGlobalClubs(ctx context.Context) ([]GetGlobalClubsRow, error) {
+	rows, err := q.db.Query(ctx, getGlobalClubs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetGlobalClubsRow
+	for rows.Next() {
+		var i GetGlobalClubsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.LeaderLogin,
+			&i.ExternalLink,
+			&i.CategoryName,
+			&i.IsLocal,
+			&i.IsActive,
+			&i.CampusName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getLastAuthVerificationCode = `-- name: GetLastAuthVerificationCode :one
 SELECT id, s21_login, code, expires_at, created_at FROM auth_verification_codes
 WHERE s21_login = $1
@@ -295,6 +371,66 @@ func (q *Queries) GetLastAuthVerificationCode(ctx context.Context, s21Login pgty
 	return i, err
 }
 
+const getLocalClubs = `-- name: GetLocalClubs :many
+SELECT 
+    c.id,
+    c.name,
+    c.description,
+    c.leader_login,
+    c.external_link,
+    cat.name as category_name,
+    c.is_local,
+    c.is_active,
+    camp.short_name as campus_name
+FROM clubs c
+JOIN club_categories cat ON c.category_id = cat.id
+JOIN campuses camp ON c.campus_id = camp.id
+WHERE c.is_active = true AND c.is_local = true AND c.campus_id = $1
+ORDER BY c.name
+`
+
+type GetLocalClubsRow struct {
+	ID           int16       `json:"id"`
+	Name         string      `json:"name"`
+	Description  pgtype.Text `json:"description"`
+	LeaderLogin  pgtype.Text `json:"leader_login"`
+	ExternalLink pgtype.Text `json:"external_link"`
+	CategoryName string      `json:"category_name"`
+	IsLocal      pgtype.Bool `json:"is_local"`
+	IsActive     pgtype.Bool `json:"is_active"`
+	CampusName   string      `json:"campus_name"`
+}
+
+func (q *Queries) GetLocalClubs(ctx context.Context, campusID pgtype.UUID) ([]GetLocalClubsRow, error) {
+	rows, err := q.db.Query(ctx, getLocalClubs, campusID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetLocalClubsRow
+	for rows.Next() {
+		var i GetLocalClubsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.Description,
+			&i.LeaderLogin,
+			&i.ExternalLink,
+			&i.CategoryName,
+			&i.IsLocal,
+			&i.IsActive,
+			&i.CampusName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getMyProfile = `-- name: GetMyProfile :one
 SELECT
     r.s21_login,
@@ -302,6 +438,7 @@ SELECT
     r.timezone,
     r.alternative_contact,
     r.has_coffee_ban,
+    camp.id AS campus_id,
     camp.short_name AS campus_name,
     co.name AS coalition_name,
     c.status,
@@ -329,6 +466,7 @@ type GetMyProfileRow struct {
 	Timezone           string                `json:"timezone"`
 	AlternativeContact pgtype.Text           `json:"alternative_contact"`
 	HasCoffeeBan       pgtype.Bool           `json:"has_coffee_ban"`
+	CampusID           pgtype.UUID           `json:"campus_id"`
 	CampusName         pgtype.Text           `json:"campus_name"`
 	CoalitionName      pgtype.Text           `json:"coalition_name"`
 	Status             NullEnumStudentStatus `json:"status"`
@@ -355,6 +493,7 @@ func (q *Queries) GetMyProfile(ctx context.Context, s21Login string) (GetMyProfi
 		&i.Timezone,
 		&i.AlternativeContact,
 		&i.HasCoffeeBan,
+		&i.CampusID,
 		&i.CampusName,
 		&i.CoalitionName,
 		&i.Status,
@@ -731,23 +870,27 @@ func (q *Queries) RevokeOldApiKeys(ctx context.Context, userAccountID int64) err
 }
 
 const upsertCampus = `-- name: UpsertCampus :one
-INSERT INTO campuses (id, short_name, full_name, timezone, is_active)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO campuses (id, short_name, full_name, timezone, is_active, leader_name, leader_form_link)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (id) DO UPDATE SET
     short_name = EXCLUDED.short_name,
     full_name = EXCLUDED.full_name,
     timezone = EXCLUDED.timezone,
     is_active = EXCLUDED.is_active,
+    leader_name = COALESCE(EXCLUDED.leader_name, campuses.leader_name),
+    leader_form_link = COALESCE(EXCLUDED.leader_form_link, campuses.leader_form_link),
     updated_at = CURRENT_TIMESTAMP
-RETURNING id, short_name, full_name, timezone, is_active, created_at, updated_at
+RETURNING id, short_name, full_name, timezone, is_active, created_at, updated_at, leader_name, leader_form_link
 `
 
 type UpsertCampusParams struct {
-	ID        pgtype.UUID `json:"id"`
-	ShortName string      `json:"short_name"`
-	FullName  string      `json:"full_name"`
-	Timezone  pgtype.Text `json:"timezone"`
-	IsActive  bool        `json:"is_active"`
+	ID             pgtype.UUID `json:"id"`
+	ShortName      string      `json:"short_name"`
+	FullName       string      `json:"full_name"`
+	Timezone       pgtype.Text `json:"timezone"`
+	IsActive       bool        `json:"is_active"`
+	LeaderName     pgtype.Text `json:"leader_name"`
+	LeaderFormLink pgtype.Text `json:"leader_form_link"`
 }
 
 func (q *Queries) UpsertCampus(ctx context.Context, arg UpsertCampusParams) (Campuse, error) {
@@ -757,6 +900,8 @@ func (q *Queries) UpsertCampus(ctx context.Context, arg UpsertCampusParams) (Cam
 		arg.FullName,
 		arg.Timezone,
 		arg.IsActive,
+		arg.LeaderName,
+		arg.LeaderFormLink,
 	)
 	var i Campuse
 	err := row.Scan(
@@ -767,6 +912,8 @@ func (q *Queries) UpsertCampus(ctx context.Context, arg UpsertCampusParams) (Cam
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.LeaderName,
+		&i.LeaderFormLink,
 	)
 	return i, err
 }

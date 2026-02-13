@@ -93,11 +93,14 @@ func (s *Service) Sync(ctx context.Context) error {
 		campusName := entry.Name()
 		campus, err := s.queries.GetCampusByShortName(ctx, campusName)
 		if err != nil {
-			// Fallback: try stripping "21 " if it exists, or adding it?
-			// the DB currently has "21 Novosibirsk".
-			// If dir is "21 Novosibirsk", direct match works.
-			s.log.Warn("skipping directory: campus not found in DB", "dir", entry.Name())
-			continue
+			// Fallback: try adding "21 " if not present
+			if !strings.HasPrefix(campusName, "21 ") {
+				campus, err = s.queries.GetCampusByShortName(ctx, "21 "+campusName)
+			}
+			if err != nil {
+				s.log.Warn("skipping directory: campus not found in DB", "dir", entry.Name())
+				continue
+			}
 		}
 
 		if err := s.syncCampus(ctx, campus, filepath.Join(s.cfg.LocalPath, entry.Name())); err != nil {
@@ -177,6 +180,20 @@ func (s *Service) syncCampus(ctx context.Context, campus db.Campuse, path string
 	// Mark all clubs in this campus as inactive first
 	if err := s.queries.DeactivateClubsByCampus(ctx, campus.ID); err != nil {
 		return err
+	}
+
+	// Update campus leader info
+	_, err = s.queries.UpsertCampus(ctx, db.UpsertCampusParams{
+		ID:             campus.ID,
+		ShortName:      campus.ShortName,
+		FullName:       campus.FullName,
+		Timezone:       campus.Timezone,
+		IsActive:       campus.IsActive,
+		LeaderName:     toText(clubsYAML.Leader.Name),
+		LeaderFormLink: toText(clubsYAML.Leader.FormLink),
+	})
+	if err != nil {
+		s.log.Error("failed to update campus leader info", "campus", campus.ShortName, "error", err)
 	}
 
 	for _, c := range clubsYAML.Clubs {

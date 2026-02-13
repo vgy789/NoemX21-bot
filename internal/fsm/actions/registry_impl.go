@@ -60,7 +60,7 @@ func (r *registrar) RegisterAll(registry *fsm.LogicRegistry, aliasRegistrar func
 
 	admin.Register(registry, aliasRegistrar)
 	booking.Register(registry, aliasRegistrar)
-	clubs.Register(registry, aliasRegistrar)
+	clubs.Register(registry, r.queries, aliasRegistrar)
 	library.Register(registry, aliasRegistrar)
 
 	registration.Register(registry, r.cfg, r.log, r.queries, r.userSvc, r.rcClient, r.s21Client, r.credService, aliasRegistrar)
