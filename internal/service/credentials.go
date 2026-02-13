@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"runtime/secret"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -54,15 +55,24 @@ func (s *CredentialService) GetValidToken(ctx context.Context, login string) (st
 		return "", fmt.Errorf("no password stored for %s", login)
 	}
 
-	decryptedPassword, err := s.crypter.Decrypt(creds.PasswordEnc, creds.PasswordNonce, []byte(login))
-	if err != nil {
-		return "", fmt.Errorf("failed to decrypt password: %w", err)
-	}
+	var authResp *s21.AuthResponse
+	secret.Do(func() {
+		var decryptedPassword []byte
+		decryptedPassword, err = s.crypter.Decrypt(creds.PasswordEnc, creds.PasswordNonce, []byte(login))
+		if err != nil {
+			err = fmt.Errorf("failed to decrypt password: %w", err)
+			return
+		}
 
-	// 3. Authenticate
-	authResp, err := s.s21Client.Auth(ctx, login, string(decryptedPassword))
+		// 3. Authenticate
+		authResp, err = s.s21Client.Auth(ctx, login, string(decryptedPassword))
+		if err != nil {
+			err = fmt.Errorf("authentication failed: %w", err)
+			return
+		}
+	})
 	if err != nil {
-		return "", fmt.Errorf("authentication failed: %w", err)
+		return "", err
 	}
 
 	// 4. Save new token
@@ -97,18 +107,25 @@ func (s *CredentialService) Verify(ctx context.Context, login string) error {
 		return fmt.Errorf("failed to get platform credentials from DB: %w", err)
 	}
 
-	// 2. Decrypt Password
-	decryptedPassword, err := s.crypter.Decrypt(creds.PasswordEnc, creds.PasswordNonce, []byte(login))
-	if err != nil {
-		return fmt.Errorf("AEAD password decryption failed: %w", err)
-	}
-	// Don't log password
+	// 2. Decrypt Password & 3. Authenticate
+	var authResp *s21.AuthResponse
+	secret.Do(func() {
+		var decryptedPassword []byte
+		decryptedPassword, err = s.crypter.Decrypt(creds.PasswordEnc, creds.PasswordNonce, []byte(login))
+		if err != nil {
+			err = fmt.Errorf("AEAD password decryption failed: %w", err)
+			return
+		}
 
-	// 3. Authenticate to get Access Token
-	authResp, err := s.s21Client.Auth(ctx, login, string(decryptedPassword))
+		authResp, err = s.s21Client.Auth(ctx, login, string(decryptedPassword))
+		if err != nil {
+			err = fmt.Errorf("authentication failed: %w", err)
+			return
+		}
+	})
 	if err != nil {
 		s.log.Error("Authentication failed", "login", login, "error", err)
-		return fmt.Errorf("authentication failed: %w", err)
+		return err
 	}
 	s.log.Info("Authentication successful", "login", login)
 
@@ -182,72 +199,88 @@ func (s *CredentialService) Seed(ctx context.Context, cfg *config.Config) error 
 	}
 
 	// 2. Encrypt and Upsert Platform Credentials (School21)
-	pwdPlain := cfg.Init.SchoolPassword.Expose()
-	if pwdPlain != "" {
-		pwdEnc, pwdNonce, err := s.crypter.Encrypt([]byte(pwdPlain), []byte(cfg.Init.SchoolLogin))
-		if err != nil {
-			return fmt.Errorf("failed to encrypt school password: %w", err)
-		}
+	cfg.Init.SchoolPassword.Do(func(pwdPlain string) {
+		if pwdPlain != "" {
+			var pwdEnc, pwdNonce []byte
+			pwdEnc, pwdNonce, err = s.crypter.Encrypt([]byte(pwdPlain), []byte(cfg.Init.SchoolLogin))
+			if err != nil {
+				err = fmt.Errorf("failed to encrypt school password: %w", err)
+				return
+			}
 
-		// Check existing to preserve other fields
-		existing, err := s.repo.GetPlatformCredentials(ctx, cfg.Init.SchoolLogin)
-		var params db.UpsertPlatformCredentialsParams
-		if err == nil {
-			// Found existing, check what to preserve
-			// Map existing to params
-			params = db.UpsertPlatformCredentialsParams{
-				S21Login:         cfg.Init.SchoolLogin,
-				PasswordEnc:      pwdEnc,   // Update this
-				PasswordNonce:    pwdNonce, // Update this
-				AccessToken:      existing.AccessToken,
-				AccessExpiresAt:  existing.AccessExpiresAt,
-				RefreshTokenEnc:  existing.RefreshTokenEnc,
-				RefreshNonce:     existing.RefreshNonce,
-				RefreshExpiresAt: existing.RefreshExpiresAt,
+			// Check existing to preserve other fields
+			var existing db.PlatformCredential
+			existing, err = s.repo.GetPlatformCredentials(ctx, cfg.Init.SchoolLogin)
+			var params db.UpsertPlatformCredentialsParams
+			if err == nil {
+				// Found existing, check what to preserve
+				// Map existing to params
+				params = db.UpsertPlatformCredentialsParams{
+					S21Login:         cfg.Init.SchoolLogin,
+					PasswordEnc:      pwdEnc,   // Update this
+					PasswordNonce:    pwdNonce, // Update this
+					AccessToken:      existing.AccessToken,
+					AccessExpiresAt:  existing.AccessExpiresAt,
+					RefreshTokenEnc:  existing.RefreshTokenEnc,
+					RefreshNonce:     existing.RefreshNonce,
+					RefreshExpiresAt: existing.RefreshExpiresAt,
+				}
+			} else {
+				if err != pgx.ErrNoRows {
+					err = fmt.Errorf("failed to get platform credentials: %w", err)
+					return
+				}
+				// Not found, create new with just password
+				params = db.UpsertPlatformCredentialsParams{
+					S21Login:      cfg.Init.SchoolLogin,
+					PasswordEnc:   pwdEnc,
+					PasswordNonce: pwdNonce,
+					// Others nil/invalid
+				}
 			}
-		} else {
-			if err != pgx.ErrNoRows {
-				return fmt.Errorf("failed to get platform credentials: %w", err)
-			}
-			// Not found, create new with just password
-			params = db.UpsertPlatformCredentialsParams{
-				S21Login:      cfg.Init.SchoolLogin,
-				PasswordEnc:   pwdEnc,
-				PasswordNonce: pwdNonce,
-				// Others nil/invalid
-			}
-		}
 
-		err = s.repo.UpsertPlatformCredentials(ctx, params)
-		if err != nil {
-			return fmt.Errorf("failed to upsert platform credentials: %w", err)
+			err = s.repo.UpsertPlatformCredentials(ctx, params)
+			if err != nil {
+				err = fmt.Errorf("failed to upsert platform credentials: %w", err)
+				return
+			}
+			s.log.Info("Updated platform credentials")
 		}
-		s.log.Info("Updated platform credentials")
+	})
+	if err != nil {
+		return err
 	}
 
 	// 3. Encrypt and Upsert RocketChat Credentials
-	rcTokenPlain := cfg.RocketChat.AuthToken.Expose()
-	if rcTokenPlain != "" {
-		rcEnc, rcNonce, err := s.crypter.Encrypt([]byte(rcTokenPlain), []byte(cfg.Init.SchoolLogin))
-		if err != nil {
-			return fmt.Errorf("failed to encrypt RC token: %w", err)
-		}
+	cfg.RocketChat.AuthToken.Do(func(rcTokenPlain string) {
+		if rcTokenPlain != "" {
+			var rcEnc, rcNonce []byte
+			rcEnc, rcNonce, err = s.crypter.Encrypt([]byte(rcTokenPlain), []byte(cfg.Init.SchoolLogin))
+			if err != nil {
+				err = fmt.Errorf("failed to encrypt RC token: %w", err)
+				return
+			}
 
-		// RocketChat credentials table only has the token, so simpler.
-		// But still good to allow for future expansion if more fields added.
-		// Currently UpsertRocketChatCredentials sets everything.
+			// RocketChat credentials table only has the token, so simpler.
+			// But still good to allow for future expansion if more fields added.
+			// Currently UpsertRocketChatCredentials sets everything.
 
-		rcParams := db.UpsertRocketChatCredentialsParams{
-			S21Login:   cfg.Init.SchoolLogin,
-			RcTokenEnc: rcEnc,
-			RcNonce:    rcNonce,
-		}
+			rcParams := db.UpsertRocketChatCredentialsParams{
+				S21Login:   cfg.Init.SchoolLogin,
+				RcTokenEnc: rcEnc,
+				RcNonce:    rcNonce,
+			}
 
-		err = s.repo.UpsertRocketChatCredentials(ctx, rcParams)
-		if err != nil {
-			return fmt.Errorf("failed to upsert RC credentials: %w", err)
+			err = s.repo.UpsertRocketChatCredentials(ctx, rcParams)
+			if err != nil {
+				err = fmt.Errorf("failed to upsert RC credentials: %w", err)
+				return
+			}
+			s.log.Info("Updated RocketChat credentials")
 		}
-		s.log.Info("Updated RocketChat credentials")
+	})
+	if err != nil {
+		return err
 	}
 
 	return nil
