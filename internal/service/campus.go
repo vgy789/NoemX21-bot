@@ -91,11 +91,13 @@ func (s *CampusService) UpdateCampuses(ctx context.Context) error {
 		}
 
 		_, err := s.queries.UpsertCampus(ctx, db.UpsertCampusParams{
-			ID:        id,
-			ShortName: c.ShortName,
-			FullName:  c.FullName,
-			Timezone:  pgtype.Text{String: c.Timezone, Valid: true},
-			IsActive:  true,
+			ID:             id,
+			ShortName:      c.ShortName,
+			FullName:       c.FullName,
+			Timezone:       pgtype.Text{String: c.Timezone, Valid: true},
+			IsActive:       true,
+			LeaderName:     pgtype.Text{Valid: false},
+			LeaderFormLink: pgtype.Text{Valid: false},
 		})
 		if err != nil {
 			s.log.Error("failed to upsert campus", "id", c.ID, "name", c.ShortName, "error", err)
@@ -144,11 +146,13 @@ func EnsureCampusPresent(ctx context.Context, queries db.Querier, s21Client *s21
 				return err
 			}
 			_, err := queries.UpsertCampus(ctx, db.UpsertCampusParams{
-				ID:        cid,
-				ShortName: c.ShortName,
-				FullName:  c.FullName,
-				Timezone:  pgtype.Text{String: c.Timezone, Valid: true},
-				IsActive:  true,
+				ID:             cid,
+				ShortName:      c.ShortName,
+				FullName:       c.FullName,
+				Timezone:       pgtype.Text{String: c.Timezone, Valid: true},
+				IsActive:       true,
+				LeaderName:     pgtype.Text{Valid: false},
+				LeaderFormLink: pgtype.Text{Valid: false},
 			})
 			if err != nil {
 				log.Error("failed to upsert campus", "id", c.ID, "error", err)

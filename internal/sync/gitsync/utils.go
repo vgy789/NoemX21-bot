@@ -6,6 +6,10 @@ func toText(s string) pgtype.Text {
 	return pgtype.Text{String: s, Valid: s != ""}
 }
 
-func toBool(b bool) pgtype.Bool {
-	return pgtype.Bool{Bool: b, Valid: true}
+func toBool(b *bool) pgtype.Bool {
+	val := true
+	if b != nil {
+		val = *b
+	}
+	return pgtype.Bool{Bool: val, Valid: true}
 }

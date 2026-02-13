@@ -480,6 +480,7 @@ func Register(
 			"name":           profile.Login,
 			"s21_login":      profile.Login,
 			"campus":         profile.CampusName,
+			"campus_id":      profile.CampusID,
 			"coalition":      profile.CoalitionName,
 			"level":          profile.Level,
 			"exp":            profile.Exp,

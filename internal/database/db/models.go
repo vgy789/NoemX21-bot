@@ -162,13 +162,15 @@ type AuthVerificationCode struct {
 }
 
 type Campuse struct {
-	ID        pgtype.UUID        `json:"id"`
-	ShortName string             `json:"short_name"`
-	FullName  string             `json:"full_name"`
-	Timezone  pgtype.Text        `json:"timezone"`
-	IsActive  bool               `json:"is_active"`
-	CreatedAt pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	ID             pgtype.UUID        `json:"id"`
+	ShortName      string             `json:"short_name"`
+	FullName       string             `json:"full_name"`
+	Timezone       pgtype.Text        `json:"timezone"`
+	IsActive       bool               `json:"is_active"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	LeaderName     pgtype.Text        `json:"leader_name"`
+	LeaderFormLink pgtype.Text        `json:"leader_form_link"`
 }
 
 type Club struct {

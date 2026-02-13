@@ -169,7 +169,7 @@ LIMIT 1;
 SELECT * FROM campuses WHERE short_name = $1;
 
 -- name: GetCampusByID :one
-SELECT id, short_name, full_name, timezone, is_active, created_at, updated_at FROM campuses WHERE id = $1;
+SELECT id, short_name, full_name, timezone, is_active, leader_name, leader_form_link, created_at, updated_at FROM campuses WHERE id = $1;
  
 INSERT INTO club_categories (name) VALUES ($1)
 ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
@@ -205,13 +205,15 @@ WHERE campus_id = $1;
 
 
 -- name: UpsertCampus :one
-INSERT INTO campuses (id, short_name, full_name, timezone, is_active)
-VALUES ($1, $2, $3, $4, $5)
+INSERT INTO campuses (id, short_name, full_name, timezone, is_active, leader_name, leader_form_link)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (id) DO UPDATE SET
     short_name = EXCLUDED.short_name,
     full_name = EXCLUDED.full_name,
     timezone = EXCLUDED.timezone,
     is_active = EXCLUDED.is_active,
+    leader_name = COALESCE(EXCLUDED.leader_name, campuses.leader_name),
+    leader_form_link = COALESCE(EXCLUDED.leader_form_link, campuses.leader_form_link),
     updated_at = CURRENT_TIMESTAMP
 RETURNING *;
 
@@ -296,6 +298,7 @@ SELECT
     r.timezone,
     r.alternative_contact,
     r.has_coffee_ban,
+    camp.id AS campus_id,
     camp.short_name AS campus_name,
     co.name AS coalition_name,
     c.status,
@@ -350,3 +353,37 @@ VALUES ($1)
 ON CONFLICT (name) DO UPDATE SET
     name = EXCLUDED.name
 RETURNING *;
+
+-- name: GetLocalClubs :many
+SELECT 
+    c.id,
+    c.name,
+    c.description,
+    c.leader_login,
+    c.external_link,
+    cat.name as category_name,
+    c.is_local,
+    c.is_active,
+    camp.short_name as campus_name
+FROM clubs c
+JOIN club_categories cat ON c.category_id = cat.id
+JOIN campuses camp ON c.campus_id = camp.id
+WHERE c.is_active = true AND c.is_local = true AND c.campus_id = $1
+ORDER BY c.name;
+
+-- name: GetGlobalClubs :many
+SELECT 
+    c.id,
+    c.name,
+    c.description,
+    c.leader_login,
+    c.external_link,
+    cat.name as category_name,
+    c.is_local,
+    c.is_active,
+    camp.short_name as campus_name
+FROM clubs c
+JOIN club_categories cat ON c.category_id = cat.id
+JOIN campuses camp ON c.campus_id = camp.id
+WHERE c.is_active = true AND c.is_local = false
+ORDER BY c.name;

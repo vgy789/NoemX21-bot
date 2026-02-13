@@ -5,9 +5,19 @@ meta:
   description: 'Каталог клубов: локальные и глобальные сообщества'
   version: 2.0.1
 
-initial_state: CLUBS_MENU
+initial_state: INIT_CLUBS
 states:
-  CLUBS_MENU:
+  INIT_CLUBS:
+    type: system
+    description: Инициализация данных кампуса
+    logic:
+      action: get_campus_info
+      payload:
+        campus_id: $context.campus_id
+    transitions:
+      - next_state: CLUBS_MAIN
+
+  CLUBS_MAIN:
     type: interactive
     description: Меню выбора типа клубов
     interface:
@@ -92,7 +102,7 @@ states:
           label:
             ru: 🔙 В меню клубов
             en: 🔙 To Clubs menu
-          next_state: CLUBS_MENU
+          next_state: INIT_CLUBS
 
   CREATE_CLUB_INFO:
     type: interactive
@@ -122,4 +132,4 @@ states:
           label:
             ru: 🔙 В меню клубов
             en: 🔙 To Clubs menu
-          next_state: CLUBS_MENU
+          next_state: INIT_CLUBS

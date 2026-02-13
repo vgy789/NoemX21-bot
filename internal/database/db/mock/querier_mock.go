@@ -188,10 +188,10 @@ func (mr *MockQuerierMockRecorder) GetApiKeyByHash(ctx, keyHash any) *gomock.Cal
 }
 
 // GetCampusByID mocks base method.
-func (m *MockQuerier) GetCampusByID(ctx context.Context, id pgtype.UUID) (db.Campuse, error) {
+func (m *MockQuerier) GetCampusByID(ctx context.Context, id pgtype.UUID) (db.GetCampusByIDRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetCampusByID", ctx, id)
-	ret0, _ := ret[0].(db.Campuse)
+	ret0, _ := ret[0].(db.GetCampusByIDRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -232,6 +232,21 @@ func (mr *MockQuerierMockRecorder) GetFSMState(ctx, userID any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetFSMState", reflect.TypeOf((*MockQuerier)(nil).GetFSMState), ctx, userID)
 }
 
+// GetGlobalClubs mocks base method.
+func (m *MockQuerier) GetGlobalClubs(ctx context.Context) ([]db.GetGlobalClubsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGlobalClubs", ctx)
+	ret0, _ := ret[0].([]db.GetGlobalClubsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGlobalClubs indicates an expected call of GetGlobalClubs.
+func (mr *MockQuerierMockRecorder) GetGlobalClubs(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGlobalClubs", reflect.TypeOf((*MockQuerier)(nil).GetGlobalClubs), ctx)
+}
+
 // GetLastAuthVerificationCode mocks base method.
 func (m *MockQuerier) GetLastAuthVerificationCode(ctx context.Context, s21Login pgtype.Text) (db.AuthVerificationCode, error) {
 	m.ctrl.T.Helper()
@@ -245,6 +260,21 @@ func (m *MockQuerier) GetLastAuthVerificationCode(ctx context.Context, s21Login 
 func (mr *MockQuerierMockRecorder) GetLastAuthVerificationCode(ctx, s21Login any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastAuthVerificationCode", reflect.TypeOf((*MockQuerier)(nil).GetLastAuthVerificationCode), ctx, s21Login)
+}
+
+// GetLocalClubs mocks base method.
+func (m *MockQuerier) GetLocalClubs(ctx context.Context, campusID pgtype.UUID) ([]db.GetLocalClubsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLocalClubs", ctx, campusID)
+	ret0, _ := ret[0].([]db.GetLocalClubsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLocalClubs indicates an expected call of GetLocalClubs.
+func (mr *MockQuerierMockRecorder) GetLocalClubs(ctx, campusID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLocalClubs", reflect.TypeOf((*MockQuerier)(nil).GetLocalClubs), ctx, campusID)
 }
 
 // GetMyProfile mocks base method.

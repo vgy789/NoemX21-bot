@@ -136,7 +136,7 @@ func TestEnsureCampusPresent_CampusExists(t *testing.T) {
 
 	mockQ := mock.NewMockQuerier(ctrl)
 	// If campus exists, GetCampusByID returns without error
-	mockQ.EXPECT().GetCampusByID(gomock.Any(), gomock.Any()).Return(db.Campuse{ID: pgtype.UUID{}}, nil)
+	mockQ.EXPECT().GetCampusByID(gomock.Any(), gomock.Any()).Return(db.GetCampusByIDRow{ID: pgtype.UUID{}}, nil)
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -153,7 +153,7 @@ func TestEnsureCampusPresent_FetchAndUpsert(t *testing.T) {
 	mockQ := mock.NewMockQuerier(ctrl)
 
 	// First call: GetCampusByID -> not found
-	mockQ.EXPECT().GetCampusByID(gomock.Any(), gomock.Any()).Return(db.Campuse{}, fmt.Errorf("not found"))
+	mockQ.EXPECT().GetCampusByID(gomock.Any(), gomock.Any()).Return(db.GetCampusByIDRow{}, fmt.Errorf("not found"))
 	// Expect UpsertCampus to be called when matching campus found in API
 	mockQ.EXPECT().UpsertCampus(gomock.Any(), gomock.Any()).Return(db.Campuse{}, nil)
 
@@ -183,7 +183,7 @@ func TestEnsureCampusPresent_NotFoundInAPI(t *testing.T) {
 	mockQ := mock.NewMockQuerier(ctrl)
 
 	// GetCampusByID returns not found
-	mockQ.EXPECT().GetCampusByID(gomock.Any(), gomock.Any()).Return(db.Campuse{}, fmt.Errorf("not found"))
+	mockQ.EXPECT().GetCampusByID(gomock.Any(), gomock.Any()).Return(db.GetCampusByIDRow{}, fmt.Errorf("not found"))
 
 	// Test server returns a list without our campus id
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
