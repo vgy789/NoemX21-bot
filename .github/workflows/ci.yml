@@ -1,59 +1,50 @@
----
-# CI по образцу GitLab CI Utils:
-# - go-test: registry.gitlab.com/gitlab-ci-utils/container-images/go-test
-# - gitlab-ci-templates: шаблоны с образом go-test (без ubuntu-latest)
-# https://gitlab.com/gitlab-ci-utils/container-images/go-test
-# https://gitlab.com/gitlab-ci-utils/gitlab-ci-templates
-
 name: CI
 
-"on":
+on:
   push:
     branches: [main]
   pull_request:
     branches: [main]
 
 jobs:
-  go:
+  build-and-test:
     runs-on: ubuntu-22.04
-    container:
-      image: registry.gitlab.com/gitlab-ci-utils/container-images/go-test:latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Download deps
-        run: go mod download
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+          cache: false
 
-      - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/cmd/golangci-lint@latest
+      - name: Cache Go modules and tools
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
+            bin/
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum', 'Makefile') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
 
-      - name: Lint
-        run: $(go env GOPATH)/bin/golangci-lint run ./...
+      - name: Download Deps
+        run: make deps
+
+      - name: Lint (GolangCI)
+        run: make lint
 
       - name: Vet
-        run: go vet ./...
+        run: make vet
 
       - name: Test
-        run: go test -race -cover ./...
+        run: make test
+
+      - name: Security Check
+        run: make security
+        continue-on-error: true
 
       - name: Build
-        run: go build -o /dev/null ./...
-
-      - name: Install govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest
-
-      - name: Security
-        run: $(go env GOPATH)/bin/govulncheck ./...
-        continue-on-error: true  # report only; job does not fail on vulns
-
-  yaml:
-    runs-on: ubuntu-22.04
-    container:
-      image: cytopia/yamllint:latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Lint YAML
-        run: yamllint .
+        run: make build

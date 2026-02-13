@@ -50,7 +50,7 @@ func (p *EChartsPosition) UnmarshalJSON(data []byte) error {
 		return nil
 	}
 	if regexp.MustCompile(`^\d+`).Match(data) {
-		data = []byte(fmt.Sprintf(`"%s"`, string(data)))
+		data = fmt.Appendf(nil, `"%s"`, string(data))
 	}
 	s := (*string)(p)
 	return json.Unmarshal(data, s)

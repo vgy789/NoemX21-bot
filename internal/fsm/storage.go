@@ -67,7 +67,7 @@ func (r *PostgreSQLStateRepository) GetState(ctx context.Context, userID int64) 
 		return nil, nil // Fallback to start
 	}
 
-	var contextMap map[string]interface{}
+	var contextMap map[string]any
 	if err := json.Unmarshal(row.Context, &contextMap); err != nil {
 		return nil, err
 	}

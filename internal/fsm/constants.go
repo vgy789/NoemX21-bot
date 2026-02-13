@@ -1,5 +1,7 @@
 package fsm
 
+import "maps"
+
 // Flow Constants
 const (
 	FlowRegistration = "registration.yaml"
@@ -98,9 +100,7 @@ const (
 // GetDefaultVariables returns a map of variables with defaults, adjusted for language.
 func GetDefaultVariables(lang string) map[string]string {
 	vars := make(map[string]string, len(DefaultVariables))
-	for k, v := range DefaultVariables {
-		vars[k] = v
-	}
+	maps.Copy(vars, DefaultVariables)
 
 	// Adjust language-specific defaults
 	if lang == LangEn {

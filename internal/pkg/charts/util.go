@@ -25,6 +25,7 @@ package charts
 import (
 	"math"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -44,21 +45,11 @@ func FalseFlag() *bool {
 }
 
 func containsInt(values []int, value int) bool {
-	for _, v := range values {
-		if v == value {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, value)
 }
 
 func containsString(values []string, value string) bool {
-	for _, v := range values {
-		if v == value {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(values, value)
 }
 
 func ceilFloatToInt(value float64) int {
@@ -239,7 +230,7 @@ func getRadius(diameter float64, radiusValue string) float64 {
 
 func getPolygonPointAngles(sides int) []float64 {
 	angles := make([]float64, sides)
-	for i := 0; i < sides; i++ {
+	for i := range sides {
 		angle := 2*math.Pi/float64(sides)*float64(i) - (math.Pi / 2)
 		angles[i] = angle
 	}

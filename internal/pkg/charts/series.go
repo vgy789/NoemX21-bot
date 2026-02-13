@@ -146,7 +146,7 @@ func (sl SeriesList) init() {
 	if sl[len(sl)-1].index != 0 {
 		return
 	}
-	for i := 0; i < len(sl); i++ {
+	for i := range sl {
 		if sl[i].Type == "" {
 			sl[i].Type = ChartTypeLine
 		}

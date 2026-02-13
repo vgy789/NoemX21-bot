@@ -10,10 +10,7 @@ import (
 
 // MustNew creates new telgram bot instance.
 func MustNew(cfg *config.TelegramBot) *gotgbot.Bot {
-	clientTimeout := time.Duration(cfg.Polling.Timeout+10) * time.Second
-	if clientTimeout < time.Second*60 {
-		clientTimeout = time.Second * 60
-	}
+	clientTimeout := max(time.Duration(cfg.Polling.Timeout+10)*time.Second, time.Second*60)
 
 	b, err := gotgbot.NewBot(cfg.Token.Expose(), &gotgbot.BotOpts{
 		BotClient: &gotgbot.BaseBotClient{

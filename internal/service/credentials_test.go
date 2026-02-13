@@ -69,7 +69,7 @@ func TestCredentialSeeder_Verify(t *testing.T) {
 		participant: &s21.ParticipantV1DTO{
 			Login:        "alice",
 			Status:       "ACTIVE",
-			ParallelName: s21.StringPtr("Core program"),
+			ParallelName: new("Core program"),
 		},
 	}
 
@@ -187,7 +187,7 @@ func TestCredentialSeeder_Verify_criteriaNotMet(t *testing.T) {
 
 	s21Fake := &fakeS21Client{
 		authResp:    &s21.AuthResponse{AccessToken: "tok"},
-		participant: &s21.ParticipantV1DTO{Login: "inactive", Status: "FROZEN", ParallelName: s21.StringPtr("Other")},
+		participant: &s21.ParticipantV1DTO{Login: "inactive", Status: "FROZEN", ParallelName: new("Other")},
 	}
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	seeder := NewCredentialService(mockRepo, crypter, s21Fake, log)

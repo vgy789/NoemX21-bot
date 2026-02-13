@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"regexp"
 	"strings"
 )
@@ -85,11 +86,11 @@ func (e *Engine) Sanitizer() func(string) string {
 	return e.sanitizer
 }
 
-func (e *Engine) InitState(ctx context.Context, userID int64, flowName, stateName string, initialContext map[string]interface{}) error {
+func (e *Engine) InitState(ctx context.Context, userID int64, flowName, stateName string, initialContext map[string]any) error {
 
 	e.log.Info("initializing state", "user_id", userID, "flow", flowName, "state", stateName)
 	if initialContext == nil {
-		initialContext = make(map[string]interface{})
+		initialContext = make(map[string]any)
 	}
 	newState := &UserState{
 		UserID:       userID,
@@ -149,7 +150,7 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 	// 1. Check if input triggers a global action (e.g. language change)
 	if action, ok := e.registry.Get("input:" + input); ok {
 		e.log.Info("executing global input action", "input", input)
-		_, updates, err := action(ctx, userID, map[string]interface{}{"input": input})
+		_, updates, err := action(ctx, userID, map[string]any{"input": input})
 		if err != nil {
 			e.log.Error("global action failed", "input", input, "error", err)
 		} else if len(updates) > 0 {
@@ -298,13 +299,13 @@ func (e *Engine) evaluateSystemState(ctx context.Context, spec *State, state *Us
 		if action, ok := e.registry.Get(actionName); ok {
 			e.log.Debug("executing system action", "action", actionName)
 			// Prepare payload
-			payload := make(map[string]interface{})
+			payload := make(map[string]any)
 			if spec.Logic.Payload != nil {
 				for k, v := range spec.Logic.Payload {
 					switch val := v.(type) {
 					case string:
 						payload[k] = e.replaceVariables(val, state)
-					case map[string]interface{}:
+					case map[string]any:
 						// Support localization within payload: if map has "ru"/"en" keys, pick the right one
 						if localized, ok := val[state.Language].(string); ok {
 							payload[k] = e.replaceVariables(localized, state)
@@ -313,8 +314,8 @@ func (e *Engine) evaluateSystemState(ctx context.Context, spec *State, state *Us
 						} else {
 							payload[k] = v
 						}
-					case []interface{}:
-						newList := make([]interface{}, len(val))
+					case []any:
+						newList := make([]any, len(val))
 						for i, item := range val {
 							if s, ok := item.(string); ok {
 								newList[i] = e.replaceVariables(s, state)
@@ -364,10 +365,10 @@ func (e *Engine) evaluateSystemState(ctx context.Context, spec *State, state *Us
 	return ""
 }
 
-func (e *Engine) evaluateCondition(condition string, ctx map[string]interface{}) bool {
+func (e *Engine) evaluateCondition(condition string, ctx map[string]any) bool {
 	// Support AND logic
-	subConditions := strings.Split(condition, "&&")
-	for _, sub := range subConditions {
+	subConditions := strings.SplitSeq(condition, "&&")
+	for sub := range subConditions {
 		if !e.evaluateSingleCondition(strings.TrimSpace(sub), ctx) {
 			return false
 		}
@@ -375,7 +376,7 @@ func (e *Engine) evaluateCondition(condition string, ctx map[string]interface{})
 	return true
 }
 
-func (e *Engine) evaluateSingleCondition(condition string, ctx map[string]interface{}) bool {
+func (e *Engine) evaluateSingleCondition(condition string, ctx map[string]any) bool {
 	var operator string
 	if strings.Contains(condition, "==") {
 		operator = "=="
@@ -405,12 +406,12 @@ func (e *Engine) evaluateSingleCondition(condition string, ctx map[string]interf
 	}
 }
 
-func (e *Engine) getContextValue(ctx map[string]interface{}, key string) interface{} {
+func (e *Engine) getContextValue(ctx map[string]any, key string) any {
 	parts := strings.Split(key, ".")
-	var current interface{} = ctx
+	var current any = ctx
 
 	for _, part := range parts {
-		if m, ok := current.(map[string]interface{}); ok {
+		if m, ok := current.(map[string]any); ok {
 			if val, exists := m[part]; exists {
 				current = val
 			} else {
@@ -423,16 +424,14 @@ func (e *Engine) getContextValue(ctx map[string]interface{}, key string) interfa
 	return current
 }
 
-func (e *Engine) updateStateContext(state *UserState, updates map[string]interface{}) {
+func (e *Engine) updateStateContext(state *UserState, updates map[string]any) {
 	if state.Context == nil {
-		state.Context = make(map[string]interface{})
+		state.Context = make(map[string]any)
 	}
 	if lang, ok := updates["language"].(string); ok {
 		state.Language = lang
 	}
-	for k, v := range updates {
-		state.Context[k] = v
-	}
+	maps.Copy(state.Context, updates)
 }
 
 func (e *Engine) renderState(ctx context.Context, userState *UserState, flowState *State) *RenderObject {
@@ -528,7 +527,7 @@ func (e *Engine) getButtonLabel(btn Button, userState *UserState) string {
 	label := "Label Error"
 
 	// Handle map[string]interface{}
-	if labelMap, ok := btn.Label.(map[string]interface{}); ok {
+	if labelMap, ok := btn.Label.(map[string]any); ok {
 		if val, ok := labelMap[userState.Language]; ok {
 			label = val.(string)
 		} else if val, ok := labelMap[LangEn]; ok {

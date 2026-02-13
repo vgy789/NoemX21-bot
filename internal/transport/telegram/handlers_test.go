@@ -32,14 +32,14 @@ func TestTelegramService_Handlers(t *testing.T) {
 
 	// Create registry for handlers test (registered: true so set_ru -> START -> main_menu.yaml/MAIN_MENU)
 	registry := fsm.NewLogicRegistry()
-	registry.Register("is_user_registered", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
-		return "", map[string]interface{}{"registered": true}, nil
+	registry.Register("is_user_registered", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		return "", map[string]any{"registered": true}, nil
 	})
-	registry.Register("input:set_ru", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
-		return "", map[string]interface{}{"language": "ru"}, nil
+	registry.Register("input:set_ru", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		return "", map[string]any{"language": "ru"}, nil
 	})
-	registry.Register("input:set_en", func(ctx context.Context, userID int64, payload map[string]interface{}) (string, map[string]interface{}, error) {
-		return "", map[string]interface{}{"language": "en"}, nil
+	registry.Register("input:set_en", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		return "", map[string]any{"language": "en"}, nil
 	})
 
 	engine := fsm.NewEngine(parser, repo, logger, registry, nil)
@@ -226,7 +226,7 @@ func TestTelegramService_Handlers(t *testing.T) {
 
 	t.Run("handleTextMessage - success", func(t *testing.T) {
 		userID := int64(789)
-		_ = engine.InitState(context.Background(), userID, "registration.yaml", "SELECT_LANGUAGE", map[string]interface{}{"language": "ru"})
+		_ = engine.InitState(context.Background(), userID, "registration.yaml", "SELECT_LANGUAGE", map[string]any{"language": "ru"})
 		// Move to state that accepts text
 		_, _ = engine.Process(context.Background(), userID, "set_ru")
 		mockSender.EXPECT().SendMessage(userID, gomock.Any(), gomock.Any()).Return(nil, nil)

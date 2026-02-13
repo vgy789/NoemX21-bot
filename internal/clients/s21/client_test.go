@@ -55,7 +55,7 @@ func TestClient_GetParticipant(t *testing.T) {
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(ParticipantV1DTO{
 			Login:        "testuser",
-			ParallelName: StringPtr("Core program"),
+			ParallelName: new("Core program"),
 			Status:       "ACTIVE",
 		})
 	}))
