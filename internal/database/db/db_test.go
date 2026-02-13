@@ -38,16 +38,21 @@ func (m *MockRow) Scan(dest ...interface{}) error {
 	return m.Called(dest...).Error(0)
 }
 
-func TestQueries_GetStudentByS21Login(t *testing.T) {
+func TestQueries_GetRegisteredUserByS21Login(t *testing.T) {
 	mockDB := new(MockDBTX)
 	q := New(mockDB)
 	ctx := context.Background()
 
 	mockRow := new(MockRow)
-	mockDB.On("QueryRow", ctx, getStudentByS21Login, mock.Anything).Return(mockRow)
-	mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mockDB.On("QueryRow", ctx, getRegisteredUserByS21Login, mock.Anything).Return(mockRow)
+	// RegisteredUser has 7 fields
+	scans := make([]interface{}, 7)
+	for i := range scans {
+		scans[i] = mock.Anything
+	}
+	mockRow.On("Scan", scans...).Return(nil)
 
-	_, err := q.GetStudentByS21Login(ctx, "testuser")
+	_, err := q.GetRegisteredUserByS21Login(ctx, "testuser")
 	assert.NoError(t, err)
 }
 
@@ -75,16 +80,21 @@ func TestQueries_CreateUserAccount(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestQueries_GetStudentProfile(t *testing.T) {
+func TestQueries_GetMyProfile(t *testing.T) {
 	mockDB := new(MockDBTX)
 	q := New(mockDB)
 	ctx := context.Background()
 
 	mockRow := new(MockRow)
-	mockDB.On("QueryRow", ctx, getStudentProfile, mock.Anything).Return(mockRow)
-	mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mockDB.On("QueryRow", ctx, getMyProfile, mock.Anything).Return(mockRow)
+	// GetMyProfileRow has 19 fields
+	scans := make([]interface{}, 19)
+	for i := range scans {
+		scans[i] = mock.Anything
+	}
+	mockRow.On("Scan", scans...).Return(nil)
 
-	_, err := q.GetStudentProfile(ctx, "testuser")
+	_, err := q.GetMyProfile(ctx, "testuser")
 	assert.NoError(t, err)
 }
 
@@ -99,16 +109,29 @@ func TestQueries_UpsertPlatformCredentials(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestQueries_UpsertStudent(t *testing.T) {
+func TestQueries_UpsertRegisteredUser(t *testing.T) {
 	mockDB := new(MockDBTX)
 	q := New(mockDB)
 	ctx := context.Background()
 
 	mockRow := new(MockRow)
-	mockDB.On("QueryRow", ctx, upsertStudent, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(mockRow)
-	mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	// UpsertRegisteredUser has 6 arguments
+	args := make([]interface{}, 6+2) // ctx, query, then 6 args
+	args[0] = ctx
+	args[1] = upsertRegisteredUser
+	for i := 2; i < len(args); i++ {
+		args[i] = mock.Anything
+	}
+	mockDB.On("QueryRow", args...).Return(mockRow)
 
-	_, err := q.UpsertStudent(ctx, UpsertStudentParams{})
+	// Result scan (same as RegisteredUser - 7 fields)
+	scans := make([]interface{}, 7)
+	for i := range scans {
+		scans[i] = mock.Anything
+	}
+	mockRow.On("Scan", scans...).Return(nil)
+
+	_, err := q.UpsertRegisteredUser(ctx, UpsertRegisteredUserParams{})
 	assert.NoError(t, err)
 }
 
@@ -144,11 +167,16 @@ func TestQueries_Remaining(t *testing.T) {
 		_, _ = q.GetRocketChatCredentials(ctx, "test")
 	})
 
-	t.Run("GetStudentByRocketChatId", func(t *testing.T) {
+	t.Run("GetRegisteredUserByRocketChatId", func(t *testing.T) {
 		mockRow := new(MockRow)
-		mockDB.On("QueryRow", ctx, getStudentByRocketChatId, mock.Anything).Return(mockRow)
-		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-		_, _ = q.GetStudentByRocketChatId(ctx, "test")
+		mockDB.On("QueryRow", ctx, getRegisteredUserByRocketChatId, mock.Anything).Return(mockRow)
+		// 7 fields
+		scans := make([]interface{}, 7)
+		for i := range scans {
+			scans[i] = mock.Anything
+		}
+		mockRow.On("Scan", scans...).Return(nil)
+		_, _ = q.GetRegisteredUserByRocketChatId(ctx, "test")
 	})
 
 	t.Run("GetUserBotSettings", func(t *testing.T) {
@@ -168,7 +196,12 @@ func TestQueries_Remaining(t *testing.T) {
 	t.Run("GetPeerProfile", func(t *testing.T) {
 		mockRow := new(MockRow)
 		mockDB.On("QueryRow", ctx, getPeerProfile, mock.Anything).Return(mockRow)
-		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		// GetPeerProfileRow has 17 fields
+		scans := make([]interface{}, 17)
+		for i := range scans {
+			scans[i] = mock.Anything
+		}
+		mockRow.On("Scan", scans...).Return(nil)
 		_, _ = q.GetPeerProfile(ctx, "login")
 	})
 
@@ -191,11 +224,11 @@ func TestQueries_Remaining(t *testing.T) {
 		_ = q.RevokeOldApiKeys(ctx, 1)
 	})
 
-	t.Run("GetUserAccountByStudentId", func(t *testing.T) {
+	t.Run("GetUserAccountByS21Login", func(t *testing.T) {
 		mockRow := new(MockRow)
-		mockDB.On("QueryRow", ctx, getUserAccountByStudentId, mock.Anything).Return(mockRow)
+		mockDB.On("QueryRow", ctx, getUserAccountByS21Login, mock.Anything).Return(mockRow)
 		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-		_, _ = q.GetUserAccountByStudentId(ctx, "student1")
+		_, _ = q.GetUserAccountByS21Login(ctx, "student1")
 	})
 
 	t.Run("GetCampusByShortName", func(t *testing.T) {

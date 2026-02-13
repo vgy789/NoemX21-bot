@@ -166,7 +166,7 @@ func TestEngine_GetCurrentRender(t *testing.T) {
 			},
 		}
 
-		render := engine.renderState(userState, flowState)
+		render := engine.renderState(context.Background(), userState, flowState)
 		assert.Len(t, render.Buttons, 3) // Row 1, Row 2, Row 3(auto)
 		assert.Len(t, render.Buttons[0], 2)
 		assert.Equal(t, "b1", render.Buttons[0][0].Data)

@@ -54,7 +54,7 @@ func TestCredentialSeeder_Verify(t *testing.T) {
 	require.NoError(t, err)
 
 	creds := db.PlatformCredential{
-		StudentID:     "alice",
+		S21Login:      "alice",
 		PasswordEnc:   enc,
 		PasswordNonce: nonce,
 	}
@@ -106,7 +106,7 @@ func TestCredentialSeeder_Verify_decryptFails(t *testing.T) {
 	crypter, _ := crypto.NewCrypter(hexKey)
 	// Wrong nonce or tampered enc will make Decrypt fail
 	creds := db.PlatformCredential{
-		StudentID:     "bad",
+		S21Login:      "bad",
 		PasswordEnc:   []byte("bad"),
 		PasswordNonce: []byte("wrong"),
 	}
@@ -129,7 +129,7 @@ func TestCredentialSeeder_Verify_authFails(t *testing.T) {
 	hexKey := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
 	crypter, _ := crypto.NewCrypter(hexKey)
 	enc, nonce, _ := crypter.Encrypt([]byte("pwd"), []byte("u"))
-	creds := db.PlatformCredential{StudentID: "u", PasswordEnc: enc, PasswordNonce: nonce}
+	creds := db.PlatformCredential{S21Login: "u", PasswordEnc: enc, PasswordNonce: nonce}
 
 	mockRepo := mock.NewMockQuerier(ctrl)
 	mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "u").Return(creds, nil)
@@ -153,7 +153,7 @@ func TestCredentialSeeder_Verify_apiFails(t *testing.T) {
 	plainPwd := []byte("secret")
 	enc, nonce, err := crypter.Encrypt(plainPwd, []byte("apiuser"))
 	require.NoError(t, err)
-	creds := db.PlatformCredential{StudentID: "apiuser", PasswordEnc: enc, PasswordNonce: nonce}
+	creds := db.PlatformCredential{S21Login: "apiuser", PasswordEnc: enc, PasswordNonce: nonce}
 
 	mockRepo := mock.NewMockQuerier(ctrl)
 	mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "apiuser").Return(creds, nil)
@@ -180,7 +180,7 @@ func TestCredentialSeeder_Verify_criteriaNotMet(t *testing.T) {
 	plainPwd := []byte("secret")
 	enc, nonce, err := crypter.Encrypt(plainPwd, []byte("inactive"))
 	require.NoError(t, err)
-	creds := db.PlatformCredential{StudentID: "inactive", PasswordEnc: enc, PasswordNonce: nonce}
+	creds := db.PlatformCredential{S21Login: "inactive", PasswordEnc: enc, PasswordNonce: nonce}
 
 	mockRepo := mock.NewMockQuerier(ctrl)
 	mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "inactive").Return(creds, nil)
@@ -214,8 +214,8 @@ func TestCredentialSeeder_Seed_getStudentError(t *testing.T) {
 
 	mockRepo := mock.NewMockQuerier(ctrl)
 	mockRepo.EXPECT().
-		GetStudentByS21Login(gomock.Any(), "fail").
-		Return(db.Student{}, fmt.Errorf("db connection error"))
+		GetRegisteredUserByS21Login(gomock.Any(), "fail").
+		Return(db.RegisteredUser{}, fmt.Errorf("db connection error"))
 
 	cfg := &config.Config{}
 	cfg.Init.SchoolLogin = "fail"
@@ -225,7 +225,7 @@ func TestCredentialSeeder_Seed_getStudentError(t *testing.T) {
 
 	err := seeder.Seed(context.Background(), cfg)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to check student existence")
+	assert.Contains(t, err.Error(), "failed to check registered user existence")
 }
 
 func TestCredentialSeeder_Seed_newStudent_missingRocketChatID(t *testing.T) {
@@ -234,8 +234,8 @@ func TestCredentialSeeder_Seed_newStudent_missingRocketChatID(t *testing.T) {
 
 	mockRepo := mock.NewMockQuerier(ctrl)
 	mockRepo.EXPECT().
-		GetStudentByS21Login(gomock.Any(), "newuser").
-		Return(db.Student{}, pgx.ErrNoRows)
+		GetRegisteredUserByS21Login(gomock.Any(), "newuser").
+		Return(db.RegisteredUser{}, pgx.ErrNoRows)
 
 	cfg := &config.Config{}
 	cfg.Init.SchoolLogin = "newuser"
@@ -255,8 +255,8 @@ func TestCredentialSeeder_Seed_studentExists_noPassword(t *testing.T) {
 
 	mockRepo := mock.NewMockQuerier(ctrl)
 	mockRepo.EXPECT().
-		GetStudentByS21Login(gomock.Any(), "existing").
-		Return(db.Student{S21Login: "existing"}, nil)
+		GetRegisteredUserByS21Login(gomock.Any(), "existing").
+		Return(db.RegisteredUser{S21Login: "existing"}, nil)
 
 	cfg := &config.Config{}
 	cfg.Init.SchoolLogin = "existing"
@@ -277,15 +277,15 @@ func TestCredentialSeeder_Seed_upsertPlatformCreds(t *testing.T) {
 
 	mockRepo := mock.NewMockQuerier(ctrl)
 	mockRepo.EXPECT().
-		GetStudentByS21Login(gomock.Any(), "stu").
-		Return(db.Student{S21Login: "stu"}, nil)
+		GetRegisteredUserByS21Login(gomock.Any(), "stu").
+		Return(db.RegisteredUser{S21Login: "stu"}, nil)
 	mockRepo.EXPECT().
 		GetPlatformCredentials(gomock.Any(), "stu").
 		Return(db.PlatformCredential{}, pgx.ErrNoRows)
 	mockRepo.EXPECT().
 		UpsertPlatformCredentials(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(ctx context.Context, arg db.UpsertPlatformCredentialsParams) error {
-			assert.Equal(t, "stu", arg.StudentID)
+			assert.Equal(t, "stu", arg.S21Login)
 			assert.NotEmpty(t, arg.PasswordEnc)
 			assert.NotEmpty(t, arg.PasswordNonce)
 			return nil
@@ -308,13 +308,13 @@ func TestCredentialSeeder_Seed_upsertRocketChat(t *testing.T) {
 	crypter, _ := crypto.NewCrypter("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 
 	mockRepo := mock.NewMockQuerier(ctrl)
-	mockRepo.EXPECT().GetStudentByS21Login(gomock.Any(), "u").Return(db.Student{S21Login: "u"}, nil)
+	mockRepo.EXPECT().GetRegisteredUserByS21Login(gomock.Any(), "u").Return(db.RegisteredUser{S21Login: "u"}, nil)
 	mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "u").Return(db.PlatformCredential{}, pgx.ErrNoRows)
 	mockRepo.EXPECT().UpsertPlatformCredentials(gomock.Any(), gomock.Any()).Return(nil)
 	mockRepo.EXPECT().
 		UpsertRocketChatCredentials(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(ctx context.Context, arg db.UpsertRocketChatCredentialsParams) error {
-			assert.Equal(t, "u", arg.StudentID)
+			assert.Equal(t, "u", arg.S21Login)
 			assert.NotEmpty(t, arg.RcTokenEnc)
 			return nil
 		})
@@ -336,11 +336,11 @@ func TestCredentialSeeder_Seed_existingPlatformCredsPreserved(t *testing.T) {
 
 	crypter, _ := crypto.NewCrypter("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 	existing := db.PlatformCredential{
-		StudentID:   "preserve",
+		S21Login:    "preserve",
 		AccessToken: pgtype.Text{String: "old-token", Valid: true},
 	}
 	mockRepo := mock.NewMockQuerier(ctrl)
-	mockRepo.EXPECT().GetStudentByS21Login(gomock.Any(), "preserve").Return(db.Student{S21Login: "preserve"}, nil)
+	mockRepo.EXPECT().GetRegisteredUserByS21Login(gomock.Any(), "preserve").Return(db.RegisteredUser{S21Login: "preserve"}, nil)
 	mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "preserve").Return(existing, nil)
 	mockRepo.EXPECT().
 		UpsertPlatformCredentials(gomock.Any(), gomock.Any()).
@@ -365,7 +365,7 @@ func TestCredentialSeeder_Seed_getPlatformCredsError(t *testing.T) {
 
 	crypter, _ := crypto.NewCrypter("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 	mockRepo := mock.NewMockQuerier(ctrl)
-	mockRepo.EXPECT().GetStudentByS21Login(gomock.Any(), "u").Return(db.Student{S21Login: "u"}, nil)
+	mockRepo.EXPECT().GetRegisteredUserByS21Login(gomock.Any(), "u").Return(db.RegisteredUser{S21Login: "u"}, nil)
 	mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "u").Return(db.PlatformCredential{}, fmt.Errorf("connection refused"))
 
 	cfg := &config.Config{}
@@ -385,7 +385,7 @@ func TestCredentialSeeder_Seed_upsertPlatformFails(t *testing.T) {
 
 	crypter, _ := crypto.NewCrypter("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 	mockRepo := mock.NewMockQuerier(ctrl)
-	mockRepo.EXPECT().GetStudentByS21Login(gomock.Any(), "u").Return(db.Student{S21Login: "u"}, nil)
+	mockRepo.EXPECT().GetRegisteredUserByS21Login(gomock.Any(), "u").Return(db.RegisteredUser{S21Login: "u"}, nil)
 	mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "u").Return(db.PlatformCredential{}, pgx.ErrNoRows)
 	mockRepo.EXPECT().UpsertPlatformCredentials(gomock.Any(), gomock.Any()).Return(fmt.Errorf("db constraint error"))
 
@@ -405,8 +405,8 @@ func TestCredentialSeeder_Seed_newStudent_upsertStudentFails(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := mock.NewMockQuerier(ctrl)
-	mockRepo.EXPECT().GetStudentByS21Login(gomock.Any(), "new").Return(db.Student{}, pgx.ErrNoRows)
-	mockRepo.EXPECT().UpsertStudent(gomock.Any(), gomock.Any()).Return(db.Student{}, fmt.Errorf("unique violation"))
+	mockRepo.EXPECT().GetRegisteredUserByS21Login(gomock.Any(), "new").Return(db.RegisteredUser{}, pgx.ErrNoRows)
+	mockRepo.EXPECT().UpsertRegisteredUser(gomock.Any(), gomock.Any()).Return(db.RegisteredUser{}, fmt.Errorf("unique violation"))
 
 	cfg := &config.Config{}
 	cfg.Init.SchoolLogin = "new"
@@ -417,7 +417,7 @@ func TestCredentialSeeder_Seed_newStudent_upsertStudentFails(t *testing.T) {
 
 	err := seeder.Seed(context.Background(), cfg)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "failed to create student")
+	assert.Contains(t, err.Error(), "failed to create registered user")
 }
 
 func TestCredentialSeeder_Seed_upsertRocketChatFails(t *testing.T) {
@@ -426,7 +426,7 @@ func TestCredentialSeeder_Seed_upsertRocketChatFails(t *testing.T) {
 
 	crypter, _ := crypto.NewCrypter("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 	mockRepo := mock.NewMockQuerier(ctrl)
-	mockRepo.EXPECT().GetStudentByS21Login(gomock.Any(), "u").Return(db.Student{S21Login: "u"}, nil)
+	mockRepo.EXPECT().GetRegisteredUserByS21Login(gomock.Any(), "u").Return(db.RegisteredUser{S21Login: "u"}, nil)
 	mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "u").Return(db.PlatformCredential{}, pgx.ErrNoRows)
 	mockRepo.EXPECT().UpsertPlatformCredentials(gomock.Any(), gomock.Any()).Return(nil)
 	mockRepo.EXPECT().UpsertRocketChatCredentials(gomock.Any(), gomock.Any()).Return(fmt.Errorf("db error"))
@@ -449,14 +449,14 @@ func TestCredentialSeeder_Seed_newStudent_upsertStudent(t *testing.T) {
 
 	mockRepo := mock.NewMockQuerier(ctrl)
 	mockRepo.EXPECT().
-		GetStudentByS21Login(gomock.Any(), "newbie").
-		Return(db.Student{}, pgx.ErrNoRows)
+		GetRegisteredUserByS21Login(gomock.Any(), "newbie").
+		Return(db.RegisteredUser{}, pgx.ErrNoRows)
 	mockRepo.EXPECT().
-		UpsertStudent(gomock.Any(), gomock.Any()).
-		DoAndReturn(func(ctx context.Context, arg db.UpsertStudentParams) (db.Student, error) {
+		UpsertRegisteredUser(gomock.Any(), gomock.Any()).
+		DoAndReturn(func(ctx context.Context, arg db.UpsertRegisteredUserParams) (db.RegisteredUser, error) {
 			assert.Equal(t, "newbie", arg.S21Login)
 			assert.Equal(t, "rc-id", arg.RocketchatID)
-			return db.Student{}, nil
+			return db.RegisteredUser{}, nil
 		})
 
 	cfg := &config.Config{}

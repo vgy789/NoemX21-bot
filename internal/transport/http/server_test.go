@@ -21,6 +21,7 @@ func TestNewServer(t *testing.T) {
 
 	queries := mock.NewMockQuerier(ctrl)
 	cfg := &config.Config{}
+	cfg.APIServer.Port = 8081
 	log := slog.Default()
 
 	srv := NewServer(cfg, log, queries)

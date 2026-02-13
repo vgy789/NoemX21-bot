@@ -155,7 +155,7 @@ type ApiKey struct {
 
 type AuthVerificationCode struct {
 	ID        int64              `json:"id"`
-	StudentID pgtype.Text        `json:"student_id"`
+	S21Login  pgtype.Text        `json:"s21_login"`
 	Code      string             `json:"code"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
@@ -206,8 +206,35 @@ type FsmUserState struct {
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
+type ParticipantSkill struct {
+	S21Login  string             `json:"s21_login"`
+	SkillID   int32              `json:"skill_id"`
+	Value     int32              `json:"value"`
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ParticipantStatsCache struct {
+	S21Login     string             `json:"s21_login"`
+	CampusID     pgtype.UUID        `json:"campus_id"`
+	CoalitionID  pgtype.Int2        `json:"coalition_id"`
+	Status       EnumStudentStatus  `json:"status"`
+	Level        int32              `json:"level"`
+	ExpValue     int32              `json:"exp_value"`
+	Prp          int32              `json:"prp"`
+	Crp          int32              `json:"crp"`
+	Coins        int32              `json:"coins"`
+	ParallelName pgtype.Text        `json:"parallel_name"`
+	ClassName    pgtype.Text        `json:"class_name"`
+	Integrity    pgtype.Float4      `json:"integrity"`
+	Friendliness pgtype.Float4      `json:"friendliness"`
+	Punctuality  pgtype.Float4      `json:"punctuality"`
+	Thoroughness pgtype.Float4      `json:"thoroughness"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+	LatSyncedAt  pgtype.Timestamptz `json:"lat_synced_at"`
+}
+
 type PlatformCredential struct {
-	StudentID        string             `json:"student_id"`
+	S21Login         string             `json:"s21_login"`
 	PasswordEnc      []byte             `json:"password_enc"`
 	PasswordNonce    []byte             `json:"password_nonce"`
 	AccessToken      pgtype.Text        `json:"access_token"`
@@ -218,8 +245,18 @@ type PlatformCredential struct {
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
+type RegisteredUser struct {
+	S21Login           string             `json:"s21_login"`
+	RocketchatID       string             `json:"rocketchat_id"`
+	Timezone           string             `json:"timezone"`
+	AlternativeContact pgtype.Text        `json:"alternative_contact"`
+	HasCoffeeBan       pgtype.Bool        `json:"has_coffee_ban"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
 type RocketchatCredential struct {
-	StudentID  string             `json:"student_id"`
+	S21Login   string             `json:"s21_login"`
 	RcTokenEnc []byte             `json:"rc_token_enc"`
 	RcNonce    []byte             `json:"rc_nonce"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
@@ -233,36 +270,9 @@ type Skill struct {
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
-type Student struct {
-	S21Login           string                `json:"s21_login"`
-	RocketchatID       string                `json:"rocketchat_id"`
-	CampusID           pgtype.UUID           `json:"campus_id"`
-	CoalitionID        pgtype.Int2           `json:"coalition_id"`
-	Status             NullEnumStudentStatus `json:"status"`
-	ParallelName       pgtype.Text           `json:"parallel_name"`
-	Level              pgtype.Int4           `json:"level"`
-	ExpValue           pgtype.Int4           `json:"exp_value"`
-	Prp                pgtype.Int4           `json:"prp"`
-	Crp                pgtype.Int4           `json:"crp"`
-	Coins              pgtype.Int4           `json:"coins"`
-	Timezone           string                `json:"timezone"`
-	AlternativeContact pgtype.Text           `json:"alternative_contact"`
-	HasCoffeeBan       pgtype.Bool           `json:"has_coffee_ban"`
-	CreatedAt          pgtype.Timestamptz    `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz    `json:"updated_at"`
-	ClassName          pgtype.Text           `json:"class_name"`
-}
-
-type StudentSkill struct {
-	StudentID string             `json:"student_id"`
-	SkillID   int32              `json:"skill_id"`
-	Value     int32              `json:"value"`
-	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
-}
-
 type UserAccount struct {
 	ID           int64              `json:"id"`
-	StudentID    string             `json:"student_id"`
+	S21Login     string             `json:"s21_login"`
 	Platform     EnumPlatform       `json:"platform"`
 	ExternalID   string             `json:"external_id"`
 	Username     pgtype.Text        `json:"username"`

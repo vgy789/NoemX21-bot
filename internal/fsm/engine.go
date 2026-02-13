@@ -56,6 +56,7 @@ func (e *Engine) AddAlias(alias, target string) {
 type RenderObject struct {
 	Text    string
 	Image   string
+	Alert   string
 	Buttons [][]ButtonRender
 }
 
@@ -123,7 +124,7 @@ func (e *Engine) GetCurrentRender(ctx context.Context, userID int64) (*RenderObj
 		return nil, fmt.Errorf("state %s not found in flow %s", state.CurrentState, state.CurrentFlow)
 	}
 
-	return e.renderState(state, &flowState), nil
+	return e.renderState(ctx, state, &flowState), nil
 }
 
 // Process handles an input (callback) and transitions the state.
@@ -138,6 +139,12 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 	}
 
 	e.log.Debug("processing input", "user_id", userID, "input", input, "flow", state.CurrentFlow, "state", state.CurrentState)
+
+	// Check for busy state
+	if busy, ok := state.Context["is_busy"].(bool); ok && busy {
+		e.log.Warn("ignoring input, engine is busy", "user_id", userID)
+		return nil, ErrEngineBusy
+	}
 
 	// 1. Check if input triggers a global action (e.g. language change)
 	if action, ok := e.registry.Get("input:" + input); ok {
@@ -428,7 +435,7 @@ func (e *Engine) updateStateContext(state *UserState, updates map[string]interfa
 	}
 }
 
-func (e *Engine) renderState(userState *UserState, flowState *State) *RenderObject {
+func (e *Engine) renderState(ctx context.Context, userState *UserState, flowState *State) *RenderObject {
 	// Text
 	text := "Internal state error"
 
@@ -497,10 +504,23 @@ func (e *Engine) renderState(userState *UserState, flowState *State) *RenderObje
 		imagePath = e.replaceVariablesOpts(imagePath, userState, false)
 	}
 
+	// Alert
+	alert := ""
+	if val, ok := userState.Context["_alert"].(string); ok {
+		e.log.Debug("found alert in context", "alert", val)
+		alert = e.replaceVariables(val, userState)
+		delete(userState.Context, "_alert")
+		// Save state to clear alert if it was a persistent repo
+		if err := e.repo.SetState(ctx, userState); err != nil {
+			e.log.Error("failed to clear alert from repo", "error", err)
+		}
+	}
+
 	return &RenderObject{
 		Text:    text,
 		Buttons: buttons,
 		Image:   imagePath,
+		Alert:   alert,
 	}
 }
 

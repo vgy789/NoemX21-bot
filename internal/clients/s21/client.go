@@ -52,7 +52,7 @@ type ParticipantSkillsV1DTO struct {
 }
 
 type ParticipantCoalitionV1DTO struct {
-	CoalitionID    int64      `json:"id"`
+	CoalitionID    int64      `json:"coalitionId"`
 	CoalitionName  string     `json:"name"`
 	JoinedDateTime *time.Time `json:"joinedDateTime"`
 }

@@ -25,12 +25,12 @@ func TestNewTelegramService(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
-	mockStudentSvc := serviceMock.NewMockStudentService(ctrl)
+	mockUserSvc := serviceMock.NewMockUserService(ctrl)
 	mockQuerier := dbMock.NewMockQuerier(ctrl)
 	mockRCClient := rocketchat.NewClient("", "", "")
 
-	engine := setup.NewFSM(cfg, logger, mockQuerier, mockStudentSvc, mockRCClient, nil, nil, "docs/specs/flows")
-	svc := NewTelegramService(cfg, logger, mockStudentSvc, engine)
+	engine := setup.NewFSM(cfg, logger, mockQuerier, mockUserSvc, mockRCClient, nil, nil, "docs/specs/flows")
+	svc := NewTelegramService(cfg, logger, mockUserSvc, engine)
 	ts, ok := svc.(*telegramService)
 	require.True(t, ok, "NewTelegramService did not return *telegramService")
 	// Use memory repo for tests
@@ -41,10 +41,10 @@ func TestNewTelegramService(t *testing.T) {
 
 	assert.NotNil(t, ts.log)
 	assert.NotNil(t, ts.engine, "FSM engine should be initialized")
-	assert.Equal(t, mockStudentSvc, ts.studentSvc)
+	assert.Equal(t, mockUserSvc, ts.userSvc)
 
 	t.Run("test registry: is_user_registered", func(t *testing.T) {
-		mockStudentSvc.EXPECT().GetProfileByExternalID(gomock.Any(), db.EnumPlatformTelegram, "1").Return(nil, nil)
+		mockUserSvc.EXPECT().GetProfileByExternalID(gomock.Any(), db.EnumPlatformTelegram, "1").Return(nil, nil)
 		action, _ := ts.engine.Registry().Get("is_user_registered")
 		_, res, err := action(context.Background(), 1, nil)
 		assert.NoError(t, err)

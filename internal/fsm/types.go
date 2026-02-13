@@ -1,5 +1,13 @@
 package fsm
 
+import (
+	"errors"
+)
+
+var (
+	ErrEngineBusy = errors.New("engine is busy processing another request")
+)
+
 // FlowSpec represents the structure of a flow YAML file.
 type FlowSpec struct {
 	Meta         Meta             `yaml:"meta"`
@@ -65,8 +73,8 @@ type UserState struct {
 type ContextKey string
 
 const (
-	// ContextKeyStudentID is used to store student ID in context
-	ContextKeyStudentID ContextKey = "student_id"
+	// ContextKeyS21Login is used to store S21 login in context
+	ContextKeyS21Login ContextKey = "s21_login"
 	// ContextKeyUserInfo is used to store transport-level user info (e.g. from Telegram)
 	ContextKeyUserInfo ContextKey = "user_info"
 )

@@ -50,21 +50,21 @@ func (s *DefaultSender) AnswerCallbackQuery(id string, opts *gotgbot.AnswerCallb
 }
 
 // NewTelegramService creates new telegram service.
-func NewTelegramService(cfg *config.Config, log *slog.Logger, studentSvc service.StudentService, engine *fsm.Engine) TelegramService {
+func NewTelegramService(cfg *config.Config, log *slog.Logger, userSvc service.UserService, engine *fsm.Engine) TelegramService {
 	return &telegramService{
-		cfg:        cfg,
-		log:        log,
-		studentSvc: studentSvc,
-		engine:     engine,
+		cfg:     cfg,
+		log:     log,
+		userSvc: userSvc,
+		engine:  engine,
 	}
 }
 
 type telegramService struct {
-	cfg        *config.Config
-	log        *slog.Logger
-	studentSvc service.StudentService
-	engine     *fsm.Engine
-	sender     Sender // For testing
+	cfg     *config.Config
+	log     *slog.Logger
+	userSvc service.UserService
+	engine  *fsm.Engine
+	sender  Sender // For testing
 }
 
 func (s *telegramService) getSender(b *gotgbot.Bot) Sender {

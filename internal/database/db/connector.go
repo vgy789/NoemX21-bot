@@ -28,7 +28,7 @@ func (db *DBWrapper) WithRetry(ctx context.Context, operation func() error) erro
 		operation,
 		retry.Context(ctx),
 		retry.Attempts(3),
-		retry.Delay(500 * time.Millisecond),
+		retry.Delay(500*time.Millisecond),
 		retry.LastErrorOnly(true),
 	)
 }
