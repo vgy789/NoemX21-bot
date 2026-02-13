@@ -13,8 +13,8 @@ type ClubYAML struct {
 	LeaderLogin  string `yaml:"leader_login"`
 	Campus       string `yaml:"campus"`
 	Category     string `yaml:"category"`
-	IsLocal      bool   `yaml:"is_local"`
-	IsActive     bool   `yaml:"is_active"`
+	IsLocal      *bool  `yaml:"is_local"`
+	IsActive     *bool  `yaml:"is_active"`
 }
 
 type ClubsFileYAML struct {

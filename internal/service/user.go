@@ -12,6 +12,7 @@ import (
 // UserProfile represents the domain model for a user profile.
 type UserProfile struct {
 	Login         string
+	CampusID      string
 	CampusName    string
 	CoalitionName string
 	Level         int32
@@ -57,8 +58,12 @@ func (s *userService) GetProfileByExternalID(ctx context.Context, platform db.En
 	}
 
 	// 3. Map to domain model
+	b := profile.CampusID.Bytes
+	campusIDStr := fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+
 	return &UserProfile{
 		Login:         profile.S21Login,
+		CampusID:      campusIDStr,
 		CampusName:    profile.CampusName.String,
 		CoalitionName: profile.CoalitionName.String,
 		Level:         profile.Level.Int32,

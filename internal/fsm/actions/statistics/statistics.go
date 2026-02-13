@@ -317,6 +317,11 @@ func Register(
 				state.Context["my_crps"] = points.CodeReviewPoints
 				state.Context["my_coins"] = points.Coins
 			}
+			if participant.Campus.ID != "" {
+				state.Context["my_campus"] = participant.Campus.ShortName
+				b := cacheParams.CampusID.Bytes
+				state.Context["campus_id"] = fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+			}
 			if chartPath != "" {
 				state.Context["radar_chart_path"] = chartPath
 			}
@@ -638,6 +643,10 @@ func getStatsFromDB(ctx context.Context, s21Login string, queries db.Querier, lo
 
 	if profile.CampusName.Valid && profile.CampusName.String != "" {
 		vars["my_campus"] = profile.CampusName.String
+	}
+	if profile.CampusID.Valid {
+		b := profile.CampusID.Bytes
+		vars["campus_id"] = fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 	}
 	if profile.CoalitionName.Valid && profile.CoalitionName.String != "" {
 		vars["my_coalition"] = profile.CoalitionName.String

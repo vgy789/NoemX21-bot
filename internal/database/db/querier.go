@@ -21,10 +21,12 @@ type Querier interface {
 	DeleteUserAccountByExternalId(ctx context.Context, arg DeleteUserAccountByExternalIdParams) error
 	GetActiveApiKey(ctx context.Context, userAccountID int64) (ApiKey, error)
 	GetApiKeyByHash(ctx context.Context, keyHash string) (ApiKey, error)
-	GetCampusByID(ctx context.Context, id pgtype.UUID) (Campuse, error)
+	GetCampusByID(ctx context.Context, id pgtype.UUID) (GetCampusByIDRow, error)
 	GetCampusByShortName(ctx context.Context, shortName string) (Campuse, error)
 	GetFSMState(ctx context.Context, userID int64) (FsmUserState, error)
+	GetGlobalClubs(ctx context.Context) ([]GetGlobalClubsRow, error)
 	GetLastAuthVerificationCode(ctx context.Context, s21Login pgtype.Text) (AuthVerificationCode, error)
+	GetLocalClubs(ctx context.Context, campusID pgtype.UUID) ([]GetLocalClubsRow, error)
 	// Профиль зарегистрированного пользователя: регистрационные данные + статистика из кеша.
 	GetMyProfile(ctx context.Context, s21Login string) (GetMyProfileRow, error)
 	GetParticipantSkills(ctx context.Context, s21Login string) ([]GetParticipantSkillsRow, error)

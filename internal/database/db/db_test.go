@@ -87,8 +87,8 @@ func TestQueries_GetMyProfile(t *testing.T) {
 
 	mockRow := new(MockRow)
 	mockDB.On("QueryRow", ctx, getMyProfile, mock.Anything).Return(mockRow)
-	// GetMyProfileRow has 19 fields
-	scans := make([]any, 19)
+	// GetMyProfileRow has 20 fields
+	scans := make([]any, 20)
 	for i := range scans {
 		scans[i] = mock.Anything
 	}
@@ -234,7 +234,7 @@ func TestQueries_Remaining(t *testing.T) {
 	t.Run("GetCampusByShortName", func(t *testing.T) {
 		mockRow := new(MockRow)
 		mockDB.On("QueryRow", ctx, getCampusByShortName, mock.Anything).Return(mockRow)
-		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		_, _ = q.GetCampusByShortName(ctx, "moscow")
 	})
 
