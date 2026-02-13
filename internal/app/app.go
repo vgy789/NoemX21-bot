@@ -33,11 +33,11 @@ type App struct {
 
 // New creates a new application instance.
 func New(cfg *config.Config, log *slog.Logger, repo *db.DBWrapper, rcClient *rocketchat.Client, s21Client *s21.Client, credService *service.CredentialService, gitSync Starter, campusSvc Starter) *App {
-	studentSvc := service.NewStudentService(repo.Queries)
-	engine := setup.NewFSM(cfg, log, repo.Queries, studentSvc, rcClient, s21Client, credService, "docs/specs/flows")
+	userSvc := service.NewUserService(repo.Queries)
+	engine := setup.NewFSM(cfg, log, repo.Queries, userSvc, rcClient, s21Client, credService, "docs/specs/flows")
 
 	return &App{
-		tg:         telegram.NewTelegramService(cfg, log, studentSvc, engine),
+		tg:         telegram.NewTelegramService(cfg, log, userSvc, engine),
 		httpServer: transportHttp.NewServer(cfg, log, repo.Queries),
 		gitSync:    gitSync,
 		campusSvc:  campusSvc,

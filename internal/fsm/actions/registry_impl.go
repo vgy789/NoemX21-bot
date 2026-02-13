@@ -21,31 +21,34 @@ import (
 type registrar struct {
 	cfg         *config.Config
 	log         *slog.Logger
-	studentSvc  service.StudentService
+	userSvc     service.UserService
 	queries     db.Querier
 	rcClient    *rocketchat.Client
 	s21Client   *s21.Client
 	credService *service.CredentialService
+	repo        fsm.StateRepository
 }
 
 // NewRegistrar creates a new action registrar.
 func NewRegistrar(
 	cfg *config.Config,
 	log *slog.Logger,
-	studentSvc service.StudentService,
+	userSvc service.UserService,
 	queries db.Querier,
 	rcClient *rocketchat.Client,
 	s21Client *s21.Client,
 	credService *service.CredentialService,
+	repo fsm.StateRepository,
 ) ActionRegistrar {
 	return &registrar{
 		cfg:         cfg,
 		log:         log,
-		studentSvc:  studentSvc,
+		userSvc:     userSvc,
 		queries:     queries,
 		rcClient:    rcClient,
 		s21Client:   s21Client,
 		credService: credService,
+		repo:        repo,
 	}
 }
 
@@ -58,7 +61,7 @@ func (r *registrar) RegisterAll(registry *fsm.LogicRegistry, aliasRegistrar func
 	clubs.Register(registry, aliasRegistrar)
 	library.Register(registry, aliasRegistrar)
 
-	registration.Register(registry, r.cfg, r.log, r.queries, r.studentSvc, r.rcClient, r.s21Client)
+	registration.Register(registry, r.cfg, r.log, r.queries, r.userSvc, r.rcClient, r.s21Client, r.credService, aliasRegistrar)
 	settings.Register(registry, r.log, r.queries, aliasRegistrar)
-	statistics.Register(registry, r.cfg, r.log, r.queries, r.s21Client, r.credService, aliasRegistrar)
+	statistics.Register(registry, r.cfg, r.log, r.queries, r.s21Client, r.credService, r.repo, aliasRegistrar)
 }

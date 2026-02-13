@@ -49,25 +49,25 @@ func (q *Queries) CreateApiKey(ctx context.Context, arg CreateApiKeyParams) (Api
 
 const createAuthVerificationCode = `-- name: CreateAuthVerificationCode :one
 INSERT INTO auth_verification_codes (
-    student_id, code, expires_at
+    s21_login, code, expires_at
 ) VALUES (
     $1, $2, $3
 )
-RETURNING id, student_id, code, expires_at, created_at
+RETURNING id, s21_login, code, expires_at, created_at
 `
 
 type CreateAuthVerificationCodeParams struct {
-	StudentID pgtype.Text        `json:"student_id"`
+	S21Login  pgtype.Text        `json:"s21_login"`
 	Code      string             `json:"code"`
 	ExpiresAt pgtype.Timestamptz `json:"expires_at"`
 }
 
 func (q *Queries) CreateAuthVerificationCode(ctx context.Context, arg CreateAuthVerificationCodeParams) (AuthVerificationCode, error) {
-	row := q.db.QueryRow(ctx, createAuthVerificationCode, arg.StudentID, arg.Code, arg.ExpiresAt)
+	row := q.db.QueryRow(ctx, createAuthVerificationCode, arg.S21Login, arg.Code, arg.ExpiresAt)
 	var i AuthVerificationCode
 	err := row.Scan(
 		&i.ID,
-		&i.StudentID,
+		&i.S21Login,
 		&i.Code,
 		&i.ExpiresAt,
 		&i.CreatedAt,
@@ -77,15 +77,15 @@ func (q *Queries) CreateAuthVerificationCode(ctx context.Context, arg CreateAuth
 
 const createUserAccount = `-- name: CreateUserAccount :one
 INSERT INTO user_accounts (
-    student_id, platform, external_id, username, is_searchable, role
+    s21_login, platform, external_id, username, is_searchable, role
 ) VALUES (
     $1, $2, $3, $4, $5, $6
 )
-RETURNING id, student_id, platform, external_id, username, is_searchable, role, linked_at
+RETURNING id, s21_login, platform, external_id, username, is_searchable, role, linked_at
 `
 
 type CreateUserAccountParams struct {
-	StudentID    string           `json:"student_id"`
+	S21Login     string           `json:"s21_login"`
 	Platform     EnumPlatform     `json:"platform"`
 	ExternalID   string           `json:"external_id"`
 	Username     pgtype.Text      `json:"username"`
@@ -95,7 +95,7 @@ type CreateUserAccountParams struct {
 
 func (q *Queries) CreateUserAccount(ctx context.Context, arg CreateUserAccountParams) (UserAccount, error) {
 	row := q.db.QueryRow(ctx, createUserAccount,
-		arg.StudentID,
+		arg.S21Login,
 		arg.Platform,
 		arg.ExternalID,
 		arg.Username,
@@ -105,7 +105,7 @@ func (q *Queries) CreateUserAccount(ctx context.Context, arg CreateUserAccountPa
 	var i UserAccount
 	err := row.Scan(
 		&i.ID,
-		&i.StudentID,
+		&i.S21Login,
 		&i.Platform,
 		&i.ExternalID,
 		&i.Username,
@@ -129,26 +129,26 @@ func (q *Queries) DeactivateClubsByCampus(ctx context.Context, campusID pgtype.U
 
 const deleteAllAuthVerificationCodes = `-- name: DeleteAllAuthVerificationCodes :exec
 DELETE FROM auth_verification_codes
-WHERE student_id = $1
+WHERE s21_login = $1
 `
 
-func (q *Queries) DeleteAllAuthVerificationCodes(ctx context.Context, studentID pgtype.Text) error {
-	_, err := q.db.Exec(ctx, deleteAllAuthVerificationCodes, studentID)
+func (q *Queries) DeleteAllAuthVerificationCodes(ctx context.Context, s21Login pgtype.Text) error {
+	_, err := q.db.Exec(ctx, deleteAllAuthVerificationCodes, s21Login)
 	return err
 }
 
 const deleteAuthVerificationCode = `-- name: DeleteAuthVerificationCode :exec
 DELETE FROM auth_verification_codes
-WHERE student_id = $1 AND code = $2
+WHERE s21_login = $1 AND code = $2
 `
 
 type DeleteAuthVerificationCodeParams struct {
-	StudentID pgtype.Text `json:"student_id"`
-	Code      string      `json:"code"`
+	S21Login pgtype.Text `json:"s21_login"`
+	Code     string      `json:"code"`
 }
 
 func (q *Queries) DeleteAuthVerificationCode(ctx context.Context, arg DeleteAuthVerificationCodeParams) error {
-	_, err := q.db.Exec(ctx, deleteAuthVerificationCode, arg.StudentID, arg.Code)
+	_, err := q.db.Exec(ctx, deleteAuthVerificationCode, arg.S21Login, arg.Code)
 	return err
 }
 
@@ -159,6 +159,21 @@ WHERE expires_at < CURRENT_TIMESTAMP
 
 func (q *Queries) DeleteExpiredAuthVerificationCodes(ctx context.Context) error {
 	_, err := q.db.Exec(ctx, deleteExpiredAuthVerificationCodes)
+	return err
+}
+
+const deleteUserAccountByExternalId = `-- name: DeleteUserAccountByExternalId :exec
+DELETE FROM user_accounts
+WHERE platform = $1 AND external_id = $2
+`
+
+type DeleteUserAccountByExternalIdParams struct {
+	Platform   EnumPlatform `json:"platform"`
+	ExternalID string       `json:"external_id"`
+}
+
+func (q *Queries) DeleteUserAccountByExternalId(ctx context.Context, arg DeleteUserAccountByExternalIdParams) error {
+	_, err := q.db.Exec(ctx, deleteUserAccountByExternalId, arg.Platform, arg.ExternalID)
 	return err
 }
 
@@ -204,6 +219,25 @@ func (q *Queries) GetApiKeyByHash(ctx context.Context, keyHash string) (ApiKey, 
 	return i, err
 }
 
+const getCampusByID = `-- name: GetCampusByID :one
+SELECT id, short_name, full_name, timezone, is_active, created_at, updated_at FROM campuses WHERE id = $1
+`
+
+func (q *Queries) GetCampusByID(ctx context.Context, id pgtype.UUID) (Campuse, error) {
+	row := q.db.QueryRow(ctx, getCampusByID, id)
+	var i Campuse
+	err := row.Scan(
+		&i.ID,
+		&i.ShortName,
+		&i.FullName,
+		&i.Timezone,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getCampusByShortName = `-- name: GetCampusByShortName :one
 SELECT id, short_name, full_name, timezone, is_active, created_at, updated_at FROM campuses WHERE short_name = $1
 `
@@ -242,18 +276,18 @@ func (q *Queries) GetFSMState(ctx context.Context, userID int64) (FsmUserState, 
 }
 
 const getLastAuthVerificationCode = `-- name: GetLastAuthVerificationCode :one
-SELECT id, student_id, code, expires_at, created_at FROM auth_verification_codes
-WHERE student_id = $1
+SELECT id, s21_login, code, expires_at, created_at FROM auth_verification_codes
+WHERE s21_login = $1
 ORDER BY created_at DESC
 LIMIT 1
 `
 
-func (q *Queries) GetLastAuthVerificationCode(ctx context.Context, studentID pgtype.Text) (AuthVerificationCode, error) {
-	row := q.db.QueryRow(ctx, getLastAuthVerificationCode, studentID)
+func (q *Queries) GetLastAuthVerificationCode(ctx context.Context, s21Login pgtype.Text) (AuthVerificationCode, error) {
+	row := q.db.QueryRow(ctx, getLastAuthVerificationCode, s21Login)
 	var i AuthVerificationCode
 	err := row.Scan(
 		&i.ID,
-		&i.StudentID,
+		&i.S21Login,
 		&i.Code,
 		&i.ExpiresAt,
 		&i.CreatedAt,
@@ -261,66 +295,269 @@ func (q *Queries) GetLastAuthVerificationCode(ctx context.Context, studentID pgt
 	return i, err
 }
 
+const getMyProfile = `-- name: GetMyProfile :one
+SELECT
+    r.s21_login,
+    r.rocketchat_id,
+    r.timezone,
+    r.alternative_contact,
+    r.has_coffee_ban,
+    camp.short_name AS campus_name,
+    co.name AS coalition_name,
+    c.status,
+    c.level,
+    c.exp_value,
+    c.prp,
+    c.crp,
+    c.coins,
+    c.parallel_name,
+    c.class_name,
+    c.integrity,
+    c.friendliness,
+    c.punctuality,
+    c.thoroughness
+FROM registered_users r
+LEFT JOIN participant_stats_cache c ON r.s21_login = c.s21_login
+LEFT JOIN campuses camp ON c.campus_id = camp.id
+LEFT JOIN coalitions co ON c.coalition_id = co.id
+WHERE r.s21_login = $1
+`
+
+type GetMyProfileRow struct {
+	S21Login           string                `json:"s21_login"`
+	RocketchatID       string                `json:"rocketchat_id"`
+	Timezone           string                `json:"timezone"`
+	AlternativeContact pgtype.Text           `json:"alternative_contact"`
+	HasCoffeeBan       pgtype.Bool           `json:"has_coffee_ban"`
+	CampusName         pgtype.Text           `json:"campus_name"`
+	CoalitionName      pgtype.Text           `json:"coalition_name"`
+	Status             NullEnumStudentStatus `json:"status"`
+	Level              pgtype.Int4           `json:"level"`
+	ExpValue           pgtype.Int4           `json:"exp_value"`
+	Prp                pgtype.Int4           `json:"prp"`
+	Crp                pgtype.Int4           `json:"crp"`
+	Coins              pgtype.Int4           `json:"coins"`
+	ParallelName       pgtype.Text           `json:"parallel_name"`
+	ClassName          pgtype.Text           `json:"class_name"`
+	Integrity          pgtype.Float4         `json:"integrity"`
+	Friendliness       pgtype.Float4         `json:"friendliness"`
+	Punctuality        pgtype.Float4         `json:"punctuality"`
+	Thoroughness       pgtype.Float4         `json:"thoroughness"`
+}
+
+// Профиль зарегистрированного пользователя: регистрационные данные + статистика из кеша.
+func (q *Queries) GetMyProfile(ctx context.Context, s21Login string) (GetMyProfileRow, error) {
+	row := q.db.QueryRow(ctx, getMyProfile, s21Login)
+	var i GetMyProfileRow
+	err := row.Scan(
+		&i.S21Login,
+		&i.RocketchatID,
+		&i.Timezone,
+		&i.AlternativeContact,
+		&i.HasCoffeeBan,
+		&i.CampusName,
+		&i.CoalitionName,
+		&i.Status,
+		&i.Level,
+		&i.ExpValue,
+		&i.Prp,
+		&i.Crp,
+		&i.Coins,
+		&i.ParallelName,
+		&i.ClassName,
+		&i.Integrity,
+		&i.Friendliness,
+		&i.Punctuality,
+		&i.Thoroughness,
+	)
+	return i, err
+}
+
+const getParticipantSkills = `-- name: GetParticipantSkills :many
+SELECT s.name, s.category, ss.value
+FROM participant_skills ss
+JOIN skills s ON ss.skill_id = s.id
+WHERE ss.s21_login = $1
+`
+
+type GetParticipantSkillsRow struct {
+	Name     string      `json:"name"`
+	Category pgtype.Text `json:"category"`
+	Value    int32       `json:"value"`
+}
+
+func (q *Queries) GetParticipantSkills(ctx context.Context, s21Login string) ([]GetParticipantSkillsRow, error) {
+	rows, err := q.db.Query(ctx, getParticipantSkills, s21Login)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetParticipantSkillsRow
+	for rows.Next() {
+		var i GetParticipantSkillsRow
+		if err := rows.Scan(&i.Name, &i.Category, &i.Value); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getParticipantStatsCache = `-- name: GetParticipantStatsCache :one
+SELECT
+    c.s21_login,
+    camp.short_name AS campus_name,
+    co.name AS coalition_name,
+    c.status,
+    c.level,
+    c.exp_value,
+    c.prp,
+    c.crp,
+    c.coins,
+    c.parallel_name,
+    c.class_name,
+    c.integrity,
+    c.friendliness,
+    c.punctuality,
+    c.thoroughness,
+    c.updated_at,
+    c.lat_synced_at
+FROM participant_stats_cache c
+LEFT JOIN campuses camp ON c.campus_id = camp.id
+LEFT JOIN coalitions co ON c.coalition_id = co.id
+WHERE c.s21_login = $1
+`
+
+type GetParticipantStatsCacheRow struct {
+	S21Login      string             `json:"s21_login"`
+	CampusName    pgtype.Text        `json:"campus_name"`
+	CoalitionName pgtype.Text        `json:"coalition_name"`
+	Status        EnumStudentStatus  `json:"status"`
+	Level         int32              `json:"level"`
+	ExpValue      int32              `json:"exp_value"`
+	Prp           int32              `json:"prp"`
+	Crp           int32              `json:"crp"`
+	Coins         int32              `json:"coins"`
+	ParallelName  pgtype.Text        `json:"parallel_name"`
+	ClassName     pgtype.Text        `json:"class_name"`
+	Integrity     pgtype.Float4      `json:"integrity"`
+	Friendliness  pgtype.Float4      `json:"friendliness"`
+	Punctuality   pgtype.Float4      `json:"punctuality"`
+	Thoroughness  pgtype.Float4      `json:"thoroughness"`
+	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
+	LatSyncedAt   pgtype.Timestamptz `json:"lat_synced_at"`
+}
+
+func (q *Queries) GetParticipantStatsCache(ctx context.Context, s21Login string) (GetParticipantStatsCacheRow, error) {
+	row := q.db.QueryRow(ctx, getParticipantStatsCache, s21Login)
+	var i GetParticipantStatsCacheRow
+	err := row.Scan(
+		&i.S21Login,
+		&i.CampusName,
+		&i.CoalitionName,
+		&i.Status,
+		&i.Level,
+		&i.ExpValue,
+		&i.Prp,
+		&i.Crp,
+		&i.Coins,
+		&i.ParallelName,
+		&i.ClassName,
+		&i.Integrity,
+		&i.Friendliness,
+		&i.Punctuality,
+		&i.Thoroughness,
+		&i.UpdatedAt,
+		&i.LatSyncedAt,
+	)
+	return i, err
+}
+
 const getPeerProfile = `-- name: GetPeerProfile :one
-SELECT 
-    s.s21_login, 
-    COALESCE(ua.username, '') as telegram_username,
-    c.short_name as campus_name,
-    cool.name as coalition_name,
-    s.level,
-    s.exp_value,
-    s.coins,
-    s.status,
-    s.parallel_name,
-    s.class_name
-FROM students s
-LEFT JOIN campuses c ON s.campus_id = c.id
-LEFT JOIN coalitions cool ON s.coalition_id = cool.id
-LEFT JOIN user_accounts ua ON s.s21_login = ua.student_id AND ua.platform = 'telegram'
-WHERE s.s21_login = $1
+SELECT
+    c.s21_login,
+    COALESCE(ua.username, '') AS telegram_username,
+    COALESCE(ua.external_id, '') AS external_id,
+    camp.short_name AS campus_name,
+    co.name AS coalition_name,
+    c.status,
+    c.level,
+    c.exp_value,
+    c.prp,
+    c.crp,
+    c.coins,
+    c.parallel_name,
+    c.class_name,
+    c.integrity,
+    c.friendliness,
+    c.punctuality,
+    c.thoroughness
+FROM participant_stats_cache c
+LEFT JOIN campuses camp ON c.campus_id = camp.id
+LEFT JOIN coalitions co ON c.coalition_id = co.id
+LEFT JOIN user_accounts ua ON c.s21_login = ua.s21_login AND ua.platform = 'telegram'
+WHERE c.s21_login = $1
 `
 
 type GetPeerProfileRow struct {
-	S21Login         string                `json:"s21_login"`
-	TelegramUsername string                `json:"telegram_username"`
-	CampusName       pgtype.Text           `json:"campus_name"`
-	CoalitionName    pgtype.Text           `json:"coalition_name"`
-	Level            pgtype.Int4           `json:"level"`
-	ExpValue         pgtype.Int4           `json:"exp_value"`
-	Coins            pgtype.Int4           `json:"coins"`
-	Status           NullEnumStudentStatus `json:"status"`
-	ParallelName     pgtype.Text           `json:"parallel_name"`
-	ClassName        pgtype.Text           `json:"class_name"`
+	S21Login         string            `json:"s21_login"`
+	TelegramUsername string            `json:"telegram_username"`
+	ExternalID       string            `json:"external_id"`
+	CampusName       pgtype.Text       `json:"campus_name"`
+	CoalitionName    pgtype.Text       `json:"coalition_name"`
+	Status           EnumStudentStatus `json:"status"`
+	Level            int32             `json:"level"`
+	ExpValue         int32             `json:"exp_value"`
+	Prp              int32             `json:"prp"`
+	Crp              int32             `json:"crp"`
+	Coins            int32             `json:"coins"`
+	ParallelName     pgtype.Text       `json:"parallel_name"`
+	ClassName        pgtype.Text       `json:"class_name"`
+	Integrity        pgtype.Float4     `json:"integrity"`
+	Friendliness     pgtype.Float4     `json:"friendliness"`
+	Punctuality      pgtype.Float4     `json:"punctuality"`
+	Thoroughness     pgtype.Float4     `json:"thoroughness"`
 }
 
+// Профиль пира: из кеша статистики + telegram username если зарегистрирован.
 func (q *Queries) GetPeerProfile(ctx context.Context, s21Login string) (GetPeerProfileRow, error) {
 	row := q.db.QueryRow(ctx, getPeerProfile, s21Login)
 	var i GetPeerProfileRow
 	err := row.Scan(
 		&i.S21Login,
 		&i.TelegramUsername,
+		&i.ExternalID,
 		&i.CampusName,
 		&i.CoalitionName,
+		&i.Status,
 		&i.Level,
 		&i.ExpValue,
+		&i.Prp,
+		&i.Crp,
 		&i.Coins,
-		&i.Status,
 		&i.ParallelName,
 		&i.ClassName,
+		&i.Integrity,
+		&i.Friendliness,
+		&i.Punctuality,
+		&i.Thoroughness,
 	)
 	return i, err
 }
 
 const getPlatformCredentials = `-- name: GetPlatformCredentials :one
-SELECT student_id, password_enc, password_nonce, access_token, access_expires_at, refresh_token_enc, refresh_nonce, refresh_expires_at, updated_at FROM platform_credentials 
-WHERE student_id = $1
+SELECT s21_login, password_enc, password_nonce, access_token, access_expires_at, refresh_token_enc, refresh_nonce, refresh_expires_at, updated_at FROM platform_credentials 
+WHERE s21_login = $1
 `
 
-func (q *Queries) GetPlatformCredentials(ctx context.Context, studentID string) (PlatformCredential, error) {
-	row := q.db.QueryRow(ctx, getPlatformCredentials, studentID)
+func (q *Queries) GetPlatformCredentials(ctx context.Context, s21Login string) (PlatformCredential, error) {
+	row := q.db.QueryRow(ctx, getPlatformCredentials, s21Login)
 	var i PlatformCredential
 	err := row.Scan(
-		&i.StudentID,
+		&i.S21Login,
 		&i.PasswordEnc,
 		&i.PasswordNonce,
 		&i.AccessToken,
@@ -333,16 +570,56 @@ func (q *Queries) GetPlatformCredentials(ctx context.Context, studentID string) 
 	return i, err
 }
 
-const getRocketChatCredentials = `-- name: GetRocketChatCredentials :one
-SELECT student_id, rc_token_enc, rc_nonce, updated_at FROM rocketchat_credentials
-WHERE student_id = $1
+const getRegisteredUserByRocketChatId = `-- name: GetRegisteredUserByRocketChatId :one
+SELECT s21_login, rocketchat_id, timezone, alternative_contact, has_coffee_ban, created_at, updated_at FROM registered_users WHERE rocketchat_id = $1
 `
 
-func (q *Queries) GetRocketChatCredentials(ctx context.Context, studentID string) (RocketchatCredential, error) {
-	row := q.db.QueryRow(ctx, getRocketChatCredentials, studentID)
+func (q *Queries) GetRegisteredUserByRocketChatId(ctx context.Context, rocketchatID string) (RegisteredUser, error) {
+	row := q.db.QueryRow(ctx, getRegisteredUserByRocketChatId, rocketchatID)
+	var i RegisteredUser
+	err := row.Scan(
+		&i.S21Login,
+		&i.RocketchatID,
+		&i.Timezone,
+		&i.AlternativeContact,
+		&i.HasCoffeeBan,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getRegisteredUserByS21Login = `-- name: GetRegisteredUserByS21Login :one
+
+SELECT s21_login, rocketchat_id, timezone, alternative_contact, has_coffee_ban, created_at, updated_at FROM registered_users WHERE s21_login = $1
+`
+
+// queries.sql
+func (q *Queries) GetRegisteredUserByS21Login(ctx context.Context, s21Login string) (RegisteredUser, error) {
+	row := q.db.QueryRow(ctx, getRegisteredUserByS21Login, s21Login)
+	var i RegisteredUser
+	err := row.Scan(
+		&i.S21Login,
+		&i.RocketchatID,
+		&i.Timezone,
+		&i.AlternativeContact,
+		&i.HasCoffeeBan,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getRocketChatCredentials = `-- name: GetRocketChatCredentials :one
+SELECT s21_login, rc_token_enc, rc_nonce, updated_at FROM rocketchat_credentials
+WHERE s21_login = $1
+`
+
+func (q *Queries) GetRocketChatCredentials(ctx context.Context, s21Login string) (RocketchatCredential, error) {
+	row := q.db.QueryRow(ctx, getRocketChatCredentials, s21Login)
 	var i RocketchatCredential
 	err := row.Scan(
-		&i.StudentID,
+		&i.S21Login,
 		&i.RcTokenEnc,
 		&i.RcNonce,
 		&i.UpdatedAt,
@@ -350,158 +627,8 @@ func (q *Queries) GetRocketChatCredentials(ctx context.Context, studentID string
 	return i, err
 }
 
-const getStudentByRocketChatId = `-- name: GetStudentByRocketChatId :one
-SELECT s21_login, rocketchat_id, campus_id, coalition_id, status, parallel_name, level, exp_value, prp, crp, coins, timezone, alternative_contact, has_coffee_ban, created_at, updated_at, class_name FROM students WHERE rocketchat_id = $1
-`
-
-func (q *Queries) GetStudentByRocketChatId(ctx context.Context, rocketchatID string) (Student, error) {
-	row := q.db.QueryRow(ctx, getStudentByRocketChatId, rocketchatID)
-	var i Student
-	err := row.Scan(
-		&i.S21Login,
-		&i.RocketchatID,
-		&i.CampusID,
-		&i.CoalitionID,
-		&i.Status,
-		&i.ParallelName,
-		&i.Level,
-		&i.ExpValue,
-		&i.Prp,
-		&i.Crp,
-		&i.Coins,
-		&i.Timezone,
-		&i.AlternativeContact,
-		&i.HasCoffeeBan,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ClassName,
-	)
-	return i, err
-}
-
-const getStudentByS21Login = `-- name: GetStudentByS21Login :one
-
-SELECT s21_login, rocketchat_id, campus_id, coalition_id, status, parallel_name, level, exp_value, prp, crp, coins, timezone, alternative_contact, has_coffee_ban, created_at, updated_at, class_name FROM students WHERE s21_login = $1
-`
-
-// queries.sql
-func (q *Queries) GetStudentByS21Login(ctx context.Context, s21Login string) (Student, error) {
-	row := q.db.QueryRow(ctx, getStudentByS21Login, s21Login)
-	var i Student
-	err := row.Scan(
-		&i.S21Login,
-		&i.RocketchatID,
-		&i.CampusID,
-		&i.CoalitionID,
-		&i.Status,
-		&i.ParallelName,
-		&i.Level,
-		&i.ExpValue,
-		&i.Prp,
-		&i.Crp,
-		&i.Coins,
-		&i.Timezone,
-		&i.AlternativeContact,
-		&i.HasCoffeeBan,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ClassName,
-	)
-	return i, err
-}
-
-const getStudentProfile = `-- name: GetStudentProfile :one
-SELECT s.s21_login, s.rocketchat_id, s.campus_id, s.coalition_id, s.status, s.parallel_name, s.level, s.exp_value, s.prp, s.crp, s.coins, s.timezone, s.alternative_contact, s.has_coffee_ban, s.created_at, s.updated_at, s.class_name, c.short_name as campus_name, cool.name as coalition_name
-FROM students s
-LEFT JOIN campuses c ON s.campus_id = c.id
-LEFT JOIN coalitions cool ON s.coalition_id = cool.id
-WHERE s.s21_login = $1
-`
-
-type GetStudentProfileRow struct {
-	S21Login           string                `json:"s21_login"`
-	RocketchatID       string                `json:"rocketchat_id"`
-	CampusID           pgtype.UUID           `json:"campus_id"`
-	CoalitionID        pgtype.Int2           `json:"coalition_id"`
-	Status             NullEnumStudentStatus `json:"status"`
-	ParallelName       pgtype.Text           `json:"parallel_name"`
-	Level              pgtype.Int4           `json:"level"`
-	ExpValue           pgtype.Int4           `json:"exp_value"`
-	Prp                pgtype.Int4           `json:"prp"`
-	Crp                pgtype.Int4           `json:"crp"`
-	Coins              pgtype.Int4           `json:"coins"`
-	Timezone           string                `json:"timezone"`
-	AlternativeContact pgtype.Text           `json:"alternative_contact"`
-	HasCoffeeBan       pgtype.Bool           `json:"has_coffee_ban"`
-	CreatedAt          pgtype.Timestamptz    `json:"created_at"`
-	UpdatedAt          pgtype.Timestamptz    `json:"updated_at"`
-	ClassName          pgtype.Text           `json:"class_name"`
-	CampusName         pgtype.Text           `json:"campus_name"`
-	CoalitionName      pgtype.Text           `json:"coalition_name"`
-}
-
-func (q *Queries) GetStudentProfile(ctx context.Context, s21Login string) (GetStudentProfileRow, error) {
-	row := q.db.QueryRow(ctx, getStudentProfile, s21Login)
-	var i GetStudentProfileRow
-	err := row.Scan(
-		&i.S21Login,
-		&i.RocketchatID,
-		&i.CampusID,
-		&i.CoalitionID,
-		&i.Status,
-		&i.ParallelName,
-		&i.Level,
-		&i.ExpValue,
-		&i.Prp,
-		&i.Crp,
-		&i.Coins,
-		&i.Timezone,
-		&i.AlternativeContact,
-		&i.HasCoffeeBan,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ClassName,
-		&i.CampusName,
-		&i.CoalitionName,
-	)
-	return i, err
-}
-
-const getStudentSkills = `-- name: GetStudentSkills :many
-SELECT s.name, s.category, ss.value
-FROM student_skills ss
-JOIN skills s ON ss.skill_id = s.id
-WHERE ss.student_id = $1
-`
-
-type GetStudentSkillsRow struct {
-	Name     string      `json:"name"`
-	Category pgtype.Text `json:"category"`
-	Value    int32       `json:"value"`
-}
-
-func (q *Queries) GetStudentSkills(ctx context.Context, studentID string) ([]GetStudentSkillsRow, error) {
-	rows, err := q.db.Query(ctx, getStudentSkills, studentID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetStudentSkillsRow
-	for rows.Next() {
-		var i GetStudentSkillsRow
-		if err := rows.Scan(&i.Name, &i.Category, &i.Value); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getUserAccountByExternalId = `-- name: GetUserAccountByExternalId :one
-SELECT id, student_id, platform, external_id, username, is_searchable, role, linked_at FROM user_accounts 
+SELECT id, s21_login, platform, external_id, username, is_searchable, role, linked_at FROM user_accounts 
 WHERE platform = $1 AND external_id = $2
 `
 
@@ -515,7 +642,7 @@ func (q *Queries) GetUserAccountByExternalId(ctx context.Context, arg GetUserAcc
 	var i UserAccount
 	err := row.Scan(
 		&i.ID,
-		&i.StudentID,
+		&i.S21Login,
 		&i.Platform,
 		&i.ExternalID,
 		&i.Username,
@@ -526,17 +653,17 @@ func (q *Queries) GetUserAccountByExternalId(ctx context.Context, arg GetUserAcc
 	return i, err
 }
 
-const getUserAccountByStudentId = `-- name: GetUserAccountByStudentId :one
-SELECT id, student_id, platform, external_id, username, is_searchable, role, linked_at FROM user_accounts
-WHERE student_id = $1
+const getUserAccountByS21Login = `-- name: GetUserAccountByS21Login :one
+SELECT id, s21_login, platform, external_id, username, is_searchable, role, linked_at FROM user_accounts
+WHERE s21_login = $1
 `
 
-func (q *Queries) GetUserAccountByStudentId(ctx context.Context, studentID string) (UserAccount, error) {
-	row := q.db.QueryRow(ctx, getUserAccountByStudentId, studentID)
+func (q *Queries) GetUserAccountByS21Login(ctx context.Context, s21Login string) (UserAccount, error) {
+	row := q.db.QueryRow(ctx, getUserAccountByS21Login, s21Login)
 	var i UserAccount
 	err := row.Scan(
 		&i.ID,
-		&i.StudentID,
+		&i.S21Login,
 		&i.Platform,
 		&i.ExternalID,
 		&i.Username,
@@ -568,23 +695,23 @@ func (q *Queries) GetUserBotSettings(ctx context.Context, userAccountID int64) (
 }
 
 const getValidAuthVerificationCode = `-- name: GetValidAuthVerificationCode :one
-SELECT id, student_id, code, expires_at, created_at FROM auth_verification_codes
-WHERE student_id = $1 AND code = $2 AND expires_at > CURRENT_TIMESTAMP
+SELECT id, s21_login, code, expires_at, created_at FROM auth_verification_codes
+WHERE s21_login = $1 AND code = $2 AND expires_at > CURRENT_TIMESTAMP
 ORDER BY created_at DESC
 LIMIT 1
 `
 
 type GetValidAuthVerificationCodeParams struct {
-	StudentID pgtype.Text `json:"student_id"`
-	Code      string      `json:"code"`
+	S21Login pgtype.Text `json:"s21_login"`
+	Code     string      `json:"code"`
 }
 
 func (q *Queries) GetValidAuthVerificationCode(ctx context.Context, arg GetValidAuthVerificationCodeParams) (AuthVerificationCode, error) {
-	row := q.db.QueryRow(ctx, getValidAuthVerificationCode, arg.StudentID, arg.Code)
+	row := q.db.QueryRow(ctx, getValidAuthVerificationCode, arg.S21Login, arg.Code)
 	var i AuthVerificationCode
 	err := row.Scan(
 		&i.ID,
-		&i.StudentID,
+		&i.S21Login,
 		&i.Code,
 		&i.ExpiresAt,
 		&i.CreatedAt,
@@ -600,50 +727,6 @@ WHERE user_account_id = $1 AND revoked_at IS NULL
 
 func (q *Queries) RevokeOldApiKeys(ctx context.Context, userAccountID int64) error {
 	_, err := q.db.Exec(ctx, revokeOldApiKeys, userAccountID)
-	return err
-}
-
-const updateStudentStats = `-- name: UpdateStudentStats :exec
-UPDATE students SET
-    level = $2,
-    exp_value = $3,
-    prp = $4,
-    crp = $5,
-    coins = $6,
-    coalition_id = $7,
-    status = $8,
-    parallel_name = $9,
-    class_name = $10,
-    updated_at = CURRENT_TIMESTAMP
-WHERE s21_login = $1
-`
-
-type UpdateStudentStatsParams struct {
-	S21Login     string                `json:"s21_login"`
-	Level        pgtype.Int4           `json:"level"`
-	ExpValue     pgtype.Int4           `json:"exp_value"`
-	Prp          pgtype.Int4           `json:"prp"`
-	Crp          pgtype.Int4           `json:"crp"`
-	Coins        pgtype.Int4           `json:"coins"`
-	CoalitionID  pgtype.Int2           `json:"coalition_id"`
-	Status       NullEnumStudentStatus `json:"status"`
-	ParallelName pgtype.Text           `json:"parallel_name"`
-	ClassName    pgtype.Text           `json:"class_name"`
-}
-
-func (q *Queries) UpdateStudentStats(ctx context.Context, arg UpdateStudentStatsParams) error {
-	_, err := q.db.Exec(ctx, updateStudentStats,
-		arg.S21Login,
-		arg.Level,
-		arg.ExpValue,
-		arg.Prp,
-		arg.Crp,
-		arg.Coins,
-		arg.CoalitionID,
-		arg.Status,
-		arg.ParallelName,
-		arg.ClassName,
-	)
 	return err
 }
 
@@ -749,8 +832,10 @@ func (q *Queries) UpsertClub(ctx context.Context, arg UpsertClubParams) (Club, e
 }
 
 const upsertClubCategory = `-- name: UpsertClubCategory :one
-INSERT INTO club_categories (name) VALUES ($1)
-ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+INSERT INTO club_categories (name)
+VALUES ($1)
+ON CONFLICT (name) DO UPDATE SET
+    name = EXCLUDED.name
 RETURNING id, name, created_at
 `
 
@@ -810,15 +895,102 @@ func (q *Queries) UpsertFSMState(ctx context.Context, arg UpsertFSMStateParams) 
 	return err
 }
 
+const upsertParticipantSkill = `-- name: UpsertParticipantSkill :exec
+INSERT INTO participant_skills (s21_login, skill_id, value)
+VALUES ($1, $2, $3)
+ON CONFLICT (s21_login, skill_id) DO UPDATE SET
+    value = EXCLUDED.value,
+    updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertParticipantSkillParams struct {
+	S21Login string `json:"s21_login"`
+	SkillID  int32  `json:"skill_id"`
+	Value    int32  `json:"value"`
+}
+
+func (q *Queries) UpsertParticipantSkill(ctx context.Context, arg UpsertParticipantSkillParams) error {
+	_, err := q.db.Exec(ctx, upsertParticipantSkill, arg.S21Login, arg.SkillID, arg.Value)
+	return err
+}
+
+const upsertParticipantStatsCache = `-- name: UpsertParticipantStatsCache :exec
+INSERT INTO participant_stats_cache (
+    s21_login, campus_id, coalition_id, status, level, exp_value,
+    prp, crp, coins, parallel_name, class_name,
+    integrity, friendliness, punctuality, thoroughness,
+    lat_synced_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+    CURRENT_TIMESTAMP
+)
+ON CONFLICT (s21_login) DO UPDATE SET
+    campus_id = EXCLUDED.campus_id,
+    coalition_id = EXCLUDED.coalition_id,
+    status = EXCLUDED.status,
+    level = EXCLUDED.level,
+    exp_value = EXCLUDED.exp_value,
+    prp = EXCLUDED.prp,
+    crp = EXCLUDED.crp,
+    coins = EXCLUDED.coins,
+    parallel_name = EXCLUDED.parallel_name,
+    class_name = EXCLUDED.class_name,
+    integrity = EXCLUDED.integrity,
+    friendliness = EXCLUDED.friendliness,
+    punctuality = EXCLUDED.punctuality,
+    thoroughness = EXCLUDED.thoroughness,
+    updated_at = CURRENT_TIMESTAMP,
+    lat_synced_at = CURRENT_TIMESTAMP
+`
+
+type UpsertParticipantStatsCacheParams struct {
+	S21Login     string            `json:"s21_login"`
+	CampusID     pgtype.UUID       `json:"campus_id"`
+	CoalitionID  pgtype.Int2       `json:"coalition_id"`
+	Status       EnumStudentStatus `json:"status"`
+	Level        int32             `json:"level"`
+	ExpValue     int32             `json:"exp_value"`
+	Prp          int32             `json:"prp"`
+	Crp          int32             `json:"crp"`
+	Coins        int32             `json:"coins"`
+	ParallelName pgtype.Text       `json:"parallel_name"`
+	ClassName    pgtype.Text       `json:"class_name"`
+	Integrity    pgtype.Float4     `json:"integrity"`
+	Friendliness pgtype.Float4     `json:"friendliness"`
+	Punctuality  pgtype.Float4     `json:"punctuality"`
+	Thoroughness pgtype.Float4     `json:"thoroughness"`
+}
+
+func (q *Queries) UpsertParticipantStatsCache(ctx context.Context, arg UpsertParticipantStatsCacheParams) error {
+	_, err := q.db.Exec(ctx, upsertParticipantStatsCache,
+		arg.S21Login,
+		arg.CampusID,
+		arg.CoalitionID,
+		arg.Status,
+		arg.Level,
+		arg.ExpValue,
+		arg.Prp,
+		arg.Crp,
+		arg.Coins,
+		arg.ParallelName,
+		arg.ClassName,
+		arg.Integrity,
+		arg.Friendliness,
+		arg.Punctuality,
+		arg.Thoroughness,
+	)
+	return err
+}
+
 const upsertPlatformCredentials = `-- name: UpsertPlatformCredentials :exec
 INSERT INTO platform_credentials (
-    student_id, password_enc, password_nonce, 
+    s21_login, password_enc, password_nonce, 
     access_token, access_expires_at, refresh_token_enc, 
     refresh_nonce, refresh_expires_at
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8
 )
-ON CONFLICT (student_id) DO UPDATE SET
+ON CONFLICT (s21_login) DO UPDATE SET
     password_enc = EXCLUDED.password_enc,
     password_nonce = EXCLUDED.password_nonce,
     access_token = EXCLUDED.access_token,
@@ -830,7 +1002,7 @@ ON CONFLICT (student_id) DO UPDATE SET
 `
 
 type UpsertPlatformCredentialsParams struct {
-	StudentID        string             `json:"student_id"`
+	S21Login         string             `json:"s21_login"`
 	PasswordEnc      []byte             `json:"password_enc"`
 	PasswordNonce    []byte             `json:"password_nonce"`
 	AccessToken      pgtype.Text        `json:"access_token"`
@@ -842,7 +1014,7 @@ type UpsertPlatformCredentialsParams struct {
 
 func (q *Queries) UpsertPlatformCredentials(ctx context.Context, arg UpsertPlatformCredentialsParams) error {
 	_, err := q.db.Exec(ctx, upsertPlatformCredentials,
-		arg.StudentID,
+		arg.S21Login,
 		arg.PasswordEnc,
 		arg.PasswordNonce,
 		arg.AccessToken,
@@ -854,26 +1026,71 @@ func (q *Queries) UpsertPlatformCredentials(ctx context.Context, arg UpsertPlatf
 	return err
 }
 
+const upsertRegisteredUser = `-- name: UpsertRegisteredUser :one
+INSERT INTO registered_users (
+    s21_login, rocketchat_id,
+    timezone, alternative_contact, has_coffee_ban
+) VALUES (
+    $1, $2, $3, $4, $5
+)
+ON CONFLICT (s21_login) DO UPDATE SET
+    rocketchat_id = COALESCE(EXCLUDED.rocketchat_id, registered_users.rocketchat_id),
+    timezone = COALESCE(EXCLUDED.timezone, registered_users.timezone),
+    alternative_contact = COALESCE(EXCLUDED.alternative_contact, registered_users.alternative_contact),
+    has_coffee_ban = COALESCE(EXCLUDED.has_coffee_ban, registered_users.has_coffee_ban),
+    updated_at = CURRENT_TIMESTAMP
+RETURNING s21_login, rocketchat_id, timezone, alternative_contact, has_coffee_ban, created_at, updated_at
+`
+
+type UpsertRegisteredUserParams struct {
+	S21Login           string      `json:"s21_login"`
+	RocketchatID       string      `json:"rocketchat_id"`
+	Timezone           string      `json:"timezone"`
+	AlternativeContact pgtype.Text `json:"alternative_contact"`
+	HasCoffeeBan       pgtype.Bool `json:"has_coffee_ban"`
+}
+
+func (q *Queries) UpsertRegisteredUser(ctx context.Context, arg UpsertRegisteredUserParams) (RegisteredUser, error) {
+	row := q.db.QueryRow(ctx, upsertRegisteredUser,
+		arg.S21Login,
+		arg.RocketchatID,
+		arg.Timezone,
+		arg.AlternativeContact,
+		arg.HasCoffeeBan,
+	)
+	var i RegisteredUser
+	err := row.Scan(
+		&i.S21Login,
+		&i.RocketchatID,
+		&i.Timezone,
+		&i.AlternativeContact,
+		&i.HasCoffeeBan,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const upsertRocketChatCredentials = `-- name: UpsertRocketChatCredentials :exec
 INSERT INTO rocketchat_credentials (
-    student_id, rc_token_enc, rc_nonce
+    s21_login, rc_token_enc, rc_nonce
 ) VALUES (
     $1, $2, $3
 )
-ON CONFLICT (student_id) DO UPDATE SET
+ON CONFLICT (s21_login) DO UPDATE SET
     rc_token_enc = EXCLUDED.rc_token_enc,
     rc_nonce = EXCLUDED.rc_nonce,
     updated_at = CURRENT_TIMESTAMP
 `
 
 type UpsertRocketChatCredentialsParams struct {
-	StudentID  string `json:"student_id"`
+	S21Login   string `json:"s21_login"`
 	RcTokenEnc []byte `json:"rc_token_enc"`
 	RcNonce    []byte `json:"rc_nonce"`
 }
 
 func (q *Queries) UpsertRocketChatCredentials(ctx context.Context, arg UpsertRocketChatCredentialsParams) error {
-	_, err := q.db.Exec(ctx, upsertRocketChatCredentials, arg.StudentID, arg.RcTokenEnc, arg.RcNonce)
+	_, err := q.db.Exec(ctx, upsertRocketChatCredentials, arg.S21Login, arg.RcTokenEnc, arg.RcNonce)
 	return err
 }
 
@@ -903,111 +1120,6 @@ func (q *Queries) UpsertSkill(ctx context.Context, arg UpsertSkillParams) (Skill
 		&i.UpdatedAt,
 	)
 	return i, err
-}
-
-const upsertStudent = `-- name: UpsertStudent :one
-INSERT INTO students (
-    s21_login, rocketchat_id, campus_id, coalition_id, status, 
-    timezone, alternative_contact, has_coffee_ban,
-    level, exp_value, prp, crp, coins, parallel_name, class_name
-) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15
-)
-ON CONFLICT (s21_login) DO UPDATE SET
-    rocketchat_id = COALESCE(EXCLUDED.rocketchat_id, students.rocketchat_id),
-    campus_id = COALESCE(EXCLUDED.campus_id, students.campus_id),
-    coalition_id = COALESCE(EXCLUDED.coalition_id, students.coalition_id),
-    status = COALESCE(EXCLUDED.status, students.status),
-    timezone = COALESCE(EXCLUDED.timezone, students.timezone),
-    alternative_contact = COALESCE(EXCLUDED.alternative_contact, students.alternative_contact),
-    has_coffee_ban = COALESCE(EXCLUDED.has_coffee_ban, students.has_coffee_ban),
-    level = COALESCE(EXCLUDED.level, students.level),
-    exp_value = COALESCE(EXCLUDED.exp_value, students.exp_value),
-    prp = COALESCE(EXCLUDED.prp, students.prp),
-    crp = COALESCE(EXCLUDED.crp, students.crp),
-    coins = COALESCE(EXCLUDED.coins, students.coins),
-    parallel_name = COALESCE(EXCLUDED.parallel_name, students.parallel_name),
-    class_name = COALESCE(EXCLUDED.class_name, students.class_name),
-    updated_at = CURRENT_TIMESTAMP
-RETURNING s21_login, rocketchat_id, campus_id, coalition_id, status, parallel_name, level, exp_value, prp, crp, coins, timezone, alternative_contact, has_coffee_ban, created_at, updated_at, class_name
-`
-
-type UpsertStudentParams struct {
-	S21Login           string                `json:"s21_login"`
-	RocketchatID       string                `json:"rocketchat_id"`
-	CampusID           pgtype.UUID           `json:"campus_id"`
-	CoalitionID        pgtype.Int2           `json:"coalition_id"`
-	Status             NullEnumStudentStatus `json:"status"`
-	Timezone           string                `json:"timezone"`
-	AlternativeContact pgtype.Text           `json:"alternative_contact"`
-	HasCoffeeBan       pgtype.Bool           `json:"has_coffee_ban"`
-	Level              pgtype.Int4           `json:"level"`
-	ExpValue           pgtype.Int4           `json:"exp_value"`
-	Prp                pgtype.Int4           `json:"prp"`
-	Crp                pgtype.Int4           `json:"crp"`
-	Coins              pgtype.Int4           `json:"coins"`
-	ParallelName       pgtype.Text           `json:"parallel_name"`
-	ClassName          pgtype.Text           `json:"class_name"`
-}
-
-func (q *Queries) UpsertStudent(ctx context.Context, arg UpsertStudentParams) (Student, error) {
-	row := q.db.QueryRow(ctx, upsertStudent,
-		arg.S21Login,
-		arg.RocketchatID,
-		arg.CampusID,
-		arg.CoalitionID,
-		arg.Status,
-		arg.Timezone,
-		arg.AlternativeContact,
-		arg.HasCoffeeBan,
-		arg.Level,
-		arg.ExpValue,
-		arg.Prp,
-		arg.Crp,
-		arg.Coins,
-		arg.ParallelName,
-		arg.ClassName,
-	)
-	var i Student
-	err := row.Scan(
-		&i.S21Login,
-		&i.RocketchatID,
-		&i.CampusID,
-		&i.CoalitionID,
-		&i.Status,
-		&i.ParallelName,
-		&i.Level,
-		&i.ExpValue,
-		&i.Prp,
-		&i.Crp,
-		&i.Coins,
-		&i.Timezone,
-		&i.AlternativeContact,
-		&i.HasCoffeeBan,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.ClassName,
-	)
-	return i, err
-}
-
-const upsertStudentSkill = `-- name: UpsertStudentSkill :exec
-INSERT INTO student_skills (student_id, skill_id, value)
-VALUES ($1, $2, $3)
-ON CONFLICT (student_id, skill_id) DO UPDATE SET
-    value = EXCLUDED.value,
-    updated_at = CURRENT_TIMESTAMP
-`
-
-type UpsertStudentSkillParams struct {
-	StudentID string `json:"student_id"`
-	SkillID   int32  `json:"skill_id"`
-	Value     int32  `json:"value"`
-}
-
-func (q *Queries) UpsertStudentSkill(ctx context.Context, arg UpsertStudentSkillParams) error {
-	_, err := q.db.Exec(ctx, upsertStudentSkill, arg.StudentID, arg.SkillID, arg.Value)
-	return err
 }
 
 const upsertUserBotSettings = `-- name: UpsertUserBotSettings :one

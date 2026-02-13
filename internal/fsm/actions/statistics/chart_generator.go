@@ -1,15 +1,45 @@
 package statistics
 
 import (
+	"encoding/binary"
 	"fmt"
+	"hash/fnv"
 	"math"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/vgy789/noemx21-bot/internal/pkg/charts"
+)
+
+const (
+	// Chart dimensions
+	chartWidth  = 1000 // Ширина графика в пикселях
+	chartHeight = 800  // Высота графика в пикселях
+
+	// Chart styling
+	chartFontSize = 8.0 // Размер шрифта на графике
+	chartPadding  = 100 // Отступы вокруг графика (Top, Right, Bottom, Left)
+
+	// Chart scaling and thresholds
+	defaultGlobalMaxValue = 3000.0 // Дефолтное максимальное значение для навыков при отсутствии данных
+	minGlobalMaxValue     = 1.0    // Минимальное значение для globalMax (избегаем деления на ноль)
+	globalMinValue        = 0.0    // Минимальное значение для навыков (всегда 0)
+	minLogDiffValue       = 1.0    // Минимальное значение для logDiff (избегаем деления на ноль)
+	activeSkillThreshold  = 5.0    // Порог в процентах для отображения навыка в сравнении (>= 5%)
+	indicatorMaxValue     = 100.0  // Максимальное значение для индикаторов (шкала 0-100)
+
+	// File system
+	chartTempDir      = "tmp"                                    // Директория для временных файлов графиков
+	chartDirPerms     = 0755                                     // Права доступа для создания директории
+	chartFilePerms    = 0644                                     // Права доступа для записи файла графика
+	chartFilenameFmt  = "skills_radar_%s.png"                    // Формат имени файла графика
+	chartTimeFormat   = "2006-01-02_15-04-05.000"                // Формат временной метки в имени файла
+	chartTitleCompare = "Skills Comparison\n(logarithmic scale)" // Заголовок графика сравнения
+	chartTitleProfile = "Skills Profile: %s"                     // Шаблон заголовка профиля навыков
 )
 
 type skillDomain struct {
@@ -163,17 +193,73 @@ var orderedSkills = []string{
 	"Copywriting",
 }
 
-func generateRadarChart(usersData map[string]map[string]int32) (string, error) {
+var (
+	chartCache      = make(map[uint64]string)
+	chartCacheMutex sync.Mutex
+)
+
+func generateRadarChart(usersData map[string]map[string]int32, orderedLogins []string) (string, error) {
 	if len(usersData) == 0 {
 		return "", fmt.Errorf("no data provided for chart")
 	}
 
-	// Sort logins to ensure consistent color assignment
-	var logins []string
-	for login := range usersData {
-		logins = append(logins, login)
+	// Calculate hash of input data for caching. Use provided ordering when available
+	h := fnv.New64a()
+	var keysOrder []string
+	if len(orderedLogins) != 0 {
+		keysOrder = make([]string, 0, len(orderedLogins))
+		for _, l := range orderedLogins {
+			if _, ok := usersData[l]; ok {
+				keysOrder = append(keysOrder, l)
+			}
+		}
 	}
-	sort.Strings(logins)
+	if len(keysOrder) == 0 {
+		for l := range usersData {
+			keysOrder = append(keysOrder, l)
+		}
+		sort.Strings(keysOrder)
+	}
+	for _, l := range keysOrder {
+		h.Write([]byte(l))
+		skills := usersData[l]
+		var sortedSkills []string
+		for s := range skills {
+			sortedSkills = append(sortedSkills, s)
+		}
+		sort.Strings(sortedSkills)
+		for _, s := range sortedSkills {
+			h.Write([]byte(s))
+			binary.Write(h, binary.LittleEndian, skills[s])
+		}
+	}
+	dataHash := h.Sum64()
+
+	chartCacheMutex.Lock()
+	if path, ok := chartCache[dataHash]; ok {
+		// Check if file still exists
+		if _, err := os.Stat(path); err == nil {
+			chartCacheMutex.Unlock()
+			return path, nil
+		}
+	}
+	chartCacheMutex.Unlock()
+
+	// Respect provided order when possible so `me` can be first
+	var logins []string
+	if len(orderedLogins) != 0 {
+		for _, l := range orderedLogins {
+			if _, ok := usersData[l]; ok {
+				logins = append(logins, l)
+			}
+		}
+	}
+	if len(logins) == 0 {
+		for l := range usersData {
+			logins = append(logins, l)
+		}
+		sort.Strings(logins)
+	}
 
 	var values [][]float64
 	var globalMax = -1e18
@@ -192,16 +278,16 @@ func generateRadarChart(usersData map[string]map[string]int32) (string, error) {
 
 	// Default if no data
 	if !hasData {
-		globalMax = 3000
+		globalMax = defaultGlobalMaxValue
 	}
 
 	// Ensure max is at least slightly above 0 to avoid division by zero
 	if globalMax == 0 {
-		globalMax = 1
+		globalMax = minGlobalMaxValue
 	}
 
 	// Global Min is always 0 for skills
-	var globalMin float64 = 0
+	var globalMin float64 = globalMinValue
 
 	// Step 1: Create normalized maps for all users for efficient lookup
 	userNormalizedSkills := make(map[string]map[string]int32)
@@ -219,7 +305,7 @@ func generateRadarChart(usersData map[string]map[string]int32) (string, error) {
 	logMax := math.Log10(globalMax + 1)
 	logDiff := logMax - logMin
 	if logDiff == 0 {
-		logDiff = 1
+		logDiff = minLogDiffValue
 	}
 
 	// Step 2: Determine active skills (not 0 and >= 5% for at least one user)
@@ -243,9 +329,9 @@ func generateRadarChart(usersData map[string]map[string]int32) (string, error) {
 			val := float64(valInt)
 
 			logVal := math.Log10(val + 1)
-			scaledVal := ((logVal - logMin) / logDiff) * 100.0
+			scaledVal := ((logVal - logMin) / logDiff) * indicatorMaxValue
 
-			if val > 0 && scaledVal >= 5.0 {
+			if val > 0 && scaledVal >= activeSkillThreshold {
 				keep = true
 				break
 			}
@@ -269,7 +355,7 @@ func generateRadarChart(usersData map[string]map[string]int32) (string, error) {
 
 			val := float64(valInt)
 			logVal := math.Log10(val + 1)
-			scaledVal := ((logVal - logMin) / logDiff) * 100.0
+			scaledVal := ((logVal - logMin) / logDiff) * indicatorMaxValue
 			userValues = append(userValues, scaledVal)
 		}
 		values = append(values, userValues)
@@ -278,7 +364,7 @@ func generateRadarChart(usersData map[string]map[string]int32) (string, error) {
 	// Indicators use 0-100 scale
 	var indicatorMaxValues []float64
 	for range activeSkills {
-		indicatorMaxValues = append(indicatorMaxValues, 100.0)
+		indicatorMaxValues = append(indicatorMaxValues, indicatorMaxValue)
 	}
 
 	// Step 4: Calculate radar domains for active skills
@@ -310,23 +396,44 @@ func generateRadarChart(usersData map[string]map[string]int32) (string, error) {
 		}
 	}
 
-	chartTitle := "Skills Comparison\n(logarithmic scale)"
+	chartTitle := chartTitleCompare
 	if isIndividual {
-		chartTitle = fmt.Sprintf("Skills Profile: %s", logins[0])
+		chartTitle = fmt.Sprintf(chartTitleProfile, logins[0])
 	}
 
-	// Generate chart
-	p, err := charts.RadarRender(
-		values,
+	// If this is a 2-series comparison, force colors: first = blue, second = red
+	opts := []charts.OptionFunc{
 		charts.TitleTextOptionFunc(chartTitle),
 		charts.LegendLabelsOptionFunc(logins),
 		charts.RadarIndicatorOptionFunc(activeSkills, indicatorMaxValues),
 		charts.RadarDomainsOptionFunc(radarDomains),
-		charts.WidthOptionFunc(1000),
-		charts.HeightOptionFunc(800),
-		charts.FontSizeOptionFunc(8.0),
-		charts.PaddingOptionFunc(charts.Box{Top: 100, Right: 100, Bottom: 100, Left: 100}), // Padding for domain labels
-	)
+		charts.WidthOptionFunc(chartWidth),
+		charts.HeightOptionFunc(chartHeight),
+		charts.FontSizeOptionFunc(chartFontSize),
+		charts.PaddingOptionFunc(charts.Box{Top: chartPadding, Right: chartPadding, Bottom: chartPadding, Left: chartPadding}), // Padding for domain labels
+	}
+	if len(logins) == 2 {
+		// Add or overwrite a theme that uses blue for first series and red for second.
+		// Build the theme option from the default light theme so text/background colors
+		// stay usable (otherwise missing TextColor makes labels invisible).
+		themeName := "user_peer"
+		base := charts.NewTheme(charts.ThemeLight)
+		charts.AddTheme(themeName, charts.ThemeOption{
+			IsDarkMode:         base.IsDark(),
+			AxisStrokeColor:    base.GetAxisStrokeColor(),
+			AxisSplitLineColor: base.GetAxisSplitLineColor(),
+			BackgroundColor:    base.GetBackgroundColor(),
+			TextColor:          base.GetTextColor(),
+			SeriesColors: []charts.Color{
+				charts.ParseColor("#5470c6"), // blue (you)
+				charts.ParseColor("#ee6666"), // red  (peer)
+			},
+		})
+		opts = append(opts, charts.ThemeOptionFunc(themeName))
+	}
+
+	// Generate chart
+	p, err := charts.RadarRender(values, opts...)
 	if err != nil {
 		return "", err
 	}
@@ -337,16 +444,26 @@ func generateRadarChart(usersData map[string]map[string]int32) (string, error) {
 	}
 
 	// Save to file
-	filename := fmt.Sprintf("skills_radar_%s.png", time.Now().Format("2006-01-02_15-04-05.000"))
-	tmpPath := "tmp"
-	if err := os.MkdirAll(tmpPath, 0755); err != nil {
+	filename := fmt.Sprintf(chartFilenameFmt, time.Now().Format(chartTimeFormat))
+	if err := os.MkdirAll(chartTempDir, chartDirPerms); err != nil {
 		return "", err
 	}
 
-	filePath := filepath.Join(tmpPath, filename)
-	if err := os.WriteFile(filePath, buf, 0644); err != nil {
+	filePath := filepath.Join(chartTempDir, filename)
+	if err := os.WriteFile(filePath, buf, chartFilePerms); err != nil {
 		return "", err
 	}
+
+	chartCacheMutex.Lock()
+	chartCache[dataHash] = filePath
+	chartCacheMutex.Unlock()
 
 	return filePath, nil
+}
+
+// GenerateRadarChartFromData is an exported wrapper to allow other packages
+// to generate a radar chart from provided skills data. `orderedLogins` can
+// be used to enforce ordering (e.g., current user first, peer second).
+func GenerateRadarChartFromData(usersData map[string]map[string]int32, orderedLogins []string) (string, error) {
+	return generateRadarChart(usersData, orderedLogins)
 }

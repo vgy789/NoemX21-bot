@@ -48,6 +48,10 @@ const (
 	VarPrps           = "{my_prps}"
 	VarCrps           = "{my_crps}"
 	VarCoins          = "{my_coins}"
+	VarInterest       = "{my_interest}"
+	VarFriendliness   = "{my_friendliness}"
+	VarPunctuality    = "{my_punctuality}"
+	VarThoroughness   = "{my_thoroughness}"
 	VarDate           = "{current_date}"
 	VarErrorReason    = "{error_reason}"
 )
@@ -64,6 +68,10 @@ var DefaultVariables = map[string]string{
 	VarPrps:           "98",
 	VarCrps:           "98",
 	VarCoins:          "987",
+	VarInterest:       "0.00",
+	VarFriendliness:   "0.00",
+	VarPunctuality:    "0.00",
+	VarThoroughness:   "0.00",
 	VarDate:           "03.02.3333",
 	VarErrorReason:    "Неверный ввод!",
 }

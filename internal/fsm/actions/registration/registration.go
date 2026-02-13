@@ -6,12 +6,15 @@ import (
 	"log/slog"
 	"strings"
 
+	"hash/fnv"
+
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
 	"github.com/vgy789/noemx21-bot/internal/clients/s21"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
+	stats "github.com/vgy789/noemx21-bot/internal/fsm/actions/statistics"
 	"github.com/vgy789/noemx21-bot/internal/service"
 )
 
@@ -21,10 +24,15 @@ func Register(
 	cfg *config.Config,
 	log *slog.Logger,
 	queries db.Querier,
-	studentSvc service.StudentService,
+	userSvc service.UserService,
 	rcClient *rocketchat.Client,
 	s21Client *s21.Client,
+	credService *service.CredentialService,
+	aliasRegistrar func(alias, target string),
 ) {
+	if aliasRegistrar != nil {
+		aliasRegistrar("START", "registration.yaml/START")
+	}
 	// Helper to extract user info from payload/context
 	getUserInfo := func(ctx context.Context, userID int64, payload map[string]interface{}) fsm.UserInfo {
 		ui := fsm.UserInfo{
@@ -77,7 +85,7 @@ func Register(
 			platform = db.EnumPlatformRocketchat
 		}
 
-		_, err := studentSvc.GetProfileByExternalID(ctx, platform, fmt.Sprintf("%d", ui.ID))
+		_, err := userSvc.GetProfileByExternalID(ctx, platform, fmt.Sprintf("%d", ui.ID))
 		isRegistered := err == nil
 		log.Debug("checking registration status", "user_id", ui.ID, "platform", ui.Platform, "registered", isRegistered)
 		return "", map[string]interface{}{"registered": isRegistered}, nil
@@ -108,12 +116,16 @@ func Register(
 		}
 
 		// 3. Return successful validation data
+		parallelName := ""
+		if participant.ParallelName != nil {
+			parallelName = *participant.ParallelName
+		}
 		return "", map[string]interface{}{
 			"api_status": 200,
 			"s21_login":  login,
-			"user": map[string]interface{}{
+			"s21_user": map[string]interface{}{
 				"status":       participant.Status,
-				"parallelName": participant.ParallelName,
+				"parallelName": parallelName,
 			},
 		}, nil
 	})
@@ -123,7 +135,7 @@ func Register(
 		login := payload["login"].(string)
 
 		// 1. Check if account already registered/linked in our DB
-		ua, err := queries.GetUserAccountByStudentId(ctx, login)
+		ua, err := queries.GetUserAccountByS21Login(ctx, login)
 		if err == nil {
 			if ua.ExternalID != fmt.Sprintf("%d", userID) {
 				log.Debug("student already registered to another telegram account", "login", login)
@@ -155,48 +167,28 @@ func Register(
 		}
 
 		// 4. Update the Rocket.Chat ID in the database
-		// If student doesn't exist, create it.
-		student, err := queries.GetStudentByS21Login(ctx, login)
+		// If registered user doesn't exist, create it.
+		regUser, err := queries.GetRegisteredUserByS21Login(ctx, login)
 		if err != nil {
-			log.Info("creating new student record during registration", "login", login)
-			_, err = queries.UpsertStudent(ctx, db.UpsertStudentParams{
+			log.Info("creating new registered user during registration", "login", login)
+			_, err = queries.UpsertRegisteredUser(ctx, db.UpsertRegisteredUserParams{
 				S21Login:           login,
 				RocketchatID:       rcUser.User.ID,
-				Status:             db.NullEnumStudentStatus{EnumStudentStatus: db.EnumStudentStatusACTIVE, Valid: true},
 				Timezone:           "UTC",
-				CampusID:           pgtype.UUID{Valid: false},
-				CoalitionID:        pgtype.Int2{Valid: false},
 				AlternativeContact: pgtype.Text{Valid: false},
 				HasCoffeeBan:       pgtype.Bool{Valid: false},
-				Level:              pgtype.Int4{Valid: false},
-				ExpValue:           pgtype.Int4{Valid: false},
-				Prp:                pgtype.Int4{Valid: false},
-				Crp:                pgtype.Int4{Valid: false},
-				Coins:              pgtype.Int4{Valid: false},
-				ParallelName:       pgtype.Text{Valid: false},
-				ClassName:          pgtype.Text{Valid: false},
 			})
 			if err != nil {
-				return "", nil, fmt.Errorf("failed to create student: %w", err)
+				return "", nil, fmt.Errorf("failed to create registered user: %w", err)
 			}
-		} else if student.RocketchatID != rcUser.User.ID {
-			log.Info("updating rocketchat id for student", "login", login, "old_id", student.RocketchatID, "new_id", rcUser.User.ID)
-			_, err = queries.UpsertStudent(ctx, db.UpsertStudentParams{
-				S21Login:           student.S21Login,
-				RocketchatID:       rcUser.User.ID, // Update ID
-				CampusID:           student.CampusID,
-				CoalitionID:        student.CoalitionID,
-				Status:             student.Status,
-				Timezone:           student.Timezone,
-				AlternativeContact: student.AlternativeContact,
-				HasCoffeeBan:       student.HasCoffeeBan,
-				Level:              student.Level,
-				ExpValue:           student.ExpValue,
-				Prp:                student.Prp,
-				Crp:                student.Crp,
-				Coins:              student.Coins,
-				ParallelName:       student.ParallelName,
-				ClassName:          student.ClassName,
+		} else if regUser.RocketchatID != rcUser.User.ID {
+			log.Info("updating rocketchat id for registered user", "login", login, "old_id", regUser.RocketchatID, "new_id", rcUser.User.ID)
+			_, err = queries.UpsertRegisteredUser(ctx, db.UpsertRegisteredUserParams{
+				S21Login:           regUser.S21Login,
+				RocketchatID:       rcUser.User.ID,
+				Timezone:           regUser.Timezone,
+				AlternativeContact: regUser.AlternativeContact,
+				HasCoffeeBan:       regUser.HasCoffeeBan,
 			})
 			if err != nil {
 				return "", nil, fmt.Errorf("failed to update rocketchat id: %w", err)
@@ -223,8 +215,8 @@ func Register(
 
 		otpSvc := service.NewOTPService(queries, rcClient, cfg, log)
 
-		// Set student ID in context for verification
-		ctx = context.WithValue(ctx, fsm.ContextKeyStudentID, login)
+		// Set S21 login in context for verification
+		ctx = context.WithValue(ctx, fsm.ContextKeyS21Login, login)
 
 		ui := getUserInfo(ctx, userID, payload)
 		log.Debug("generating OTP with user info",
@@ -259,16 +251,16 @@ func Register(
 		code := payload["code"].(string)
 		otpSvc := service.NewOTPService(queries, rcClient, cfg, log)
 
-		studentID, ok := payload["student_id"].(string)
+		s21Login, ok := payload["student_id"].(string)
 		if !ok {
 			if login, ok := payload["login"].(string); ok {
-				studentID = login
+				s21Login = login
 			} else {
-				return "", nil, fmt.Errorf("student ID not found in payload")
+				return "", nil, fmt.Errorf("student login not found in payload")
 			}
 		}
 
-		ctx = context.WithValue(ctx, fsm.ContextKeyStudentID, studentID)
+		ctx = context.WithValue(ctx, fsm.ContextKeyS21Login, s21Login)
 
 		valid, err := otpSvc.VerifyOTP(ctx, userID, code)
 		if err != nil {
@@ -277,7 +269,7 @@ func Register(
 			valid = false
 		}
 
-		ua, err := queries.GetUserAccountByStudentId(ctx, studentID)
+		ua, err := queries.GetUserAccountByS21Login(ctx, s21Login)
 		accountExists := err == nil
 
 		isOwnAccount := false
@@ -305,7 +297,7 @@ func Register(
 			}
 
 			uaCreated, err := queries.CreateUserAccount(ctx, db.CreateUserAccountParams{
-				StudentID:    studentID,
+				S21Login:     s21Login,
 				Platform:     platform,
 				ExternalID:   fmt.Sprintf("%d", ui.ID),
 				Username:     username,
@@ -313,9 +305,9 @@ func Register(
 				Role:         db.NullEnumUserRole{EnumUserRole: db.EnumUserRoleUser, Valid: true},
 			})
 			if err != nil {
-				log.Error("failed to create user account", "error", err, "student_id", studentID)
+				log.Error("failed to create user account", "error", err, "s21_login", s21Login)
 			} else {
-				log.Info("created user account", "user_account_id", uaCreated.ID, "student_id", studentID)
+				log.Info("created user account", "user_account_id", uaCreated.ID, "s21_login", s21Login)
 
 				langCode := fsm.LangRu
 				if val, ok := payload["language"].(string); ok {
@@ -359,7 +351,123 @@ func Register(
 			platform = db.EnumPlatformRocketchat
 		}
 
-		profile, err := studentSvc.GetProfileByExternalID(ctx, platform, fmt.Sprintf("%d", ui.ID))
+		// Get user account to fetch their login
+		ua, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
+			Platform:   platform,
+			ExternalID: fmt.Sprintf("%d", ui.ID),
+		})
+		if err != nil {
+			log.Error("failed to get user account", "user_id", ui.ID, "error", err)
+			return "", map[string]interface{}{"profile_loaded": false}, nil
+		}
+
+		studentLogin := ua.S21Login
+
+		// Fetch fresh data from School21 API and save to database
+		var token string
+		if credService != nil {
+			var err error
+			token, err = credService.GetValidToken(ctx, cfg.Init.SchoolLogin)
+			if err != nil {
+				log.Warn("failed to get API token for profile sync", "error", err)
+				// Continue anyway - will use cached data
+			}
+		}
+		if token != "" {
+			participant, err := s21Client.GetParticipant(ctx, token, studentLogin)
+			if err != nil {
+				log.Warn("failed to sync profile data from API", "login", studentLogin, "error", err)
+				// Continue anyway - will use cached data
+			} else {
+				// Save stats to participant_stats_cache
+				cacheParams := db.UpsertParticipantStatsCacheParams{
+					S21Login:     studentLogin,
+					Level:        participant.Level,
+					ExpValue:     int32(participant.ExpValue),
+					Status:       db.EnumStudentStatus(participant.Status),
+					ParallelName: pgtype.Text{Valid: false},
+					ClassName:    pgtype.Text{Valid: false},
+				}
+
+				// Add campus info
+				if participant.Campus.ID != "" {
+					var campusUUID pgtype.UUID
+					if err := campusUUID.Scan(participant.Campus.ID); err != nil {
+						log.Warn("failed to parse campus UUID in registration", "campus_id", participant.Campus.ID, "error", err)
+						// Don't set CampusID if UUID parsing failed
+					} else {
+						cacheParams.CampusID = campusUUID
+
+						// Ensure campus exists in DB: fetch & upsert if missing
+						if err := service.EnsureCampusPresent(ctx, queries, s21Client, token, log, participant.Campus.ID); err != nil {
+							log.Error("failed to ensure campus present in registration", "login", studentLogin, "campus_id", participant.Campus.ID, "error", err)
+						}
+					}
+				}
+
+				// Add parallel and class names
+				if participant.ParallelName != nil {
+					cacheParams.ParallelName = pgtype.Text{String: *participant.ParallelName, Valid: true}
+				}
+				if participant.ClassName != nil {
+					cacheParams.ClassName = pgtype.Text{String: *participant.ClassName, Valid: true}
+				}
+
+				// Fetch and add stats (points, coalition, feedback)
+				points, _ := s21Client.GetParticipantPoints(ctx, token, studentLogin)
+				if points != nil {
+					cacheParams.Prp = points.PeerReviewPoints
+					cacheParams.Crp = points.CodeReviewPoints
+					cacheParams.Coins = points.Coins
+				}
+
+				coalition, _ := s21Client.GetParticipantCoalition(ctx, token, studentLogin)
+				if coalition != nil && coalition.CoalitionID != 0 {
+					cacheParams.CoalitionID = pgtype.Int2{Int16: int16(coalition.CoalitionID), Valid: true}
+					if err := service.EnsureCoalitionPresent(ctx, queries, coalition, log); err != nil {
+						log.Error("failed to ensure coalition present in registration", "login", studentLogin, "coalition_id", coalition.CoalitionID, "error", err)
+					}
+				}
+
+				feedback, _ := s21Client.GetParticipantFeedback(ctx, token, studentLogin)
+				if feedback != nil {
+					cacheParams.Integrity = pgtype.Float4{Float32: float32(feedback.Integrity), Valid: true}
+					cacheParams.Friendliness = pgtype.Float4{Float32: float32(feedback.Friendliness), Valid: true}
+					cacheParams.Punctuality = pgtype.Float4{Float32: float32(feedback.Punctuality), Valid: true}
+					cacheParams.Thoroughness = pgtype.Float4{Float32: float32(feedback.Thoroughness), Valid: true}
+				}
+
+				// Save to database (логируем ошибку вместо её подавления)
+				if err := queries.UpsertParticipantStatsCache(ctx, cacheParams); err != nil {
+					log.Error("failed to upsert participant stats cache in registration", "login", studentLogin, "error", err)
+				}
+
+				// Also fetch participant skills and upsert them, then generate radar chart
+				skillsResp, err := s21Client.GetParticipantSkills(ctx, token, studentLogin)
+				if err == nil && skillsResp != nil {
+					skillMap := make(map[string]int32)
+					for _, s := range skillsResp.Skills {
+						skillMap[s.Name] = s.Points
+						// compute hash same way as statistics.hashSkillName
+						h := fnv.New32a()
+						h.Write([]byte(s.Name))
+						hash := int32(h.Sum32())
+						_, _ = queries.UpsertSkill(ctx, db.UpsertSkillParams{ID: hash, Name: s.Name, Category: pgtype.Text{String: "General", Valid: true}})
+						_ = queries.UpsertParticipantSkill(ctx, db.UpsertParticipantSkillParams{S21Login: studentLogin, SkillID: hash, Value: s.Points})
+					}
+					// Generate radar chart image and store path in cache/context via stats package
+					if chartPath, err := stats.GenerateRadarChartFromData(map[string]map[string]int32{studentLogin: skillMap}, []string{studentLogin}); err == nil {
+						// store radar chart path in participant_stats_cache? For now just log and ignore on failure
+						log.Info("generated radar chart for new user", "login", studentLogin, "path", chartPath)
+					}
+				}
+
+				log.Info("synced profile data from API", "login", studentLogin)
+			}
+		}
+
+		// Load complete profile from database
+		profile, err := userSvc.GetProfileByExternalID(ctx, platform, fmt.Sprintf("%d", ui.ID))
 		if err != nil {
 			log.Error("failed to load user profile", "user_id", ui.ID, "platform", ui.Platform, "error", err)
 			return "", map[string]interface{}{"profile_loaded": false}, nil

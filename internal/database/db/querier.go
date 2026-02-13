@@ -15,38 +15,43 @@ type Querier interface {
 	CreateAuthVerificationCode(ctx context.Context, arg CreateAuthVerificationCodeParams) (AuthVerificationCode, error)
 	CreateUserAccount(ctx context.Context, arg CreateUserAccountParams) (UserAccount, error)
 	DeactivateClubsByCampus(ctx context.Context, campusID pgtype.UUID) error
-	DeleteAllAuthVerificationCodes(ctx context.Context, studentID pgtype.Text) error
+	DeleteAllAuthVerificationCodes(ctx context.Context, s21Login pgtype.Text) error
 	DeleteAuthVerificationCode(ctx context.Context, arg DeleteAuthVerificationCodeParams) error
 	DeleteExpiredAuthVerificationCodes(ctx context.Context) error
+	DeleteUserAccountByExternalId(ctx context.Context, arg DeleteUserAccountByExternalIdParams) error
 	GetActiveApiKey(ctx context.Context, userAccountID int64) (ApiKey, error)
 	GetApiKeyByHash(ctx context.Context, keyHash string) (ApiKey, error)
+	GetCampusByID(ctx context.Context, id pgtype.UUID) (Campuse, error)
 	GetCampusByShortName(ctx context.Context, shortName string) (Campuse, error)
 	GetFSMState(ctx context.Context, userID int64) (FsmUserState, error)
-	GetLastAuthVerificationCode(ctx context.Context, studentID pgtype.Text) (AuthVerificationCode, error)
+	GetLastAuthVerificationCode(ctx context.Context, s21Login pgtype.Text) (AuthVerificationCode, error)
+	// Профиль зарегистрированного пользователя: регистрационные данные + статистика из кеша.
+	GetMyProfile(ctx context.Context, s21Login string) (GetMyProfileRow, error)
+	GetParticipantSkills(ctx context.Context, s21Login string) ([]GetParticipantSkillsRow, error)
+	GetParticipantStatsCache(ctx context.Context, s21Login string) (GetParticipantStatsCacheRow, error)
+	// Профиль пира: из кеша статистики + telegram username если зарегистрирован.
 	GetPeerProfile(ctx context.Context, s21Login string) (GetPeerProfileRow, error)
-	GetPlatformCredentials(ctx context.Context, studentID string) (PlatformCredential, error)
-	GetRocketChatCredentials(ctx context.Context, studentID string) (RocketchatCredential, error)
-	GetStudentByRocketChatId(ctx context.Context, rocketchatID string) (Student, error)
+	GetPlatformCredentials(ctx context.Context, s21Login string) (PlatformCredential, error)
+	GetRegisteredUserByRocketChatId(ctx context.Context, rocketchatID string) (RegisteredUser, error)
 	// queries.sql
-	GetStudentByS21Login(ctx context.Context, s21Login string) (Student, error)
-	GetStudentProfile(ctx context.Context, s21Login string) (GetStudentProfileRow, error)
-	GetStudentSkills(ctx context.Context, studentID string) ([]GetStudentSkillsRow, error)
+	GetRegisteredUserByS21Login(ctx context.Context, s21Login string) (RegisteredUser, error)
+	GetRocketChatCredentials(ctx context.Context, s21Login string) (RocketchatCredential, error)
 	GetUserAccountByExternalId(ctx context.Context, arg GetUserAccountByExternalIdParams) (UserAccount, error)
-	GetUserAccountByStudentId(ctx context.Context, studentID string) (UserAccount, error)
+	GetUserAccountByS21Login(ctx context.Context, s21Login string) (UserAccount, error)
 	GetUserBotSettings(ctx context.Context, userAccountID int64) (UserBotSetting, error)
 	GetValidAuthVerificationCode(ctx context.Context, arg GetValidAuthVerificationCodeParams) (AuthVerificationCode, error)
 	RevokeOldApiKeys(ctx context.Context, userAccountID int64) error
-	UpdateStudentStats(ctx context.Context, arg UpdateStudentStatsParams) error
 	UpsertCampus(ctx context.Context, arg UpsertCampusParams) (Campuse, error)
 	UpsertClub(ctx context.Context, arg UpsertClubParams) (Club, error)
 	UpsertClubCategory(ctx context.Context, name string) (ClubCategory, error)
 	UpsertCoalition(ctx context.Context, arg UpsertCoalitionParams) error
 	UpsertFSMState(ctx context.Context, arg UpsertFSMStateParams) error
+	UpsertParticipantSkill(ctx context.Context, arg UpsertParticipantSkillParams) error
+	UpsertParticipantStatsCache(ctx context.Context, arg UpsertParticipantStatsCacheParams) error
 	UpsertPlatformCredentials(ctx context.Context, arg UpsertPlatformCredentialsParams) error
+	UpsertRegisteredUser(ctx context.Context, arg UpsertRegisteredUserParams) (RegisteredUser, error)
 	UpsertRocketChatCredentials(ctx context.Context, arg UpsertRocketChatCredentialsParams) error
 	UpsertSkill(ctx context.Context, arg UpsertSkillParams) (Skill, error)
-	UpsertStudent(ctx context.Context, arg UpsertStudentParams) (Student, error)
-	UpsertStudentSkill(ctx context.Context, arg UpsertStudentSkillParams) error
 	UpsertUserBotSettings(ctx context.Context, arg UpsertUserBotSettingsParams) (UserBotSetting, error)
 }
 

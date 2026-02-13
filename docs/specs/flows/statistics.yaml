@@ -84,6 +84,7 @@ states:
       action: get_user_stats
       payload:
         user_id: $context.user_id
+        request_type: full_update
     transitions:
       - next_state: STATS_SEARCH_MENU
 
@@ -141,7 +142,7 @@ states:
     type: interactive
     description: "Display user's skills radar chart"
     interface:
-      image: "{radar_chart_path}"
+      image: "$context.radar_chart_path"
       text:
         ru: "📊 *Ваш профиль навыков*\n\nЭтот график показывает владение различными доменами разработки на основе ваших достижений в Школе 21."
         en: "📊 *Your Skills Profile*\n\nThis chart shows your proficiency in various development domains based on your achievements in School 21."
