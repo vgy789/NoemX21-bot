@@ -2,8 +2,8 @@
 meta:
   feature_id: CLB-001
   name: Клубы и группы
-  description: 'Каталог клубов: локальные и глобальные сообщества'
-  version: 2.0.1
+  description: 'Каталог клубов: локальные и глобальные сообщества с drill-down по категориям'
+  version: 2.1.0
 
 initial_state: INIT_CLUBS
 states:
@@ -41,15 +41,15 @@ states:
       buttons:
         - id: local
           label:
-            ru: 📍 Локальные
-            en: 📍 Local
-          next_state: FETCH_LOCAL_CLUBS
+            ru: 📍 Локальные клубы
+            en: 📍 Local clubs
+          next_state: FETCH_LOCAL_CATEGORIES
           row: 1
         - id: global
           label:
-            ru: 🌍 Глобальные
-            en: 🌍 Global
-          next_state: FETCH_GLOBAL_CLUBS
+            ru: 🌍 Глобальные сообщества
+            en: 🌍 Global communities
+          next_state: FETCH_GLOBAL_CATEGORIES
           row: 1
         - id: create_club
           label:
@@ -63,46 +63,228 @@ states:
             en: 🏠 Main menu
           next_state: MAIN_MENU
 
-  FETCH_LOCAL_CLUBS:
+  FETCH_LOCAL_CATEGORIES:
     type: system
-    description: Загрузка списка локальных клубов из БД
+    description: Загрузка категорий локальных клубов
     logic:
-      action: get_clubs
+      action: get_categories
       payload:
         campus_id: $context.campus_id
         is_local: true
     transitions:
-      - next_state: DISPLAY_CLUBS
+      - next_state: SELECT_CATEGORY
 
-  FETCH_GLOBAL_CLUBS:
+  FETCH_GLOBAL_CATEGORIES:
     type: system
-    description: Загрузка списка глобальных сообществ из БД
+    description: Загрузка категорий глобальных сообществ
     logic:
-      action: get_clubs
+      action: get_categories
       payload:
         is_local: false
     transitions:
-      - next_state: DISPLAY_CLUBS
+      - next_state: SELECT_CATEGORY
 
-  DISPLAY_CLUBS:
+  SELECT_CATEGORY:
     type: interactive
-    description: Отображение списка клубов
+    description: Выбор категории клубов
     interface:
       text:
         ru: |
-          👥 *Каталог клубов*
-
-          {clubs_list}
+          🗂️ *Выбери категорию:*
         en: |
-          👥 *Club Catalog*
-
-          {clubs_list}
+          🗂️ *Choose category:*
       buttons:
+        # Максимум 15 категорий, реальные значения подставляются из контекста
+        - id: "{category_1}"
+          label: "{category_1}"
+          next_state: FETCH_CLUBS_BY_CATEGORY
+        - id: "{category_2}"
+          label: "{category_2}"
+          next_state: FETCH_CLUBS_BY_CATEGORY
+        - id: "{category_3}"
+          label: "{category_3}"
+          next_state: FETCH_CLUBS_BY_CATEGORY
+        - id: "{category_4}"
+          label: "{category_4}"
+          next_state: FETCH_CLUBS_BY_CATEGORY
+        - id: "{category_5}"
+          label: "{category_5}"
+          next_state: FETCH_CLUBS_BY_CATEGORY
+        - id: "{category_6}"
+          label: "{category_6}"
+          next_state: FETCH_CLUBS_BY_CATEGORY
+        - id: "{category_7}"
+          label: "{category_7}"
+          next_state: FETCH_CLUBS_BY_CATEGORY
+        - id: "{category_8}"
+          label: "{category_8}"
+          next_state: FETCH_CLUBS_BY_CATEGORY
+        - id: "{category_9}"
+          label: "{category_9}"
+          next_state: FETCH_CLUBS_BY_CATEGORY
+        - id: "{category_10}"
+          label: "{category_10}"
+          next_state: FETCH_CLUBS_BY_CATEGORY
+        - id: "{category_11}"
+          label: "{category_11}"
+          next_state: FETCH_CLUBS_BY_CATEGORY
+        - id: "{category_12}"
+          label: "{category_12}"
+          next_state: FETCH_CLUBS_BY_CATEGORY
+        - id: "{category_13}"
+          label: "{category_13}"
+          next_state: FETCH_CLUBS_BY_CATEGORY
+        - id: "{category_14}"
+          label: "{category_14}"
+          next_state: FETCH_CLUBS_BY_CATEGORY
+        - id: "{category_15}"
+          label: "{category_15}"
+          next_state: FETCH_CLUBS_BY_CATEGORY
         - id: back
           label:
-            ru: 🔙 В меню клубов
-            en: 🔙 To Clubs menu
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: INIT_CLUBS
+
+  FETCH_CLUBS_BY_CATEGORY:
+    type: system
+    description: Загрузка клубов, отфильтрованных по выбранной категории
+    logic:
+      action: get_clubs_by_category
+      payload:
+        category_name: $context.last_input
+        campus_id: $context.campus_id
+        is_local: $context.is_local
+    transitions:
+      - next_state: CLUBS_LIST
+
+  CLUBS_LIST:
+    type: interactive
+    description: Отображение списка клубов в категории
+    interface:
+      text:
+        ru: |
+          *{category_name}*
+
+          Выбери клуб для подробной информации:
+        en: |
+          *{category_name}*
+
+          Choose a club for more details:
+      buttons:
+        # Максимум 20 клубов, реальные значения подставляются из контекста
+        - id: "{club_id_1}"
+          label: "{club_name_1}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_2}"
+          label: "{club_name_2}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_3}"
+          label: "{club_name_3}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_4}"
+          label: "{club_name_4}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_5}"
+          label: "{club_name_5}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_6}"
+          label: "{club_name_6}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_7}"
+          label: "{club_name_7}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_8}"
+          label: "{club_name_8}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_9}"
+          label: "{club_name_9}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_10}"
+          label: "{club_name_10}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_11}"
+          label: "{club_name_11}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_12}"
+          label: "{club_name_12}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_13}"
+          label: "{club_name_13}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_14}"
+          label: "{club_name_14}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_15}"
+          label: "{club_name_15}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_16}"
+          label: "{club_name_16}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_17}"
+          label: "{club_name_17}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_18}"
+          label: "{club_name_18}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_19}"
+          label: "{club_name_19}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_20}"
+          label: "{club_name_20}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_21}"
+          label: "{club_name_21}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_22}"
+          label: "{club_name_22}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_23}"
+          label: "{club_name_23}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_24}"
+          label: "{club_name_24}"
+          next_state: GET_CLUB_DETAIL
+        - id: "{club_id_25}"
+          label: "{club_name_25}"
+          next_state: GET_CLUB_DETAIL
+        - id: back
+          label:
+            ru: 🔙 К категориям
+            en: 🔙 To categories
+          next_state: SELECT_CATEGORY
+
+  GET_CLUB_DETAIL:
+    type: system
+    description: Загрузка карточки выбранного клуба
+    logic:
+      action: get_club_card
+      payload:
+        club_id: $context.last_input
+        campus_id: $context.campus_id
+    transitions:
+      - next_state: CLUB_DETAIL
+
+  CLUB_DETAIL:
+    type: interactive
+    description: Отображение детальной информации о клубе
+    interface:
+      text:
+        ru: |
+          {club_card}
+        en: |
+          {club_card}
+      buttons:
+        - id: join_club
+          label:
+            ru: 🔗 Вступить в канал
+            en: 🔗 Join channel
+          url: "{club_link}"
+        - id: back_to_list
+          label:
+            ru: 🔙 К списку клубов
+            en: 🔙 Back to clubs
+          next_state: CLUBS_LIST
 
   CREATE_CLUB_INFO:
     type: interactive
@@ -130,6 +312,6 @@ states:
       buttons:
         - id: back
           label:
-            ru: 🔙 В меню клубов
+            ru: 🔙 К меню клубов
             en: 🔙 To Clubs menu
           next_state: INIT_CLUBS
