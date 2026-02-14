@@ -57,6 +57,7 @@ func Register(
 	repo fsm.StateRepository,
 	aliasRegistrar func(alias, target string),
 ) {
+	SetChartTempDir(cfg.Charts.TempDir)
 	if aliasRegistrar != nil {
 		aliasRegistrar("STATS_MENU", "statistics.yaml/AUTO_SYNC_STATS")
 	}
