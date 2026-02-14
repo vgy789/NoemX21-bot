@@ -9,6 +9,13 @@ import (
 	"strings"
 )
 
+// preformattedContextKeys are context variable names whose value is already
+// safe Markdown (built with intentional */_ and user content escaped). They
+// must not be sanitized on substitution so that *Лидер:* etc. render as bold.
+var preformattedContextKeys = map[string]bool{
+	"club_card": true,
+}
+
 // Engine handles the core FSM logic.
 type Engine struct {
 	parser    *FlowParser
@@ -64,6 +71,7 @@ type RenderObject struct {
 type ButtonRender struct {
 	Text string
 	Data string
+	URL  string // If set, this is a URL button instead of callback button
 }
 
 // Registry returns the physics engine's logic registry.
@@ -130,7 +138,9 @@ func (e *Engine) GetCurrentRender(ctx context.Context, userID int64) (*RenderObj
 
 // Process handles an input (callback) and transitions the state.
 func (e *Engine) Process(ctx context.Context, userID int64, input string) (*RenderObject, error) {
-	input = strings.ToLower(strings.TrimSpace(input))
+	// Сохраняем оригинальный регистр входа (важно для динамических callback-данных,
+	// таких как названия категорий), убираем только пробелы по краям.
+	input = strings.TrimSpace(input)
 	state, err := e.repo.GetState(ctx, userID)
 	if err != nil {
 		return nil, err
@@ -173,7 +183,15 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 	}
 
 	// 2. Find transition based on input (button ID)
-	nextStateRaw := e.findNextState(currentStateSpec, input)
+	nextStateRaw := e.findNextState(currentStateSpec, input, state)
+
+	// If a button was pressed (we found a next state), record it as last_input
+	if nextStateRaw != "" {
+		if state.Context == nil {
+			state.Context = make(map[string]any)
+		}
+		state.Context["last_input"] = input
+	}
 
 	// If it's an input state and no button was pressed, validate the raw input
 	if currentStateSpec.Type == StateTypeInput && nextStateRaw == "" {
@@ -232,10 +250,19 @@ func (e *Engine) handleSpecialInputs(state *UserState, input string, userID int6
 	}
 }
 
-func (e *Engine) findNextState(stateSpec State, input string) string {
+func (e *Engine) findNextState(stateSpec State, input string, userState *UserState) string {
 	for _, btn := range stateSpec.Interface.Buttons {
+		// Direct match against static ID
 		if btn.ID == input {
 			return btn.NextState
+		}
+		// Try matching after replacing variables in the ID (allows IDs like "{category_1}")
+		// This handles dynamic button IDs that contain template variables
+		if userState != nil {
+			replacedID := e.replaceVariables(btn.ID, userState)
+			if replacedID == input {
+				return btn.NextState
+			}
 		}
 	}
 	return ""
@@ -467,24 +494,37 @@ func (e *Engine) renderState(ctx context.Context, userState *UserState, flowStat
 		}
 	}
 
-	// Apply dynamic replacements
-	text = e.replaceVariables(text, userState)
+	// Apply dynamic replacements with sanitizer so values from context/DB (e.g. campus "24_04_NSK")
+	// are escaped for Telegram Markdown and not interpreted as italic/bold.
+	text = e.replaceVariablesOpts(text, userState, true)
 
 	// Buttons
 	var buttons [][]ButtonRender
-	rowMap := make(map[int]int) // RowID -> Index in buttons slice
+	rowMap := make(map[int]int) // RowID -> Index in buttons slice (для явных row)
+
+	// Для авто-группировки: до 2 коротких кнопок (label <= 10 символов) в строке
+	shortRowIndex := -1
+	shortCount := 0
 
 	for _, btn := range flowState.Interface.Buttons {
-		label := e.getButtonLabel(btn, userState)
-
-		// Apply replacements to labels too
-		label = e.replaceVariables(label, userState)
-
-		item := ButtonRender{
-			Text: label,
-			Data: btn.ID,
+		// Подстановки без санитайзера, чтобы не экранировать "_" и "*" в названиях
+		label := e.replaceVariablesOpts(e.getButtonLabel(btn, userState), userState, false)
+		url := ""
+		if btn.URL != "" {
+			url = e.replaceVariablesOpts(btn.URL, userState, false)
 		}
 
+		// Apply replacements to button IDs too (allows dynamic callback data like {category_1})
+		buttonID := e.replaceVariablesOpts(btn.ID, userState, false)
+
+		// Пропускаем "пустые" динамические кнопки (когда в контексте нет значения)
+		if strings.TrimSpace(label) == "" && strings.TrimSpace(buttonID) == "" && url == "" {
+			continue
+		}
+
+		item := ButtonRender{Text: label, Data: buttonID, URL: url}
+
+		// Явно заданный row в YAML — уважаем как раньше
 		if btn.Row > 0 {
 			if idx, ok := rowMap[btn.Row]; ok {
 				buttons[idx] = append(buttons[idx], item)
@@ -492,9 +532,26 @@ func (e *Engine) renderState(ctx context.Context, userState *UserState, flowStat
 			}
 			rowMap[btn.Row] = len(buttons)
 			buttons = append(buttons, []ButtonRender{item})
-		} else {
-			buttons = append(buttons, []ButtonRender{item})
+			continue
 		}
+
+		// Авто-группировка: если текст короткий (<=12 символов), кладём по 2 кнопки в строку
+		if runeLen := len([]rune(label)); runeLen <= 12 {
+			if shortRowIndex == -1 || shortCount == 2 {
+				// начинаем новую строку для коротких кнопок
+				buttons = append(buttons, []ButtonRender{item})
+				shortRowIndex = len(buttons) - 1
+				shortCount = 1
+			} else {
+				// дополняем существующую строку второй кнопкой
+				buttons[shortRowIndex] = append(buttons[shortRowIndex], item)
+				shortCount = 2
+			}
+			continue
+		}
+
+		// Длинные кнопки — по одной в строке
+		buttons = append(buttons, []ButtonRender{item})
 	}
 
 	// Image
@@ -549,14 +606,16 @@ func (e *Engine) replaceVariablesOpts(text string, state *UserState, sanitize bo
 
 	// Apply all replacements
 	result := text
-	e.log.Debug("applying template replacements", "original_text_len", len(text))
+	// e.log.Debug("applying template replacements", "original_text_len", len(text))
 
 	for key, val := range replacements {
 		if strings.Contains(result, key) {
 			e.log.Info("replacing template variable", "key", key, "val", val)
 
 			var finalVal string
-			if sanitize && e.sanitizer != nil {
+			varName := e.replacementKeyToVarName(key)
+			skipSanitize := preformattedContextKeys[varName]
+			if sanitize && e.sanitizer != nil && !skipSanitize {
 				finalVal = e.sanitizer(val)
 			} else {
 				finalVal = val
@@ -585,4 +644,16 @@ func (e *Engine) getReplacementMap(state *UserState) map[string]string {
 		replacements[fmt.Sprintf("$updates.%s", k)] = val
 	}
 	return replacements
+}
+
+// replacementKeyToVarName extracts the context variable name from a replacement key
+// (e.g. "{club_card}" or "$context.club_card" -> "club_card").
+func (e *Engine) replacementKeyToVarName(key string) string {
+	if strings.HasPrefix(key, "{") {
+		return strings.Trim(key, "{}")
+	}
+	if idx := strings.LastIndex(key, "."); idx >= 0 {
+		return key[idx+1:]
+	}
+	return key
 }
