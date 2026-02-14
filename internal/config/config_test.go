@@ -8,38 +8,14 @@ import (
 )
 
 func TestMustLoad(t *testing.T) {
-	// Create temp files for secrets
-	tokenFile := "test_token.txt"
-	dbFile := "test_db.txt"
-	rcUrlFile := "test_rc_url.txt"
-	rcUserFile := "test_rc_user.txt"
-	rcTokenFile := "test_rc_token.txt"
-
-	_ = os.WriteFile(tokenFile, []byte("test-token"), 0644)
-	_ = os.WriteFile(dbFile, []byte("postgres://user:pass@localhost:5432/db"), 0644)
-	_ = os.WriteFile(rcUrlFile, []byte("http://localhost:3000"), 0644)
-	_ = os.WriteFile(rcUserFile, []byte("user"), 0644)
-	_ = os.WriteFile(rcTokenFile, []byte("token"), 0644)
-
-	defer func() { _ = os.Remove(tokenFile) }()
-	defer func() { _ = os.Remove(dbFile) }()
-	defer func() { _ = os.Remove(rcUrlFile) }()
-	defer func() { _ = os.Remove(rcUserFile) }()
-	defer func() { _ = os.Remove(rcTokenFile) }()
-
-	// Set required env vars to point to these files
-	t.Setenv("TELEGRAM_BOT_TOKEN", tokenFile)
-	t.Setenv("DATABASE_URL", dbFile)
+	// Set required env vars (values are read from env, not from files)
+	t.Setenv("TELEGRAM_BOT_TOKEN", "test-token")
+	t.Setenv("DATABASE_URL", "postgres://user:pass@localhost:5432/db")
 	t.Setenv("PRODUCTION", "true")
 	t.Setenv("LOG_LEVEL", "info")
-
-	// Set RocketChat vars (note: they don't have ,file tag in current config.go)
 	t.Setenv("ROCKETCHAT_API_URL", "http://localhost:3000")
 	t.Setenv("ROCKETCHAT_USER_ID", "user")
 	t.Setenv("ROCKETCHAT_AUTH_TOKEN", "token")
-
-	// Create a dummy .env file to satisfy godotenv.Load if necessary,
-	// though MustLoad ignores its error.
 
 	cfg := MustLoad()
 

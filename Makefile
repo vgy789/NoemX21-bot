@@ -19,6 +19,11 @@ SQLC     	:= $(LOCAL_BIN)/sqlc
 MIGRATE  	:= $(LOCAL_BIN)/migrate
 MOCKGEN  	:= $(LOCAL_BIN)/mockgen
 
+ifneq (,$(wildcard env/.env))
+    include env/.env
+	export $(shell sed 's/=.*//' env/.env)
+endif
+
 DATABASE_URL	?= $(shell cat env/database_url 2>/dev/null)
 MIGRATIONS_DIR	:= internal/database/migrations
 

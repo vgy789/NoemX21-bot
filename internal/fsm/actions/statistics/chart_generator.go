@@ -32,15 +32,24 @@ const (
 	activeSkillThreshold  = 5.0    // Порог в процентах для отображения навыка в сравнении (>= 5%)
 	indicatorMaxValue     = 100.0  // Максимальное значение для индикаторов (шкала 0-100)
 
-	// File system
-	chartTempDir      = "tmp"                                    // Директория для временных файлов графиков
-	chartDirPerms     = 0755                                     // Права доступа для создания директории
+	// File system (chartTempDir set from config in Register)
+	chartDirPerms     = 0755
 	chartFilePerms    = 0644                                     // Права доступа для записи файла графика
 	chartFilenameFmt  = "skills_radar_%s.png"                    // Формат имени файла графика
 	chartTimeFormat   = "2006-01-02_15-04-05.000"                // Формат временной метки в имени файла
 	chartTitleCompare = "Skills Comparison\n(logarithmic scale)" // Заголовок графика сравнения
 	chartTitleProfile = "Skills Profile: %s"                     // Шаблон заголовка профиля навыков
 )
+
+// chartTempDir is the directory for temporary chart files; set from config (CHART_TEMP_DIR) in Register.
+var chartTempDir = "tmp"
+
+// SetChartTempDir sets the chart temp directory from config. Called by Register.
+func SetChartTempDir(dir string) {
+	if dir != "" {
+		chartTempDir = dir
+	}
+}
 
 type skillDomain struct {
 	Name   string
