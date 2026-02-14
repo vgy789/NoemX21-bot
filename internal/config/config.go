@@ -13,7 +13,7 @@ const (
 
 // TelegramBot is a configuration for the telegram bot.
 type TelegramBot struct {
-	Token   Secret `env:"TELEGRAM_BOT_TOKEN,file,notEmpty"`
+	Token   Secret `env:"TELEGRAM_BOT_TOKEN,notEmpty"`
 	Polling struct {
 		// 8-byte aligned fields first
 		RequestTimeout time.Duration `env:"REQUEST_TIMEOUT" envDefault:"10s"`
@@ -28,7 +28,7 @@ type TelegramBot struct {
 // Config is a configuration for the application.
 type Config struct {
 	LogLevel   string `env:"LOG_LEVEL" envDefault:"debug"`
-	DBURL      Secret `env:"DATABASE_URL,file,notEmpty"`
+	DBURL      Secret `env:"DATABASE_URL,notEmpty"`
 	Telegram   TelegramBot
 	GitSync    GitSync
 	RocketChat struct {
@@ -45,15 +45,18 @@ type Config struct {
 	APIServer struct {
 		Port int `env:"API_SERVER_PORT" envDefault:"8081"`
 	}
+	Charts struct {
+		TempDir string `env:"CHART_TEMP_DIR" envDefault:"tmp"`
+	}
 	Production bool `env:"PRODUCTION" envDefault:"false"`
 }
 
 type GitSync struct {
-	RepoURL   string `env:"GIT_REPO_URL"`
-	Branch    string `env:"GIT_BRANCH" envDefault:"main"`
-	Interval  string `env:"GIT_SYNC_INTERVAL" envDefault:"5m"`
-	LocalPath string `env:"GIT_LOCAL_PATH" envDefault:"data"`
-	AuthToken Secret `env:"GIT_AUTH_TOKEN"`
+	RepoURL      string `env:"GIT_REPO_URL"`
+	Branch       string `env:"GIT_BRANCH" envDefault:"main"`
+	Interval     string `env:"GIT_SYNC_INTERVAL" envDefault:"5m"`
+	LocalPath    string `env:"GIT_LOCAL_PATH" envDefault:"data"`
+	SSHKeyBase64 Secret `env:"SSH_KEY_BASE64"`
 }
 
 // MustLoad reads config from .env file OR environment variables.
