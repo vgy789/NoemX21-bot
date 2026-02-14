@@ -225,10 +225,19 @@ func buildMarkup(rows [][]fsm.ButtonRender) gotgbot.InlineKeyboardMarkup {
 	for _, row := range rows {
 		var inlineRow []gotgbot.InlineKeyboardButton
 		for _, btn := range row {
-			inlineRow = append(inlineRow, gotgbot.InlineKeyboardButton{
-				Text:         btn.Text,
-				CallbackData: btn.Data,
-			})
+			if btn.URL != "" {
+				// URL button
+				inlineRow = append(inlineRow, gotgbot.InlineKeyboardButton{
+					Text: btn.Text,
+					Url:  btn.URL,
+				})
+			} else {
+				// Callback button
+				inlineRow = append(inlineRow, gotgbot.InlineKeyboardButton{
+					Text:         btn.Text,
+					CallbackData: btn.Data,
+				})
+			}
 		}
 		inlineRows = append(inlineRows, inlineRow)
 	}
