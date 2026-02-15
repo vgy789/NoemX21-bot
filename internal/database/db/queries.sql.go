@@ -46,6 +46,42 @@ func (q *Queries) CountBooksByCampus(ctx context.Context, campusID pgtype.UUID) 
 	return i, err
 }
 
+const countBooksByCategory = `-- name: CountBooksByCategory :one
+SELECT count(*)::int
+FROM books
+WHERE campus_id = $1 AND is_active = true AND category = $2
+`
+
+type CountBooksByCategoryParams struct {
+	CampusID pgtype.UUID `json:"campus_id"`
+	Category string      `json:"category"`
+}
+
+func (q *Queries) CountBooksByCategory(ctx context.Context, arg CountBooksByCategoryParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countBooksByCategory, arg.CampusID, arg.Category)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countSearchBooks = `-- name: CountSearchBooks :one
+SELECT count(*)::int
+FROM books
+WHERE campus_id = $1 AND is_active = true AND (title ILIKE '%' || $2 || '%' OR author ILIKE '%' || $2 || '%')
+`
+
+type CountSearchBooksParams struct {
+	CampusID pgtype.UUID `json:"campus_id"`
+	Column2  pgtype.Text `json:"column_2"`
+}
+
+func (q *Queries) CountSearchBooks(ctx context.Context, arg CountSearchBooksParams) (int32, error) {
+	row := q.db.QueryRow(ctx, countSearchBooks, arg.CampusID, arg.Column2)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createApiKey = `-- name: CreateApiKey :one
 INSERT INTO api_keys (
     user_account_id, key_hash, prefix, expires_at
@@ -494,9 +530,11 @@ func (q *Queries) GetBookCategories(ctx context.Context, campusID pgtype.UUID) (
 }
 
 const getBooksByCampus = `-- name: GetBooksByCampus :many
-SELECT id, campus_id, title, author, category, total_stock, description, is_active, created_at, updated_at FROM books
-WHERE campus_id = $1 AND is_active = true
-ORDER BY title
+SELECT b.id, b.campus_id, b.title, b.author, b.category, b.total_stock, b.description, b.is_active, b.created_at, b.updated_at,
+       (b.total_stock - (SELECT count(*) FROM book_loans bl WHERE bl.campus_id = b.campus_id AND bl.book_id = b.id AND bl.returned_at IS NULL))::int as available_stock
+FROM books b
+WHERE b.campus_id = $1 AND b.is_active = true
+ORDER BY b.title
 LIMIT $2 OFFSET $3
 `
 
@@ -506,15 +544,29 @@ type GetBooksByCampusParams struct {
 	Offset   int32       `json:"offset"`
 }
 
-func (q *Queries) GetBooksByCampus(ctx context.Context, arg GetBooksByCampusParams) ([]Book, error) {
+type GetBooksByCampusRow struct {
+	ID             int16              `json:"id"`
+	CampusID       pgtype.UUID        `json:"campus_id"`
+	Title          string             `json:"title"`
+	Author         string             `json:"author"`
+	Category       string             `json:"category"`
+	TotalStock     int32              `json:"total_stock"`
+	Description    pgtype.Text        `json:"description"`
+	IsActive       pgtype.Bool        `json:"is_active"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	AvailableStock int32              `json:"available_stock"`
+}
+
+func (q *Queries) GetBooksByCampus(ctx context.Context, arg GetBooksByCampusParams) ([]GetBooksByCampusRow, error) {
 	rows, err := q.db.Query(ctx, getBooksByCampus, arg.CampusID, arg.Limit, arg.Offset)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Book
+	var items []GetBooksByCampusRow
 	for rows.Next() {
-		var i Book
+		var i GetBooksByCampusRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CampusID,
@@ -526,6 +578,7 @@ func (q *Queries) GetBooksByCampus(ctx context.Context, arg GetBooksByCampusPara
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.AvailableStock,
 		); err != nil {
 			return nil, err
 		}
@@ -538,9 +591,11 @@ func (q *Queries) GetBooksByCampus(ctx context.Context, arg GetBooksByCampusPara
 }
 
 const getBooksByCampusAndAuthor = `-- name: GetBooksByCampusAndAuthor :many
-SELECT id, campus_id, title, author, category, total_stock, description, is_active, created_at, updated_at FROM books
-WHERE campus_id = $1 AND is_active = true AND author = $2
-ORDER BY title
+SELECT b.id, b.campus_id, b.title, b.author, b.category, b.total_stock, b.description, b.is_active, b.created_at, b.updated_at,
+       (b.total_stock - (SELECT count(*) FROM book_loans bl WHERE bl.campus_id = b.campus_id AND bl.book_id = b.id AND bl.returned_at IS NULL))::int as available_stock
+FROM books b
+WHERE b.campus_id = $1 AND b.is_active = true AND b.author = $2
+ORDER BY b.title
 LIMIT $3 OFFSET $4
 `
 
@@ -551,7 +606,21 @@ type GetBooksByCampusAndAuthorParams struct {
 	Offset   int32       `json:"offset"`
 }
 
-func (q *Queries) GetBooksByCampusAndAuthor(ctx context.Context, arg GetBooksByCampusAndAuthorParams) ([]Book, error) {
+type GetBooksByCampusAndAuthorRow struct {
+	ID             int16              `json:"id"`
+	CampusID       pgtype.UUID        `json:"campus_id"`
+	Title          string             `json:"title"`
+	Author         string             `json:"author"`
+	Category       string             `json:"category"`
+	TotalStock     int32              `json:"total_stock"`
+	Description    pgtype.Text        `json:"description"`
+	IsActive       pgtype.Bool        `json:"is_active"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	AvailableStock int32              `json:"available_stock"`
+}
+
+func (q *Queries) GetBooksByCampusAndAuthor(ctx context.Context, arg GetBooksByCampusAndAuthorParams) ([]GetBooksByCampusAndAuthorRow, error) {
 	rows, err := q.db.Query(ctx, getBooksByCampusAndAuthor,
 		arg.CampusID,
 		arg.Author,
@@ -562,9 +631,9 @@ func (q *Queries) GetBooksByCampusAndAuthor(ctx context.Context, arg GetBooksByC
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Book
+	var items []GetBooksByCampusAndAuthorRow
 	for rows.Next() {
-		var i Book
+		var i GetBooksByCampusAndAuthorRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CampusID,
@@ -576,6 +645,7 @@ func (q *Queries) GetBooksByCampusAndAuthor(ctx context.Context, arg GetBooksByC
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.AvailableStock,
 		); err != nil {
 			return nil, err
 		}
@@ -588,9 +658,11 @@ func (q *Queries) GetBooksByCampusAndAuthor(ctx context.Context, arg GetBooksByC
 }
 
 const getBooksByCampusAndCategory = `-- name: GetBooksByCampusAndCategory :many
-SELECT id, campus_id, title, author, category, total_stock, description, is_active, created_at, updated_at FROM books
-WHERE campus_id = $1 AND is_active = true AND category = $2
-ORDER BY title
+SELECT b.id, b.campus_id, b.title, b.author, b.category, b.total_stock, b.description, b.is_active, b.created_at, b.updated_at,
+       (b.total_stock - (SELECT count(*) FROM book_loans bl WHERE bl.campus_id = b.campus_id AND bl.book_id = b.id AND bl.returned_at IS NULL))::int as available_stock
+FROM books b
+WHERE b.campus_id = $1 AND b.is_active = true AND b.category = $2
+ORDER BY b.title
 LIMIT $3 OFFSET $4
 `
 
@@ -601,7 +673,21 @@ type GetBooksByCampusAndCategoryParams struct {
 	Offset   int32       `json:"offset"`
 }
 
-func (q *Queries) GetBooksByCampusAndCategory(ctx context.Context, arg GetBooksByCampusAndCategoryParams) ([]Book, error) {
+type GetBooksByCampusAndCategoryRow struct {
+	ID             int16              `json:"id"`
+	CampusID       pgtype.UUID        `json:"campus_id"`
+	Title          string             `json:"title"`
+	Author         string             `json:"author"`
+	Category       string             `json:"category"`
+	TotalStock     int32              `json:"total_stock"`
+	Description    pgtype.Text        `json:"description"`
+	IsActive       pgtype.Bool        `json:"is_active"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	AvailableStock int32              `json:"available_stock"`
+}
+
+func (q *Queries) GetBooksByCampusAndCategory(ctx context.Context, arg GetBooksByCampusAndCategoryParams) ([]GetBooksByCampusAndCategoryRow, error) {
 	rows, err := q.db.Query(ctx, getBooksByCampusAndCategory,
 		arg.CampusID,
 		arg.Category,
@@ -612,9 +698,9 @@ func (q *Queries) GetBooksByCampusAndCategory(ctx context.Context, arg GetBooksB
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Book
+	var items []GetBooksByCampusAndCategoryRow
 	for rows.Next() {
-		var i Book
+		var i GetBooksByCampusAndCategoryRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CampusID,
@@ -626,6 +712,7 @@ func (q *Queries) GetBooksByCampusAndCategory(ctx context.Context, arg GetBooksB
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.AvailableStock,
 		); err != nil {
 			return nil, err
 		}
@@ -1507,9 +1594,11 @@ func (q *Queries) RevokeOldApiKeys(ctx context.Context, userAccountID int64) err
 }
 
 const searchBooks = `-- name: SearchBooks :many
-SELECT id, campus_id, title, author, category, total_stock, description, is_active, created_at, updated_at FROM books
-WHERE campus_id = $1 AND is_active = true AND (title ILIKE '%' || $2 || '%' OR author ILIKE '%' || $2 || '%')
-ORDER BY title
+SELECT b.id, b.campus_id, b.title, b.author, b.category, b.total_stock, b.description, b.is_active, b.created_at, b.updated_at,
+       (b.total_stock - (SELECT count(*) FROM book_loans bl WHERE bl.campus_id = b.campus_id AND bl.book_id = b.id AND bl.returned_at IS NULL))::int as available_stock
+FROM books b
+WHERE b.campus_id = $1 AND b.is_active = true AND (b.title ILIKE '%' || $2 || '%' OR b.author ILIKE '%' || $2 || '%')
+ORDER BY b.title
 LIMIT $3 OFFSET $4
 `
 
@@ -1520,7 +1609,21 @@ type SearchBooksParams struct {
 	Offset   int32       `json:"offset"`
 }
 
-func (q *Queries) SearchBooks(ctx context.Context, arg SearchBooksParams) ([]Book, error) {
+type SearchBooksRow struct {
+	ID             int16              `json:"id"`
+	CampusID       pgtype.UUID        `json:"campus_id"`
+	Title          string             `json:"title"`
+	Author         string             `json:"author"`
+	Category       string             `json:"category"`
+	TotalStock     int32              `json:"total_stock"`
+	Description    pgtype.Text        `json:"description"`
+	IsActive       pgtype.Bool        `json:"is_active"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	AvailableStock int32              `json:"available_stock"`
+}
+
+func (q *Queries) SearchBooks(ctx context.Context, arg SearchBooksParams) ([]SearchBooksRow, error) {
 	rows, err := q.db.Query(ctx, searchBooks,
 		arg.CampusID,
 		arg.Column2,
@@ -1531,9 +1634,9 @@ func (q *Queries) SearchBooks(ctx context.Context, arg SearchBooksParams) ([]Boo
 		return nil, err
 	}
 	defer rows.Close()
-	var items []Book
+	var items []SearchBooksRow
 	for rows.Next() {
-		var i Book
+		var i SearchBooksRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CampusID,
@@ -1545,6 +1648,7 @@ func (q *Queries) SearchBooks(ctx context.Context, arg SearchBooksParams) ([]Boo
 			&i.IsActive,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.AvailableStock,
 		); err != nil {
 			return nil, err
 		}

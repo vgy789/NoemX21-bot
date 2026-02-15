@@ -13,6 +13,8 @@ import (
 type Querier interface {
 	CancelRoomBooking(ctx context.Context, arg CancelRoomBookingParams) error
 	CountBooksByCampus(ctx context.Context, campusID pgtype.UUID) (CountBooksByCampusRow, error)
+	CountBooksByCategory(ctx context.Context, arg CountBooksByCategoryParams) (int32, error)
+	CountSearchBooks(ctx context.Context, arg CountSearchBooksParams) (int32, error)
 	CreateApiKey(ctx context.Context, arg CreateApiKeyParams) (ApiKey, error)
 	CreateAuthVerificationCode(ctx context.Context, arg CreateAuthVerificationCodeParams) (AuthVerificationCode, error)
 	CreateBookLoan(ctx context.Context, arg CreateBookLoanParams) (BookLoan, error)
@@ -31,9 +33,9 @@ type Querier interface {
 	GetBookAuthors(ctx context.Context, campusID pgtype.UUID) ([]string, error)
 	GetBookByID(ctx context.Context, arg GetBookByIDParams) (GetBookByIDRow, error)
 	GetBookCategories(ctx context.Context, campusID pgtype.UUID) ([]string, error)
-	GetBooksByCampus(ctx context.Context, arg GetBooksByCampusParams) ([]Book, error)
-	GetBooksByCampusAndAuthor(ctx context.Context, arg GetBooksByCampusAndAuthorParams) ([]Book, error)
-	GetBooksByCampusAndCategory(ctx context.Context, arg GetBooksByCampusAndCategoryParams) ([]Book, error)
+	GetBooksByCampus(ctx context.Context, arg GetBooksByCampusParams) ([]GetBooksByCampusRow, error)
+	GetBooksByCampusAndAuthor(ctx context.Context, arg GetBooksByCampusAndAuthorParams) ([]GetBooksByCampusAndAuthorRow, error)
+	GetBooksByCampusAndCategory(ctx context.Context, arg GetBooksByCampusAndCategoryParams) ([]GetBooksByCampusAndCategoryRow, error)
 	GetCampusByID(ctx context.Context, id pgtype.UUID) (GetCampusByIDRow, error)
 	GetCampusByShortName(ctx context.Context, shortName string) (Campuse, error)
 	GetFSMState(ctx context.Context, userID int64) (FsmUserState, error)
@@ -64,7 +66,7 @@ type Querier interface {
 	HasActiveRooms(ctx context.Context, campusID pgtype.UUID) (bool, error)
 	ReturnBookLoan(ctx context.Context, arg ReturnBookLoanParams) error
 	RevokeOldApiKeys(ctx context.Context, userAccountID int64) error
-	SearchBooks(ctx context.Context, arg SearchBooksParams) ([]Book, error)
+	SearchBooks(ctx context.Context, arg SearchBooksParams) ([]SearchBooksRow, error)
 	UpsertBook(ctx context.Context, arg UpsertBookParams) (Book, error)
 	UpsertCampus(ctx context.Context, arg UpsertCampusParams) (Campuse, error)
 	UpsertClub(ctx context.Context, arg UpsertClubParams) (Club, error)

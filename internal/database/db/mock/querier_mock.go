@@ -71,6 +71,36 @@ func (mr *MockQuerierMockRecorder) CountBooksByCampus(ctx, campusID any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountBooksByCampus", reflect.TypeOf((*MockQuerier)(nil).CountBooksByCampus), ctx, campusID)
 }
 
+// CountBooksByCategory mocks base method.
+func (m *MockQuerier) CountBooksByCategory(ctx context.Context, arg db.CountBooksByCategoryParams) (int32, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountBooksByCategory", ctx, arg)
+	ret0, _ := ret[0].(int32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountBooksByCategory indicates an expected call of CountBooksByCategory.
+func (mr *MockQuerierMockRecorder) CountBooksByCategory(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountBooksByCategory", reflect.TypeOf((*MockQuerier)(nil).CountBooksByCategory), ctx, arg)
+}
+
+// CountSearchBooks mocks base method.
+func (m *MockQuerier) CountSearchBooks(ctx context.Context, arg db.CountSearchBooksParams) (int32, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountSearchBooks", ctx, arg)
+	ret0, _ := ret[0].(int32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountSearchBooks indicates an expected call of CountSearchBooks.
+func (mr *MockQuerierMockRecorder) CountSearchBooks(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountSearchBooks", reflect.TypeOf((*MockQuerier)(nil).CountSearchBooks), ctx, arg)
+}
+
 // CreateApiKey mocks base method.
 func (m *MockQuerier) CreateApiKey(ctx context.Context, arg db.CreateApiKeyParams) (db.ApiKey, error) {
 	m.ctrl.T.Helper()
@@ -335,10 +365,10 @@ func (mr *MockQuerierMockRecorder) GetBookCategories(ctx, campusID any) *gomock.
 }
 
 // GetBooksByCampus mocks base method.
-func (m *MockQuerier) GetBooksByCampus(ctx context.Context, arg db.GetBooksByCampusParams) ([]db.Book, error) {
+func (m *MockQuerier) GetBooksByCampus(ctx context.Context, arg db.GetBooksByCampusParams) ([]db.GetBooksByCampusRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetBooksByCampus", ctx, arg)
-	ret0, _ := ret[0].([]db.Book)
+	ret0, _ := ret[0].([]db.GetBooksByCampusRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -350,10 +380,10 @@ func (mr *MockQuerierMockRecorder) GetBooksByCampus(ctx, arg any) *gomock.Call {
 }
 
 // GetBooksByCampusAndAuthor mocks base method.
-func (m *MockQuerier) GetBooksByCampusAndAuthor(ctx context.Context, arg db.GetBooksByCampusAndAuthorParams) ([]db.Book, error) {
+func (m *MockQuerier) GetBooksByCampusAndAuthor(ctx context.Context, arg db.GetBooksByCampusAndAuthorParams) ([]db.GetBooksByCampusAndAuthorRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetBooksByCampusAndAuthor", ctx, arg)
-	ret0, _ := ret[0].([]db.Book)
+	ret0, _ := ret[0].([]db.GetBooksByCampusAndAuthorRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -365,10 +395,10 @@ func (mr *MockQuerierMockRecorder) GetBooksByCampusAndAuthor(ctx, arg any) *gomo
 }
 
 // GetBooksByCampusAndCategory mocks base method.
-func (m *MockQuerier) GetBooksByCampusAndCategory(ctx context.Context, arg db.GetBooksByCampusAndCategoryParams) ([]db.Book, error) {
+func (m *MockQuerier) GetBooksByCampusAndCategory(ctx context.Context, arg db.GetBooksByCampusAndCategoryParams) ([]db.GetBooksByCampusAndCategoryRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetBooksByCampusAndCategory", ctx, arg)
-	ret0, _ := ret[0].([]db.Book)
+	ret0, _ := ret[0].([]db.GetBooksByCampusAndCategoryRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -783,10 +813,10 @@ func (mr *MockQuerierMockRecorder) RevokeOldApiKeys(ctx, userAccountID any) *gom
 }
 
 // SearchBooks mocks base method.
-func (m *MockQuerier) SearchBooks(ctx context.Context, arg db.SearchBooksParams) ([]db.Book, error) {
+func (m *MockQuerier) SearchBooks(ctx context.Context, arg db.SearchBooksParams) ([]db.SearchBooksRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SearchBooks", ctx, arg)
-	ret0, _ := ret[0].([]db.Book)
+	ret0, _ := ret[0].([]db.SearchBooksRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

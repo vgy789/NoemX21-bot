@@ -194,18 +194,23 @@ func (s *Service) doUpdateRepo(auth ssh.AuthMethod) error {
 	}
 	// Force fetch: always update remote ref from origin
 	refSpec := gitconfig.RefSpec("+refs/heads/" + branchShort + ":refs/remotes/origin/" + branchShort)
-	if err := remote.Fetch(&git.FetchOptions{Auth: auth, RefSpecs: []gitconfig.RefSpec{refSpec}}); err != nil && err != git.NoErrAlreadyUpToDate {
-		if isRefNotFound(err) {
+	fetchErr := remote.Fetch(&git.FetchOptions{
+		Auth:     auth,
+		RefSpecs: []gitconfig.RefSpec{refSpec},
+		Force:    true,
+	})
+	if fetchErr != nil && fetchErr != git.NoErrAlreadyUpToDate {
+		if isRefNotFound(fetchErr) {
 			w, wErr := r.Worktree()
 			if wErr != nil {
-				return err
+				return fetchErr
 			}
 			if repairErr := s.repairBranchThenPull(r, w, auth); repairErr != nil {
-				return err
+				return fetchErr
 			}
 			return nil
 		}
-		return err
+		return fetchErr
 	}
 	remoteRef, err := r.Reference(plumbing.ReferenceName("refs/remotes/origin/"+branchShort), true)
 	if err != nil {
@@ -219,6 +224,7 @@ func (s *Service) doUpdateRepo(auth ssh.AuthMethod) error {
 	if err := r.Storer.SetReference(plumbing.NewHashReference(branch, remoteRef.Hash())); err != nil {
 		return err
 	}
+	s.log.Info("resetting worktree to remote", "branch", branchShort, "commit", remoteRef.Hash().String())
 	return w.Reset(&git.ResetOptions{Mode: git.HardReset, Commit: remoteRef.Hash()})
 }
 
@@ -230,7 +236,11 @@ func (s *Service) repairWhenHeadFails(r *git.Repository, auth ssh.AuthMethod) er
 	}
 	for _, branch := range []string{"master", "main"} {
 		refSpec := gitconfig.RefSpec("+refs/heads/" + branch + ":refs/remotes/origin/" + branch)
-		if err := remote.Fetch(&git.FetchOptions{Auth: auth, RefSpecs: []gitconfig.RefSpec{refSpec}}); err != nil {
+		if err := remote.Fetch(&git.FetchOptions{
+			Auth:     auth,
+			RefSpecs: []gitconfig.RefSpec{refSpec},
+			Force:    true,
+		}); err != nil {
 			continue
 		}
 		remoteRef, err := r.Reference(plumbing.ReferenceName("refs/remotes/origin/"+branch), true)
@@ -270,7 +280,11 @@ func (s *Service) repairBranchThenPull(r *git.Repository, w *git.Worktree, auth 
 		return err
 	}
 	refSpec := gitconfig.RefSpec("+refs/heads/" + otherBranch + ":refs/remotes/origin/" + otherBranch)
-	if err := remote.Fetch(&git.FetchOptions{Auth: auth, RefSpecs: []gitconfig.RefSpec{refSpec}}); err != nil && !strings.Contains(err.Error(), "already up-to-date") {
+	if err := remote.Fetch(&git.FetchOptions{
+		Auth:     auth,
+		RefSpecs: []gitconfig.RefSpec{refSpec},
+		Force:    true,
+	}); err != nil && !strings.Contains(err.Error(), "already up-to-date") {
 		return err
 	}
 	remoteRef, err := r.Reference(plumbing.ReferenceName("refs/remotes/origin/"+otherBranch), true)
