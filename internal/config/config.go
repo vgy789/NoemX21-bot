@@ -16,7 +16,7 @@ type TelegramBot struct {
 	Token   Secret `env:"TELEGRAM_BOT_TOKEN,notEmpty"`
 	Polling struct {
 		// 8-byte aligned fields first
-		RequestTimeout time.Duration `env:"REQUEST_TIMEOUT" envDefault:"10s"`
+		RequestTimeout time.Duration `env:"REQUEST_TIMEOUT" envDefault:"25s"`
 		Timeout        int64         `env:"POLLING_TIMEOUT" envDefault:"9"`
 		// 4-byte aligned fields
 		MaxRoutines int `env:"MAX_ROUTINES" envDefault:"0"`

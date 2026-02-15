@@ -387,3 +387,164 @@ JOIN club_categories cat ON c.category_id = cat.id
 JOIN campuses camp ON c.campus_id = camp.id
 WHERE c.is_active = true AND c.is_local = false
 ORDER BY c.name;
+
+
+-- name: UpsertRoom :one
+INSERT INTO rooms (
+    id, campus_id, name, min_duration, max_duration, is_active, description, updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP
+)
+ON CONFLICT (campus_id, id) DO UPDATE SET
+    name = EXCLUDED.name,
+    min_duration = EXCLUDED.min_duration,
+    max_duration = EXCLUDED.max_duration,
+    is_active = EXCLUDED.is_active,
+    description = EXCLUDED.description,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING *;
+
+-- name: DeactivateRoomsByCampus :exec
+UPDATE rooms
+SET is_active = false, updated_at = CURRENT_TIMESTAMP
+WHERE campus_id = $1;
+
+-- name: UpsertBook :one
+INSERT INTO books (
+    id, campus_id, title, author, category, total_stock, description, is_active, updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP
+)
+ON CONFLICT (campus_id, id) DO UPDATE SET
+    title = EXCLUDED.title,
+    author = EXCLUDED.author,
+    category = EXCLUDED.category,
+    total_stock = EXCLUDED.total_stock,
+    description = EXCLUDED.description,
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING *;
+
+-- name: DeactivateBooksByCampus :exec
+UPDATE books
+SET is_active = false, updated_at = CURRENT_TIMESTAMP
+WHERE campus_id = $1;
+
+-- name: HasActiveRooms :one
+SELECT EXISTS(SELECT 1 FROM rooms WHERE campus_id = $1 AND is_active = true);
+
+-- name: HasActiveBooks :one
+SELECT EXISTS(SELECT 1 FROM books WHERE campus_id = $1 AND is_active = true);
+
+-- name: GetActiveRoomsByCampus :many
+SELECT * FROM rooms
+WHERE campus_id = $1 AND is_active = true
+ORDER BY id;
+
+-- name: GetRoomByID :one
+SELECT * FROM rooms
+WHERE campus_id = $1 AND id = $2;
+
+-- name: CreateRoomBooking :one
+INSERT INTO room_bookings (
+    campus_id, room_id, user_id, booking_date, start_time, duration_minutes
+) VALUES (
+    $1, $2, $3, $4, $5, $6
+)
+ON CONFLICT (campus_id, room_id, booking_date, start_time) DO NOTHING
+RETURNING *;
+
+-- name: GetRoomBookingsByDate :many
+SELECT * FROM room_bookings
+WHERE campus_id = $1 AND room_id = $2 AND booking_date = $3
+ORDER BY start_time;
+
+-- name: GetUserRoomBookings :many
+SELECT rb.*, r.name as room_name
+FROM room_bookings rb
+JOIN rooms r ON rb.campus_id = r.campus_id AND rb.room_id = r.id
+WHERE rb.user_id = $1 AND rb.booking_date >= CURRENT_DATE
+ORDER BY rb.booking_date, rb.start_time;
+
+-- name: CancelRoomBooking :exec
+DELETE FROM room_bookings
+WHERE id = $1 AND user_id = $2;
+
+-- name: GetBooksByCampus :many
+SELECT * FROM books
+WHERE campus_id = $1 AND is_active = true
+ORDER BY title
+LIMIT $2 OFFSET $3;
+
+-- name: GetBooksByCampusAndCategory :many
+SELECT * FROM books
+WHERE campus_id = $1 AND is_active = true AND category = $2
+ORDER BY title
+LIMIT $3 OFFSET $4;
+
+-- name: GetBooksByCampusAndAuthor :many
+SELECT * FROM books
+WHERE campus_id = $1 AND is_active = true AND author = $2
+ORDER BY title
+LIMIT $3 OFFSET $4;
+
+-- name: SearchBooks :many
+SELECT * FROM books
+WHERE campus_id = $1 AND is_active = true AND (title ILIKE '%' || $2 || '%' OR author ILIKE '%' || $2 || '%')
+ORDER BY title
+LIMIT $3 OFFSET $4;
+
+-- name: GetBookByID :one
+SELECT b.*, 
+       (b.total_stock - (SELECT count(*) FROM book_loans bl WHERE bl.campus_id = b.campus_id AND bl.book_id = b.id AND bl.returned_at IS NULL))::int as available_stock
+FROM books b
+WHERE b.campus_id = $1 AND b.id = $2;
+
+-- name: CreateBookLoan :one
+WITH availability AS (
+    SELECT (total_stock - (SELECT count(*) FROM book_loans WHERE campus_id = $1 AND book_id = $2 AND returned_at IS NULL)) as available
+    FROM books
+    WHERE campus_id = $1 AND id = $2
+)
+INSERT INTO book_loans (
+    campus_id, book_id, user_id, due_at
+)
+SELECT $1, $2, $3, $4
+FROM availability
+WHERE available > 0
+RETURNING *;
+
+-- name: GetUserBookLoans :many
+SELECT bl.*, b.title as book_title, b.author as book_author
+FROM book_loans bl
+JOIN books b ON bl.campus_id = b.campus_id AND bl.book_id = b.id
+WHERE bl.user_id = $1 AND bl.returned_at IS NULL
+ORDER BY bl.due_at;
+
+-- name: ReturnBookLoan :exec
+UPDATE book_loans
+SET returned_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND user_id = $2 AND returned_at IS NULL;
+
+-- name: GetBookCategories :many
+SELECT DISTINCT category FROM books
+WHERE campus_id = $1 AND is_active = true
+ORDER BY category;
+
+-- name: GetBookAuthors :many
+SELECT DISTINCT author FROM books
+WHERE campus_id = $1 AND is_active = true
+ORDER BY author;
+
+-- name: CountBooksByCampus :one
+SELECT 
+    count(*)::int as total_books,
+    (count(*) - (SELECT count(*) FROM book_loans bl WHERE bl.campus_id = $1 AND bl.returned_at IS NULL))::int as available_books
+FROM books
+WHERE campus_id = $1 AND is_active = true;
+
+-- name: GetUserActiveLoanCount :one
+SELECT count(*)::int 
+FROM book_loans 
+WHERE user_id = $1 AND returned_at IS NULL;
+

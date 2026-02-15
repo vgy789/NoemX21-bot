@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -14,6 +15,7 @@ import (
 	gitconfig "github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/robfig/cron/v3"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
@@ -447,6 +449,99 @@ func (s *Service) syncCampus(ctx context.Context, campus db.Campuse, path string
 		}
 	}
 
-	s.log.Info("campus sync done", "campus", campus.ShortName, "clubs", len(clubsYAML.Clubs))
+	s.log.Info("campus sync done (clubs)", "campus", campus.ShortName, "clubs", len(clubsYAML.Clubs))
+
+	// Sync Rooms
+	if err := s.syncRooms(ctx, campus, path); err != nil {
+		s.log.Error("failed to sync rooms", "campus", campus.ShortName, "error", err)
+	}
+
+	// Sync Books
+	if err := s.syncBooks(ctx, campus, path); err != nil {
+		s.log.Error("failed to sync books", "campus", campus.ShortName, "error", err)
+	}
+
+	return nil
+}
+
+func (s *Service) syncRooms(ctx context.Context, campus db.Campuse, path string) error {
+	roomsPath := filepath.Join(path, "rooms.csv")
+	if _, err := os.Stat(roomsPath); os.IsNotExist(err) {
+		return nil
+	}
+
+	rooms, err := ParseRoomsCSV(roomsPath)
+	if err != nil {
+		return fmt.Errorf("failed to parse rooms.csv: %w", err)
+	}
+
+	if err := s.queries.DeactivateRoomsByCampus(ctx, campus.ID); err != nil {
+		return err
+	}
+
+	for _, r := range rooms {
+		id, err := strconv.Atoi(r.ID)
+		if err != nil {
+			s.log.Warn("skipping room with invalid ID", "id", r.ID, "campus", campus.ShortName)
+			continue
+		}
+		minDur, _ := strconv.Atoi(r.MinDuration)
+		maxDur, _ := strconv.Atoi(r.MaxDuration)
+
+		_, err = s.queries.UpsertRoom(ctx, db.UpsertRoomParams{
+			ID:          int16(id),
+			CampusID:    campus.ID,
+			Name:        r.Name,
+			MinDuration: int32(minDur),
+			MaxDuration: int32(maxDur),
+			IsActive:    pgtype.Bool{Bool: r.IsActive, Valid: true},
+			Description: toText(r.Description),
+		})
+		if err != nil {
+			s.log.Error("failed to upsert room", "room_id", id, "error", err)
+		}
+	}
+	s.log.Info("rooms sync done", "campus", campus.ShortName, "count", len(rooms))
+	return nil
+}
+
+func (s *Service) syncBooks(ctx context.Context, campus db.Campuse, path string) error {
+	booksPath := filepath.Join(path, "books.csv")
+	if _, err := os.Stat(booksPath); os.IsNotExist(err) {
+		return nil
+	}
+
+	books, err := ParseBooksCSV(booksPath)
+	if err != nil {
+		return fmt.Errorf("failed to parse books.csv: %w", err)
+	}
+
+	if err := s.queries.DeactivateBooksByCampus(ctx, campus.ID); err != nil {
+		return err
+	}
+
+	for _, b := range books {
+		id, err := strconv.Atoi(b.ID)
+		if err != nil {
+			s.log.Warn("skipping book with invalid ID", "id", b.ID, "campus", campus.ShortName)
+			continue
+		}
+		stock, _ := strconv.Atoi(b.TotalStock)
+
+		_, err = s.queries.UpsertBook(ctx, db.UpsertBookParams{
+			ID:          int16(id),
+			CampusID:    campus.ID,
+			Title:       b.Title,
+			Author:      b.Author,
+			Category:    b.Category,
+			TotalStock:  int32(stock),
+			Description: toText(b.Description),
+			IsActive:    pgtype.Bool{Bool: true, Valid: true},
+		})
+		if err != nil {
+			s.log.Error("failed to upsert book", "book_id", id, "error", err)
+		}
+	}
+	s.log.Info("books sync done", "campus", campus.ShortName, "count", len(books))
 	return nil
 }

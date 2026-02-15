@@ -3,7 +3,7 @@ meta:
   feature_id: LIB-001
   name: Библиотека
   description: 'Управление книгами: Поиск, фильтрация, пагинация и бронирование'
-  version: 2.1.0
+  version: 2.2.0
 
 initial_state: AUTO_SYNC_LIB
 
@@ -16,9 +16,9 @@ states:
       payload:
         campus_id: $context.campus_id
     transitions:
-      - next_state: LIBRARY_MENU
+      - next_state: LIBRARY_HOME
 
-  LIBRARY_MENU:
+  LIBRARY_HOME:
     type: interactive
     description: Главное меню библиотеки
     interface:
@@ -26,7 +26,7 @@ states:
         ru: |
           📚 *Библиотека: {my_campus}*
 
-          Здесь ты можешь найти книги для обучения, забронировать их или продлить срок сдачи.
+          Здесь ты можешь найти книги для обучения, забронировать их.
 
           📊 *Сейчас в библиотеке:*
           • Всего книг: `{total_books_count}`
@@ -80,7 +80,7 @@ states:
           🕵️ *Поиск книги*
 
           Введи название книги или фамилию автора.
-          _Например:_ `Knuth` или `C Programming`
+          _Например:_ `Взаимопомощь как фактор эволюции` или `Кнут`
         en: |
           🕵️ *Book Search*
 
@@ -91,7 +91,7 @@ states:
           label:
             ru: 🙅‍♂️ Отмена
             en: 🙅‍♂️ Cancel
-          next_state: LIBRARY_MENU
+          next_state: LIBRARY_HOME
     transitions:
       - trigger: on_input
         next_state: SEARCHING_BOOKS
@@ -137,45 +137,158 @@ states:
           label:
             ru: 🔙 Назад
             en: 🔙 Back
-          next_state: LIBRARY_MENU
+          next_state: LIBRARY_HOME
 
   SELECT_CATEGORY:
+    type: system
+    description: Загрузка категорий
+    logic:
+      action: get_book_categories
+      payload:
+        campus_id: $context.campus_id
+    transitions:
+      - next_state: SHOW_CATEGORIES
+
+  SHOW_CATEGORIES:
     type: interactive
     description: Выбор категории из списка
-    logic:
-      action: get_categories
     interface:
       text:
         ru: 🗂️ *Выбери категорию:*
         en: 🗂️ *Choose category:*
       buttons:
-        - id: cat_{category_id}
-          label: "{category_name}"
-          next_state: FETCH_BOOKS_BY_FILTER
+        - id: "{category_1}"
+          label: "{category_1}"
+          next_state: FETCH_BOOKS_BY_CATEGORY
+        - id: "{category_2}"
+          label: "{category_2}"
+          next_state: FETCH_BOOKS_BY_CATEGORY
+        - id: "{category_3}"
+          label: "{category_3}"
+          next_state: FETCH_BOOKS_BY_CATEGORY
+        - id: "{category_4}"
+          label: "{category_4}"
+          next_state: FETCH_BOOKS_BY_CATEGORY
+        - id: "{category_5}"
+          label: "{category_5}"
+          next_state: FETCH_BOOKS_BY_CATEGORY
+        - id: "{category_6}"
+          label: "{category_6}"
+          next_state: FETCH_BOOKS_BY_CATEGORY
+        - id: "{category_7}"
+          label: "{category_7}"
+          next_state: FETCH_BOOKS_BY_CATEGORY
+        - id: "{category_8}"
+          label: "{category_8}"
+          next_state: FETCH_BOOKS_BY_CATEGORY
+        - id: "{category_9}"
+          label: "{category_9}"
+          next_state: FETCH_BOOKS_BY_CATEGORY
+        - id: "{category_10}"
+          label: "{category_10}"
+          next_state: FETCH_BOOKS_BY_CATEGORY
+        - id: "{category_11}"
+          label: "{category_11}"
+          next_state: FETCH_BOOKS_BY_CATEGORY
+        - id: "{category_12}"
+          label: "{category_12}"
+          next_state: FETCH_BOOKS_BY_CATEGORY
+        - id: "{category_13}"
+          label: "{category_13}"
+          next_state: FETCH_BOOKS_BY_CATEGORY
+        - id: "{category_14}"
+          label: "{category_14}"
+          next_state: FETCH_BOOKS_BY_CATEGORY
+        - id: "{category_15}"
+          label: "{category_15}"
+          next_state: FETCH_BOOKS_BY_CATEGORY
         - id: back
           label:
             ru: 🔙 Назад
             en: 🔙 Back
           next_state: FILTER_SELECTION
 
+  FETCH_BOOKS_BY_CATEGORY:
+    type: system
+    description: Загрузка книг по выбранной категории
+    logic:
+      action: get_books
+      payload:
+        campus_id: $context.campus_id
+        category_id: $context.last_input
+        limit: 10
+    transitions:
+      - condition: total_count == 0
+        next_state: BOOKS_NOT_FOUND
+      - next_state: DISPLAY_BOOKS
+
   SELECT_AUTHOR:
+    type: system
+    description: Загрузка авторов
+    logic:
+      action: get_book_authors
+      payload:
+        campus_id: $context.campus_id
+    transitions:
+      - next_state: SHOW_AUTHORS
+
+  SHOW_AUTHORS:
     type: interactive
     description: Выбор автора из списка
-    logic:
-      action: get_authors
     interface:
       text:
         ru: ✍️ *Выбери автора:*
         en: ✍️ *Choose author:*
       buttons:
-        - id: auth_{author_id}
-          label: "{author_name}"
-          next_state: FETCH_BOOKS_BY_FILTER
+        - id: "{author_id_1}"
+          label: "{author_name_1}"
+          next_state: FETCH_BOOKS_BY_AUTHOR
+        - id: "{author_id_2}"
+          label: "{author_name_2}"
+          next_state: FETCH_BOOKS_BY_AUTHOR
+        - id: "{author_id_3}"
+          label: "{author_name_3}"
+          next_state: FETCH_BOOKS_BY_AUTHOR
+        - id: "{author_id_4}"
+          label: "{author_name_4}"
+          next_state: FETCH_BOOKS_BY_AUTHOR
+        - id: "{author_id_5}"
+          label: "{author_name_5}"
+          next_state: FETCH_BOOKS_BY_AUTHOR
+        - id: "{author_id_6}"
+          label: "{author_name_6}"
+          next_state: FETCH_BOOKS_BY_AUTHOR
+        - id: "{author_id_7}"
+          label: "{author_name_7}"
+          next_state: FETCH_BOOKS_BY_AUTHOR
+        - id: "{author_id_8}"
+          label: "{author_name_8}"
+          next_state: FETCH_BOOKS_BY_AUTHOR
+        - id: "{author_id_9}"
+          label: "{author_name_9}"
+          next_state: FETCH_BOOKS_BY_AUTHOR
+        - id: "{author_id_10}"
+          label: "{author_name_10}"
+          next_state: FETCH_BOOKS_BY_AUTHOR
         - id: back
           label:
             ru: 🔙 Назад
             en: 🔙 Back
           next_state: FILTER_SELECTION
+
+  FETCH_BOOKS_BY_AUTHOR:
+    type: system
+    description: Загрузка книг по выбранному автору
+    logic:
+      action: get_books
+      payload:
+        campus_id: $context.campus_id
+        author_id: $context.last_input
+        limit: 10
+    transitions:
+      - condition: total_count == 0
+        next_state: BOOKS_NOT_FOUND
+      - next_state: DISPLAY_BOOKS
 
   FETCH_BOOKS_BY_FILTER:
     type: system
@@ -184,8 +297,8 @@ states:
       action: get_books
       payload:
         campus_id: $context.campus_id
-        category_id: $context.selected_category_id
-        author_id: $context.selected_author_id
+        category_id: $context.last_input
+        author_id: $context.last_input
         limit: 10
         offset: 0
     transitions:
@@ -224,8 +337,26 @@ states:
 
           {books_list_numbered}
       buttons:
-        - id: book_{book_id}
-          label: "{index}. {book_short_title}"
+        - id: "{book_btn_id_1}"
+          label: "{book_btn_label_1}"
+        - id: "{book_btn_id_2}"
+          label: "{book_btn_label_2}"
+        - id: "{book_btn_id_3}"
+          label: "{book_btn_label_3}"
+        - id: "{book_btn_id_4}"
+          label: "{book_btn_label_4}"
+        - id: "{book_btn_id_5}"
+          label: "{book_btn_label_5}"
+        - id: "{book_btn_id_6}"
+          label: "{book_btn_label_6}"
+        - id: "{book_btn_id_7}"
+          label: "{book_btn_label_7}"
+        - id: "{book_btn_id_8}"
+          label: "{book_btn_label_8}"
+        - id: "{book_btn_id_9}"
+          label: "{book_btn_label_9}"
+        - id: "{book_btn_id_10}"
+          label: "{book_btn_label_10}"
         - id: prev
           label: "⬅️"
           next_state: FETCH_PREV_PAGE
@@ -240,11 +371,56 @@ states:
           label:
             ru: 🔙 Назад
             en: 🔙 Back
-          next_state: LIBRARY_MENU
+          next_state: LIBRARY_HOME
     transitions:
       - trigger: button_click
         condition: id.startswith('book_')
         next_state: FETCH_BOOK_DETAILS
+
+  FETCH_PREV_PAGE:
+    type: system
+    description: Переход на предыдущую страницу
+    logic:
+      action: update_page
+      payload:
+        delta: -1
+    transitions:
+      - next_state: FETCH_BOOKS_BY_FILTER # Or whatever the current filter state is? 
+        # Actually, we need to return to the state that fetches books.
+        # But which one? FETCH_AVAILABLE_BOOKS, FETCH_BOOKS_BY_FILTER, SEARCHING_BOOKS?
+        # The engine doesn't store "previous fetch state".
+        # We can use a generic "FETCH_CURRENT_LIST" state in library.go that decides based on context?
+        # Or simplistic: always go to DISPLAY_BOOKS? No, DISPLAY_BOOKS just displays.
+        # We need to re-fetch.
+        # Let's assume we store "fetch_action" in context or something? 
+        # Or simple hack: define FETCH_BOOKS_GENERIC state that routes based on context context flags.
+        # Let's add FETCH_BOOKS_ROUTER state.
+      - next_state: FETCH_BOOKS_ROUTER
+
+  FETCH_NEXT_PAGE:
+    type: system
+    description: Переход на следующую страницу
+    logic:
+      action: update_page
+      payload:
+        delta: 1
+    transitions:
+      - next_state: FETCH_BOOKS_ROUTER
+
+  FETCH_BOOKS_ROUTER:
+    type: system
+    description: Маршрутизация к правильному загрузчику
+    transitions:
+      - condition: search != ""
+        next_state: SEARCHING_BOOKS
+      - condition: selected_category_id != ""
+        next_state: FETCH_BOOKS_BY_FILTER
+      - condition: selected_author_id != ""
+        next_state: FETCH_BOOKS_BY_FILTER
+      - condition: only_available == true
+        next_state: FETCH_AVAILABLE_BOOKS 
+      # Default fallbacks?
+      - next_state: FETCH_AVAILABLE_BOOKS
 
   BOOKS_NOT_FOUND:
     type: interactive
@@ -271,7 +447,7 @@ states:
           label:
             ru: 🏠 В меню
             en: 🏠 To menu
-          next_state: LIBRARY_MENU
+          next_state: LIBRARY_HOME
 
   FETCH_BOOK_DETAILS:
     type: system
@@ -366,7 +542,7 @@ states:
           label:
             ru: 🏠 В меню
             en: 🏠 Main menu
-          next_state: LIBRARY_MENU
+          next_state: LIBRARY_HOME
 
   FETCH_MY_BOOKS:
     type: system
@@ -402,7 +578,7 @@ states:
           label:
             ru: 🔙 Назад
             en: 🔙 Back
-          next_state: LIBRARY_MENU
+          next_state: LIBRARY_HOME
 
   BORROW_ERROR:
     type: interactive

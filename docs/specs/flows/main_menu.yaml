@@ -3,7 +3,7 @@ meta:
   feature_id: MAIN-001
   name: Главное меню
   description: Центральное меню бота для навигации между функциями
-  version: 2.0.0
+  version: 2.1.0
 
 initial_state: MAIN_MENU
 states:
@@ -36,16 +36,16 @@ states:
             en: 👀 Review
           row: 1
           next_state: REVIEWS_MENU
-        - id: booking
+        - id: "{booking_btn_id}"
           label:
-            ru: 💬 Переговорки
-            en: 💬 Meeting rooms
+            ru: "{booking_btn_label_ru}"
+            en: "{booking_btn_label_en}"
           row: 1
           next_state: BOOKING_MENU
-        - id: library
+        - id: "{library_btn_id}"
           label:
-            ru: 📚 Библиотека
-            en: 📚 Library
+            ru: "{library_btn_label_ru}"
+            en: "{library_btn_label_en}"
           next_state: LIBRARY_MENU
           row: 2
         - id: clubs

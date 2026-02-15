@@ -59,9 +59,9 @@ func (r *registrar) RegisterAll(registry *fsm.LogicRegistry, aliasRegistrar func
 	common.RegisterReviews(registry, aliasRegistrar)
 
 	admin.Register(registry, aliasRegistrar)
-	booking.Register(registry, aliasRegistrar)
+	booking.Register(registry, r.queries, aliasRegistrar)
 	clubs.Register(registry, r.queries, aliasRegistrar)
-	library.Register(registry, aliasRegistrar)
+	library.Register(registry, r.queries, aliasRegistrar)
 
 	registration.Register(registry, r.cfg, r.log, r.queries, r.userSvc, r.rcClient, r.s21Client, r.credService, aliasRegistrar)
 	settings.Register(registry, r.log, r.queries, aliasRegistrar)

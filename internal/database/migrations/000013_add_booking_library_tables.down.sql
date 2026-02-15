@@ -1,0 +1,4 @@
+DROP TABLE IF EXISTS book_loans;
+DROP TABLE IF EXISTS room_bookings;
+DROP TABLE IF EXISTS books;
+DROP TABLE IF EXISTS rooms;

@@ -178,6 +178,7 @@ func Register(
 				state.Context["is_generating_chart"] = false
 				state.Context["_alert"] = alertErrorToken
 				_ = repo.SetState(ctx, state)
+				maps.Copy(dbVars, state.Context)
 				return "", dbVars, nil
 			}
 
@@ -186,7 +187,9 @@ func Register(
 			participant, err := s21Client.GetParticipant(ctx, token, acc.S21Login)
 			if err != nil {
 				log.Error("failed to get participant", "error", err)
-				return "", map[string]any{"_alert": alertErrorData, "is_generating_chart": false}, nil
+				dbVars["_alert"] = alertErrorData
+				dbVars["_is_generating_chart"] = false
+				return "", dbVars, nil
 			}
 			log.Info("got participant data", "login", acc.S21Login, "status", participant.Status)
 
@@ -322,6 +325,9 @@ func Register(
 				state.Context["my_campus"] = participant.Campus.ShortName
 				b := cacheParams.CampusID.Bytes
 				state.Context["campus_id"] = fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+
+				// Enrich with menu buttons (booking/library) logic
+				enrichMenuButtons(ctx, queries, cacheParams.CampusID, state.Context, log)
 			}
 			if chartPath != "" {
 				state.Context["radar_chart_path"] = chartPath
@@ -648,6 +654,9 @@ func getStatsFromDB(ctx context.Context, s21Login string, queries db.Querier, lo
 	if profile.CampusID.Valid {
 		b := profile.CampusID.Bytes
 		vars["campus_id"] = fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+
+		// Enrich with menu buttons
+		enrichMenuButtons(ctx, queries, profile.CampusID, vars, log)
 	}
 	if profile.CoalitionName.Valid && profile.CoalitionName.String != "" {
 		vars["my_coalition"] = profile.CoalitionName.String
@@ -796,6 +805,28 @@ func getPeerStatsFromDB(ctx context.Context, login string, queries db.Querier, l
 
 	vars["peer_id"] = profile.ExternalID
 	return "", vars, nil
+}
+
+func enrichMenuButtons(ctx context.Context, queries db.Querier, campusID pgtype.UUID, vars map[string]any, log *slog.Logger) {
+	// Check active rooms
+	hasRooms, err := queries.HasActiveRooms(ctx, campusID)
+	if err != nil {
+		log.Error("failed to check active rooms", "error", err)
+	} else if hasRooms {
+		vars["booking_btn_id"] = "booking"
+		vars["booking_btn_label_ru"] = "💬 Переговорки"
+		vars["booking_btn_label_en"] = "💬 Meeting rooms"
+	}
+
+	// Check active books
+	hasBooks, err := queries.HasActiveBooks(ctx, campusID)
+	if err != nil {
+		log.Error("failed to check active books", "error", err)
+	} else if hasBooks {
+		vars["library_btn_id"] = "library"
+		vars["library_btn_label_ru"] = "📚 Библиотека"
+		vars["library_btn_label_en"] = "📚 Library"
+	}
 }
 
 func hashSkillName(name string) int32 {
