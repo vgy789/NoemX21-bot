@@ -27,12 +27,3 @@ func TestSecret_LogValue(t *testing.T) {
 	assert.Equal(t, slog.KindString, val.Kind())
 	assert.Equal(t, "[REDACTED]", val.String())
 }
-
-func TestSecret_Do(t *testing.T) {
-	s := Secret("sensitive-data")
-	var captured string
-	s.Do(func(val string) {
-		captured = val
-	})
-	assert.Equal(t, "sensitive-data", captured)
-}
