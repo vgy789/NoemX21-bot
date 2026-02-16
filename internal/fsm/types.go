@@ -29,6 +29,8 @@ type State struct {
 	Transitions []Transition `yaml:"transitions"`
 	Logic       Logic        `yaml:"logic"`
 	Validation  Validation   `yaml:"validation"`
+	OnEnter     []Logic      `yaml:"on_enter"`
+	OnExit      []Logic      `yaml:"on_exit"`
 }
 
 type Validation struct {
@@ -48,6 +50,7 @@ type Button struct {
 	NextState string `yaml:"next_state"` // can be "STATE" or "file.yaml/STATE"
 	URL       string `yaml:"url"`        // Optional: URL for link button (mutually exclusive with next_state)
 	Row       int    `yaml:"row"`        // Optional: buttons with same Row ID will be in the same row
+	Condition string `yaml:"condition"`  // Optional: condition to show the button
 }
 
 type Transition struct {

@@ -11,6 +11,41 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const cancelRoomBooking = `-- name: CancelRoomBooking :exec
+DELETE FROM room_bookings
+WHERE id = $1 AND user_id = $2
+`
+
+type CancelRoomBookingParams struct {
+	ID     int64 `json:"id"`
+	UserID int64 `json:"user_id"`
+}
+
+func (q *Queries) CancelRoomBooking(ctx context.Context, arg CancelRoomBookingParams) error {
+	_, err := q.db.Exec(ctx, cancelRoomBooking, arg.ID, arg.UserID)
+	return err
+}
+
+const countBooksByCampus = `-- name: CountBooksByCampus :one
+SELECT 
+    count(*)::int as total_books,
+    (count(*) - (SELECT count(*) FROM book_loans bl WHERE bl.campus_id = $1 AND bl.returned_at IS NULL))::int as available_books
+FROM books
+WHERE campus_id = $1 AND is_active = true
+`
+
+type CountBooksByCampusRow struct {
+	TotalBooks     int32 `json:"total_books"`
+	AvailableBooks int32 `json:"available_books"`
+}
+
+func (q *Queries) CountBooksByCampus(ctx context.Context, campusID pgtype.UUID) (CountBooksByCampusRow, error) {
+	row := q.db.QueryRow(ctx, countBooksByCampus, campusID)
+	var i CountBooksByCampusRow
+	err := row.Scan(&i.TotalBooks, &i.AvailableBooks)
+	return i, err
+}
+
 const createApiKey = `-- name: CreateApiKey :one
 INSERT INTO api_keys (
     user_account_id, key_hash, prefix, expires_at
@@ -75,6 +110,90 @@ func (q *Queries) CreateAuthVerificationCode(ctx context.Context, arg CreateAuth
 	return i, err
 }
 
+const createBookLoan = `-- name: CreateBookLoan :one
+WITH availability AS (
+    SELECT (total_stock - (SELECT count(*) FROM book_loans WHERE campus_id = $1 AND book_id = $2 AND returned_at IS NULL)) as available
+    FROM books
+    WHERE campus_id = $1 AND id = $2
+)
+INSERT INTO book_loans (
+    campus_id, book_id, user_id, due_at
+)
+SELECT $1, $2, $3, $4
+FROM availability
+WHERE available > 0
+RETURNING id, campus_id, book_id, user_id, borrowed_at, due_at, returned_at
+`
+
+type CreateBookLoanParams struct {
+	CampusID pgtype.UUID        `json:"campus_id"`
+	BookID   int16              `json:"book_id"`
+	UserID   int64              `json:"user_id"`
+	DueAt    pgtype.Timestamptz `json:"due_at"`
+}
+
+func (q *Queries) CreateBookLoan(ctx context.Context, arg CreateBookLoanParams) (BookLoan, error) {
+	row := q.db.QueryRow(ctx, createBookLoan,
+		arg.CampusID,
+		arg.BookID,
+		arg.UserID,
+		arg.DueAt,
+	)
+	var i BookLoan
+	err := row.Scan(
+		&i.ID,
+		&i.CampusID,
+		&i.BookID,
+		&i.UserID,
+		&i.BorrowedAt,
+		&i.DueAt,
+		&i.ReturnedAt,
+	)
+	return i, err
+}
+
+const createRoomBooking = `-- name: CreateRoomBooking :one
+INSERT INTO room_bookings (
+    campus_id, room_id, user_id, booking_date, start_time, duration_minutes
+) VALUES (
+    $1, $2, $3, $4, $5, $6
+)
+ON CONFLICT (campus_id, room_id, booking_date, start_time) DO NOTHING
+RETURNING id, campus_id, room_id, user_id, booking_date, start_time, duration_minutes, created_at
+`
+
+type CreateRoomBookingParams struct {
+	CampusID        pgtype.UUID `json:"campus_id"`
+	RoomID          int16       `json:"room_id"`
+	UserID          int64       `json:"user_id"`
+	BookingDate     pgtype.Date `json:"booking_date"`
+	StartTime       pgtype.Time `json:"start_time"`
+	DurationMinutes int32       `json:"duration_minutes"`
+}
+
+func (q *Queries) CreateRoomBooking(ctx context.Context, arg CreateRoomBookingParams) (RoomBooking, error) {
+	row := q.db.QueryRow(ctx, createRoomBooking,
+		arg.CampusID,
+		arg.RoomID,
+		arg.UserID,
+		arg.BookingDate,
+		arg.StartTime,
+		arg.DurationMinutes,
+	)
+	var i RoomBooking
+	err := row.Scan(
+		&i.ID,
+		&i.CampusID,
+		&i.RoomID,
+		&i.UserID,
+		&i.BookingDate,
+		&i.StartTime,
+		&i.DurationMinutes,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const createUserAccount = `-- name: CreateUserAccount :one
 INSERT INTO user_accounts (
     s21_login, platform, external_id, username, is_searchable, role
@@ -116,6 +235,17 @@ func (q *Queries) CreateUserAccount(ctx context.Context, arg CreateUserAccountPa
 	return i, err
 }
 
+const deactivateBooksByCampus = `-- name: DeactivateBooksByCampus :exec
+UPDATE books
+SET is_active = false, updated_at = CURRENT_TIMESTAMP
+WHERE campus_id = $1
+`
+
+func (q *Queries) DeactivateBooksByCampus(ctx context.Context, campusID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deactivateBooksByCampus, campusID)
+	return err
+}
+
 const deactivateClubsByCampus = `-- name: DeactivateClubsByCampus :exec
 UPDATE clubs
 SET is_active = false, updated_at = CURRENT_TIMESTAMP
@@ -124,6 +254,17 @@ WHERE campus_id = $1
 
 func (q *Queries) DeactivateClubsByCampus(ctx context.Context, campusID pgtype.UUID) error {
 	_, err := q.db.Exec(ctx, deactivateClubsByCampus, campusID)
+	return err
+}
+
+const deactivateRoomsByCampus = `-- name: DeactivateRoomsByCampus :exec
+UPDATE rooms
+SET is_active = false, updated_at = CURRENT_TIMESTAMP
+WHERE campus_id = $1
+`
+
+func (q *Queries) DeactivateRoomsByCampus(ctx context.Context, campusID pgtype.UUID) error {
+	_, err := q.db.Exec(ctx, deactivateRoomsByCampus, campusID)
 	return err
 }
 
@@ -199,6 +340,42 @@ func (q *Queries) GetActiveApiKey(ctx context.Context, userAccountID int64) (Api
 	return i, err
 }
 
+const getActiveRoomsByCampus = `-- name: GetActiveRoomsByCampus :many
+SELECT id, campus_id, name, min_duration, max_duration, is_active, description, created_at, updated_at FROM rooms
+WHERE campus_id = $1 AND is_active = true
+ORDER BY id
+`
+
+func (q *Queries) GetActiveRoomsByCampus(ctx context.Context, campusID pgtype.UUID) ([]Room, error) {
+	rows, err := q.db.Query(ctx, getActiveRoomsByCampus, campusID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Room
+	for rows.Next() {
+		var i Room
+		if err := rows.Scan(
+			&i.ID,
+			&i.CampusID,
+			&i.Name,
+			&i.MinDuration,
+			&i.MaxDuration,
+			&i.IsActive,
+			&i.Description,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getApiKeyByHash = `-- name: GetApiKeyByHash :one
 SELECT id, user_account_id, key_hash, prefix, created_at, revoked_at, expires_at FROM api_keys
 WHERE key_hash = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
@@ -217,6 +394,247 @@ func (q *Queries) GetApiKeyByHash(ctx context.Context, keyHash string) (ApiKey, 
 		&i.ExpiresAt,
 	)
 	return i, err
+}
+
+const getBookAuthors = `-- name: GetBookAuthors :many
+SELECT DISTINCT author FROM books
+WHERE campus_id = $1 AND is_active = true
+ORDER BY author
+`
+
+func (q *Queries) GetBookAuthors(ctx context.Context, campusID pgtype.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, getBookAuthors, campusID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var author string
+		if err := rows.Scan(&author); err != nil {
+			return nil, err
+		}
+		items = append(items, author)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getBookByID = `-- name: GetBookByID :one
+SELECT b.id, b.campus_id, b.title, b.author, b.category, b.total_stock, b.description, b.is_active, b.created_at, b.updated_at, 
+       (b.total_stock - (SELECT count(*) FROM book_loans bl WHERE bl.campus_id = b.campus_id AND bl.book_id = b.id AND bl.returned_at IS NULL))::int as available_stock
+FROM books b
+WHERE b.campus_id = $1 AND b.id = $2
+`
+
+type GetBookByIDParams struct {
+	CampusID pgtype.UUID `json:"campus_id"`
+	ID       int16       `json:"id"`
+}
+
+type GetBookByIDRow struct {
+	ID             int16              `json:"id"`
+	CampusID       pgtype.UUID        `json:"campus_id"`
+	Title          string             `json:"title"`
+	Author         string             `json:"author"`
+	Category       string             `json:"category"`
+	TotalStock     int32              `json:"total_stock"`
+	Description    pgtype.Text        `json:"description"`
+	IsActive       pgtype.Bool        `json:"is_active"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	AvailableStock int32              `json:"available_stock"`
+}
+
+func (q *Queries) GetBookByID(ctx context.Context, arg GetBookByIDParams) (GetBookByIDRow, error) {
+	row := q.db.QueryRow(ctx, getBookByID, arg.CampusID, arg.ID)
+	var i GetBookByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.CampusID,
+		&i.Title,
+		&i.Author,
+		&i.Category,
+		&i.TotalStock,
+		&i.Description,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.AvailableStock,
+	)
+	return i, err
+}
+
+const getBookCategories = `-- name: GetBookCategories :many
+SELECT DISTINCT category FROM books
+WHERE campus_id = $1 AND is_active = true
+ORDER BY category
+`
+
+func (q *Queries) GetBookCategories(ctx context.Context, campusID pgtype.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, getBookCategories, campusID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var category string
+		if err := rows.Scan(&category); err != nil {
+			return nil, err
+		}
+		items = append(items, category)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getBooksByCampus = `-- name: GetBooksByCampus :many
+SELECT id, campus_id, title, author, category, total_stock, description, is_active, created_at, updated_at FROM books
+WHERE campus_id = $1 AND is_active = true
+ORDER BY title
+LIMIT $2 OFFSET $3
+`
+
+type GetBooksByCampusParams struct {
+	CampusID pgtype.UUID `json:"campus_id"`
+	Limit    int32       `json:"limit"`
+	Offset   int32       `json:"offset"`
+}
+
+func (q *Queries) GetBooksByCampus(ctx context.Context, arg GetBooksByCampusParams) ([]Book, error) {
+	rows, err := q.db.Query(ctx, getBooksByCampus, arg.CampusID, arg.Limit, arg.Offset)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Book
+	for rows.Next() {
+		var i Book
+		if err := rows.Scan(
+			&i.ID,
+			&i.CampusID,
+			&i.Title,
+			&i.Author,
+			&i.Category,
+			&i.TotalStock,
+			&i.Description,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getBooksByCampusAndAuthor = `-- name: GetBooksByCampusAndAuthor :many
+SELECT id, campus_id, title, author, category, total_stock, description, is_active, created_at, updated_at FROM books
+WHERE campus_id = $1 AND is_active = true AND author = $2
+ORDER BY title
+LIMIT $3 OFFSET $4
+`
+
+type GetBooksByCampusAndAuthorParams struct {
+	CampusID pgtype.UUID `json:"campus_id"`
+	Author   string      `json:"author"`
+	Limit    int32       `json:"limit"`
+	Offset   int32       `json:"offset"`
+}
+
+func (q *Queries) GetBooksByCampusAndAuthor(ctx context.Context, arg GetBooksByCampusAndAuthorParams) ([]Book, error) {
+	rows, err := q.db.Query(ctx, getBooksByCampusAndAuthor,
+		arg.CampusID,
+		arg.Author,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Book
+	for rows.Next() {
+		var i Book
+		if err := rows.Scan(
+			&i.ID,
+			&i.CampusID,
+			&i.Title,
+			&i.Author,
+			&i.Category,
+			&i.TotalStock,
+			&i.Description,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getBooksByCampusAndCategory = `-- name: GetBooksByCampusAndCategory :many
+SELECT id, campus_id, title, author, category, total_stock, description, is_active, created_at, updated_at FROM books
+WHERE campus_id = $1 AND is_active = true AND category = $2
+ORDER BY title
+LIMIT $3 OFFSET $4
+`
+
+type GetBooksByCampusAndCategoryParams struct {
+	CampusID pgtype.UUID `json:"campus_id"`
+	Category string      `json:"category"`
+	Limit    int32       `json:"limit"`
+	Offset   int32       `json:"offset"`
+}
+
+func (q *Queries) GetBooksByCampusAndCategory(ctx context.Context, arg GetBooksByCampusAndCategoryParams) ([]Book, error) {
+	rows, err := q.db.Query(ctx, getBooksByCampusAndCategory,
+		arg.CampusID,
+		arg.Category,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Book
+	for rows.Next() {
+		var i Book
+		if err := rows.Scan(
+			&i.ID,
+			&i.CampusID,
+			&i.Title,
+			&i.Author,
+			&i.Category,
+			&i.TotalStock,
+			&i.Description,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getCampusByID = `-- name: GetCampusByID :one
@@ -766,6 +1184,74 @@ func (q *Queries) GetRocketChatCredentials(ctx context.Context, s21Login string)
 	return i, err
 }
 
+const getRoomBookingsByDate = `-- name: GetRoomBookingsByDate :many
+SELECT id, campus_id, room_id, user_id, booking_date, start_time, duration_minutes, created_at FROM room_bookings
+WHERE campus_id = $1 AND room_id = $2 AND booking_date = $3
+ORDER BY start_time
+`
+
+type GetRoomBookingsByDateParams struct {
+	CampusID    pgtype.UUID `json:"campus_id"`
+	RoomID      int16       `json:"room_id"`
+	BookingDate pgtype.Date `json:"booking_date"`
+}
+
+func (q *Queries) GetRoomBookingsByDate(ctx context.Context, arg GetRoomBookingsByDateParams) ([]RoomBooking, error) {
+	rows, err := q.db.Query(ctx, getRoomBookingsByDate, arg.CampusID, arg.RoomID, arg.BookingDate)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []RoomBooking
+	for rows.Next() {
+		var i RoomBooking
+		if err := rows.Scan(
+			&i.ID,
+			&i.CampusID,
+			&i.RoomID,
+			&i.UserID,
+			&i.BookingDate,
+			&i.StartTime,
+			&i.DurationMinutes,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getRoomByID = `-- name: GetRoomByID :one
+SELECT id, campus_id, name, min_duration, max_duration, is_active, description, created_at, updated_at FROM rooms
+WHERE campus_id = $1 AND id = $2
+`
+
+type GetRoomByIDParams struct {
+	CampusID pgtype.UUID `json:"campus_id"`
+	ID       int16       `json:"id"`
+}
+
+func (q *Queries) GetRoomByID(ctx context.Context, arg GetRoomByIDParams) (Room, error) {
+	row := q.db.QueryRow(ctx, getRoomByID, arg.CampusID, arg.ID)
+	var i Room
+	err := row.Scan(
+		&i.ID,
+		&i.CampusID,
+		&i.Name,
+		&i.MinDuration,
+		&i.MaxDuration,
+		&i.IsActive,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getUserAccountByExternalId = `-- name: GetUserAccountByExternalId :one
 SELECT id, s21_login, platform, external_id, username, is_searchable, role, linked_at FROM user_accounts 
 WHERE platform = $1 AND external_id = $2
@@ -813,6 +1299,69 @@ func (q *Queries) GetUserAccountByS21Login(ctx context.Context, s21Login string)
 	return i, err
 }
 
+const getUserActiveLoanCount = `-- name: GetUserActiveLoanCount :one
+SELECT count(*)::int 
+FROM book_loans 
+WHERE user_id = $1 AND returned_at IS NULL
+`
+
+func (q *Queries) GetUserActiveLoanCount(ctx context.Context, userID int64) (int32, error) {
+	row := q.db.QueryRow(ctx, getUserActiveLoanCount, userID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const getUserBookLoans = `-- name: GetUserBookLoans :many
+SELECT bl.id, bl.campus_id, bl.book_id, bl.user_id, bl.borrowed_at, bl.due_at, bl.returned_at, b.title as book_title, b.author as book_author
+FROM book_loans bl
+JOIN books b ON bl.campus_id = b.campus_id AND bl.book_id = b.id
+WHERE bl.user_id = $1 AND bl.returned_at IS NULL
+ORDER BY bl.due_at
+`
+
+type GetUserBookLoansRow struct {
+	ID         int64              `json:"id"`
+	CampusID   pgtype.UUID        `json:"campus_id"`
+	BookID     int16              `json:"book_id"`
+	UserID     int64              `json:"user_id"`
+	BorrowedAt pgtype.Timestamptz `json:"borrowed_at"`
+	DueAt      pgtype.Timestamptz `json:"due_at"`
+	ReturnedAt pgtype.Timestamptz `json:"returned_at"`
+	BookTitle  string             `json:"book_title"`
+	BookAuthor string             `json:"book_author"`
+}
+
+func (q *Queries) GetUserBookLoans(ctx context.Context, userID int64) ([]GetUserBookLoansRow, error) {
+	rows, err := q.db.Query(ctx, getUserBookLoans, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserBookLoansRow
+	for rows.Next() {
+		var i GetUserBookLoansRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CampusID,
+			&i.BookID,
+			&i.UserID,
+			&i.BorrowedAt,
+			&i.DueAt,
+			&i.ReturnedAt,
+			&i.BookTitle,
+			&i.BookAuthor,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getUserBotSettings = `-- name: GetUserBotSettings :one
 SELECT id, user_account_id, language_code, notifications_enabled, review_post_campus_ids, created_at, updated_at FROM user_bot_settings 
 WHERE user_account_id = $1
@@ -831,6 +1380,56 @@ func (q *Queries) GetUserBotSettings(ctx context.Context, userAccountID int64) (
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const getUserRoomBookings = `-- name: GetUserRoomBookings :many
+SELECT rb.id, rb.campus_id, rb.room_id, rb.user_id, rb.booking_date, rb.start_time, rb.duration_minutes, rb.created_at, r.name as room_name
+FROM room_bookings rb
+JOIN rooms r ON rb.campus_id = r.campus_id AND rb.room_id = r.id
+WHERE rb.user_id = $1 AND rb.booking_date >= CURRENT_DATE
+ORDER BY rb.booking_date, rb.start_time
+`
+
+type GetUserRoomBookingsRow struct {
+	ID              int64              `json:"id"`
+	CampusID        pgtype.UUID        `json:"campus_id"`
+	RoomID          int16              `json:"room_id"`
+	UserID          int64              `json:"user_id"`
+	BookingDate     pgtype.Date        `json:"booking_date"`
+	StartTime       pgtype.Time        `json:"start_time"`
+	DurationMinutes int32              `json:"duration_minutes"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	RoomName        string             `json:"room_name"`
+}
+
+func (q *Queries) GetUserRoomBookings(ctx context.Context, userID int64) ([]GetUserRoomBookingsRow, error) {
+	rows, err := q.db.Query(ctx, getUserRoomBookings, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserRoomBookingsRow
+	for rows.Next() {
+		var i GetUserRoomBookingsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.CampusID,
+			&i.RoomID,
+			&i.UserID,
+			&i.BookingDate,
+			&i.StartTime,
+			&i.DurationMinutes,
+			&i.CreatedAt,
+			&i.RoomName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getValidAuthVerificationCode = `-- name: GetValidAuthVerificationCode :one
@@ -858,6 +1457,44 @@ func (q *Queries) GetValidAuthVerificationCode(ctx context.Context, arg GetValid
 	return i, err
 }
 
+const hasActiveBooks = `-- name: HasActiveBooks :one
+SELECT EXISTS(SELECT 1 FROM books WHERE campus_id = $1 AND is_active = true)
+`
+
+func (q *Queries) HasActiveBooks(ctx context.Context, campusID pgtype.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, hasActiveBooks, campusID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const hasActiveRooms = `-- name: HasActiveRooms :one
+SELECT EXISTS(SELECT 1 FROM rooms WHERE campus_id = $1 AND is_active = true)
+`
+
+func (q *Queries) HasActiveRooms(ctx context.Context, campusID pgtype.UUID) (bool, error) {
+	row := q.db.QueryRow(ctx, hasActiveRooms, campusID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const returnBookLoan = `-- name: ReturnBookLoan :exec
+UPDATE book_loans
+SET returned_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND user_id = $2 AND returned_at IS NULL
+`
+
+type ReturnBookLoanParams struct {
+	ID     int64 `json:"id"`
+	UserID int64 `json:"user_id"`
+}
+
+func (q *Queries) ReturnBookLoan(ctx context.Context, arg ReturnBookLoanParams) error {
+	_, err := q.db.Exec(ctx, returnBookLoan, arg.ID, arg.UserID)
+	return err
+}
+
 const revokeOldApiKeys = `-- name: RevokeOldApiKeys :exec
 UPDATE api_keys
 SET revoked_at = CURRENT_TIMESTAMP
@@ -867,6 +1504,111 @@ WHERE user_account_id = $1 AND revoked_at IS NULL
 func (q *Queries) RevokeOldApiKeys(ctx context.Context, userAccountID int64) error {
 	_, err := q.db.Exec(ctx, revokeOldApiKeys, userAccountID)
 	return err
+}
+
+const searchBooks = `-- name: SearchBooks :many
+SELECT id, campus_id, title, author, category, total_stock, description, is_active, created_at, updated_at FROM books
+WHERE campus_id = $1 AND is_active = true AND (title ILIKE '%' || $2 || '%' OR author ILIKE '%' || $2 || '%')
+ORDER BY title
+LIMIT $3 OFFSET $4
+`
+
+type SearchBooksParams struct {
+	CampusID pgtype.UUID `json:"campus_id"`
+	Column2  pgtype.Text `json:"column_2"`
+	Limit    int32       `json:"limit"`
+	Offset   int32       `json:"offset"`
+}
+
+func (q *Queries) SearchBooks(ctx context.Context, arg SearchBooksParams) ([]Book, error) {
+	rows, err := q.db.Query(ctx, searchBooks,
+		arg.CampusID,
+		arg.Column2,
+		arg.Limit,
+		arg.Offset,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Book
+	for rows.Next() {
+		var i Book
+		if err := rows.Scan(
+			&i.ID,
+			&i.CampusID,
+			&i.Title,
+			&i.Author,
+			&i.Category,
+			&i.TotalStock,
+			&i.Description,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const upsertBook = `-- name: UpsertBook :one
+INSERT INTO books (
+    id, campus_id, title, author, category, total_stock, description, is_active, updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP
+)
+ON CONFLICT (campus_id, id) DO UPDATE SET
+    title = EXCLUDED.title,
+    author = EXCLUDED.author,
+    category = EXCLUDED.category,
+    total_stock = EXCLUDED.total_stock,
+    description = EXCLUDED.description,
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING id, campus_id, title, author, category, total_stock, description, is_active, created_at, updated_at
+`
+
+type UpsertBookParams struct {
+	ID          int16       `json:"id"`
+	CampusID    pgtype.UUID `json:"campus_id"`
+	Title       string      `json:"title"`
+	Author      string      `json:"author"`
+	Category    string      `json:"category"`
+	TotalStock  int32       `json:"total_stock"`
+	Description pgtype.Text `json:"description"`
+	IsActive    pgtype.Bool `json:"is_active"`
+}
+
+func (q *Queries) UpsertBook(ctx context.Context, arg UpsertBookParams) (Book, error) {
+	row := q.db.QueryRow(ctx, upsertBook,
+		arg.ID,
+		arg.CampusID,
+		arg.Title,
+		arg.Author,
+		arg.Category,
+		arg.TotalStock,
+		arg.Description,
+		arg.IsActive,
+	)
+	var i Book
+	err := row.Scan(
+		&i.ID,
+		&i.CampusID,
+		&i.Title,
+		&i.Author,
+		&i.Category,
+		&i.TotalStock,
+		&i.Description,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const upsertCampus = `-- name: UpsertCampus :one
@@ -1239,6 +1981,57 @@ type UpsertRocketChatCredentialsParams struct {
 func (q *Queries) UpsertRocketChatCredentials(ctx context.Context, arg UpsertRocketChatCredentialsParams) error {
 	_, err := q.db.Exec(ctx, upsertRocketChatCredentials, arg.S21Login, arg.RcTokenEnc, arg.RcNonce)
 	return err
+}
+
+const upsertRoom = `-- name: UpsertRoom :one
+INSERT INTO rooms (
+    id, campus_id, name, min_duration, max_duration, is_active, description, updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP
+)
+ON CONFLICT (campus_id, id) DO UPDATE SET
+    name = EXCLUDED.name,
+    min_duration = EXCLUDED.min_duration,
+    max_duration = EXCLUDED.max_duration,
+    is_active = EXCLUDED.is_active,
+    description = EXCLUDED.description,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING id, campus_id, name, min_duration, max_duration, is_active, description, created_at, updated_at
+`
+
+type UpsertRoomParams struct {
+	ID          int16       `json:"id"`
+	CampusID    pgtype.UUID `json:"campus_id"`
+	Name        string      `json:"name"`
+	MinDuration int32       `json:"min_duration"`
+	MaxDuration int32       `json:"max_duration"`
+	IsActive    pgtype.Bool `json:"is_active"`
+	Description pgtype.Text `json:"description"`
+}
+
+func (q *Queries) UpsertRoom(ctx context.Context, arg UpsertRoomParams) (Room, error) {
+	row := q.db.QueryRow(ctx, upsertRoom,
+		arg.ID,
+		arg.CampusID,
+		arg.Name,
+		arg.MinDuration,
+		arg.MaxDuration,
+		arg.IsActive,
+		arg.Description,
+	)
+	var i Room
+	err := row.Scan(
+		&i.ID,
+		&i.CampusID,
+		&i.Name,
+		&i.MinDuration,
+		&i.MaxDuration,
+		&i.IsActive,
+		&i.Description,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
 }
 
 const upsertSkill = `-- name: UpsertSkill :one

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"maps"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -13,7 +14,12 @@ import (
 // safe Markdown (built with intentional */_ and user content escaped). They
 // must not be sanitized on substitution so that *Лидер:* etc. render as bold.
 var preformattedContextKeys = map[string]bool{
-	"club_card": true,
+	"club_card":               true,
+	"clubs_list":              true,
+	"books_list_numbered":     true,
+	"my_books_list_formatted": true,
+	"free_slots_list":         true,
+	"my_bookings_list":        true,
 }
 
 // Engine handles the core FSM logic.
@@ -107,10 +113,80 @@ func (e *Engine) InitState(ctx context.Context, userID int64, flowName, stateNam
 		Language:     LangRu,
 		Context:      initialContext,
 	}
+
+	// 1. Process OnEnter hooks for the initial state
+	if flow, err := e.parser.GetFlow(flowName); err == nil {
+		if spec, ok := flow.States[stateName]; ok {
+			e.runHooks(ctx, spec.OnEnter, newState)
+		}
+	}
+
 	return e.repo.SetState(ctx, newState)
 }
 
 // GetCurrentRender returns the RenderObject for the user's current state.
+func (e *Engine) runHooks(ctx context.Context, hooks []Logic, state *UserState) {
+	for _, hook := range hooks {
+		if hook.Action != "" {
+			_, _, _ = e.runAction(ctx, hook, state)
+		}
+	}
+}
+
+func (e *Engine) runAction(ctx context.Context, logic Logic, state *UserState) (string, map[string]any, error) {
+	actionName := logic.Action
+	if action, ok := e.registry.Get(actionName); ok {
+		e.log.Debug("executing action", "action", actionName)
+		// Prepare payload
+		payload := make(map[string]any)
+		if logic.Payload != nil {
+			for k, v := range logic.Payload {
+				switch val := v.(type) {
+				case string:
+					payload[k] = e.replaceVariables(val, state)
+				case map[string]any:
+					// Support localization within payload: if map has "ru"/"en" keys, pick the right one
+					if localized, ok := val[state.Language].(string); ok {
+						payload[k] = e.replaceVariables(localized, state)
+					} else if fallback, ok := val[LangEn].(string); ok {
+						payload[k] = e.replaceVariables(fallback, state)
+					} else {
+						payload[k] = v
+					}
+				case []any:
+					newList := make([]any, len(val))
+					for i, item := range val {
+						if s, ok := item.(string); ok {
+							newList[i] = e.replaceVariables(s, state)
+						} else {
+							newList[i] = item
+						}
+					}
+					payload[k] = newList
+				default:
+					payload[k] = v
+				}
+			}
+		}
+
+		// Inject implicit context
+		payload["_last_input"] = state.Context["last_input"]
+
+		next, updates, err := action(ctx, state.UserID, payload)
+		if err != nil {
+			e.log.Error("action failed", "action", actionName, "error", err)
+			return "", nil, err
+		}
+
+		// Update context
+		e.updateStateContext(state, updates)
+		return next, updates, nil
+	}
+
+	e.log.Warn("action not found in registry", "action", actionName)
+	return "", nil, fmt.Errorf("action not found: %s", actionName)
+}
+
 func (e *Engine) GetCurrentRender(ctx context.Context, userID int64) (*RenderObject, error) {
 	state, err := e.repo.GetState(ctx, userID)
 	if err != nil {
@@ -273,6 +349,13 @@ func (e *Engine) transitionTo(ctx context.Context, state *UserState, target stri
 	targetFlow := state.CurrentFlow
 	targetState := target
 
+	// 1. Process OnExit hooks for the current state
+	if oldFlow, err := e.parser.GetFlow(state.CurrentFlow); err == nil {
+		if oldSpec, ok := oldFlow.States[state.CurrentState]; ok {
+			e.runHooks(ctx, oldSpec.OnExit, state)
+		}
+	}
+
 	// Resolve alias
 	if resolved, ok := e.aliases[target]; ok {
 		e.log.Debug("resolving state alias", "alias", target, "flow", resolved.Flow, "state", resolved.State)
@@ -289,22 +372,24 @@ func (e *Engine) transitionTo(ctx context.Context, state *UserState, target stri
 	state.CurrentFlow = targetFlow
 	state.CurrentState = targetState
 
-	// Save intermediate state
-	if err := e.repo.SetState(ctx, state); err != nil {
-		return err
-	}
-
-	// Process system state if necessary
+	// Process OnEnter hooks for the new state
 	flow, err := e.parser.GetFlow(targetFlow)
 	if err != nil {
 		return err
 	}
-
 	spec, ok := flow.States[targetState]
 	if !ok {
 		return fmt.Errorf("target state %s not found in flow %s", targetState, targetFlow)
 	}
 
+	e.runHooks(ctx, spec.OnEnter, state)
+
+	// Save final state after all hooks
+	if err := e.repo.SetState(ctx, state); err != nil {
+		return err
+	}
+
+	// Process system state if necessary
 	if spec.Type == StateTypeSystem {
 		e.log.Debug("auto-processing system state", "state", targetState)
 		next := e.evaluateSystemState(ctx, &spec, state)
@@ -318,64 +403,10 @@ func (e *Engine) transitionTo(ctx context.Context, state *UserState, target stri
 
 // evaluateSystemState determines the next state via registry actions and transitions.
 func (e *Engine) evaluateSystemState(ctx context.Context, spec *State, state *UserState) string {
-	actionName := spec.Logic.Action
-
-	// var results map[string]interface{}
-
-	if actionName != "" {
-		if action, ok := e.registry.Get(actionName); ok {
-			e.log.Debug("executing system action", "action", actionName)
-			// Prepare payload
-			payload := make(map[string]any)
-			if spec.Logic.Payload != nil {
-				for k, v := range spec.Logic.Payload {
-					switch val := v.(type) {
-					case string:
-						payload[k] = e.replaceVariables(val, state)
-					case map[string]any:
-						// Support localization within payload: if map has "ru"/"en" keys, pick the right one
-						if localized, ok := val[state.Language].(string); ok {
-							payload[k] = e.replaceVariables(localized, state)
-						} else if fallback, ok := val[LangEn].(string); ok {
-							payload[k] = e.replaceVariables(fallback, state)
-						} else {
-							payload[k] = v
-						}
-					case []any:
-						newList := make([]any, len(val))
-						for i, item := range val {
-							if s, ok := item.(string); ok {
-								newList[i] = e.replaceVariables(s, state)
-							} else {
-								newList[i] = item
-							}
-						}
-						payload[k] = newList
-					default:
-						payload[k] = v
-					}
-				}
-			}
-
-			// Inject implicit context
-			payload["_last_input"] = state.Context["last_input"]
-
-			next, updates, err := action(ctx, state.UserID, payload)
-			if err != nil {
-				e.log.Error("system action failed", "action", actionName, "error", err)
-				// Ideally handle error transition here
-			}
-
-			// Update context
-			e.updateStateContext(state, updates)
-			// results = updates
-
-			// If action returned a forced next state, use it
-			if next != "" {
-				return next
-			}
-		} else {
-			e.log.Warn("system action not found in registry", "action", actionName)
+	if spec.Logic.Action != "" {
+		next, _, _ := e.runAction(ctx, spec.Logic, state)
+		if next != "" {
+			return next
 		}
 	}
 
@@ -409,8 +440,25 @@ func (e *Engine) evaluateSingleCondition(condition string, ctx map[string]any) b
 		operator = "=="
 	} else if strings.Contains(condition, "!=") {
 		operator = "!="
+	} else if strings.Contains(condition, ">=") {
+		operator = ">="
+	} else if strings.Contains(condition, "<=") {
+		operator = "<="
+	} else if strings.Contains(condition, ">") {
+		operator = ">"
+	} else if strings.Contains(condition, "<") {
+		operator = "<"
 	} else {
-		return false
+		// Variable-only check: e.g. "has_rooms" (check if truthy/exists)
+		val := e.getContextValue(ctx, condition)
+		if val == nil {
+			return false
+		}
+		if b, ok := val.(bool); ok {
+			return b
+		}
+		s := strings.ToLower(fmt.Sprintf("%v", val))
+		return s != "" && s != "false" && s != "0"
 	}
 
 	parts := strings.Split(condition, operator)
@@ -419,17 +467,59 @@ func (e *Engine) evaluateSingleCondition(condition string, ctx map[string]any) b
 	}
 
 	key := strings.TrimSpace(parts[0])
-	val := strings.TrimSpace(parts[1])
-	val = strings.Trim(val, "'\"") // Trim quotes
+	valStr := strings.TrimSpace(parts[1])
+	valStr = strings.Trim(valStr, "'\"") // Trim quotes
 
 	// Get context value with support for dot notation
 	ctxVal := e.getContextValue(ctx, key)
-	ctxString := fmt.Sprintf("%v", ctxVal)
 
+	// Numeric comparison
+	if operator == ">" || operator == "<" || operator == ">=" || operator == "<=" {
+		v1, err1 := toFloat(ctxVal)
+		v2, err2 := strconv.ParseFloat(valStr, 64)
+		if err1 == nil && err2 == nil {
+			switch operator {
+			case ">":
+				return v1 > v2
+			case "<":
+				return v1 < v2
+			case ">=":
+				return v1 >= v2
+			case "<=":
+				return v1 <= v2
+			}
+		}
+		return false
+	}
+
+	// String comparison
+	ctxString := fmt.Sprintf("%v", ctxVal)
 	if operator == "==" {
-		return ctxString == val
+		return ctxString == valStr
 	} else {
-		return ctxString != val
+		return ctxString != valStr
+	}
+}
+
+func toFloat(v any) (float64, error) {
+	if v == nil {
+		return 0, fmt.Errorf("nil value")
+	}
+	switch val := v.(type) {
+	case int:
+		return float64(val), nil
+	case int32:
+		return float64(val), nil
+	case int64:
+		return float64(val), nil
+	case float32:
+		return float64(val), nil
+	case float64:
+		return val, nil
+	case string:
+		return strconv.ParseFloat(val, 64)
+	default:
+		return 0, fmt.Errorf("unsupported type: %T", v)
 	}
 }
 
@@ -507,6 +597,13 @@ func (e *Engine) renderState(ctx context.Context, userState *UserState, flowStat
 	shortCount := 0
 
 	for _, btn := range flowState.Interface.Buttons {
+		// Check condition if present
+		if btn.Condition != "" {
+			if !e.evaluateCondition(btn.Condition, userState.Context) {
+				continue
+			}
+		}
+
 		// Подстановки без санитайзера, чтобы не экранировать "_" и "*" в названиях
 		label := e.replaceVariablesOpts(e.getButtonLabel(btn, userState), userState, false)
 		url := ""

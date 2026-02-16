@@ -3,7 +3,7 @@ meta:
   feature_id: BOOK-001
   name: Бронирование переговорок
   description: Система бронирования слотов в кампусе (Friendly UI)
-  version: 2.1.0
+  version: 2.2.0
 
 initial_state: AUTO_SYNC_BOOKING
 
@@ -16,9 +16,9 @@ states:
       payload:
         campus_id: $context.campus_id
     transitions:
-      - next_state: BOOKING_MENU
+      - next_state: BOOKING_HOME
 
-  BOOKING_MENU:
+  BOOKING_HOME:
     type: interactive
     description: Главное меню (Слоты на сегодня)
     interface:
@@ -43,8 +43,30 @@ states:
           {free_slots_list}
       image: "{schedule_image}"
       buttons:
-        - id: slot_{room_id}_{time}
-          label: "⚡ {time} | {room_name}"
+        - id: "{slot_id_1}"
+          label: "{slot_label_1}"
+        - id: "{slot_id_2}"
+          label: "{slot_label_2}"
+        - id: "{slot_id_3}"
+          label: "{slot_label_3}"
+        - id: "{slot_id_4}"
+          label: "{slot_label_4}"
+        - id: "{slot_id_5}"
+          label: "{slot_label_5}"
+        - id: "{slot_id_6}"
+          label: "{slot_label_6}"
+        - id: "{slot_id_7}"
+          label: "{slot_label_7}"
+        - id: "{slot_id_8}"
+          label: "{slot_label_8}"
+        - id: "{slot_id_9}"
+          label: "{slot_label_9}"
+        - id: "{slot_id_10}"
+          label: "{slot_label_10}"
+        - id: "{slot_id_11}"
+          label: "{slot_label_11}"
+        - id: "{slot_id_12}"
+          label: "{slot_label_12}"
         - id: select_date
           label:
             ru: 🗓 Выбрать другой день
@@ -102,7 +124,7 @@ states:
           label:
             ru: 🔙 Назад
             en: 🔙 Back
-          next_state: BOOKING_MENU
+          next_state: BOOKING_HOME
     transitions:
       - trigger: button_click
         condition: id.startswith('slot_')
@@ -138,7 +160,7 @@ states:
           label:
             ru: 🔙 Отмена
             en: 🔙 Cancel
-          next_state: BOOKING_MENU
+          next_state: BOOKING_HOME
 
   CONFIRM_BOOKING:
     type: interactive
@@ -173,7 +195,7 @@ states:
           label:
             ru: ❌ Нет, назад
             en: ❌ No, go back
-          next_state: BOOKING_MENU
+          next_state: BOOKING_HOME
 
   COMMIT_BOOKING:
     type: system
@@ -215,7 +237,7 @@ states:
           label:
             ru: 🔄 Обновить расписание
             en: 🔄 Refresh schedule
-          next_state: BOOKING_MENU
+          next_state: BOOKING_HOME
 
   FETCH_MY_BOOKINGS:
     type: system
@@ -245,15 +267,21 @@ states:
           ---
           {my_bookings_list}
       buttons:
-        - id: cancel_{booking_id}
-          label:
-            ru: 🗑 Отменить бронь
-            en: 🗑 Cancel booking
+        - id: "{cancel_id_1}"
+          label: "{cancel_label_1}"
+        - id: "{cancel_id_2}"
+          label: "{cancel_label_2}"
+        - id: "{cancel_id_3}"
+          label: "{cancel_label_3}"
+        - id: "{cancel_id_4}"
+          label: "{cancel_label_4}"
+        - id: "{cancel_id_5}"
+          label: "{cancel_label_5}"
         - id: back
           label:
             ru: 🏠 В меню
             en: 🏠 To menu
-          next_state: BOOKING_MENU
+          next_state: BOOKING_HOME
 
   COMPLETED:
     type: interactive
