@@ -2,8 +2,6 @@
 BINARY		:= noemx21-bot
 BUILD_PKG	:= ./cmd/noemx21-bot
 LDFLAGS := -s -w
-GOEXPERIMENT := runtimesecret
-export GOEXPERIMENT
 
 LOCAL_BIN := $(CURDIR)/bin
 
