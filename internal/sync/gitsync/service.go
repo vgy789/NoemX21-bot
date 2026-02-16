@@ -357,29 +357,33 @@ func isRefNotFound(err error) bool {
 }
 
 func (s *Service) getAuth() (ssh.AuthMethod, error) {
-	if s.cfg.SSHKeyBase64 == "" {
+	sshKeyRaw := s.cfg.SSHKeyBase64.Expose()
+	if sshKeyRaw == "" {
 		return nil, nil
 	}
-	keyPEM, err := base64.StdEncoding.DecodeString(string(s.cfg.SSHKeyBase64))
+
+	keyPEM, err := base64.StdEncoding.DecodeString(sshKeyRaw)
 	if err != nil {
 		return nil, fmt.Errorf("decode SSH_KEY_BASE64: %w", err)
 	}
+
 	auth, err := ssh.NewPublicKeys("git", keyPEM, "")
 	if err != nil {
 		return nil, fmt.Errorf("parse SSH key: %w", err)
 	}
-	// Host key verification: use SSH_KNOWN_HOSTS if set (paths separated by ":"), otherwise accept any host (e.g. in Docker/CI).
+
 	if paths := os.Getenv("SSH_KNOWN_HOSTS"); paths != "" {
 		files := strings.Split(paths, ":")
 		callback, err := ssh.NewKnownHostsCallback(files...)
 		if err != nil {
 			return nil, fmt.Errorf("known_hosts: %w", err)
 		}
-		auth.HostKeyCallbackHelper.HostKeyCallback = callback
+		auth.HostKeyCallback = callback
 	} else {
-		auth.HostKeyCallbackHelper.HostKeyCallback = cryptossh.InsecureIgnoreHostKey()
+		auth.HostKeyCallback = cryptossh.InsecureIgnoreHostKey()
 		s.log.Warn("SSH_KNOWN_HOSTS not set, accepting any host key")
 	}
+
 	return auth, nil
 }
 
