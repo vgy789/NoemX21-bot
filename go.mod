@@ -17,7 +17,11 @@ require (
 	github.com/tink-crypto/tink-go/v2 v2.6.0
 	github.com/wcharczuk/go-chart/v2 v2.1.2
 	go.uber.org/mock v0.6.0
+<<<<<<< HEAD
 	golang.org/x/crypto v0.48.0
+=======
+	golang.org/x/crypto v0.47.0
+>>>>>>> 980a410c9164c672c92caacaa549418dbdf5381c
 	gopkg.in/yaml.v3 v3.0.1
 )
 
