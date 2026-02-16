@@ -104,10 +104,15 @@ func TestRegistration_UniquenessAndOTP(t *testing.T) {
 			"s21_login": "otheruser",
 		})
 
+		// Override get_user_stats to avoid CredentialService nil pointer
+		ts.engine.Registry().Register("get_user_stats", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+			return "", map[string]any{"_alert": "Личный кабинет"}, nil
+		})
+
 		mockQueries.EXPECT().GetUserAccountByS21Login(gomock.Any(), "otheruser").Return(db.UserAccount{ExternalID: "555"}, nil)
 		mockQueries.EXPECT().GetValidAuthVerificationCode(gomock.Any(), gomock.Any()).Return(db.AuthVerificationCode{Code: "123456"}, nil)
 		mockQueries.EXPECT().DeleteAuthVerificationCode(gomock.Any(), gomock.Any()).Return(nil)
-		mockQueries.EXPECT().GetUserAccountByExternalId(gomock.Any(), gomock.Any()).Return(db.UserAccount{}, nil)
+		mockQueries.EXPECT().GetUserAccountByExternalId(gomock.Any(), gomock.Any()).Times(2).Return(db.UserAccount{S21Login: "otheruser"}, nil)
 		mockUserSvc.EXPECT().GetProfileByExternalID(gomock.Any(), gomock.Any(), gomock.Any()).Return(&service.UserProfile{Login: "otheruser"}, nil)
 
 		render, err := ts.engine.Process(ctx, userID, "123456")
@@ -122,12 +127,16 @@ func TestRegistration_UniquenessAndOTP(t *testing.T) {
 			"s21_login": "newuser",
 		})
 
+		// Override get_user_stats to avoid CredentialService nil pointer
+		ts.engine.Registry().Register("get_user_stats", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+			return "", map[string]any{"_alert": "Личный кабинет"}, nil
+		})
+
 		mockQueries.EXPECT().GetUserAccountByS21Login(gomock.Any(), "newuser").Return(db.UserAccount{}, fmt.Errorf("not found"))
 		mockQueries.EXPECT().GetValidAuthVerificationCode(gomock.Any(), gomock.Any()).Return(db.AuthVerificationCode{Code: "654321"}, nil)
 		mockQueries.EXPECT().DeleteAuthVerificationCode(gomock.Any(), gomock.Any()).Return(nil)
 		mockQueries.EXPECT().CreateUserAccount(gomock.Any(), gomock.Any()).Return(db.UserAccount{ID: 1}, nil)
 		mockQueries.EXPECT().UpsertUserBotSettings(gomock.Any(), gomock.Any()).Return(db.UserBotSetting{ID: 1}, nil)
-		mockQueries.EXPECT().GetUserAccountByExternalId(gomock.Any(), gomock.Any()).Return(db.UserAccount{S21Login: "newuser"}, nil)
 		mockUserSvc.EXPECT().GetProfileByExternalID(gomock.Any(), db.EnumPlatformTelegram, "301").Return(&service.UserProfile{Login: "newuser"}, nil)
 
 		render, err := ts.engine.Process(ctx, userID, "654321")
