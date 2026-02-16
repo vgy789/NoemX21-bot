@@ -2,6 +2,7 @@ package gitsync
 
 import (
 	"context"
+	"encoding/base64"
 	"fmt"
 	"log/slog"
 	"os"
@@ -10,11 +11,13 @@ import (
 	"time"
 
 	"github.com/go-git/go-git/v5"
+	gitconfig "github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
-	"github.com/go-git/go-git/v5/plumbing/transport/http"
+	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"github.com/robfig/cron/v3"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
+	cryptossh "golang.org/x/crypto/ssh"
 	"gopkg.in/yaml.v3"
 )
 
@@ -74,8 +77,9 @@ func (s *Service) Sync(ctx context.Context) error {
 	s.log.Info("starting git sync")
 
 	// 1. Update repo
-	if err := s.updateRepo(); err != nil {
-		return fmt.Errorf("failed to update repo: %w", err)
+	updateErr := s.updateRepo()
+	if updateErr != nil {
+		return fmt.Errorf("failed to update repo: %w", updateErr)
 	}
 
 	// 2. Scan directories
@@ -84,6 +88,7 @@ func (s *Service) Sync(ctx context.Context) error {
 		return fmt.Errorf("failed to read local path: %w", err)
 	}
 
+	synced := 0
 	for _, entry := range entries {
 		if !entry.IsDir() || strings.HasPrefix(entry.Name(), ".") || strings.HasPrefix(entry.Name(), "_") {
 			continue
@@ -105,6 +110,8 @@ func (s *Service) Sync(ctx context.Context) error {
 
 		if err := s.syncCampus(ctx, campus, filepath.Join(s.cfg.LocalPath, entry.Name())); err != nil {
 			s.log.Error("failed to sync campus", "campus", campusName, "error", err)
+		} else {
+			synced++
 		}
 	}
 
@@ -112,53 +119,272 @@ func (s *Service) Sync(ctx context.Context) error {
 	return nil
 }
 
-func (s *Service) updateRepo() error {
-	auth := s.getAuth()
+const (
+	sshRetryAttempts = 3
+	sshRetryDelay    = 3 * time.Second
+)
 
+func (s *Service) updateRepo() error {
+	auth, err := s.getAuth()
+	if err != nil {
+		return err
+	}
+
+	var lastErr error
+	for attempt := 1; attempt <= sshRetryAttempts; attempt++ {
+		lastErr = s.doUpdateRepo(auth)
+		if lastErr == nil {
+			return nil
+		}
+		if !isTransientSSHError(lastErr) || attempt == sshRetryAttempts {
+			return lastErr
+		}
+		s.log.Warn("retrying after transient SSH/network error", "attempt", attempt, "error", lastErr)
+		time.Sleep(sshRetryDelay)
+	}
+	return lastErr
+}
+
+func isTransientSSHError(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := err.Error()
+	return strings.Contains(s, "handshake failed") ||
+		strings.Contains(s, "EOF") ||
+		strings.Contains(s, "connection reset") ||
+		strings.Contains(s, "i/o timeout")
+}
+
+func (s *Service) doUpdateRepo(auth ssh.AuthMethod) error {
+	gitExists := true
 	if _, err := os.Stat(filepath.Join(s.cfg.LocalPath, ".git")); os.IsNotExist(err) {
-		s.log.Info("cloning repository", "url", s.cfg.RepoURL, "path", s.cfg.LocalPath)
+		gitExists = false
+	}
+
+	if !gitExists {
+		return s.cloneRepo(auth)
+	}
+	s.log.Debug("pulling repository (force)", "path", s.cfg.LocalPath)
+	r, err := git.PlainOpen(s.cfg.LocalPath)
+	if err != nil {
+		return err
+	}
+	ref, err := r.Head()
+	if err != nil {
+		// Empty clone: HEAD/refs/heads/main may not exist; fetch the other branch and checkout.
+		if isRefNotFound(err) {
+			if repairErr := s.repairWhenHeadFails(r, auth); repairErr != nil {
+				return err
+			}
+			return nil
+		}
+		return err
+	}
+	branch := ref.Name()
+	if !branch.IsBranch() {
+		branch = plumbing.NewBranchReferenceName(s.cfg.Branch)
+	}
+	branchShort := branch.Short()
+	remote, err := r.Remote("origin")
+	if err != nil {
+		return err
+	}
+	// Force fetch: always update remote ref from origin
+	refSpec := gitconfig.RefSpec("+refs/heads/" + branchShort + ":refs/remotes/origin/" + branchShort)
+	if err := remote.Fetch(&git.FetchOptions{Auth: auth, RefSpecs: []gitconfig.RefSpec{refSpec}}); err != nil && err != git.NoErrAlreadyUpToDate {
+		if isRefNotFound(err) {
+			w, wErr := r.Worktree()
+			if wErr != nil {
+				return err
+			}
+			if repairErr := s.repairBranchThenPull(r, w, auth); repairErr != nil {
+				return err
+			}
+			return nil
+		}
+		return err
+	}
+	remoteRef, err := r.Reference(plumbing.ReferenceName("refs/remotes/origin/"+branchShort), true)
+	if err != nil {
+		return err
+	}
+	w, err := r.Worktree()
+	if err != nil {
+		return err
+	}
+	// Hard reset to remote: working tree always matches origin
+	if err := r.Storer.SetReference(plumbing.NewHashReference(branch, remoteRef.Hash())); err != nil {
+		return err
+	}
+	return w.Reset(&git.ResetOptions{Mode: git.HardReset, Commit: remoteRef.Hash()})
+}
+
+// repairWhenHeadFails fixes repo when Head() fails (e.g. empty clone with no valid HEAD). Fetches master, creates local branch, checkouts.
+func (s *Service) repairWhenHeadFails(r *git.Repository, auth ssh.AuthMethod) error {
+	remote, err := r.Remote("origin")
+	if err != nil {
+		return err
+	}
+	for _, branch := range []string{"master", "main"} {
+		refSpec := gitconfig.RefSpec("+refs/heads/" + branch + ":refs/remotes/origin/" + branch)
+		if err := remote.Fetch(&git.FetchOptions{Auth: auth, RefSpecs: []gitconfig.RefSpec{refSpec}}); err != nil {
+			continue
+		}
+		remoteRef, err := r.Reference(plumbing.ReferenceName("refs/remotes/origin/"+branch), true)
+		if err != nil {
+			continue
+		}
+		_ = r.Storer.SetReference(plumbing.NewHashReference(plumbing.NewBranchReferenceName(branch), remoteRef.Hash()))
+		w, err := r.Worktree()
+		if err != nil {
+			return err
+		}
+		if err := w.Checkout(&git.CheckoutOptions{Branch: plumbing.NewBranchReferenceName(branch)}); err != nil {
+			continue
+		}
+		_ = w.Reset(&git.ResetOptions{Mode: git.HardReset, Commit: remoteRef.Hash()})
+		return nil
+	}
+	return fmt.Errorf("could not repair: neither master nor main found on remote")
+}
+
+// repairBranchThenPull fetches the other default branch (main/master), checks it out, and pulls.
+// Used when the current branch does not exist on remote (e.g. local main empty, remote has master).
+func (s *Service) repairBranchThenPull(r *git.Repository, w *git.Worktree, auth ssh.AuthMethod) error {
+	head, err := r.Head()
+	if err != nil {
+		return err
+	}
+	currentShort := head.Name().Short()
+	otherBranch := "master"
+	if currentShort == "master" {
+		otherBranch = "main"
+	}
+	s.log.Warn("current branch not on remote, switching to", "branch", otherBranch)
+
+	remote, err := r.Remote("origin")
+	if err != nil {
+		return err
+	}
+	refSpec := gitconfig.RefSpec("+refs/heads/" + otherBranch + ":refs/remotes/origin/" + otherBranch)
+	if err := remote.Fetch(&git.FetchOptions{Auth: auth, RefSpecs: []gitconfig.RefSpec{refSpec}}); err != nil && !strings.Contains(err.Error(), "already up-to-date") {
+		return err
+	}
+	remoteRef, err := r.Reference(plumbing.ReferenceName("refs/remotes/origin/"+otherBranch), true)
+	if err != nil {
+		return err
+	}
+	_ = r.Storer.SetReference(plumbing.NewHashReference(plumbing.NewBranchReferenceName(otherBranch), remoteRef.Hash()))
+	if err := w.Checkout(&git.CheckoutOptions{Branch: plumbing.NewBranchReferenceName(otherBranch)}); err != nil {
+		return err
+	}
+	return w.Reset(&git.ResetOptions{Mode: git.HardReset, Commit: remoteRef.Hash()})
+}
+
+// cloneRepo clones the repository. Tries GIT_BRANCH first; if the ref is not found or clone is empty (e.g. repo uses master), tries the other common branch.
+func (s *Service) cloneRepo(auth ssh.AuthMethod) error {
+	branch := s.cfg.Branch
+	for attempt := range 2 {
+		s.log.Info("cloning repository", "url", s.cfg.RepoURL, "path", s.cfg.LocalPath, "branch", branch)
 		_, err := git.PlainClone(s.cfg.LocalPath, false, &git.CloneOptions{
 			URL:           s.cfg.RepoURL,
-			ReferenceName: plumbing.NewBranchReferenceName(s.cfg.Branch),
+			ReferenceName: plumbing.NewBranchReferenceName(branch),
 			SingleBranch:  true,
 			Auth:          auth,
 			Progress:      os.Stdout,
 		})
 		if err != nil {
+			// If branch not found, try the other common default (main <-> master)
+			if isRefNotFound(err) && attempt == 0 {
+				branch = alternateBranch(branch)
+				if branch == "" {
+					return err
+				}
+				s.log.Warn("branch not found, retrying with", "branch", branch)
+				continue
+			}
 			return err
 		}
-	} else {
-		s.log.Debug("pulling repository", "path", s.cfg.LocalPath)
-		r, err := git.PlainOpen(s.cfg.LocalPath)
-		if err != nil {
-			return err
+		// Some servers succeed cloning non-existent branch with empty worktree; retry with other branch.
+		if attempt == 0 && cloneIsEmpty(s.cfg.LocalPath) {
+			other := alternateBranch(branch)
+			if other == "" {
+				return nil
+			}
+			_ = os.RemoveAll(s.cfg.LocalPath)
+			branch = other
+			s.log.Warn("clone was empty, retrying with", "branch", branch)
+			continue
 		}
-		w, err := r.Worktree()
-		if err != nil {
-			return err
-		}
-		err = w.Pull(&git.PullOptions{
-			RemoteName:    "origin",
-			ReferenceName: plumbing.NewBranchReferenceName(s.cfg.Branch),
-			Auth:          auth,
-			SingleBranch:  true,
-		})
-		if err != nil && err != git.NoErrAlreadyUpToDate {
-			return err
-		}
-	}
-	return nil
-}
-
-func (s *Service) getAuth() *http.BasicAuth {
-	if s.cfg.AuthToken == "" {
 		return nil
 	}
-	// For GitLab/GitHub tokens, username can be anything, but often "oauth2" or "private-token"
-	return &http.BasicAuth{
-		Username: "private-token",
-		Password: string(s.cfg.AuthToken),
+	return fmt.Errorf("clone failed (tried branch %s)", s.cfg.Branch)
+}
+
+func alternateBranch(branch string) string {
+	switch branch {
+	case "main":
+		return "master"
+	case "master":
+		return "main"
+	default:
+		return ""
 	}
+}
+
+func cloneIsEmpty(path string) bool {
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return true
+	}
+	for _, e := range entries {
+		if e.Name() != ".git" {
+			return false
+		}
+	}
+	return true
+}
+
+func isRefNotFound(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := err.Error()
+	return strings.Contains(s, "reference not found") ||
+		strings.Contains(s, "couldn't find remote ref") ||
+		strings.Contains(s, "Remote branch")
+}
+
+func (s *Service) getAuth() (ssh.AuthMethod, error) {
+	sshKeyRaw := s.cfg.SSHKeyBase64.Expose()
+	if sshKeyRaw == "" {
+		return nil, nil
+	}
+
+	keyPEM, err := base64.StdEncoding.DecodeString(sshKeyRaw)
+	if err != nil {
+		return nil, fmt.Errorf("decode SSH_KEY_BASE64: %w", err)
+	}
+
+	auth, err := ssh.NewPublicKeys("git", keyPEM, "")
+	if err != nil {
+		return nil, fmt.Errorf("parse SSH key: %w", err)
+	}
+
+	if paths := os.Getenv("SSH_KNOWN_HOSTS"); paths != "" {
+		files := strings.Split(paths, ":")
+		callback, err := ssh.NewKnownHostsCallback(files...)
+		if err != nil {
+			return nil, fmt.Errorf("known_hosts: %w", err)
+		}
+		auth.HostKeyCallback = callback
+	} else {
+		auth.HostKeyCallback = cryptossh.InsecureIgnoreHostKey()
+		s.log.Warn("SSH_KNOWN_HOSTS not set, accepting any host key")
+	}
+
+	return auth, nil
 }
 
 func (s *Service) syncCampus(ctx context.Context, campus db.Campuse, path string) error {

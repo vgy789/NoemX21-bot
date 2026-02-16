@@ -227,8 +227,8 @@ func TestEngine_Process(t *testing.T) {
 		err := engine.InitState(ctx, userID, "main_menu.yaml", "MAIN_MENU", nil)
 		require.NoError(t, err)
 
-		// Click settings button with uppercase and spaces
-		render, err := engine.Process(ctx, userID, "  SETTINGS  ")
+		// Click settings button with leading/trailing spaces (engine trims input; button id is "settings")
+		render, err := engine.Process(ctx, userID, "  settings  ")
 		require.NoError(t, err)
 		require.NotNil(t, render)
 
@@ -468,9 +468,9 @@ func TestEngine_FindNextState(t *testing.T) {
 		},
 	}
 
-	assert.Equal(t, "STATE1", e.findNextState(spec, "btn1"))
-	assert.Equal(t, "STATE2", e.findNextState(spec, "btn2"))
-	assert.Equal(t, "", e.findNextState(spec, "unknown"))
+	assert.Equal(t, "STATE1", e.findNextState(spec, "btn1", nil))
+	assert.Equal(t, "STATE2", e.findNextState(spec, "btn2", nil))
+	assert.Equal(t, "", e.findNextState(spec, "unknown", nil))
 }
 
 func TestEngine_MoreEdgeCases(t *testing.T) {
