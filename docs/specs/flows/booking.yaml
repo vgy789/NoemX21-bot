@@ -82,18 +82,6 @@ states:
           label: "{slot_label_9}"
           row: 3
           next_state: CONFIRM_FAST
-        - id: "{slot_id_10}"
-          label: "{slot_label_10}"
-          row: 4
-          next_state: CONFIRM_FAST
-        - id: "{slot_id_11}"
-          label: "{slot_label_11}"
-          row: 4
-          next_state: CONFIRM_FAST
-        - id: "{slot_id_12}"
-          label: "{slot_label_12}"
-          row: 4
-          next_state: CONFIRM_FAST
 
         # Статичное меню управления
         - id: open_calendar
@@ -112,8 +100,15 @@ states:
           
         - id: refresh
           label: 🔄
-          row: 5
+          row: 6
           next_state: AUTO_SYNC_BOOKING
+
+        - id: back
+          label:
+            ru: 🏠 Главное меню
+            en: 🏠 Main menu
+          row: 6
+          next_state: MAIN_MENU
 
     transitions:
       - trigger: button_click
@@ -156,8 +151,8 @@ states:
 
         - id: back
           label:
-            ru: 🔙 На главную
-            en: 🔙 Dashboard
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: BOOKING_DASHBOARD
     transitions:
       - trigger: button_click
@@ -301,10 +296,18 @@ states:
     type: interactive
     interface:
       text:
-        ru: "👤 Твои активные записи:\n\n{my_bookings_formatted}"
-        en: "👤 Your active slots:\n\n{my_bookings_formatted}"
+        ru: |
+          👤 Твои активные записи:
+          
+          {my_bookings_formatted}
+        en: |
+          👤 Your active slots:
+          
+          {my_bookings_formatted}
       buttons:
         - id: back
-          label: "🔙"
+          label:
+            ru: "🔙 Назад"
+            en: "🔙 Back"
           next_state: BOOKING_DASHBOARD
         # Кнопки отмены генерируются динамически

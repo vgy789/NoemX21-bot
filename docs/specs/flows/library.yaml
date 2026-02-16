@@ -73,6 +73,11 @@ states:
             en: ❓ Rules
           next_state: SHOW_RULES
           row: 2
+        - id: back
+          label:
+            ru: 🏠 Главное меню
+            en: 🏠 Main menu
+          next_state: MAIN_MENU
 
   # -------------------------------------------------------------------------
   # 2. ПОИСК И СПИСКИ (ЕДИНЫЙ КОНТУР)
@@ -107,8 +112,10 @@ states:
       action: set_context
       payload:
         search_query: $context.last_input
+        selected_category_id: "" # Сбрасываем категорию при новом поиске
         page: 1
         only_available: false # По умолчанию ищем всё
+
     transitions:
       - next_state: EXECUTE_SEARCH
 
@@ -135,18 +142,18 @@ states:
       text:
         ru: |
           🔎 *Результаты поиска*
-          📖 Найдено: {total_count} (Стр. {page}/{total_pages})
+          📖 Найдено: *{total_count}*
           ⚙️ Фильтр: {filter_status_text_ru}
 
           {formatted_book_list_with_icons}
-          _🟢 - доступна, 🔴 - занята_
+          _🟢 – доступна, 🔴 – занята_
         en: |
           🔎 *Search Results*
-          📖 Found: {total_count} (Pg. {page}/{total_pages})
+          📖 Found: *{total_count}*
           ⚙️ Filter: {filter_status_text_en}
 
           {formatted_book_list_with_icons}
-          _🟢 - available, 🔴 - taken_
+          _🟢 – available, 🔴 – taken_
       buttons:
         # Динамические кнопки книг (1-5)
         - id: "{book_id_1}"
@@ -179,6 +186,9 @@ states:
           next_state: PREV_PAGE
           condition: page > 1
           row: 3
+        - id: page
+          label: "{page}/{total_pages}"
+          row: 3
         - id: next
           label: "➡️"
           next_state: NEXT_PAGE
@@ -187,8 +197,8 @@ states:
           
         - id: back
           label:
-            ru: 🔙 В меню
-            en: 🔙 Menu
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: LIBRARY_HOME
           row: 4
     transitions:
@@ -360,8 +370,103 @@ states:
       buttons:
         - id: home
           label:
-            ru: 🏠 Главное меню
-            en: 🏠 Main Menu
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: LIBRARY_HOME
+
+  FETCH_CATEGORIES:
+    type: system
+    logic:
+      action: get_book_categories
+    transitions:
+      - next_state: DISPLAY_CATEGORIES
+
+  DISPLAY_CATEGORIES:
+    type: interactive
+    interface:
+      text:
+        ru: "📂 *Каталог по категориям*\nВыберите интересующий раздел:"
+        en: "📂 *Catalog by Categories*\nSelect a section:"
+      buttons:
+        - id: "{category_1}"
+          label: "{category_1}"
+          condition: "category_1 != ''"
+        - id: "{category_2}"
+          label: "{category_2}"
+          condition: "category_2 != ''"
+        - id: "{category_3}"
+          label: "{category_3}"
+          condition: "category_3 != ''"
+        - id: "{category_4}"
+          label: "{category_4}"
+          condition: "category_4 != ''"
+        - id: "{category_5}"
+          label: "{category_5}"
+          condition: "category_5 != ''"
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: LIBRARY_HOME
+          row: 5
+    transitions:
+      - trigger: button_click
+        next_state: PREPARE_CATEGORY_SEARCH
+
+  PREPARE_CATEGORY_SEARCH:
+    type: system
+    logic:
+      action: set_context
+      payload:
+        search_query: "" # Пустой поиск
+        selected_category_id: $context.last_input # В action search_books используется category_id
+        page: 1
+    transitions:
+      - next_state: EXECUTE_SEARCH
+
+  SHOW_RULES:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          📜 *Правила библиотеки*
+          1. Книги выдаются на 14 дней.
+          2. Берегите книги!
+        en: |
+          📜 *Library Rules*
+          1. Books are issued for 14 days.
+          2. Take care of the books!
+      buttons:
+        - id: back
+          label:
+            ru: 🔙 Понятно
+            en: 🔙 I see
+          next_state: LIBRARY_HOME
+
+  ACTION_SUBSCRIBE:
+    type: interactive
+    interface:
+      text:
+        ru: "🔔 Вы подписаны на уведомление о возврате книги. Мы сообщим, как только она появится!"
+        en: "🔔 You are subscribed to return notifications. We will notify you once it is available!"
+      buttons:
+        - id: back
+          label:
+            ru: 🔙 В меню
+            en: 🔙 Menu
+          next_state: LIBRARY_HOME
+
+  BORROW_ERROR:
+    type: interactive
+    interface:
+      text:
+        ru: "❌ Ошибка при бронировании. Возможно, книгу уже кто-то успел взять или произошел технический сбой."
+        en: "❌ Borrowing error. Maybe someone else just took the book or there was a technical glitch."
+      buttons:
+        - id: retry
+          label:
+            ru: 🔄 Попробовать снова
+            en: 🔄 Try again
           next_state: LIBRARY_HOME
 
   SEARCH_EMPTY:
@@ -385,3 +490,4 @@ states:
             ru: 🏠 Домой
             en: 🏠 Home
           next_state: LIBRARY_HOME
+

@@ -471,28 +471,37 @@ DELETE FROM room_bookings
 WHERE id = $1 AND user_id = $2;
 
 -- name: GetBooksByCampus :many
-SELECT * FROM books
-WHERE campus_id = $1 AND is_active = true
-ORDER BY title
+SELECT b.*,
+       (b.total_stock - (SELECT count(*) FROM book_loans bl WHERE bl.campus_id = b.campus_id AND bl.book_id = b.id AND bl.returned_at IS NULL))::int as available_stock
+FROM books b
+WHERE b.campus_id = $1 AND b.is_active = true
+ORDER BY b.title
 LIMIT $2 OFFSET $3;
 
 -- name: GetBooksByCampusAndCategory :many
-SELECT * FROM books
-WHERE campus_id = $1 AND is_active = true AND category = $2
-ORDER BY title
+SELECT b.*,
+       (b.total_stock - (SELECT count(*) FROM book_loans bl WHERE bl.campus_id = b.campus_id AND bl.book_id = b.id AND bl.returned_at IS NULL))::int as available_stock
+FROM books b
+WHERE b.campus_id = $1 AND b.is_active = true AND b.category = $2
+ORDER BY b.title
 LIMIT $3 OFFSET $4;
 
 -- name: GetBooksByCampusAndAuthor :many
-SELECT * FROM books
-WHERE campus_id = $1 AND is_active = true AND author = $2
-ORDER BY title
+SELECT b.*,
+       (b.total_stock - (SELECT count(*) FROM book_loans bl WHERE bl.campus_id = b.campus_id AND bl.book_id = b.id AND bl.returned_at IS NULL))::int as available_stock
+FROM books b
+WHERE b.campus_id = $1 AND b.is_active = true AND b.author = $2
+ORDER BY b.title
 LIMIT $3 OFFSET $4;
 
 -- name: SearchBooks :many
-SELECT * FROM books
-WHERE campus_id = $1 AND is_active = true AND (title ILIKE '%' || $2 || '%' OR author ILIKE '%' || $2 || '%')
-ORDER BY title
+SELECT b.*,
+       (b.total_stock - (SELECT count(*) FROM book_loans bl WHERE bl.campus_id = b.campus_id AND bl.book_id = b.id AND bl.returned_at IS NULL))::int as available_stock
+FROM books b
+WHERE b.campus_id = $1 AND b.is_active = true AND (b.title ILIKE '%' || $2 || '%' OR b.author ILIKE '%' || $2 || '%')
+ORDER BY b.title
 LIMIT $3 OFFSET $4;
+
 
 -- name: GetBookByID :one
 SELECT b.*, 
@@ -548,3 +557,12 @@ SELECT count(*)::int
 FROM book_loans 
 WHERE user_id = $1 AND returned_at IS NULL;
 
+-- name: CountSearchBooks :one
+SELECT count(*)::int
+FROM books
+WHERE campus_id = $1 AND is_active = true AND (title ILIKE '%' || $2 || '%' OR author ILIKE '%' || $2 || '%');
+
+-- name: CountBooksByCategory :one
+SELECT count(*)::int
+FROM books
+WHERE campus_id = $1 AND is_active = true AND category = $2;

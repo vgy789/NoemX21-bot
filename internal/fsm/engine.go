@@ -14,12 +14,16 @@ import (
 // safe Markdown (built with intentional */_ and user content escaped). They
 // must not be sanitized on substitution so that *Лидер:* etc. render as bold.
 var preformattedContextKeys = map[string]bool{
-	"club_card":               true,
-	"clubs_list":              true,
-	"books_list_numbered":     true,
-	"my_books_list_formatted": true,
-	"free_slots_list":         true,
-	"my_bookings_list":        true,
+	"club_card":                      true,
+	"clubs_list":                     true,
+	"books_list_numbered":            true,
+	"my_books_list_formatted":        true,
+	"formatted_book_list_with_icons": true,
+	"loans_list_formatted":           true,
+	"free_slots_list":                true,
+	"my_bookings_list":               true,
+	"my_bookings_formatted":          true,
+	"hot_slots_list":                 true,
 }
 
 // Engine handles the core FSM logic.
@@ -136,41 +140,46 @@ func (e *Engine) runHooks(ctx context.Context, hooks []Logic, state *UserState) 
 func (e *Engine) runAction(ctx context.Context, logic Logic, state *UserState) (string, map[string]any, error) {
 	actionName := logic.Action
 	if action, ok := e.registry.Get(actionName); ok {
-		e.log.Debug("executing action", "action", actionName)
 		// Prepare payload
 		payload := make(map[string]any)
+
+		// Inject implicit context
+		maps.Copy(payload, state.Context)
+
+		payload["_last_input"] = state.Context["last_input"]
+		payload["last_input"] = state.Context["last_input"]
+
 		if logic.Payload != nil {
 			for k, v := range logic.Payload {
 				switch val := v.(type) {
 				case string:
-					payload[k] = e.replaceVariables(val, state)
+					payload[k] = e.replaceVariablesOpts(val, state, false)
 				case map[string]any:
 					// Support localization within payload: if map has "ru"/"en" keys, pick the right one
 					if localized, ok := val[state.Language].(string); ok {
-						payload[k] = e.replaceVariables(localized, state)
+						payload[k] = e.replaceVariablesOpts(localized, state, false)
 					} else if fallback, ok := val[LangEn].(string); ok {
-						payload[k] = e.replaceVariables(fallback, state)
+						payload[k] = e.replaceVariablesOpts(fallback, state, false)
 					} else {
 						payload[k] = v
 					}
+
 				case []any:
 					newList := make([]any, len(val))
 					for i, item := range val {
 						if s, ok := item.(string); ok {
-							newList[i] = e.replaceVariables(s, state)
+							newList[i] = e.replaceVariablesOpts(s, state, false)
 						} else {
 							newList[i] = item
 						}
 					}
 					payload[k] = newList
+
 				default:
 					payload[k] = v
 				}
 			}
 		}
-
-		// Inject implicit context
-		payload["_last_input"] = state.Context["last_input"]
 
 		next, updates, err := action(ctx, state.UserID, payload)
 		if err != nil {
@@ -292,13 +301,35 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 		state.Context["last_input"] = input
 		state.Context["last_input_invalid"] = false
 
-		// For input states, we look for a transition with trigger "on_valid_input"
+		// For input states, we look for a transition with trigger "on_valid_input" or "on_input"
 		for _, t := range currentStateSpec.Transitions {
-			if t.Trigger == "on_valid_input" {
+			if t.Trigger == "on_valid_input" || t.Trigger == "on_input" {
 				nextStateRaw = t.NextState
 				break
 			}
 		}
+	}
+
+	if nextStateRaw == "" {
+		// 2.2 Check for transitions with trigger "button_click" (useful for dynamic IDs with conditions)
+		evalCtx := make(map[string]any)
+		maps.Copy(evalCtx, state.Context)
+		evalCtx["id"] = input
+
+		for _, t := range currentStateSpec.Transitions {
+			if t.Trigger == "button_click" {
+				if t.Condition == "" || e.evaluateCondition(t.Condition, evalCtx) {
+					nextStateRaw = t.NextState
+					// Record last_input for fallback button clicks too
+					if state.Context == nil {
+						state.Context = make(map[string]any)
+					}
+					state.Context["last_input"] = input
+					break
+				}
+			}
+		}
+
 	}
 
 	if nextStateRaw == "" {
@@ -335,7 +366,7 @@ func (e *Engine) findNextState(stateSpec State, input string, userState *UserSta
 		// Try matching after replacing variables in the ID (allows IDs like "{category_1}")
 		// This handles dynamic button IDs that contain template variables
 		if userState != nil {
-			replacedID := e.replaceVariables(btn.ID, userState)
+			replacedID := e.replaceVariablesOpts(btn.ID, userState, false)
 			if replacedID == input {
 				return btn.NextState
 			}
@@ -444,6 +475,8 @@ func (e *Engine) evaluateSingleCondition(condition string, ctx map[string]any) b
 		operator = ">="
 	} else if strings.Contains(condition, "<=") {
 		operator = "<="
+	} else if strings.Contains(condition, ".startswith(") {
+		operator = ".startswith("
 	} else if strings.Contains(condition, ">") {
 		operator = ">"
 	} else if strings.Contains(condition, "<") {
@@ -494,6 +527,18 @@ func (e *Engine) evaluateSingleCondition(condition string, ctx map[string]any) b
 
 	// String comparison
 	ctxString := fmt.Sprintf("%v", ctxVal)
+	if operator == ".startswith(" {
+		// Format: key.startswith('prefix') or key.startswith("prefix")
+		startIndex := strings.Index(condition, "(")
+		endIndex := strings.LastIndex(condition, ")")
+		if startIndex != -1 && endIndex != -1 && endIndex > startIndex {
+			prefix := condition[startIndex+1 : endIndex]
+			prefix = strings.Trim(prefix, "'\"")
+			return strings.HasPrefix(ctxString, prefix)
+		}
+		return false
+	}
+
 	if operator == "==" {
 		return ctxString == valStr
 	} else {
@@ -614,8 +659,9 @@ func (e *Engine) renderState(ctx context.Context, userState *UserState, flowStat
 		// Apply replacements to button IDs too (allows dynamic callback data like {category_1})
 		buttonID := e.replaceVariablesOpts(btn.ID, userState, false)
 
-		// Пропускаем "пустые" динамические кнопки (когда в контексте нет значения)
-		if strings.TrimSpace(label) == "" && strings.TrimSpace(buttonID) == "" && url == "" {
+		// Skip buttons if both ID (callback data) and URL are empty - they are invalid for inline keyboard.
+		// Also skip if buttonID is empty (Telegram requires callback_data or url for inline buttons).
+		if strings.TrimSpace(buttonID) == "" && strings.TrimSpace(url) == "" {
 			continue
 		}
 
