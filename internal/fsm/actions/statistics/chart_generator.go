@@ -239,7 +239,9 @@ func generateRadarChart(usersData map[string]map[string]int32, orderedLogins []s
 		sort.Strings(sortedSkills)
 		for _, s := range sortedSkills {
 			h.Write([]byte(s))
-			binary.Write(h, binary.LittleEndian, skills[s])
+			if err := binary.Write(h, binary.LittleEndian, skills[s]); err != nil {
+				return "", fmt.Errorf("failed to write hash data: %w", err)
+			}
 		}
 	}
 	dataHash := h.Sum64()
@@ -296,7 +298,7 @@ func generateRadarChart(usersData map[string]map[string]int32, orderedLogins []s
 	}
 
 	// Global Min is always 0 for skills
-	var globalMin float64 = globalMinValue
+	globalMin := globalMinValue
 
 	// Step 1: Create normalized maps for all users for efficient lookup
 	userNormalizedSkills := make(map[string]map[string]int32)
