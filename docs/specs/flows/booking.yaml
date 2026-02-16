@@ -1,310 +1,310 @@
 ---
 meta:
   feature_id: BOOK-001
-  name: Бронирование переговорок
-  description: Система бронирования слотов в кампусе (Friendly UI)
-  version: 2.2.0
+  name: Бронирование
+  description: 'Оптимизированный процесс с быстрым подтверждением'
+  version: 3.0.0
 
 initial_state: AUTO_SYNC_BOOKING
 
 states:
+  # --- СИСТЕМНАЯ ЗАГРУЗКА ---
   AUTO_SYNC_BOOKING:
     type: system
-    description: "Pre-load campus rooms and current slots"
+    description: "Pre-load campus rooms and hot slots"
     logic:
-      action: get_booking_data
+      action: get_dashboard_data # Запрашиваем сводку, а не просто список
       payload:
         campus_id: $context.campus_id
     transitions:
-      - next_state: BOOKING_HOME
+      - next_state: BOOKING_DASHBOARD
 
-  BOOKING_HOME:
+  # --- ГЛАВНЫЙ ЭКРАН (DASHBOARD) ---
+  BOOKING_DASHBOARD:
     type: interactive
-    description: Главное меню (Слоты на сегодня)
+    description: Сводка состояния + Быстрые слоты
     interface:
       text:
         ru: |
-          💬 *Переговорки: {my_campus}*
-
-          Нужно тихое место для созвона или командного кода? 🛋
-          Выбирай свободный слот на сегодня.
-
-          📅 *Сегодня:* `{current_date}`
+          🏢 *Кампус: {my_campus}*
+          
+          🟢 Свободно комнат: **{free_rooms_count}**
+          🔴 Занято сейчас: **{busy_rooms_count}**
+          
+          👇 *Ближайшие свободные слоты (нажми, чтобы забрать):*
           ---
-          {free_slots_list}
+          {hot_slots_list} 
         en: |
-          💬 *Rooms: {my_campus}*
-
-          Need a quiet spot for a call or group coding? 🛋
-          Pick an available slot for today.
-
-          📅 *Today:* `{current_date}`
+          🏢 *Campus: {my_campus}*
+          
+          🟢 Free rooms: **{free_rooms_count}**
+          🔴 Busy now: **{busy_rooms_count}**
+          
+          👇 *Hot slots (tap to book):*
           ---
-          {free_slots_list}
-      image: "{schedule_image}"
+          {hot_slots_list}
+      image: "{dashboard_visualization}" # Визуальная карта занятости
       buttons:
+        # Динамические кнопки "Горячих слотов"
         - id: "{slot_id_1}"
           label: "{slot_label_1}"
+          row: 1
+          next_state: CONFIRM_FAST
         - id: "{slot_id_2}"
           label: "{slot_label_2}"
+          row: 1
+          next_state: CONFIRM_FAST
         - id: "{slot_id_3}"
           label: "{slot_label_3}"
+          row: 1
+          next_state: CONFIRM_FAST
         - id: "{slot_id_4}"
           label: "{slot_label_4}"
+          row: 2
+          next_state: CONFIRM_FAST
         - id: "{slot_id_5}"
           label: "{slot_label_5}"
+          row: 2
+          next_state: CONFIRM_FAST
         - id: "{slot_id_6}"
           label: "{slot_label_6}"
+          row: 2
+          next_state: CONFIRM_FAST
         - id: "{slot_id_7}"
           label: "{slot_label_7}"
+          row: 3
+          next_state: CONFIRM_FAST
         - id: "{slot_id_8}"
           label: "{slot_label_8}"
+          row: 3
+          next_state: CONFIRM_FAST
         - id: "{slot_id_9}"
           label: "{slot_label_9}"
+          row: 3
+          next_state: CONFIRM_FAST
         - id: "{slot_id_10}"
           label: "{slot_label_10}"
+          row: 4
+          next_state: CONFIRM_FAST
         - id: "{slot_id_11}"
           label: "{slot_label_11}"
+          row: 4
+          next_state: CONFIRM_FAST
         - id: "{slot_id_12}"
           label: "{slot_label_12}"
-        - id: select_date
+          row: 4
+          next_state: CONFIRM_FAST
+
+        # Статичное меню управления
+        - id: open_calendar
           label:
-            ru: 🗓 Выбрать другой день
-            en: 🗓 Select another day
-          row: 1
-          next_state: SELECT_DATE
+            ru: 📅 Выбрать другую дату/время
+            en: 📅 Pick another date/time
+          row: 5
+          next_state: SELECT_FULL_SCHEDULE
+        
         - id: my_bookings
           label:
             ru: 👤 Мои брони
             en: 👤 My bookings
-          row: 1
+          row: 5
           next_state: FETCH_MY_BOOKINGS
-        - id: back
-          label:
-            ru: 🏠 В главное меню
-            en: 🏠 Main menu
-          next_state: MAIN_MENU
+          
+        - id: refresh
+          label: 🔄
+          row: 5
+          next_state: AUTO_SYNC_BOOKING
+
     transitions:
       - trigger: button_click
         condition: id.startswith('slot_')
-        next_state: SELECT_DURATION
+        next_state: CONFIRM_FAST
 
-  SELECT_DATE:
+  # --- ПОЛНОЕ РАСПИСАНИЕ (ЕСЛИ НЕ УСТРОИЛИ БЫСТРЫЕ СЛОТЫ) ---
+  SELECT_FULL_SCHEDULE:
     type: interactive
-    description: Календарная навигация
+    description: Календарь и полный список
     interface:
       text:
         ru: |
-          📅 *Планируем заранее*
-
-          Выбрана дата: *{selected_date}*
-          Вот список доступных комнат:
-          ---
-          {free_slots_list}
+          📅 *Планировщик*
+          Дата: *{selected_date}*
+          
+          Выбери комнату и время старта:
         en: |
-          📅 *Planning ahead*
-
-          Date selected: *{selected_date}*
-          Available rooms:
-          ---
-          {free_slots_list}
-      image: "{schedule_image}"
+          📅 *Planner*
+          Date: *{selected_date}*
+          
+          Choose room and start time:
       buttons:
-        - id: slot_{room_id}_{time}
-          label: "{time} — {room_name}"
+        # Навигация по датам
         - id: prev_day
-          label: "⬅️"
-          next_state: SELECT_DATE
-          row: 1
+          label: "⬅️ {prev_date_short}"
+          row: 0
+          next_state: UPDATE_CALENDAR_PREV
         - id: next_day
-          label: "➡️"
-          next_state: SELECT_DATE
-          row: 1
+          label: "{next_date_short} ➡️"
+          row: 0
+          next_state: UPDATE_CALENDAR_NEXT
+          
+        # Список всех слотов
+        - id: "{slot_id_1}"
+          label: "{time} — {room_name}"
+        - id: "{slot_id_2}"
+          label: "{time} — {room_name}"
+        # ... (список генерируется)
+
         - id: back
           label:
-            ru: 🔙 Назад
-            en: 🔙 Back
-          next_state: BOOKING_HOME
+            ru: 🔙 На главную
+            en: 🔙 Dashboard
+          next_state: BOOKING_DASHBOARD
     transitions:
       - trigger: button_click
         condition: id.startswith('slot_')
-        next_state: SELECT_DURATION
+        next_state: CONFIRM_FAST
 
-  SELECT_DURATION:
+  # --- ГИБРИДНЫЙ ЭКРАН (ВЫБОР ДЛИТЕЛЬНОСТИ + ПОДТВЕРЖДЕНИЕ) ---
+  CONFIRM_FAST:
     type: interactive
-    description: Выбор длительности сессии
+    description: Финальный аккорд. Выбор длительности СРАЗУ бронирует.
+    on_enter:
+      - action: resolve_slot_from_last_input
+        payload:
+          last_input: $context.last_input
+          
     interface:
       text:
         ru: |
-          ⏱ *Сколько времени нужно?*
-
-          📍 Комната: *{room_name}*
-          🕔 Начало: `{time}`
-          ---
-          ℹ️ Лимиты бронирования: {min_duration}–{max_duration} мин.
+          ⚡️ *Почти готово!*
+          
+          📍 Комната: **{room_name}**
+          🕔 Начало: **{start_time}**
+          
+          На сколько занимаем? (Нажми кнопку для подтверждения)
         en: |
-          ⏱ *Duration of stay?*
-
-          📍 Room: *{room_name}*
-          🕔 Start: `{time}`
-          ---
-          ℹ️ Booking limits: {min_duration}–{max_duration} min.
+          ⚡️ *Almost done!*
+          
+          📍 Room: **{room_name}**
+          🕔 Start: **{start_time}**
+          
+          How long? (Tap to confirm booking)
       buttons:
-        - id: duration_30
-          label: "30 мин"
-          next_state: CONFIRM_BOOKING
-        - id: duration_60
-          label: "60 мин"
-          next_state: CONFIRM_BOOKING
-        - id: back
+        - id: book_30
           label:
-            ru: 🔙 Отмена
-            en: 🔙 Cancel
-          next_state: BOOKING_HOME
-
-  CONFIRM_BOOKING:
-    type: interactive
-    description: Финальная проверка данных
-    interface:
-      text:
-        ru: |
-          📝 *Всё верно?*
-
-          📍 *{room_name}*
-          🗓 {selected_date}
-          🕔 В *{selected_time}*
-          ⏳ На {duration} минут
-          ---
-          Подтверждаешь бронирование?
-        en: |
-          📝 *Double check*
-
-          📍 *{room_name}*
-          🗓 {selected_date}
-          🕔 At *{selected_time}*
-          ⏳ For {duration} minutes
-          ---
-          Confirm booking?
-      buttons:
-        - id: confirm
+            ru: ✅ На 30 мин
+            en: ✅ For 30 min
+          row: 1
+          next_state: COMMIT_BOOKING_30
+          
+        - id: book_60
           label:
-            ru: ✅ Да, бронируем
-            en: ✅ Yes, book it
-          next_state: COMMIT_BOOKING
+            ru: ✅ На 1 час
+            en: ✅ For 1 hour
+          row: 1
+          next_state: COMMIT_BOOKING_60
+          
         - id: cancel
           label:
-            ru: ❌ Нет, назад
-            en: ❌ No, go back
-          next_state: BOOKING_HOME
+            ru: ❌ Отмена
+            en: ❌ Cancel
+          row: 2
+          next_state: BOOKING_DASHBOARD
 
-  COMMIT_BOOKING:
+  # --- ЛОГИКА ЗАПИСИ (Разделена для передачи параметра duration) ---
+  COMMIT_BOOKING_30:
     type: system
-    description: Запись в базу данных
     logic:
       action: create_booking
       payload:
         room_id: $context.room_id
-        date: $context.date
         time: $context.time
-        duration: $context.duration
+        duration: 30
     transitions:
       - condition: success == true
         next_state: COMPLETED
       - condition: success == false
-        next_state: ERROR_SLOT_ALREADY_TAKEN
+        next_state: ERROR_SLOT_RACE
 
-  ERROR_SLOT_ALREADY_TAKEN:
-    type: interactive
-    description: Ошибка занятого слота (Race Condition)
-    interface:
-      text:
-        ru: |
-          🐢 *Упс, опоздал!*
-
-          Пока ты выбирал, кто-то другой успел занять этот слот.
-          Пиры не спят! 🏎
-
-          Выбери другое время или комнату.
-        en: |
-          🐢 *Too slow!*
-
-          While you were choosing, another peer grabbed this slot.
-          Peers are fast! 🏎
-
-          Please try another time or room.
-      buttons:
-        - id: refresh
-          label:
-            ru: 🔄 Обновить расписание
-            en: 🔄 Refresh schedule
-          next_state: BOOKING_HOME
-
-  FETCH_MY_BOOKINGS:
+  COMMIT_BOOKING_60:
     type: system
-    description: Загрузка бронирований пользователя
     logic:
-      action: get_user_bookings
+      action: create_booking
       payload:
-        user_id: $context.user_id
+        room_id: $context.room_id
+        time: $context.time
+        duration: 60
     transitions:
-      - next_state: MY_BOOKINGS
+      - condition: success == true
+        next_state: COMPLETED
+      - condition: success == false
+        next_state: ERROR_SLOT_RACE
 
-  MY_BOOKINGS:
+  # --- ОШИБКА (RACE CONDITION) ---
+  ERROR_SLOT_RACE:
     type: interactive
-    description: Список активных броней пользователя
+    description: Умная обработка ошибки
     interface:
       text:
         ru: |
-          👤 *Твои бронирования*
-
-          Вот слоты, которые закреплены за тобой:
-          ---
-          {my_bookings_list}
+          🏎 *Слот перехватили!*
+          
+          Пока мы думали, {room_name} на {time} заняли.
+          Но я обновил данные. Попробуем соседнюю?
         en: |
-          👤 *Your bookings*
-
-          Here are the slots reserved for you:
-          ---
-          {my_bookings_list}
+          🏎 *Too slow!*
+          
+          {room_name} at {time} was just taken.
+          I've refreshed the data. Try the one next door?
       buttons:
-        - id: "{cancel_id_1}"
-          label: "{cancel_label_1}"
-        - id: "{cancel_id_2}"
-          label: "{cancel_label_2}"
-        - id: "{cancel_id_3}"
-          label: "{cancel_label_3}"
-        - id: "{cancel_id_4}"
-          label: "{cancel_label_4}"
-        - id: "{cancel_id_5}"
-          label: "{cancel_label_5}"
-        - id: back
+        - id: to_dashboard
           label:
-            ru: 🏠 В меню
-            en: 🏠 To menu
-          next_state: BOOKING_HOME
+            ru: 🔄 Показать, что осталось
+            en: 🔄 Show available
+          next_state: BOOKING_DASHBOARD
 
+  # --- УСПЕХ ---
   COMPLETED:
     type: interactive
-    description: Успешный результат
     interface:
       text:
         ru: |
-          🎉 *Готово!*
-
-          Переговорка *{room_name}* твоя на *{time}*.
-
-          Не забудь убрать за собой и оставить место чистым для следующего пира.
-          Удачной работы! 👨‍💻
+          🎉 *Бронь подтверждена!*
+          
+          📍 **{room_name}**
+          ⏰ {time_interval}
+          
+          Продуктивной работы!
         en: |
-          🎉 *Confirmed!*
-
-          Room *{room_name}* is yours at *{time}*.
-
-          Please remember to leave the room tidy for the next peer.
-          Have a productive session! 👨‍💻
+          🎉 *Booking Confirmed!*
+          
+          📍 **{room_name}**
+          ⏰ {time_interval}
+          
+          Have a great session!
       buttons:
-        - id: menu
+        - id: home
           label:
-            ru: 🏠 В главное меню
-            en: 🏠 Main menu
-          next_state: MAIN_MENU
+            ru: 👌 Спасибо
+            en: 👌 Thanks
+          next_state: BOOKING_DASHBOARD
+
+  # --- МОИ БРОНИ (Стандартный блок) ---
+  FETCH_MY_BOOKINGS:
+    type: system
+    logic:
+      action: get_user_bookings
+    transitions:
+      - next_state: MY_BOOKINGS_LIST
+
+  MY_BOOKINGS_LIST:
+    type: interactive
+    interface:
+      text:
+        ru: "👤 Твои активные записи:\n\n{my_bookings_formatted}"
+        en: "👤 Your active slots:\n\n{my_bookings_formatted}"
+      buttons:
+        - id: back
+          label: "🔙"
+          next_state: BOOKING_DASHBOARD
+        # Кнопки отмены генерируются динамически
