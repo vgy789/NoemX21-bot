@@ -14,6 +14,14 @@ const (
 // TelegramBot is a configuration for the telegram bot.
 type TelegramBot struct {
 	Token   Secret `env:"TELEGRAM_BOT_TOKEN,notEmpty"`
+	APIURL  string `env:"TELEGRAM_API_URL"` // Custom Telegram Bot API URL (for local bot API servers)
+	Webhook struct {
+		Enabled    bool   `env:"TELEGRAM_WEBHOOK_ENABLED" envDefault:"false"`
+		URL        string `env:"TELEGRAM_WEBHOOK_URL"`
+		ListenPath string `env:"TELEGRAM_WEBHOOK_PATH" envDefault:"/telegram/webhook"`
+		ListenPort int    `env:"TELEGRAM_WEBHOOK_PORT" envDefault:"8080"`
+		Secret     Secret `env:"TELEGRAM_WEBHOOK_SECRET"`
+	}
 	Polling struct {
 		// 8-byte aligned fields first
 		RequestTimeout time.Duration `env:"REQUEST_TIMEOUT" envDefault:"25s"`

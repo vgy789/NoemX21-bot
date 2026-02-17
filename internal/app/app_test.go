@@ -2,6 +2,7 @@ package app
 
 import (
 	"log/slog"
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -14,11 +15,22 @@ import (
 
 // mockTelegramService is a simple mock for testing
 type mockTelegramService struct {
-	runCalled bool
+	runCalled         bool
+	runWebhookCalled  bool
+	webhookHandlerRet http.Handler
 }
 
 func (m *mockTelegramService) Run() {
 	m.runCalled = true
+}
+
+func (m *mockTelegramService) RunWebhook() error {
+	m.runWebhookCalled = true
+	return nil
+}
+
+func (m *mockTelegramService) GetWebhookHandler() http.Handler {
+	return m.webhookHandlerRet
 }
 
 // mockStarter returns nil from Start()
@@ -59,6 +71,8 @@ func TestApp_Run(t *testing.T) {
 		httpServer: mockHTTPServer,
 		gitSync:    mockGitSync,
 		campusSvc:  mockCampusSvc,
+		cfg:        &config.Config{},
+		log:        slog.Default(),
 	}
 
 	a.Run()
@@ -70,5 +84,9 @@ func TestApp_Run(t *testing.T) {
 type mockHTTPServer struct{}
 
 func (m *mockHTTPServer) Start() {
+	// Do nothing in tests
+}
+
+func (m *mockHTTPServer) AddHandler(path string, handler http.Handler) {
 	// Do nothing in tests
 }
