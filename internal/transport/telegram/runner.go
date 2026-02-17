@@ -1,7 +1,9 @@
 package telegram
 
 import (
+	"fmt"
 	"log/slog"
+	"net/http"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
@@ -13,6 +15,8 @@ import (
 
 type TelegramService interface {
 	Run()
+	RunWebhook() error
+	GetWebhookHandler() http.Handler
 }
 
 // Sender defines interface for sending messages to Telegram.
@@ -65,6 +69,8 @@ type telegramService struct {
 	userSvc service.UserService
 	engine  *fsm.Engine
 	sender  Sender // For testing
+	bot     *gotgbot.Bot
+	updater *ext.Updater
 }
 
 func (s *telegramService) getSender(b *gotgbot.Bot) Sender {
@@ -74,9 +80,10 @@ func (s *telegramService) getSender(b *gotgbot.Bot) Sender {
 	return &DefaultSender{Bot: b}
 }
 
-// Run starts the telegram bot.
+// Run starts the telegram bot using long polling.
 func (s *telegramService) Run() {
 	tgBot := telegram.MustNew(&s.cfg.Telegram)
+	s.bot = tgBot
 
 	dispatcher := ext.NewDispatcher(&ext.DispatcherOpts{
 		Error: func(b *gotgbot.Bot, ctx *ext.Context, err error) ext.DispatcherAction {
@@ -90,10 +97,10 @@ func (s *telegramService) Run() {
 		MaxRoutines: s.cfg.Telegram.Polling.MaxRoutines,
 	})
 
-	updater := ext.NewUpdater(dispatcher, nil)
+	s.updater = ext.NewUpdater(dispatcher, nil)
 	s.registerHandlers(dispatcher)
 
-	err := updater.StartPolling(tgBot, &ext.PollingOpts{
+	err := s.updater.StartPolling(tgBot, &ext.PollingOpts{
 		DropPendingUpdates: s.cfg.Telegram.Polling.DropPendingUpdates,
 		GetUpdatesOpts: &gotgbot.GetUpdatesOpts{
 			Timeout: s.cfg.Telegram.Polling.Timeout,
@@ -106,5 +113,92 @@ func (s *telegramService) Run() {
 		panic("failed to start polling: " + err.Error())
 	}
 	s.log.Info("start polling")
-	updater.Idle()
+	s.updater.Idle()
+}
+
+// RunWebhook sets up and starts the telegram bot using webhook.
+func (s *telegramService) RunWebhook() error {
+	tgBot := telegram.MustNew(&s.cfg.Telegram)
+	s.bot = tgBot
+
+	dispatcher := ext.NewDispatcher(&ext.DispatcherOpts{
+		Error: func(b *gotgbot.Bot, ctx *ext.Context, err error) ext.DispatcherAction {
+			s.log.Error("an error occurred while handling update",
+				"error", err,
+				"user_id", ctx.EffectiveUser.Id,
+				"chat_id", ctx.EffectiveChat.Id,
+			)
+			return ext.DispatcherActionNoop
+		},
+		MaxRoutines: s.cfg.Telegram.Polling.MaxRoutines,
+	})
+
+	s.updater = ext.NewUpdater(dispatcher, nil)
+	s.registerHandlers(dispatcher)
+
+	// Set webhook URL with Telegram
+	webhookURL := s.cfg.Telegram.Webhook.URL
+	if webhookURL == "" {
+		return fmt.Errorf("TELEGRAM_WEBHOOK_URL must be set when webhook mode is enabled")
+	}
+
+	var secretToken string
+	if s.cfg.Telegram.Webhook.Secret.Expose() != "" {
+		secretToken = s.cfg.Telegram.Webhook.Secret.Expose()
+	}
+
+	_, err := tgBot.SetWebhook(webhookURL, &gotgbot.SetWebhookOpts{
+		SecretToken: secretToken,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to set webhook: %w", err)
+	}
+
+	s.log.Info("webhook set successfully", "url", webhookURL)
+
+	// Start webhook server
+	listenAddr := fmt.Sprintf(":%d", s.cfg.Telegram.Webhook.ListenPort)
+	err = s.updater.StartWebhook(tgBot, s.cfg.Telegram.Webhook.ListenPath, ext.WebhookOpts{
+		ListenAddr:  listenAddr,
+		SecretToken: secretToken,
+	})
+	if err != nil {
+		return err
+	}
+
+	s.log.Info("webhook server started", "path", s.cfg.Telegram.Webhook.ListenPath, "addr", listenAddr)
+	return nil
+}
+
+// GetWebhookHandler returns the HTTP handler for webhook.
+// Note: When using StartWebhook, the updater handles HTTP directly via ListenAndServe.
+// This method is provided for custom HTTP server integration.
+func (s *telegramService) GetWebhookHandler() http.Handler {
+	if s.updater == nil {
+		s.log.Warn("webhook handler requested before updater initialized")
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.Error(w, "webhook not initialized", http.StatusServiceUnavailable)
+		})
+	}
+	// ext.Updater implements http.Handler via its ServeHTTP method for webhook updates
+	return &updaterHandler{updater: s.updater, path: s.cfg.Telegram.Webhook.ListenPath}
+}
+
+// updaterHandler wraps ext.Updater to only handle requests at the configured path.
+type updaterHandler struct {
+	updater *ext.Updater
+	path    string
+}
+
+func (h *updaterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path != h.path {
+		http.NotFound(w, r)
+		return
+	}
+	// ext.Updater has ServeHTTP method
+	if handler, ok := interface{}(h.updater).(http.Handler); ok {
+		handler.ServeHTTP(w, r)
+	} else {
+		http.Error(w, "updater does not implement http.Handler", http.StatusInternalServerError)
+	}
 }

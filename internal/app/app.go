@@ -2,6 +2,7 @@ package app
 
 import (
 	"log/slog"
+	"net/http"
 
 	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
 	"github.com/vgy789/noemx21-bot/internal/clients/s21"
@@ -16,6 +17,7 @@ import (
 // HTTPServer defines the interface for HTTP server operations
 type HTTPServer interface {
 	Start()
+	AddHandler(path string, handler http.Handler)
 }
 
 // Starter is implemented by services that can be started (git sync, campus).
@@ -29,6 +31,8 @@ type App struct {
 	httpServer HTTPServer
 	gitSync    Starter
 	campusSvc  Starter
+	cfg        *config.Config
+	log        *slog.Logger
 }
 
 // New creates a new application instance.
@@ -41,6 +45,8 @@ func New(cfg *config.Config, log *slog.Logger, repo *db.DBWrapper, rcClient *roc
 		httpServer: transportHttp.NewServer(cfg, log, repo.Queries),
 		gitSync:    gitSync,
 		campusSvc:  campusSvc,
+		cfg:        cfg,
+		log:        log,
 	}
 }
 
@@ -53,5 +59,18 @@ func (a *App) Run() {
 		slog.Error("failed to start campus service", "error", err)
 	}
 	go a.httpServer.Start()
-	a.tg.Run()
+
+	// Check if webhook mode is enabled
+	if a.cfg.Telegram.Webhook.Enabled {
+		a.log.Info("starting bot in webhook mode", "path", a.cfg.Telegram.Webhook.ListenPath, "port", a.cfg.Telegram.Webhook.ListenPort)
+		// Register webhook handler with HTTP server
+		a.httpServer.AddHandler(a.cfg.Telegram.Webhook.ListenPath, a.tg.GetWebhookHandler())
+		// Start webhook (this will set webhook URL with Telegram and start listening)
+		if err := a.tg.RunWebhook(); err != nil {
+			a.log.Error("failed to start webhook", "error", err)
+		}
+	} else {
+		a.log.Info("starting bot in polling mode")
+		a.tg.Run()
+	}
 }
