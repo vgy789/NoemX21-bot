@@ -8,22 +8,32 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/config"
 )
 
-// MustNew creates new telgram bot instance.
+// MustNew creates new telegram bot instance.
 func MustNew(cfg *config.TelegramBot) *gotgbot.Bot {
 	clientTimeout := max(time.Duration(cfg.Polling.Timeout+10)*time.Second, time.Second*60)
 
-	b, err := gotgbot.NewBot(cfg.Token.Expose(), &gotgbot.BotOpts{
+	// Set up request opts with default or custom API URL
+	requestOpts := &gotgbot.RequestOpts{
+		Timeout: gotgbot.DefaultTimeout,
+		APIURL:  gotgbot.DefaultAPIURL,
+	}
+
+	// Override API URL if custom URL is provided
+	if cfg.APIURL != "" {
+		requestOpts.APIURL = cfg.APIURL
+	}
+
+	botOpts := &gotgbot.BotOpts{
 		BotClient: &gotgbot.BaseBotClient{
 			Client: http.Client{
 				Timeout: clientTimeout,
 			},
-			UseTestEnvironment: false,
-			DefaultRequestOpts: &gotgbot.RequestOpts{
-				Timeout: gotgbot.DefaultTimeout,
-				APIURL:  gotgbot.DefaultAPIURL,
-			},
+			UseTestEnvironment:   false,
+			DefaultRequestOpts:   requestOpts,
 		},
-	})
+	}
+
+	b, err := gotgbot.NewBot(cfg.Token.Expose(), botOpts)
 	if err != nil {
 		panic("failed to create bot: " + err.Error())
 	}

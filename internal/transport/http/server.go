@@ -14,6 +14,7 @@ import (
 
 type Server struct {
 	server *http.Server
+	mux    *http.ServeMux
 	log    *slog.Logger
 }
 
@@ -35,8 +36,15 @@ func NewServer(cfg *config.Config, log *slog.Logger, queries db.Querier) *Server
 
 	return &Server{
 		server: srv,
+		mux:    mux,
 		log:    log,
 	}
+}
+
+// AddHandler registers a new HTTP handler at the specified path.
+func (s *Server) AddHandler(path string, handler http.Handler) {
+	s.mux.Handle(path, handler)
+	s.log.Info("registered http handler", "path", path)
 }
 
 func (s *Server) Start() {
