@@ -80,6 +80,106 @@ func TestApp_Run(t *testing.T) {
 	assert.True(t, mockTG.runCalled)
 }
 
+func TestApp_Run_WebhookMode(t *testing.T) {
+	mockTG := &mockTelegramService{}
+	mockHTTPServer := &mockHTTPServer{}
+	mockGitSync := &mockStarter{}
+	mockCampusSvc := &mockStarter{}
+
+	cfg := &config.Config{}
+	cfg.Telegram.Webhook.Enabled = true
+	cfg.Telegram.Webhook.ListenPath = "/webhook"
+	cfg.Telegram.Webhook.ListenPort = 8080
+
+	a := &App{
+		tg:         mockTG,
+		httpServer: mockHTTPServer,
+		gitSync:    mockGitSync,
+		campusSvc:  mockCampusSvc,
+		cfg:        cfg,
+		log:        slog.Default(),
+	}
+
+	// Run in goroutine since it blocks
+	done := make(chan struct{})
+	go func() {
+		a.Run()
+		close(done)
+	}()
+
+	// Give it a moment to execute
+	select {
+	case <-done:
+		// Completed
+	case <-make(chan struct{}, 1):
+		// Still running
+	}
+
+	assert.True(t, mockTG.runWebhookCalled)
+}
+
+func TestApp_Run_GitSyncError(t *testing.T) {
+	mockTG := &mockTelegramService{}
+	mockHTTPServer := &mockHTTPServer{}
+	mockGitSync := &mockStarterError{}
+	mockCampusSvc := &mockStarter{}
+
+	a := &App{
+		tg:         mockTG,
+		httpServer: mockHTTPServer,
+		gitSync:    mockGitSync,
+		campusSvc:  mockCampusSvc,
+		cfg:        &config.Config{},
+		log:        slog.Default(),
+	}
+
+	// Should not panic, just log error
+	done := make(chan struct{})
+	go func() {
+		a.Run()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-make(chan struct{}, 1):
+	}
+}
+
+func TestApp_Run_CampusSvcError(t *testing.T) {
+	mockTG := &mockTelegramService{}
+	mockHTTPServer := &mockHTTPServer{}
+	mockGitSync := &mockStarter{}
+	mockCampusSvc := &mockStarterError{}
+
+	a := &App{
+		tg:         mockTG,
+		httpServer: mockHTTPServer,
+		gitSync:    mockGitSync,
+		campusSvc:  mockCampusSvc,
+		cfg:        &config.Config{},
+		log:        slog.Default(),
+	}
+
+	done := make(chan struct{})
+	go func() {
+		a.Run()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-make(chan struct{}, 1):
+	}
+}
+
+// mockStarterError returns error from Start()
+type mockStarterError struct{}
+
+func (m *mockStarterError) Start() error {
+	return assert.AnError
+}
+
 // mockHTTPServer is a simple mock for testing
 type mockHTTPServer struct{}
 

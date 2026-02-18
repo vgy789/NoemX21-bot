@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -468,4 +469,113 @@ func TestCredentialSeeder_Seed_newStudent_upsertStudent(t *testing.T) {
 
 	err := seeder.Seed(context.Background(), cfg)
 	assert.NoError(t, err)
+}
+
+func TestCredentialService_GetValidToken(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	hexKey := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+	crypter, _ := crypto.NewCrypter(hexKey)
+
+	t.Run("token exists and valid", func(t *testing.T) {
+		mockRepo := mock.NewMockQuerier(ctrl)
+		expiry := pgtype.Timestamptz{Valid: true, Time: time.Now().Add(time.Hour)}
+		creds := db.PlatformCredential{
+			S21Login:        "user1",
+			AccessToken:     pgtype.Text{String: "valid-token", Valid: true},
+			AccessExpiresAt: expiry,
+		}
+		mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "user1").Return(creds, nil)
+
+		log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+		svc := NewCredentialService(mockRepo, crypter, &fakeS21Client{}, log)
+
+		token, err := svc.GetValidToken(ctx, "user1")
+		assert.NoError(t, err)
+		assert.Equal(t, "valid-token", token)
+	})
+
+	t.Run("token expired - refresh", func(t *testing.T) {
+		mockRepo := mock.NewMockQuerier(ctrl)
+		expiry := pgtype.Timestamptz{Valid: true, Time: time.Now().Add(-time.Hour)}
+		enc, nonce, _ := crypter.Encrypt([]byte("pwd"), []byte("user2"))
+		creds := db.PlatformCredential{
+			S21Login:        "user2",
+			AccessToken:     pgtype.Text{String: "old-token", Valid: true},
+			AccessExpiresAt: expiry,
+			PasswordEnc:     enc,
+			PasswordNonce:   nonce,
+		}
+		mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "user2").Return(creds, nil)
+		mockRepo.EXPECT().UpsertPlatformCredentials(gomock.Any(), gomock.Any()).Return(nil)
+
+		s21Fake := &fakeS21Client{
+			authResp: &s21.AuthResponse{AccessToken: "new-token"},
+		}
+		log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+		svc := NewCredentialService(mockRepo, crypter, s21Fake, log)
+
+		token, err := svc.GetValidToken(ctx, "user2")
+		assert.NoError(t, err)
+		assert.Equal(t, "new-token", token)
+	})
+
+	t.Run("no token - fetch new", func(t *testing.T) {
+		mockRepo := mock.NewMockQuerier(ctrl)
+		enc, nonce, _ := crypter.Encrypt([]byte("pwd"), []byte("user3"))
+		creds := db.PlatformCredential{
+			S21Login:      "user3",
+			AccessToken:   pgtype.Text{Valid: false},
+			PasswordEnc:   enc,
+			PasswordNonce: nonce,
+		}
+		mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "user3").Return(creds, nil)
+		mockRepo.EXPECT().UpsertPlatformCredentials(gomock.Any(), gomock.Any()).Return(nil)
+
+		s21Fake := &fakeS21Client{
+			authResp: &s21.AuthResponse{AccessToken: "fresh-token"},
+		}
+		log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+		svc := NewCredentialService(mockRepo, crypter, s21Fake, log)
+
+		token, err := svc.GetValidToken(ctx, "user3")
+		assert.NoError(t, err)
+		assert.Equal(t, "fresh-token", token)
+	})
+
+	t.Run("get credentials error", func(t *testing.T) {
+		mockRepo := mock.NewMockQuerier(ctrl)
+		mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "user4").Return(db.PlatformCredential{}, fmt.Errorf("db error"))
+
+		log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+		svc := NewCredentialService(mockRepo, crypter, &fakeS21Client{}, log)
+
+		token, err := svc.GetValidToken(ctx, "user4")
+		assert.Error(t, err)
+		assert.Empty(t, token)
+	})
+
+	t.Run("auth error during refresh", func(t *testing.T) {
+		mockRepo := mock.NewMockQuerier(ctrl)
+		expiry := pgtype.Timestamptz{Valid: true, Time: time.Now().Add(-time.Hour)}
+		enc, nonce, _ := crypter.Encrypt([]byte("pwd"), []byte("user5"))
+		creds := db.PlatformCredential{
+			S21Login:        "user5",
+			AccessToken:     pgtype.Text{String: "old", Valid: true},
+			AccessExpiresAt: expiry,
+			PasswordEnc:     enc,
+			PasswordNonce:   nonce,
+		}
+		mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "user5").Return(creds, nil)
+
+		s21Fake := &fakeS21Client{authErr: fmt.Errorf("auth failed")}
+		log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+		svc := NewCredentialService(mockRepo, crypter, s21Fake, log)
+
+		token, err := svc.GetValidToken(ctx, "user5")
+		assert.Error(t, err)
+		assert.Empty(t, token)
+	})
 }

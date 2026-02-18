@@ -82,3 +82,15 @@ func (rl *RateLimiter) cleanupLoop() {
 		rl.mu.Unlock()
 	}
 }
+
+// ResetRateLimiterForTest resets the global rate limiter for testing purposes.
+// This should only be called in tests.
+func ResetRateLimiterForTest() {
+	globalRateLimiter = &RateLimiter{
+		attempts:    make(map[int64]map[string]struct{}),
+		bans:        make(map[int64]time.Time),
+		maxAttempts: 10,
+		banDuration: 1 * time.Hour,
+	}
+	once = sync.Once{}
+}
