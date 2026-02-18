@@ -85,7 +85,7 @@ func (s *Service) Sync(ctx context.Context) error {
 	// 2. Scan directories
 	// The campuses are stored in the "campuses" subdirectory within the local path
 	campusesPath := filepath.Join(s.cfg.LocalPath, "campuses")
-	
+
 	entries, err := os.ReadDir(campusesPath)
 	if err != nil {
 		return fmt.Errorf("failed to read campuses directory: %w", err)

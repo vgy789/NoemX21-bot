@@ -98,14 +98,23 @@ mockgen: $(MOCKGEN)		## Generate mocks
 		-package=mock
 
 # =========================
-# Migrations
+# Migrations (BINARY or CLI)
 # =========================
 
-migrate-up: $(MIGRATE)		## Apply migrations
+migrate-up:		## Apply migrations (embedded binary)
+	./$(BINARY) -migrate
+
+migrate-down:		## Rollback last migration (embedded binary)
+	./$(BINARY) -migrate-rollback
+
+migrate-status:		## Show migration status (embedded binary)
+	./$(BINARY) -migrate-status
+
+migrate-cli-up: $(MIGRATE)		## Apply migrations (golang-migrate CLI)
 	$(MIGRATE) -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" up
 
-migrate-down: $(MIGRATE)		## Rollback last migration
-	$(MIGRATE) -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" down 1
+migrate-cli-down: $(MIGRATE)		## Rollback migrations (golang-migrate CLI)
+	$(MIGRATE) -path $(MIGRATIONS_DIR) -database "$(DATABASE_URL)" down 1                   
 
 migrate-create: $(MIGRATE)		## Create migration (name=init)
 	$(MIGRATE) create -ext sql -dir $(MIGRATIONS_DIR) -seq $(name)

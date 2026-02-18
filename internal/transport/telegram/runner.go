@@ -196,7 +196,7 @@ func (h *updaterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	// ext.Updater has ServeHTTP method
-	if handler, ok := interface{}(h.updater).(http.Handler); ok {
+	if handler, ok := any(h.updater).(http.Handler); ok {
 		handler.ServeHTTP(w, r)
 	} else {
 		http.Error(w, "updater does not implement http.Handler", http.StatusInternalServerError)
