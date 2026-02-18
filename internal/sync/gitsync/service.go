@@ -38,7 +38,7 @@ func New(cfg config.GitSync, queries db.Querier, log *slog.Logger) *Service {
 }
 
 func (s *Service) Start() error {
-	if s.cfg.RepoURL == "" {
+	if s.cfg.SSHRepoURL == "" {
 		s.log.Warn("git repo url not configured, gitsync disabled")
 		return nil
 	}
@@ -55,7 +55,7 @@ func (s *Service) Start() error {
 	}
 
 	s.cron.Start()
-	s.log.Info("gitsync started", "interval", s.cfg.Interval, "repo", s.cfg.RepoURL)
+	s.log.Info("gitsync started", "interval", s.cfg.Interval, "repo", s.cfg.SSHRepoURL)
 
 	// Run initial sync
 	go func() {
@@ -83,9 +83,12 @@ func (s *Service) Sync(ctx context.Context) error {
 	}
 
 	// 2. Scan directories
-	entries, err := os.ReadDir(s.cfg.LocalPath)
+	// The campuses are stored in the "campuses" subdirectory within the local path
+	campusesPath := filepath.Join(s.cfg.LocalPath, "campuses")
+	
+	entries, err := os.ReadDir(campusesPath)
 	if err != nil {
-		return fmt.Errorf("failed to read local path: %w", err)
+		return fmt.Errorf("failed to read campuses directory: %w", err)
 	}
 
 	synced := 0
@@ -108,7 +111,7 @@ func (s *Service) Sync(ctx context.Context) error {
 			}
 		}
 
-		if err := s.syncCampus(ctx, campus, filepath.Join(s.cfg.LocalPath, entry.Name())); err != nil {
+		if err := s.syncCampus(ctx, campus, filepath.Join(campusesPath, entry.Name())); err != nil {
 			s.log.Error("failed to sync campus", "campus", campusName, "error", err)
 		} else {
 			synced++
@@ -286,9 +289,9 @@ func (s *Service) repairBranchThenPull(r *git.Repository, w *git.Worktree, auth 
 func (s *Service) cloneRepo(auth ssh.AuthMethod) error {
 	branch := s.cfg.Branch
 	for attempt := range 2 {
-		s.log.Info("cloning repository", "url", s.cfg.RepoURL, "path", s.cfg.LocalPath, "branch", branch)
+		s.log.Info("cloning repository", "url", s.cfg.SSHRepoURL, "path", s.cfg.LocalPath, "branch", branch)
 		_, err := git.PlainClone(s.cfg.LocalPath, false, &git.CloneOptions{
-			URL:           s.cfg.RepoURL,
+			URL:           s.cfg.SSHRepoURL,
 			ReferenceName: plumbing.NewBranchReferenceName(branch),
 			SingleBranch:  true,
 			Auth:          auth,

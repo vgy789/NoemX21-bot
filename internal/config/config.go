@@ -45,10 +45,10 @@ type Config struct {
 		AuthToken Secret `env:"ROCKETCHAT_AUTH_TOKEN,notEmpty"`
 	}
 	Init struct {
-		SchoolLogin    string `env:"SCHOOL21_USER_LOGIN"`
-		S21BaseURL     string `env:"SCHOOL21_API_URL"`
-		AEADKey        Secret `env:"AEAD_KEY"` // 32 bytes hex
-		SchoolPassword Secret `env:"SCHOOL21_USER_PASSWORD"`
+		SchoolLogin    string `env:"SCHOOL21_USER_LOGIN,notEmpty"`
+		S21BaseURL     string `env:"SCHOOL21_API_URL,notEmpty"`
+		AEADKey        Secret `env:"AEAD_KEY,notEmpty"` // 32 bytes hex
+		SchoolPassword Secret `env:"SCHOOL21_USER_PASSWORD,notEmpty"`
 	}
 	APIServer struct {
 		Port int `env:"API_SERVER_PORT" envDefault:"8081"`
@@ -60,7 +60,7 @@ type Config struct {
 }
 
 type GitSync struct {
-	RepoURL      string `env:"GIT_REPO_URL"`
+	SSHRepoURL   string `env:"GIT_REPO_URL"`
 	Branch       string `env:"GIT_BRANCH" envDefault:"main"`
 	Interval     string `env:"GIT_SYNC_INTERVAL" envDefault:"5m"`
 	LocalPath    string `env:"GIT_LOCAL_PATH" envDefault:"data"`
