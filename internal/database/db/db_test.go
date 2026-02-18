@@ -299,3 +299,53 @@ func TestQueries_UpsertRocketChatCredentials(t *testing.T) {
 	err := q.UpsertRocketChatCredentials(ctx, UpsertRocketChatCredentialsParams{})
 	assert.NoError(t, err)
 }
+
+func TestQueries_MoreTests(t *testing.T) {
+	mockDB := new(MockDBTX)
+	q := New(mockDB)
+	ctx := context.Background()
+
+	t.Run("UpsertCampus", func(t *testing.T) {
+		mockRow := new(MockRow)
+		mockDB.On("QueryRow", ctx, upsertCampus, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(mockRow)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		_, _ = q.UpsertCampus(ctx, UpsertCampusParams{})
+	})
+
+	t.Run("UpsertCoalition", func(t *testing.T) {
+		mockDB.On("Exec", ctx, upsertCoalition, mock.Anything, mock.Anything).Return(pgconn.CommandTag{}, nil)
+		_ = q.UpsertCoalition(ctx, UpsertCoalitionParams{})
+	})
+
+	t.Run("UpsertParticipantStatsCache", func(t *testing.T) {
+		mockDB.On("Exec", ctx, upsertParticipantStatsCache, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(pgconn.CommandTag{}, nil)
+		_ = q.UpsertParticipantStatsCache(ctx, UpsertParticipantStatsCacheParams{})
+	})
+
+	t.Run("UpsertParticipantSkill", func(t *testing.T) {
+		mockDB.On("Exec", ctx, upsertParticipantSkill, mock.Anything, mock.Anything, mock.Anything).Return(pgconn.CommandTag{}, nil)
+		_ = q.UpsertParticipantSkill(ctx, UpsertParticipantSkillParams{})
+	})
+
+	t.Run("DeleteAuthVerificationCode", func(t *testing.T) {
+		mockDB.On("Exec", ctx, deleteAuthVerificationCode, mock.Anything, mock.Anything).Return(pgconn.CommandTag{}, nil)
+		_ = q.DeleteAuthVerificationCode(ctx, DeleteAuthVerificationCodeParams{})
+	})
+
+	t.Run("DeleteAllAuthVerificationCodes", func(t *testing.T) {
+		mockDB.On("Exec", ctx, deleteAllAuthVerificationCodes, mock.Anything).Return(pgconn.CommandTag{}, nil)
+		_ = q.DeleteAllAuthVerificationCodes(ctx, pgtype.Text{})
+	})
+
+	t.Run("GetCampusByID", func(t *testing.T) {
+		mockRow := new(MockRow)
+		mockDB.On("QueryRow", ctx, getCampusByID, mock.Anything).Return(mockRow)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		_, _ = q.GetCampusByID(ctx, pgtype.UUID{})
+	})
+
+	t.Run("DeleteUserAccountByExternalId", func(t *testing.T) {
+		mockDB.On("Exec", ctx, deleteUserAccountByExternalId, mock.Anything, mock.Anything).Return(pgconn.CommandTag{}, nil)
+		_ = q.DeleteUserAccountByExternalId(ctx, DeleteUserAccountByExternalIdParams{})
+	})
+}

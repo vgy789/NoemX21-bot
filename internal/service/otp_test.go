@@ -5,10 +5,12 @@ import (
 	"log/slog"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vgy789/noemx21-bot/internal/clients/s21"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/database/db/mock"
@@ -133,4 +135,85 @@ func TestOTPService_GenerateAndSendOTP_studentNotFound(t *testing.T) {
 	err := svc.GenerateAndSendOTP(ctx, "unknown", fsm.UserInfo{ID: 1, Username: "u", Platform: "Telegram"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get registered user info")
+}
+
+func TestOTPService_GenerateAndSendOTP_RateLimited(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mock.NewMockQuerier(ctrl)
+	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	svc := NewOTPService(mockRepo, nil, &config.Config{}, log)
+	ctx := context.Background()
+
+	// Last OTP was created 30 seconds ago (within cooldown)
+	mockRepo.EXPECT().
+		GetLastAuthVerificationCode(ctx, gomock.Any()).
+		Return(db.AuthVerificationCode{CreatedAt: pgtype.Timestamptz{Valid: true, Time: time.Now().Add(-30 * time.Second)}}, nil)
+
+	err := svc.GenerateAndSendOTP(ctx, "student1", fsm.UserInfo{ID: 1, Username: "u", Platform: "Telegram"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "RATE_LIMIT:")
+}
+
+func TestOTPService_GenerateAndSendOTP_MissingRocketChatID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mock.NewMockQuerier(ctrl)
+	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	svc := NewOTPService(mockRepo, nil, &config.Config{}, log)
+	ctx := context.Background()
+
+	// No previous OTP
+	mockRepo.EXPECT().
+		GetLastAuthVerificationCode(ctx, gomock.Any()).
+		Return(db.AuthVerificationCode{}, &noRowsErr{})
+	// User has no RocketChat ID
+	mockRepo.EXPECT().
+		GetRegisteredUserByS21Login(ctx, "student1").
+		Return(db.RegisteredUser{RocketchatID: ""}, nil)
+
+	err := svc.GenerateAndSendOTP(ctx, "student1", fsm.UserInfo{ID: 1, Username: "u", Platform: "Telegram"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "rocketchat_id")
+}
+
+func TestEnsureCoalitionPresent(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockQ := mock.NewMockQuerier(ctrl)
+	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	ctx := context.Background()
+
+	t.Run("nil coalition", func(t *testing.T) {
+		err := EnsureCoalitionPresent(ctx, mockQ, nil, log)
+		assert.NoError(t, err)
+	})
+
+	t.Run("zero coalition ID", func(t *testing.T) {
+		coalition := &s21.ParticipantCoalitionV1DTO{CoalitionID: 0, CoalitionName: "Test"}
+		err := EnsureCoalitionPresent(ctx, mockQ, coalition, log)
+		assert.NoError(t, err)
+	})
+
+	t.Run("upsert success", func(t *testing.T) {
+		coalition := &s21.ParticipantCoalitionV1DTO{CoalitionID: 5, CoalitionName: "Test Coalition"}
+		mockQ.EXPECT().UpsertCoalition(ctx, db.UpsertCoalitionParams{
+			ID:   5,
+			Name: "Test Coalition",
+		}).Return(nil)
+
+		err := EnsureCoalitionPresent(ctx, mockQ, coalition, log)
+		assert.NoError(t, err)
+	})
+
+	t.Run("upsert error", func(t *testing.T) {
+		coalition := &s21.ParticipantCoalitionV1DTO{CoalitionID: 5, CoalitionName: "Test Coalition"}
+		mockQ.EXPECT().UpsertCoalition(ctx, gomock.Any()).Return(assert.AnError)
+
+		err := EnsureCoalitionPresent(ctx, mockQ, coalition, log)
+		assert.Error(t, err)
+	})
 }

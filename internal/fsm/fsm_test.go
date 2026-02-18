@@ -457,6 +457,90 @@ func TestEngine_SpecialInputs(t *testing.T) {
 	assert.Equal(t, LangEn, state.Language)
 }
 
+func TestEngine_Process_WithActionError(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	repo := NewMemoryStateRepository()
+	registry := NewLogicRegistry()
+	parser := NewFlowParser("../../docs/specs/flows", logger)
+	engine := NewEngine(parser, repo, logger, registry, nil)
+	engine.AddAlias("MAIN_MENU", "main_menu.yaml/MAIN_MENU")
+
+	// Register action that returns error
+	registry.Register("fail_action", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		return "", nil, fmt.Errorf("action failed")
+	})
+
+	ctx := context.Background()
+	userID := int64(3001)
+
+	// Init state
+	err := engine.InitState(ctx, userID, "main_menu.yaml", "MAIN_MENU", nil)
+	require.NoError(t, err)
+
+	// Process with action error - should return error
+	render, err := engine.Process(ctx, userID, "fail")
+	assert.Error(t, err)
+	assert.Nil(t, render)
+}
+
+func TestEngine_EvaluateSingleCondition_EdgeCases(t *testing.T) {
+	e := &Engine{}
+
+	tests := []struct {
+		name      string
+		condition string
+		ctx       map[string]any
+		want      bool
+	}{
+		{"empty condition", "", map[string]any{"key": "val"}, false},
+		{"no operator", "key", map[string]any{"key": "val"}, false},
+		{"unknown operator", "key ?? val", map[string]any{"key": "val"}, false},
+		{"nil context", "key == val", nil, false},
+		{"integer comparison", "count == 5", map[string]any{"count": 5}, true},
+		{"boolean false", "flag == false", map[string]any{"flag": false}, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, e.evaluateCondition(tt.condition, tt.ctx))
+		})
+	}
+}
+
+func TestEngine_GetContextValue_EdgeCases(t *testing.T) {
+	e := &Engine{}
+	ctx := map[string]any{"key": "value", "nested": map[string]any{"inner": "data"}}
+
+	// Existing key
+	val := e.getContextValue(ctx, "key")
+	assert.Equal(t, "value", val)
+
+	// Nested key
+	val = e.getContextValue(ctx, "nested.inner")
+	assert.Equal(t, "data", val)
+
+	// Non-existing key
+	val = e.getContextValue(ctx, "missing")
+	assert.Nil(t, val)
+}
+
+func TestEngine_GetButtonLabel(t *testing.T) {
+	e := &Engine{log: slog.Default()}
+	state := &UserState{Language: LangRu}
+	button := Button{
+		ID:    "test_btn",
+		Label: map[string]any{LangRu: "Тест", LangEn: "Test"},
+	}
+
+	label := e.getButtonLabel(button, state)
+	assert.Equal(t, "Тест", label)
+
+	// Missing language fallback
+	state.Language = "fr"
+	label = e.getButtonLabel(button, state)
+	assert.Equal(t, "Test", label) // Falls back to English
+}
+
 func TestEngine_FindNextState(t *testing.T) {
 	e := &Engine{}
 	spec := State{
@@ -567,4 +651,76 @@ func TestEngine_MoreEdgeCases(t *testing.T) {
 		next = engine.evaluateSystemState(context.Background(), spec, state)
 		assert.Equal(t, "NEXT_FAIL", next)
 	})
+}
+
+func TestEngine_TransitionTo_WithFlowLookup(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	repo := NewMemoryStateRepository()
+	parser := NewFlowParser("../../docs/specs/flows", logger)
+	registry := NewLogicRegistry()
+	engine := NewEngine(parser, repo, logger, registry, nil)
+
+	ctx := context.Background()
+	userID := int64(5001)
+
+	// Init to registration flow
+	err := engine.InitState(ctx, userID, "registration.yaml", "SELECT_LANGUAGE", nil)
+	require.NoError(t, err)
+
+	state, _ := repo.GetState(ctx, userID)
+
+	// Transition to START which should resolve to main_menu.yaml/MAIN_MENU via alias
+	engine.AddAlias("START", "main_menu.yaml/MAIN_MENU")
+	err = engine.transitionTo(ctx, state, "START")
+	assert.NoError(t, err)
+	assert.Equal(t, "main_menu.yaml", state.CurrentFlow)
+	assert.Equal(t, "MAIN_MENU", state.CurrentState)
+}
+
+func TestEngine_RenderState_WithImage(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	repo := NewMemoryStateRepository()
+	parser := NewFlowParser("../../docs/specs/flows", logger)
+	engine := NewEngine(parser, repo, logger, nil, nil)
+
+	state := &UserState{
+		Language: "ru",
+		Context:  map[string]any{},
+	}
+
+	// Create a state with image
+	flowState := &State{
+		Interface: Interface{
+			Text:  map[string]string{"ru": "Test with image"},
+			Image: "/nonexistent.png", // Will fail to open but tests the path
+			Buttons: []Button{
+				{ID: "btn1", Label: map[string]any{"ru": "Кнопка"}},
+			},
+		},
+	}
+
+	render := engine.renderState(context.Background(), state, flowState)
+	assert.NotNil(t, render)
+	assert.Contains(t, render.Text, "Test with image")
+}
+
+func TestEngine_EvaluateSingleCondition_QuotedValues(t *testing.T) {
+	e := &Engine{}
+
+	tests := []struct {
+		name      string
+		condition string
+		ctx       map[string]any
+		want      bool
+	}{
+		{"single quoted", "status == 'active'", map[string]any{"status": "active"}, true},
+		{"double quoted", `status == "active"`, map[string]any{"status": "active"}, true},
+		{"single quoted mismatch", "status == 'inactive'", map[string]any{"status": "active"}, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, e.evaluateCondition(tt.condition, tt.ctx))
+		})
+	}
 }
