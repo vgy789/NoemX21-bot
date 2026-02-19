@@ -297,6 +297,7 @@ type Room struct {
 	Description pgtype.Text        `json:"description"`
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	Capacity    int32              `json:"capacity"`
 }
 
 type RoomBooking struct {

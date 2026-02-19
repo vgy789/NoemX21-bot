@@ -391,9 +391,9 @@ ORDER BY c.name;
 
 -- name: UpsertRoom :one
 INSERT INTO rooms (
-    id, campus_id, name, min_duration, max_duration, is_active, description, updated_at
+    id, campus_id, name, min_duration, max_duration, is_active, description, capacity, updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP
+    $1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP
 )
 ON CONFLICT (campus_id, id) DO UPDATE SET
     name = EXCLUDED.name,
@@ -401,6 +401,7 @@ ON CONFLICT (campus_id, id) DO UPDATE SET
     max_duration = EXCLUDED.max_duration,
     is_active = EXCLUDED.is_active,
     description = EXCLUDED.description,
+    capacity = EXCLUDED.capacity,
     updated_at = CURRENT_TIMESTAMP
 RETURNING *;
 

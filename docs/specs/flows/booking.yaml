@@ -27,20 +27,20 @@ states:
       text:
         ru: |
           🏢 *Кампус: {my_campus}*
-          
+
           🟢 Свободно комнат: **{free_rooms_count}**
           🔴 Занято сейчас: **{busy_rooms_count}**
-          
-          👇 *Ближайшие свободные слоты (нажми, чтобы забрать):*
+
+          {my_active_bookings_block}👇 *Ближайшие свободные слоты (нажми, чтобы забрать):*
           ---
-          {hot_slots_list} 
+          {hot_slots_list}
         en: |
           🏢 *Campus: {my_campus}*
-          
+
           🟢 Free rooms: **{free_rooms_count}**
           🔴 Busy now: **{busy_rooms_count}**
-          
-          👇 *Hot slots (tap to book):*
+
+          {my_active_bookings_block}👇 *Hot slots (tap to book):*
           ---
           {hot_slots_list}
       image: "{dashboard_visualization}" # Визуальная карта занятости
@@ -212,6 +212,7 @@ states:
     logic:
       action: create_booking
       payload:
+        campus_id: $context.campus_id
         room_id: $context.room_id
         time: $context.time
         duration: 30
@@ -226,12 +227,15 @@ states:
     logic:
       action: create_booking
       payload:
+        campus_id: $context.campus_id
         room_id: $context.room_id
         time: $context.time
         duration: 60
     transitions:
       - condition: success == true
         next_state: COMPLETED
+      - condition: conflict == true
+        next_state: ERROR_CONFLICT
       - condition: success == false
         next_state: ERROR_SLOT_RACE
 
@@ -243,12 +247,12 @@ states:
       text:
         ru: |
           🏎 *Слот перехватили!*
-          
+
           Пока мы думали, {room_name} на {time} заняли.
           Но я обновил данные. Попробуем соседнюю?
         en: |
           🏎 *Too slow!*
-          
+
           {room_name} at {time} was just taken.
           I've refreshed the data. Try the one next door?
       buttons:
@@ -256,6 +260,29 @@ states:
           label:
             ru: 🔄 Показать, что осталось
             en: 🔄 Show available
+          next_state: BOOKING_DASHBOARD
+
+  # --- ОШИБКА (КОНФЛИКТ) ---
+  ERROR_CONFLICT:
+    type: interactive
+    description: Обработка конфликта бронирования
+    interface:
+      text:
+        ru: |
+          ⛔️ *Это время уже занято*
+
+          {room_name} на {time} уже забронировано.
+          Выберите другое время.
+        en: |
+          ⛔️ *This slot is taken*
+
+          {room_name} at {time} is already booked.
+          Please choose another time.
+      buttons:
+        - id: to_dashboard
+          label:
+            ru: 🔄 Выбрать другое время
+            en: 🔄 Choose another time
           next_state: BOOKING_DASHBOARD
 
   # --- УСПЕХ ---
@@ -298,16 +325,46 @@ states:
       text:
         ru: |
           👤 Твои активные записи:
-          
+
           {my_bookings_formatted}
         en: |
           👤 Your active slots:
-          
+
           {my_bookings_formatted}
       buttons:
+        # Динамические кнопки отмены (генерируются в get_user_bookings)
+        - id: "{cancel_id_1}"
+          label: "{cancel_label_1}"
+          row: 1
+          next_state: CANCEL_BOOKING
+        - id: "{cancel_id_2}"
+          label: "{cancel_label_2}"
+          row: 1
+          next_state: CANCEL_BOOKING
+        - id: "{cancel_id_3}"
+          label: "{cancel_label_3}"
+          row: 2
+          next_state: CANCEL_BOOKING
+        - id: "{cancel_id_4}"
+          label: "{cancel_label_4}"
+          row: 2
+          next_state: CANCEL_BOOKING
+        - id: "{cancel_id_5}"
+          label: "{cancel_label_5}"
+          row: 2
+          next_state: CANCEL_BOOKING
+
         - id: back
           label:
             ru: "🔙 Назад"
             en: "🔙 Back"
+          row: 4
           next_state: BOOKING_DASHBOARD
-        # Кнопки отмены генерируются динамически
+
+  # --- ОБРАБОТКА ОТМЕНЫ БРОНИРОВАНИЯ ---
+  CANCEL_BOOKING:
+    type: system
+    logic:
+      action: cancel_booking
+    transitions:
+      - next_state: FETCH_MY_BOOKINGS

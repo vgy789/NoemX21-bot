@@ -377,7 +377,7 @@ func (q *Queries) GetActiveApiKey(ctx context.Context, userAccountID int64) (Api
 }
 
 const getActiveRoomsByCampus = `-- name: GetActiveRoomsByCampus :many
-SELECT id, campus_id, name, min_duration, max_duration, is_active, description, created_at, updated_at FROM rooms
+SELECT id, campus_id, name, min_duration, max_duration, is_active, description, created_at, updated_at, capacity FROM rooms
 WHERE campus_id = $1 AND is_active = true
 ORDER BY id
 `
@@ -401,6 +401,7 @@ func (q *Queries) GetActiveRoomsByCampus(ctx context.Context, campusID pgtype.UU
 			&i.Description,
 			&i.CreatedAt,
 			&i.UpdatedAt,
+			&i.Capacity,
 		); err != nil {
 			return nil, err
 		}
@@ -1313,7 +1314,7 @@ func (q *Queries) GetRoomBookingsByDate(ctx context.Context, arg GetRoomBookings
 }
 
 const getRoomByID = `-- name: GetRoomByID :one
-SELECT id, campus_id, name, min_duration, max_duration, is_active, description, created_at, updated_at FROM rooms
+SELECT id, campus_id, name, min_duration, max_duration, is_active, description, created_at, updated_at, capacity FROM rooms
 WHERE campus_id = $1 AND id = $2
 `
 
@@ -1335,6 +1336,7 @@ func (q *Queries) GetRoomByID(ctx context.Context, arg GetRoomByIDParams) (Room,
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Capacity,
 	)
 	return i, err
 }
@@ -2089,9 +2091,9 @@ func (q *Queries) UpsertRocketChatCredentials(ctx context.Context, arg UpsertRoc
 
 const upsertRoom = `-- name: UpsertRoom :one
 INSERT INTO rooms (
-    id, campus_id, name, min_duration, max_duration, is_active, description, updated_at
+    id, campus_id, name, min_duration, max_duration, is_active, description, capacity, updated_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, CURRENT_TIMESTAMP
+    $1, $2, $3, $4, $5, $6, $7, $8, CURRENT_TIMESTAMP
 )
 ON CONFLICT (campus_id, id) DO UPDATE SET
     name = EXCLUDED.name,
@@ -2099,8 +2101,9 @@ ON CONFLICT (campus_id, id) DO UPDATE SET
     max_duration = EXCLUDED.max_duration,
     is_active = EXCLUDED.is_active,
     description = EXCLUDED.description,
+    capacity = EXCLUDED.capacity,
     updated_at = CURRENT_TIMESTAMP
-RETURNING id, campus_id, name, min_duration, max_duration, is_active, description, created_at, updated_at
+RETURNING id, campus_id, name, min_duration, max_duration, is_active, description, created_at, updated_at, capacity
 `
 
 type UpsertRoomParams struct {
@@ -2111,6 +2114,7 @@ type UpsertRoomParams struct {
 	MaxDuration int32       `json:"max_duration"`
 	IsActive    pgtype.Bool `json:"is_active"`
 	Description pgtype.Text `json:"description"`
+	Capacity    int32       `json:"capacity"`
 }
 
 func (q *Queries) UpsertRoom(ctx context.Context, arg UpsertRoomParams) (Room, error) {
@@ -2122,6 +2126,7 @@ func (q *Queries) UpsertRoom(ctx context.Context, arg UpsertRoomParams) (Room, e
 		arg.MaxDuration,
 		arg.IsActive,
 		arg.Description,
+		arg.Capacity,
 	)
 	var i Room
 	err := row.Scan(
@@ -2134,6 +2139,7 @@ func (q *Queries) UpsertRoom(ctx context.Context, arg UpsertRoomParams) (Room, e
 		&i.Description,
 		&i.CreatedAt,
 		&i.UpdatedAt,
+		&i.Capacity,
 	)
 	return i, err
 }

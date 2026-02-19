@@ -148,6 +148,9 @@ func (e *Engine) runAction(ctx context.Context, logic Logic, state *UserState) (
 
 		payload["_last_input"] = state.Context["last_input"]
 		payload["last_input"] = state.Context["last_input"]
+		
+		// Inject language for localization
+		payload["language"] = state.Language
 
 		if logic.Payload != nil {
 			for k, v := range logic.Payload {

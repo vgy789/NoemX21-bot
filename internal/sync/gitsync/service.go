@@ -391,11 +391,27 @@ func (s *Service) getAuth() (ssh.AuthMethod, error) {
 }
 
 func (s *Service) syncCampus(ctx context.Context, campus db.Campuse, path string) error {
+	// Sync clubs
 	clubsPath := filepath.Join(path, "clubs.yaml")
-	if _, err := os.Stat(clubsPath); os.IsNotExist(err) {
-		return nil
+	if _, err := os.Stat(clubsPath); err == nil {
+		if err := s.syncClubs(ctx, campus, clubsPath); err != nil {
+			s.log.Error("failed to sync clubs", "campus", campus.ShortName, "error", err)
+		}
 	}
 
+	// Sync rooms
+	roomsPath := filepath.Join(path, "rooms.yaml")
+	if _, err := os.Stat(roomsPath); err == nil {
+		if err := s.syncRooms(ctx, campus, roomsPath); err != nil {
+			s.log.Error("failed to sync rooms", "campus", campus.ShortName, "error", err)
+		}
+	}
+
+	s.log.Info("campus sync done", "campus", campus.ShortName)
+	return nil
+}
+
+func (s *Service) syncClubs(ctx context.Context, campus db.Campuse, clubsPath string) error {
 	data, err := os.ReadFile(clubsPath)
 	if err != nil {
 		return err
@@ -454,6 +470,55 @@ func (s *Service) syncCampus(ctx context.Context, campus db.Campuse, path string
 		}
 	}
 
-	s.log.Info("campus sync done", "campus", campus.ShortName, "clubs", len(clubsYAML.Clubs))
+	s.log.Info("clubs synced", "campus", campus.ShortName, "clubs", len(clubsYAML.Clubs))
+	return nil
+}
+
+func (s *Service) syncRooms(ctx context.Context, campus db.Campuse, roomsPath string) error {
+	data, err := os.ReadFile(roomsPath)
+	if err != nil {
+		return err
+	}
+
+	var roomsYAML RoomsFileYAML
+	if err := yaml.Unmarshal(data, &roomsYAML); err != nil {
+		return fmt.Errorf("failed to parse rooms.yaml: %w", err)
+	}
+
+	// Mark all rooms in this campus as inactive first
+	if err := s.queries.DeactivateRoomsByCampus(ctx, campus.ID); err != nil {
+		return err
+	}
+
+	for _, r := range roomsYAML.Rooms {
+		minDur := int32(r.MinDuration)
+		if minDur == 0 {
+			minDur = 15
+		}
+		maxDur := int32(r.MaxDuration)
+		if maxDur == 0 {
+			maxDur = 120
+		}
+		capacity := int32(r.Capacity)
+		if capacity == 0 {
+			capacity = 2
+		}
+
+		_, err = s.queries.UpsertRoom(ctx, db.UpsertRoomParams{
+			ID:          int16(r.ID),
+			CampusID:    campus.ID,
+			Name:        r.Name,
+			MinDuration: minDur,
+			MaxDuration: maxDur,
+			IsActive:    toBool(r.IsActive),
+			Description: toText(r.Description),
+			Capacity:    capacity,
+		})
+		if err != nil {
+			s.log.Error("failed to upsert room", "room_id", r.ID, "name", r.Name, "error", err)
+		}
+	}
+
+	s.log.Info("rooms synced", "campus", campus.ShortName, "rooms", len(roomsYAML.Rooms))
 	return nil
 }
