@@ -3,28 +3,30 @@ package booking
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 )
 
 // Register registers booking-related actions.
-func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar func(alias, target string)) {
+func Register(registry *fsm.LogicRegistry, queries db.Querier, cfg *config.Config, aliasRegistrar func(alias, target string)) {
+
 	if aliasRegistrar != nil {
-		aliasRegistrar("BOOKING_MENU", "booking.yaml/AUTO_SYNC_BOOKING")
+		aliasRegistrar("BOOKING_MENU", "booking.yaml/BOOKING_DASHBOARD")
 	}
 
-	// Alias for spec compliance
 	registry.Register("get_dashboard_data", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		return getBookingData(ctx, queries, userID, payload)
+		return getBookingData(ctx, queries, userID, payload, cfg)
 	})
 
 	registry.Register("get_booking_data", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		return getBookingData(ctx, queries, userID, payload)
+		return getBookingData(ctx, queries, userID, payload, cfg)
 	})
 
 	registry.Register("resolve_slot_from_last_input", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
@@ -210,7 +212,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 	})
 }
 
-func getBookingData(ctx context.Context, queries db.Querier, userID int64, payload map[string]any) (string, map[string]any, error) {
+func getBookingData(ctx context.Context, queries db.Querier, userID int64, payload map[string]any, cfg *config.Config) (string, map[string]any, error) {
 	campusIDStr, _ := payload["campus_id"].(string)
 	if campusIDStr == "" || campusIDStr == "$context.campus_id" {
 		return "", nil, fmt.Errorf("campus_id missing")
@@ -233,13 +235,17 @@ func getBookingData(ctx context.Context, queries db.Querier, userID int64, paylo
 	}
 
 	date := time.Now().In(loc)
-	if dStr, ok := payload["selected_date"].(string); ok && dStr != "" {
-		if p, err := time.ParseInLocation("2006-01-02", dStr, loc); err == nil {
-			date = p
-		} else if p, err := time.ParseInLocation("02.01.2006", dStr, loc); err == nil {
-			date = p
+	reset, _ := payload["reset"].(bool)
+	if !reset {
+		if dStr, ok := payload["selected_date"].(string); ok && dStr != "" {
+			if p, err := time.ParseInLocation("2006-01-02", dStr, loc); err == nil {
+				date = p
+			} else if p, err := time.ParseInLocation("02.01.2006", dStr, loc); err == nil {
+				date = p
+			}
 		}
 	}
+
 	displayDate := date.Format("02.01.2006")
 
 	campusName := "Campus"
@@ -256,6 +262,13 @@ func getBookingData(ctx context.Context, queries db.Querier, userID int64, paylo
 	vars := map[string]any{
 		"current_date": displayDate, "selected_date": displayDate,
 		"my_campus": campusName, "campus_id": campusIDStr,
+	}
+
+	// Set visualization path
+	if cfg != nil && cfg.ScheduleImages.Enabled {
+		// Example: tmp/Europe/Moscow/MOSCOW.png
+		vizPath := filepath.Join(cfg.ScheduleImages.TempDir, loc.String(), campusName+".png")
+		vars["dashboard_visualization"] = vizPath
 	}
 
 	// Fetch user's active bookings (for display on dashboard)

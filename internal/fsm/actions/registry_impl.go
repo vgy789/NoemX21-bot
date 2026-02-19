@@ -62,7 +62,8 @@ func (r *registrar) RegisterAll(registry *fsm.LogicRegistry, aliasRegistrar func
 	common.RegisterReviews(registry, aliasRegistrar)
 
 	admin.Register(registry, aliasRegistrar)
-	booking.Register(registry, r.queries, aliasRegistrar)
+	booking.Register(registry, r.queries, r.cfg, aliasRegistrar)
+
 	clubs.Register(registry, r.queries, aliasRegistrar)
 	library.Register(registry, r.queries, aliasRegistrar)
 

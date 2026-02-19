@@ -5,24 +5,18 @@ meta:
   description: 'Оптимизированный процесс с быстрым подтверждением'
   version: 3.0.0
 
-initial_state: AUTO_SYNC_BOOKING
+initial_state: BOOKING_DASHBOARD
 
 states:
-  # --- СИСТЕМНАЯ ЗАГРУЗКА ---
-  AUTO_SYNC_BOOKING:
-    type: system
-    description: "Pre-load campus rooms and hot slots"
-    logic:
-      action: get_dashboard_data # Запрашиваем сводку, а не просто список
-      payload:
-        campus_id: $context.campus_id
-    transitions:
-      - next_state: BOOKING_DASHBOARD
-
   # --- ГЛАВНЫЙ ЭКРАН (DASHBOARD) ---
   BOOKING_DASHBOARD:
     type: interactive
     description: Сводка состояния + Быстрые слоты
+    on_enter:
+      - action: get_dashboard_data
+        payload:
+          campus_id: $context.campus_id
+          reset: true
     interface:
       text:
         ru: |
@@ -101,7 +95,7 @@ states:
         - id: refresh
           label: 🔄
           row: 6
-          next_state: AUTO_SYNC_BOOKING
+          next_state: BOOKING_DASHBOARD
 
         - id: back
           label:
