@@ -36,16 +36,16 @@ states:
             en: 👀 Review
           row: 1
           next_state: REVIEWS_MENU
-        - id: "{booking_btn_id}"
+        - id: booking
           label:
-            ru: "{booking_btn_label_ru}"
-            en: "{booking_btn_label_en}"
+            ru: 💬 Переговорки
+            en: 💬 Meeting rooms
           row: 1
           next_state: BOOKING_MENU
-        - id: "{library_btn_id}"
+        - id: library
           label:
-            ru: "{library_btn_label_ru}"
-            en: "{library_btn_label_en}"
+            ru: 📚 Библиотека
+            en: 📚 Library
           next_state: LIBRARY_MENU
           row: 2
         - id: clubs
