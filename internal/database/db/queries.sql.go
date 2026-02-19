@@ -1346,9 +1346,9 @@ func (q *Queries) GetRocketChatCredentials(ctx context.Context, s21Login string)
 }
 
 const getRoomBookingsByDate = `-- name: GetRoomBookingsByDate :many
-SELECT rb.id, rb.campus_id, rb.room_id, rb.user_id, rb.booking_date, rb.start_time, rb.duration_minutes, rb.created_at, ua.s21_login as nickname
+SELECT rb.id, rb.campus_id, rb.room_id, rb.user_id, rb.booking_date, rb.start_time, rb.duration_minutes, rb.created_at, COALESCE(ua.s21_login, 'unknown') as nickname
 FROM room_bookings rb
-JOIN user_accounts ua ON rb.user_id = ua.id
+LEFT JOIN user_accounts ua ON rb.user_id = ua.id
 WHERE rb.campus_id = $1 AND rb.room_id = $2 AND rb.booking_date = $3
 ORDER BY rb.start_time
 `
