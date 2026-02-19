@@ -28,6 +28,7 @@ func Register(
 	rcClient *rocketchat.Client,
 	s21Client *s21.Client,
 	credService *service.CredentialService,
+	otpProvider service.OTPProvider,
 	aliasRegistrar func(alias, target string),
 ) {
 	if aliasRegistrar != nil {
@@ -213,8 +214,6 @@ func Register(
 			return "", nil, err // FSM will handle this as a generic error or we can signal specific state
 		}
 
-		otpSvc := service.NewOTPService(queries, rcClient, cfg, log)
-
 		// Set S21 login in context for verification
 		ctx = context.WithValue(ctx, fsm.ContextKeyS21Login, login)
 
@@ -226,7 +225,7 @@ func Register(
 			"first_name", ui.FirstName,
 			"last_name", ui.LastName)
 
-		if err := otpSvc.GenerateAndSendOTP(ctx, login, ui); err != nil {
+		if err := otpProvider.GenerateAndSendOTP(ctx, login, ui); err != nil {
 			if strings.HasPrefix(err.Error(), "RATE_LIMIT:") {
 				var remaining int
 				_, _ = fmt.Sscanf(err.Error(), "RATE_LIMIT:%d", &remaining)
@@ -249,7 +248,6 @@ func Register(
 	// Verify OTP code
 	registry.Register("verify_otp", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		code := payload["code"].(string)
-		otpSvc := service.NewOTPService(queries, rcClient, cfg, log)
 
 		s21Login, ok := payload["student_id"].(string)
 		if !ok {
@@ -262,7 +260,7 @@ func Register(
 
 		ctx = context.WithValue(ctx, fsm.ContextKeyS21Login, s21Login)
 
-		valid, err := otpSvc.VerifyOTP(ctx, userID, code)
+		valid, err := otpProvider.VerifyOTP(ctx, userID, code)
 		if err != nil {
 			log.Error("OTP verification failed", "error", err)
 			// Treat unexpected errors as invalid code to allow FSM to transition back

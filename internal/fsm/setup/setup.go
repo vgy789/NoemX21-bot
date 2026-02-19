@@ -2,6 +2,7 @@ package setup
 
 import (
 	"log/slog"
+	"os"
 	"strings"
 
 	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
@@ -28,9 +29,26 @@ func NewFSM(
 	parser := fsm.NewFlowParser(flowsPath, log)
 	repoFSM := fsm.NewPostgreSQLStateRepository(queries)
 
+	// Safety check: refuse to start if test mode is enabled in production
+	if cfg.TestModeNoOTP && cfg.Production {
+		log.Error("TEST_MODE_NO_OTP is enabled in production - refusing to start")
+		os.Exit(1)
+	}
+
+	// Create OTP provider based on configuration
+	otpService := service.NewOTPService(queries, rcClient, cfg, log)
+	var otpProvider service.OTPProvider
+	if cfg.TestModeNoOTP {
+		log.Info("using mock OTP provider (test mode)")
+		otpProvider = service.NewMockOTPProvider(log)
+	} else {
+		log.Info("using real OTP provider (production mode)")
+		otpProvider = service.NewRealOTPProvider(otpService)
+	}
+
 	// Create registry and register actions
 	registry := fsm.NewLogicRegistry()
-	registrar := actions.NewRegistrar(cfg, log, userSvc, queries, rcClient, s21Client, credService, repoFSM)
+	registrar := actions.NewRegistrar(cfg, log, userSvc, queries, rcClient, s21Client, credService, otpProvider, repoFSM)
 
 	// Initialize Engine with sanitizer: escape Markdown specials in values from context/DB
 	// so that e.g. campus "24_04_NSK" is not interpreted as italic in Telegram.
