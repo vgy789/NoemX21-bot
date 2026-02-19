@@ -27,6 +27,7 @@ type registrar struct {
 	rcClient    *rocketchat.Client
 	s21Client   *s21.Client
 	credService *service.CredentialService
+	otpProvider service.OTPProvider
 	repo        fsm.StateRepository
 }
 
@@ -39,6 +40,7 @@ func NewRegistrar(
 	rcClient *rocketchat.Client,
 	s21Client *s21.Client,
 	credService *service.CredentialService,
+	otpProvider service.OTPProvider,
 	repo fsm.StateRepository,
 ) ActionRegistrar {
 	return &registrar{
@@ -49,6 +51,7 @@ func NewRegistrar(
 		rcClient:    rcClient,
 		s21Client:   s21Client,
 		credService: credService,
+		otpProvider: otpProvider,
 		repo:        repo,
 	}
 }
@@ -63,7 +66,7 @@ func (r *registrar) RegisterAll(registry *fsm.LogicRegistry, aliasRegistrar func
 	clubs.Register(registry, r.queries, aliasRegistrar)
 	library.Register(registry, r.queries, aliasRegistrar)
 
-	registration.Register(registry, r.cfg, r.log, r.queries, r.userSvc, r.rcClient, r.s21Client, r.credService, aliasRegistrar)
+	registration.Register(registry, r.cfg, r.log, r.queries, r.userSvc, r.rcClient, r.s21Client, r.credService, r.otpProvider, aliasRegistrar)
 	settings.Register(registry, r.log, r.queries, aliasRegistrar)
 	statistics.Register(registry, r.cfg, r.log, r.queries, r.s21Client, r.credService, r.repo, aliasRegistrar)
 }

@@ -28,8 +28,8 @@ func MustNew(cfg *config.TelegramBot) *gotgbot.Bot {
 			Client: http.Client{
 				Timeout: clientTimeout,
 			},
-			UseTestEnvironment:   false,
-			DefaultRequestOpts:   requestOpts,
+			UseTestEnvironment: false,
+			DefaultRequestOpts: requestOpts,
 		},
 	}
 

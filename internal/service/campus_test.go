@@ -202,3 +202,42 @@ func TestEnsureCampusPresent_NotFoundInAPI(t *testing.T) {
 		t.Fatalf("expected nil error when campus not found in API, got: %v", err)
 	}
 }
+
+func TestCampusService_Stop(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	cfg := &config.Config{}
+
+	svc := NewCampusService(q, nil, cfg, log, nil)
+	err := svc.Start()
+	assert.NoError(t, err)
+	svc.Stop()
+	// Should not panic
+}
+
+func TestEnsureCampusPresent_InvalidUUID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockQ := mock.NewMockQuerier(ctrl)
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	err := EnsureCampusPresent(context.Background(), mockQ, &s21.Client{}, "token", logger, "invalid-uuid")
+	assert.Error(t, err)
+}
+
+func TestEnsureCampusPresent_NoToken(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockQ := mock.NewMockQuerier(ctrl)
+	mockQ.EXPECT().GetCampusByID(gomock.Any(), gomock.Any()).Return(db.GetCampusByIDRow{}, fmt.Errorf("not found"))
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	err := EnsureCampusPresent(context.Background(), mockQ, &s21.Client{}, "", logger, "ff19a3a7-12f5-4332-9582-624519c3eaea")
+	assert.NoError(t, err) // Should return nil with warning log
+}

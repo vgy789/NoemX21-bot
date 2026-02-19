@@ -35,8 +35,8 @@ func NewOTPService(db db.Querier, rcClient *rocketchat.Client, cfg *config.Confi
 	}
 }
 
-// GenerateAndSendOTP generates a 6-digit code and sends it via RocketChat
-func (s *OTPService) GenerateAndSendOTP(ctx context.Context, s21Login string, ui fsm.UserInfo) error {
+// generateAndSendOTP generates a 6-digit code and sends it via RocketChat (internal use)
+func (s *OTPService) generateAndSendOTP(ctx context.Context, s21Login string, ui fsm.UserInfo) error {
 	// 0. Rate limiting check (cooldown 60 seconds)
 	lastOTP, err := s.db.GetLastAuthVerificationCode(ctx, pgtype.Text{Valid: true, String: s21Login})
 	if err == nil {
@@ -115,8 +115,8 @@ func (s *OTPService) GenerateAndSendOTP(ctx context.Context, s21Login string, ui
 	return nil
 }
 
-// VerifyOTP verifies the provided code
-func (s *OTPService) VerifyOTP(ctx context.Context, telegramUserID int64, code string) (bool, error) {
+// verifyOTP verifies the provided code (internal use)
+func (s *OTPService) verifyOTP(ctx context.Context, telegramUserID int64, code string) (bool, error) {
 	// Get the S21 login from context
 	s21Login, ok := ctx.Value(fsm.ContextKeyS21Login).(string)
 	if !ok {

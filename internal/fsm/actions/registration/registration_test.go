@@ -87,8 +87,11 @@ func TestLoadUserProfile_LogsUpsertError(t *testing.T) {
 
 	registry := fsm.NewLogicRegistry()
 
+	// Create mock OTP provider
+	otpProvider := service.NewMockOTPProvider(logger)
+
 	// Register actions (this will register load_user_profile which we want to test)
-	Register(registry, cfg, logger, mockQ, &fakeUserSvc{}, nil, s21Client, credSvc, nil)
+	Register(registry, cfg, logger, mockQ, &fakeUserSvc{}, nil, s21Client, credSvc, otpProvider, nil)
 
 	act, ok := registry.Get("load_user_profile")
 	if !ok {
