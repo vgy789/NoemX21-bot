@@ -160,7 +160,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 		if err != nil {
 			// User not found, return empty list
 			return "", map[string]any{
-				"my_bookings_list":     "Список пуст.",
+				"my_bookings_list":      "Список пуст.",
 				"my_bookings_formatted": "Список пуст.",
 			}, nil
 		}
@@ -317,7 +317,7 @@ func getBookingData(ctx context.Context, queries db.Querier, userID int64, paylo
 			CampusID: campusUUID, RoomID: room.ID, BookingDate: pgtype.Date{Time: date, Valid: true},
 		})
 		for _, b := range bsCurrent {
-			markBookedSlots(b, bm)
+			markBookedSlotsFromRow(b, bm)
 		}
 
 		// Get bookings from previous day that might cross midnight (start >= 23:00)
@@ -328,14 +328,15 @@ func getBookingData(ctx context.Context, queries db.Querier, userID int64, paylo
 			// Check if this booking crosses midnight
 			startMin := b.StartTime.Microseconds / 60000000
 			endMin := startMin + int64(b.DurationMinutes)
-			if startMin >= 23*60 && endMin > 24*60 { // Starts at 23:00 or later and ends after midnight
-				// Mark slots after midnight on current day
-				minsAfterMidnight := endMin - 24*60
-				if minsAfterMidnight >= 30 {
-					bm["00:00"] = true
-					bm["00:30"] = true
-				} else {
-					bm["00:00"] = true
+			// Only relevant if it started late yesterday and ends today (effectively > 24*60 relative to yesterday start)
+			if endMin > 24*60 {
+				// Minutes falling into today
+				minsIntoToday := endMin - 24*60
+				// Mark slots from 00:00 up to minsIntoToday
+				for t := int64(0); t < minsIntoToday; t += 30 {
+					h := t / 60
+					m := t % 60
+					bm[fmt.Sprintf("%02d:%02d", h, m)] = true
 				}
 			}
 		}
@@ -475,8 +476,8 @@ func toInt32(v any) int32 {
 	return 0
 }
 
-// markBookedSlots marks all 30-minute slots as booked for a given booking.
-func markBookedSlots(b db.RoomBooking, bm map[string]bool) {
+// markBookedSlotsFromRow marks all 30-minute slots as booked for a given booking row.
+func markBookedSlotsFromRow(b db.GetRoomBookingsByDateRow, bm map[string]bool) {
 	totalMin := b.StartTime.Microseconds / 60000000
 	for i := 0; i < int(b.DurationMinutes); i += 30 {
 		nextMin := int(totalMin) + i
@@ -484,6 +485,10 @@ func markBookedSlots(b db.RoomBooking, bm map[string]bool) {
 		m := nextMin % 60
 		if h < 24 { // Only mark slots within the same day
 			bm[fmt.Sprintf("%02d:%02d", h, m)] = true
+		} else {
+			// Crosses midnight
+			hAfter := h % 24
+			bm[fmt.Sprintf("%02d:%02d", hAfter, m)] = true
 		}
 	}
 }

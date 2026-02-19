@@ -439,6 +439,36 @@ func (mr *MockQuerierMockRecorder) GetCampusByShortName(ctx, shortName any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCampusByShortName", reflect.TypeOf((*MockQuerier)(nil).GetCampusByShortName), ctx, shortName)
 }
 
+// GetCampusesWithBookingsForTimezone mocks base method.
+func (m *MockQuerier) GetCampusesWithBookingsForTimezone(ctx context.Context, timezone pgtype.Text) ([]db.GetCampusesWithBookingsForTimezoneRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCampusesWithBookingsForTimezone", ctx, timezone)
+	ret0, _ := ret[0].([]db.GetCampusesWithBookingsForTimezoneRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCampusesWithBookingsForTimezone indicates an expected call of GetCampusesWithBookingsForTimezone.
+func (mr *MockQuerierMockRecorder) GetCampusesWithBookingsForTimezone(ctx, timezone any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCampusesWithBookingsForTimezone", reflect.TypeOf((*MockQuerier)(nil).GetCampusesWithBookingsForTimezone), ctx, timezone)
+}
+
+// GetDistinctUserTimezones mocks base method.
+func (m *MockQuerier) GetDistinctUserTimezones(ctx context.Context) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetDistinctUserTimezones", ctx)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetDistinctUserTimezones indicates an expected call of GetDistinctUserTimezones.
+func (mr *MockQuerierMockRecorder) GetDistinctUserTimezones(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetDistinctUserTimezones", reflect.TypeOf((*MockQuerier)(nil).GetDistinctUserTimezones), ctx)
+}
+
 // GetFSMState mocks base method.
 func (m *MockQuerier) GetFSMState(ctx context.Context, userID int64) (db.FsmUserState, error) {
 	m.ctrl.T.Helper()
@@ -620,10 +650,10 @@ func (mr *MockQuerierMockRecorder) GetRocketChatCredentials(ctx, s21Login any) *
 }
 
 // GetRoomBookingsByDate mocks base method.
-func (m *MockQuerier) GetRoomBookingsByDate(ctx context.Context, arg db.GetRoomBookingsByDateParams) ([]db.RoomBooking, error) {
+func (m *MockQuerier) GetRoomBookingsByDate(ctx context.Context, arg db.GetRoomBookingsByDateParams) ([]db.GetRoomBookingsByDateRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetRoomBookingsByDate", ctx, arg)
-	ret0, _ := ret[0].([]db.RoomBooking)
+	ret0, _ := ret[0].([]db.GetRoomBookingsByDateRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

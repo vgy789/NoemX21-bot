@@ -38,6 +38,8 @@ type Querier interface {
 	GetBooksByCampusAndCategory(ctx context.Context, arg GetBooksByCampusAndCategoryParams) ([]GetBooksByCampusAndCategoryRow, error)
 	GetCampusByID(ctx context.Context, id pgtype.UUID) (GetCampusByIDRow, error)
 	GetCampusByShortName(ctx context.Context, shortName string) (Campuse, error)
+	GetCampusesWithBookingsForTimezone(ctx context.Context, timezone pgtype.Text) ([]GetCampusesWithBookingsForTimezoneRow, error)
+	GetDistinctUserTimezones(ctx context.Context) ([]string, error)
 	GetFSMState(ctx context.Context, userID int64) (FsmUserState, error)
 	GetGlobalClubs(ctx context.Context) ([]GetGlobalClubsRow, error)
 	GetLastAuthVerificationCode(ctx context.Context, s21Login pgtype.Text) (AuthVerificationCode, error)
@@ -53,7 +55,7 @@ type Querier interface {
 	// queries.sql
 	GetRegisteredUserByS21Login(ctx context.Context, s21Login string) (RegisteredUser, error)
 	GetRocketChatCredentials(ctx context.Context, s21Login string) (RocketchatCredential, error)
-	GetRoomBookingsByDate(ctx context.Context, arg GetRoomBookingsByDateParams) ([]RoomBooking, error)
+	GetRoomBookingsByDate(ctx context.Context, arg GetRoomBookingsByDateParams) ([]GetRoomBookingsByDateRow, error)
 	GetRoomByID(ctx context.Context, arg GetRoomByIDParams) (Room, error)
 	GetUserAccountByExternalId(ctx context.Context, arg GetUserAccountByExternalIdParams) (UserAccount, error)
 	GetUserAccountByS21Login(ctx context.Context, s21Login string) (UserAccount, error)

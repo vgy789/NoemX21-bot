@@ -779,6 +779,79 @@ func (q *Queries) GetCampusByShortName(ctx context.Context, shortName string) (C
 	return i, err
 }
 
+const getCampusesWithBookingsForTimezone = `-- name: GetCampusesWithBookingsForTimezone :many
+SELECT DISTINCT c.id, c.short_name, c.full_name, c.timezone
+FROM campuses c
+INNER JOIN rooms r ON r.campus_id = c.id AND r.is_active = true
+INNER JOIN room_bookings rb ON rb.campus_id = c.id AND rb.booking_date = CURRENT_DATE
+WHERE (c.timezone = $1 OR EXISTS (
+    SELECT 1 FROM registered_users s 
+    LEFT JOIN participant_stats_cache psc ON s.s21_login = psc.s21_login
+    WHERE psc.campus_id = c.id AND s.timezone = $1
+))
+AND c.is_active = true
+GROUP BY c.id, c.short_name, c.full_name, c.timezone
+`
+
+type GetCampusesWithBookingsForTimezoneRow struct {
+	ID        pgtype.UUID `json:"id"`
+	ShortName string      `json:"short_name"`
+	FullName  string      `json:"full_name"`
+	Timezone  pgtype.Text `json:"timezone"`
+}
+
+func (q *Queries) GetCampusesWithBookingsForTimezone(ctx context.Context, timezone pgtype.Text) ([]GetCampusesWithBookingsForTimezoneRow, error) {
+	rows, err := q.db.Query(ctx, getCampusesWithBookingsForTimezone, timezone)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetCampusesWithBookingsForTimezoneRow
+	for rows.Next() {
+		var i GetCampusesWithBookingsForTimezoneRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ShortName,
+			&i.FullName,
+			&i.Timezone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getDistinctUserTimezones = `-- name: GetDistinctUserTimezones :many
+SELECT DISTINCT timezone 
+FROM registered_users 
+WHERE timezone IS NOT NULL AND timezone != ''
+ORDER BY timezone
+`
+
+func (q *Queries) GetDistinctUserTimezones(ctx context.Context) ([]string, error) {
+	rows, err := q.db.Query(ctx, getDistinctUserTimezones)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var timezone string
+		if err := rows.Scan(&timezone); err != nil {
+			return nil, err
+		}
+		items = append(items, timezone)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getFSMState = `-- name: GetFSMState :one
 SELECT user_id, current_flow, current_state, context, language, updated_at FROM fsm_user_states WHERE user_id = $1
 `
@@ -1273,9 +1346,11 @@ func (q *Queries) GetRocketChatCredentials(ctx context.Context, s21Login string)
 }
 
 const getRoomBookingsByDate = `-- name: GetRoomBookingsByDate :many
-SELECT id, campus_id, room_id, user_id, booking_date, start_time, duration_minutes, created_at FROM room_bookings
-WHERE campus_id = $1 AND room_id = $2 AND booking_date = $3
-ORDER BY start_time
+SELECT rb.id, rb.campus_id, rb.room_id, rb.user_id, rb.booking_date, rb.start_time, rb.duration_minutes, rb.created_at, ua.s21_login as nickname
+FROM room_bookings rb
+JOIN user_accounts ua ON rb.user_id = ua.id
+WHERE rb.campus_id = $1 AND rb.room_id = $2 AND rb.booking_date = $3
+ORDER BY rb.start_time
 `
 
 type GetRoomBookingsByDateParams struct {
@@ -1284,15 +1359,27 @@ type GetRoomBookingsByDateParams struct {
 	BookingDate pgtype.Date `json:"booking_date"`
 }
 
-func (q *Queries) GetRoomBookingsByDate(ctx context.Context, arg GetRoomBookingsByDateParams) ([]RoomBooking, error) {
+type GetRoomBookingsByDateRow struct {
+	ID              int64              `json:"id"`
+	CampusID        pgtype.UUID        `json:"campus_id"`
+	RoomID          int16              `json:"room_id"`
+	UserID          int64              `json:"user_id"`
+	BookingDate     pgtype.Date        `json:"booking_date"`
+	StartTime       pgtype.Time        `json:"start_time"`
+	DurationMinutes int32              `json:"duration_minutes"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
+	Nickname        string             `json:"nickname"`
+}
+
+func (q *Queries) GetRoomBookingsByDate(ctx context.Context, arg GetRoomBookingsByDateParams) ([]GetRoomBookingsByDateRow, error) {
 	rows, err := q.db.Query(ctx, getRoomBookingsByDate, arg.CampusID, arg.RoomID, arg.BookingDate)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []RoomBooking
+	var items []GetRoomBookingsByDateRow
 	for rows.Next() {
-		var i RoomBooking
+		var i GetRoomBookingsByDateRow
 		if err := rows.Scan(
 			&i.ID,
 			&i.CampusID,
@@ -1302,6 +1389,7 @@ func (q *Queries) GetRoomBookingsByDate(ctx context.Context, arg GetRoomBookings
 			&i.StartTime,
 			&i.DurationMinutes,
 			&i.CreatedAt,
+			&i.Nickname,
 		); err != nil {
 			return nil, err
 		}

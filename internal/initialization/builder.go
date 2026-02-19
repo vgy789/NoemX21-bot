@@ -11,6 +11,7 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/crypto"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/service"
+	"github.com/vgy789/noemx21-bot/internal/service/schedule_generator"
 	"github.com/vgy789/noemx21-bot/internal/sync/gitsync"
 )
 
@@ -89,7 +90,10 @@ func (b *Builder) BuildCredentialService(repo *db.Queries, crypter *crypto.Crypt
 func (b *Builder) BuildApp(repo *db.DBWrapper, rcClient *rocketchat.Client, s21Client *s21.Client, credService *service.CredentialService) *app.App {
 	gitSync := gitsync.New(b.cfg.GitSync, repo.Queries, b.log)
 	campusSvc := service.NewCampusService(repo.Queries, s21Client, b.cfg, b.log, credService)
-	return app.New(b.cfg, b.log, repo, rcClient, s21Client, credService, gitSync, campusSvc)
+	scheduleGen := schedule_generator.New(b.cfg, b.log, repo.Queries)
+
+	return app.New(b.cfg, b.log, repo, rcClient, s21Client, credService, gitSync, campusSvc, scheduleGen)
+
 }
 
 // Run runs the application.

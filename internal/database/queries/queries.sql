@@ -456,9 +456,13 @@ ON CONFLICT (campus_id, room_id, booking_date, start_time) DO NOTHING
 RETURNING *;
 
 -- name: GetRoomBookingsByDate :many
-SELECT * FROM room_bookings
-WHERE campus_id = $1 AND room_id = $2 AND booking_date = $3
-ORDER BY start_time;
+SELECT rb.*, COALESCE(ua.s21_login, 'unknown') as nickname
+FROM room_bookings rb
+LEFT JOIN user_accounts ua ON rb.user_id = ua.id
+WHERE rb.campus_id = $1 AND rb.room_id = $2 AND rb.booking_date = $3
+ORDER BY rb.start_time;
+
+
 
 -- name: GetUserRoomBookings :many
 SELECT rb.*, r.name as room_name
@@ -567,3 +571,23 @@ WHERE campus_id = $1 AND is_active = true AND (title ILIKE '%' || $2 || '%' OR a
 SELECT count(*)::int
 FROM books
 WHERE campus_id = $1 AND is_active = true AND category = $2;
+
+-- name: GetDistinctUserTimezones :many
+SELECT DISTINCT timezone 
+FROM registered_users 
+WHERE timezone IS NOT NULL AND timezone != ''
+ORDER BY timezone;
+
+-- name: GetCampusesWithBookingsForTimezone :many
+SELECT DISTINCT c.id, c.short_name, c.full_name, c.timezone
+FROM campuses c
+INNER JOIN rooms r ON r.campus_id = c.id AND r.is_active = true
+INNER JOIN room_bookings rb ON rb.campus_id = c.id AND rb.booking_date = CURRENT_DATE
+WHERE (c.timezone = $1 OR EXISTS (
+    SELECT 1 FROM registered_users s 
+    LEFT JOIN participant_stats_cache psc ON s.s21_login = psc.s21_login
+    WHERE psc.campus_id = c.id AND s.timezone = $1
+))
+AND c.is_active = true
+GROUP BY c.id, c.short_name, c.full_name, c.timezone;
+

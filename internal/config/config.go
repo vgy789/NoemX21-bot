@@ -56,7 +56,12 @@ type Config struct {
 	Charts struct {
 		TempDir string `env:"CHART_TEMP_DIR" envDefault:"tmp"`
 	}
-	Production   bool `env:"PRODUCTION" envDefault:"false"`
+	ScheduleImages struct {
+		Enabled  bool          `env:"SCHEDULE_IMAGES_ENABLED" envDefault:"true"`
+		Interval time.Duration `env:"SCHEDULE_IMAGES_INTERVAL" envDefault:"30s"`
+		TempDir  string        `env:"SCHEDULE_IMAGES_TEMP_DIR" envDefault:"tmp/schedules"`
+	}
+	Production    bool `env:"PRODUCTION" envDefault:"false"`
 	TestModeNoOTP bool `env:"TEST_MODE_NO_OTP" envDefault:"false"` // Skip OTP verification for testing
 }
 
