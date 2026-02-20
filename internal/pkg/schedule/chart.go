@@ -85,8 +85,22 @@ func formatDateRussian(t time.Time) string {
 	return fmt.Sprintf("%s, %d %s %d", days[t.Weekday()], t.Day(), months[t.Month()], t.Year())
 }
 
-// GenerateScheduleImage creates a PNG image of the schedule.
-func GenerateScheduleImage(campusName string, currentTime time.Time, rooms []Room, outputPath string) error {
+// GenerateScheduleImage creates a PNG image of the schedule and writes it to a file.
+func GenerateScheduleImage(campusName string, currentTime time.Time, tzName string, rooms []Room, outputPath string) error {
+	imgBytes, err := GenerateScheduleImageBytes(campusName, currentTime, tzName, rooms)
+	if err != nil {
+		return err
+	}
+
+	// Ensure output directory exists
+	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
+		return fmt.Errorf("failed to create output directory: %w", err)
+	}
+	return os.WriteFile(outputPath, imgBytes, 0644)
+}
+
+// GenerateScheduleImageBytes creates a PNG image of the schedule and returns it as a byte slice.
+func GenerateScheduleImageBytes(campusName string, currentTime time.Time, tzName string, rooms []Room) ([]byte, error) {
 	startView := time.Date(currentTime.Year(), currentTime.Month(), currentTime.Day(), currentTime.Hour()-2, 0, 0, 0, currentTime.Location())
 	numHours := 16
 
@@ -108,11 +122,12 @@ func GenerateScheduleImage(campusName string, currentTime time.Time, rooms []Roo
 		}
 	}
 	if !found {
-		return fmt.Errorf("could not find any system fonts")
+		return nil, fmt.Errorf("could not find any system fonts")
 	}
 
 	fTitle := ff.Face(SizeTitle, ColorTextMain, canvas.FontBold)
 	fDate := ff.Face(SizeDate, ColorTextSec, canvas.FontRegular)
+	fTz := ff.Face(SizeHeader, ColorTextSec, canvas.FontRegular)
 	fHeader := ff.Face(SizeHeader, ColorTextSec, canvas.FontBold)
 	fRoom := ff.Face(SizeRoom, ColorTextMain, canvas.FontBold)
 	fCap := ff.Face(SizeCap, ColorTextSec, canvas.FontRegular)
@@ -135,7 +150,14 @@ func GenerateScheduleImage(campusName string, currentTime time.Time, rooms []Roo
 
 	// Page Headers
 	ctx.DrawText(originX, tableTopY+mm(32), canvas.NewTextLine(fTitle, "Переговорки "+campusName, canvas.Left))
-	ctx.DrawText(originX, tableTopY+mm(12), canvas.NewTextLine(fDate, formatDateRussian(currentTime), canvas.Left))
+
+	// Draw Date and Timezone
+	dateText := canvas.NewTextLine(fDate, formatDateRussian(currentTime), canvas.Left)
+	ctx.DrawText(originX, tableTopY+mm(12), dateText)
+
+	// Calculate width of date text to place timezone right next to it with some padding
+	dateWidth := dateText.Bounds().W()
+	ctx.DrawText(originX+dateWidth+mm(8), tableTopY+mm(12), canvas.NewTextLine(fTz, "("+tzName+")", canvas.Left))
 
 	// Time Grid
 	gridDash := []float64{mm(1.5), mm(1.5)}
@@ -281,15 +303,10 @@ func GenerateScheduleImage(campusName string, currentTime time.Time, rooms []Roo
 		ctx.DrawPath(nowX, tableBottomY, canvas.Circle(mm(2.5)))
 	}
 
-	// Ensure output directory exists
-	if err := os.MkdirAll(filepath.Dir(outputPath), 0755); err != nil {
-		return fmt.Errorf("failed to create output directory: %w", err)
-	}
-
 	var buf bytes.Buffer
 	pngRenderer := renderers.PNG(canvas.DPI(72.0))
 	if err := pngRenderer(&buf, c); err != nil {
-		return err
+		return nil, err
 	}
-	return os.WriteFile(outputPath, buf.Bytes(), 0644)
+	return buf.Bytes(), nil
 }

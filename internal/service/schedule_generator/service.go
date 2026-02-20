@@ -4,30 +4,32 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"path/filepath"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
+	"github.com/vgy789/noemx21-bot/internal/pkg/imgcache"
 	"github.com/vgy789/noemx21-bot/internal/pkg/schedule"
 )
 
 // Service handles periodic generation of room schedule images.
 type Service struct {
-	queries db.Querier
-	cfg     *config.Config
-	stopCh  chan struct{}
-	log     *slog.Logger
+	queries  db.Querier
+	cfg      *config.Config
+	stopCh   chan struct{}
+	log      *slog.Logger
+	imgCache *imgcache.Store
 }
 
 // New creates a new schedule generation service.
-func New(cfg *config.Config, log *slog.Logger, queries db.Querier) *Service {
+func New(cfg *config.Config, log *slog.Logger, queries db.Querier, cache *imgcache.Store) *Service {
 	return &Service{
-		queries: queries,
-		cfg:     cfg,
-		log:     log.With("service", "schedule_generator"),
-		stopCh:  make(chan struct{}),
+		queries:  queries,
+		cfg:      cfg,
+		log:      log.With("service", "schedule_generator"),
+		stopCh:   make(chan struct{}),
+		imgCache: cache,
 	}
 }
 
@@ -72,36 +74,24 @@ func (s *Service) generate() {
 
 	s.log.Debug("starting schedule image generation cycle")
 
-	timezones, err := s.queries.GetDistinctUserTimezones(ctx)
+	campuses, err := s.queries.GetAllActiveCampuses(ctx)
 	if err != nil {
-		s.log.Error("failed to get distinct user timezones", "error", err)
-		return
-	}
-
-	for _, tzName := range timezones {
-		s.generateForTimezone(ctx, tzName)
-	}
-}
-
-func (s *Service) generateForTimezone(ctx context.Context, tzName string) {
-	loc, err := time.LoadLocation(tzName)
-	if err != nil {
-		s.log.Error("invalid timezone", "tz", tzName, "error", err)
-		return
-	}
-
-	campuses, err := s.queries.GetCampusesWithBookingsForTimezone(ctx, pgtype.Text{String: tzName, Valid: true})
-	if err != nil {
-		s.log.Error("failed to get campuses for timezone", "tz", tzName, "error", err)
+		s.log.Error("failed to get active campuses", "error", err)
 		return
 	}
 
 	for _, campus := range campuses {
-		s.generateForCampus(ctx, campus, loc, tzName)
+		s.generateForCampus(ctx, campus)
 	}
 }
 
-func (s *Service) generateForCampus(ctx context.Context, campus db.GetCampusesWithBookingsForTimezoneRow, loc *time.Location, tzName string) {
+func (s *Service) generateForCampus(ctx context.Context, campus db.GetAllActiveCampusesRow) {
+	loc, err := time.LoadLocation(campus.Timezone.String)
+	if err != nil || !campus.Timezone.Valid || campus.Timezone.String == "" {
+		s.log.Error("invalid timezone for campus", "campus", campus.ShortName, "tz", campus.Timezone.String, "error", err)
+		return
+	}
+
 	rooms, err := s.queries.GetActiveRoomsByCampus(ctx, campus.ID)
 	if err != nil {
 		s.log.Error("failed to get active rooms", "campus", campus.ShortName, "error", err)
@@ -139,13 +129,13 @@ func (s *Service) generateForCampus(ctx context.Context, campus db.GetCampusesWi
 
 	scheduleRooms := convertRooms(rooms, dbBookings, loc)
 
-	// Output path: {tmp_dir}/{timezone}/{campus_short_name}.png
-	outputPath := filepath.Join(s.cfg.ScheduleImages.TempDir, tzName, fmt.Sprintf("%s.png", campus.ShortName))
-
-	err = schedule.GenerateScheduleImage(campus.ShortName, now, scheduleRooms, outputPath)
+	imgBytes, err := schedule.GenerateScheduleImageBytes(campus.ShortName, now, campus.Timezone.String, scheduleRooms)
 	if err != nil {
-		s.log.Error("failed to generate schedule image", "campus", campus.ShortName, "error", err)
-	} else {
-		s.log.Debug("generated schedule image", "campus", campus.ShortName, "path", outputPath)
+		s.log.Error("failed to generate schedule image bytes", "campus", campus.ShortName, "error", err)
+		return
 	}
+
+	key := fmt.Sprintf("schedule:%s", campus.ShortName)
+	s.imgCache.Set(key, imgBytes)
+	s.log.Debug("generated and cached schedule image", "campus", campus.ShortName, "key", key)
 }

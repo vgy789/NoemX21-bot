@@ -4,12 +4,14 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"sync"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
 	"github.com/vgy789/noemx21-bot/internal/clients/telegram"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
+	"github.com/vgy789/noemx21-bot/internal/pkg/imgcache"
 	"github.com/vgy789/noemx21-bot/internal/service"
 )
 
@@ -22,7 +24,7 @@ type TelegramService interface {
 // Sender defines interface for sending messages to Telegram.
 type Sender interface {
 	SendMessage(chatID int64, text string, opts *gotgbot.SendMessageOpts) (*gotgbot.Message, error)
-	SendPhoto(chatID int64, photo gotgbot.InputFile, opts *gotgbot.SendPhotoOpts) (*gotgbot.Message, error)
+	SendPhoto(chatID int64, photo gotgbot.InputFileOrString, opts *gotgbot.SendPhotoOpts) (*gotgbot.Message, error)
 	EditMessageText(text string, opts *gotgbot.EditMessageTextOpts) (*gotgbot.Message, bool, error)
 	DeleteMessage(chatID int64, messageID int64) (bool, error)
 	AnswerCallbackQuery(callbackQueryId string, opts *gotgbot.AnswerCallbackQueryOpts) (bool, error)
@@ -37,7 +39,7 @@ func (s *DefaultSender) SendMessage(chatID int64, text string, opts *gotgbot.Sen
 	return s.Bot.SendMessage(chatID, text, opts)
 }
 
-func (s *DefaultSender) SendPhoto(chatID int64, photo gotgbot.InputFile, opts *gotgbot.SendPhotoOpts) (*gotgbot.Message, error) {
+func (s *DefaultSender) SendPhoto(chatID int64, photo gotgbot.InputFileOrString, opts *gotgbot.SendPhotoOpts) (*gotgbot.Message, error) {
 	return s.Bot.SendPhoto(chatID, photo, opts)
 }
 
@@ -54,23 +56,28 @@ func (s *DefaultSender) AnswerCallbackQuery(id string, opts *gotgbot.AnswerCallb
 }
 
 // NewTelegramService creates new telegram service.
-func NewTelegramService(cfg *config.Config, log *slog.Logger, userSvc service.UserService, engine *fsm.Engine) TelegramService {
+func NewTelegramService(cfg *config.Config, log *slog.Logger, userSvc service.UserService, engine *fsm.Engine, cache *imgcache.Store) TelegramService {
 	return &telegramService{
-		cfg:     cfg,
-		log:     log,
-		userSvc: userSvc,
-		engine:  engine,
+		cfg:      cfg,
+		log:      log,
+		userSvc:  userSvc,
+		engine:   engine,
+		imgCache: cache,
+		fileIDs:  make(map[string]string),
 	}
 }
 
 type telegramService struct {
-	cfg     *config.Config
-	log     *slog.Logger
-	userSvc service.UserService
-	engine  *fsm.Engine
-	sender  Sender // For testing
-	bot     *gotgbot.Bot
-	updater *ext.Updater
+	cfg       *config.Config
+	log       *slog.Logger
+	userSvc   service.UserService
+	engine    *fsm.Engine
+	imgCache  *imgcache.Store
+	sender    Sender // For testing
+	bot       *gotgbot.Bot
+	updater   *ext.Updater
+	fileIDs   map[string]string
+	fileIDsMu sync.RWMutex
 }
 
 func (s *telegramService) getSender(b *gotgbot.Bot) Sender {

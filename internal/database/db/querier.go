@@ -29,6 +29,7 @@ type Querier interface {
 	DeleteUserAccountByExternalId(ctx context.Context, arg DeleteUserAccountByExternalIdParams) error
 	GetActiveApiKey(ctx context.Context, userAccountID int64) (ApiKey, error)
 	GetActiveRoomsByCampus(ctx context.Context, campusID pgtype.UUID) ([]Room, error)
+	GetAllActiveCampuses(ctx context.Context) ([]GetAllActiveCampusesRow, error)
 	GetApiKeyByHash(ctx context.Context, keyHash string) (ApiKey, error)
 	GetBookAuthors(ctx context.Context, campusID pgtype.UUID) ([]string, error)
 	GetBookByID(ctx context.Context, arg GetBookByIDParams) (GetBookByIDRow, error)

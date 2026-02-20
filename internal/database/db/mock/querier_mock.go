@@ -304,6 +304,21 @@ func (mr *MockQuerierMockRecorder) GetActiveRoomsByCampus(ctx, campusID any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveRoomsByCampus", reflect.TypeOf((*MockQuerier)(nil).GetActiveRoomsByCampus), ctx, campusID)
 }
 
+// GetAllActiveCampuses mocks base method.
+func (m *MockQuerier) GetAllActiveCampuses(ctx context.Context) ([]db.GetAllActiveCampusesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAllActiveCampuses", ctx)
+	ret0, _ := ret[0].([]db.GetAllActiveCampusesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAllActiveCampuses indicates an expected call of GetAllActiveCampuses.
+func (mr *MockQuerierMockRecorder) GetAllActiveCampuses(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAllActiveCampuses", reflect.TypeOf((*MockQuerier)(nil).GetAllActiveCampuses), ctx)
+}
+
 // GetApiKeyByHash mocks base method.
 func (m *MockQuerier) GetApiKeyByHash(ctx context.Context, keyHash string) (db.ApiKey, error) {
 	m.ctrl.T.Helper()

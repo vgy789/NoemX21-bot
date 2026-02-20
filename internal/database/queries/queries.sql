@@ -591,3 +591,8 @@ WHERE (c.timezone = $1 OR EXISTS (
 AND c.is_active = true
 GROUP BY c.id, c.short_name, c.full_name, c.timezone;
 
+-- name: GetAllActiveCampuses :many
+SELECT id, short_name, full_name, timezone
+FROM campuses
+WHERE is_active = true
+ORDER BY short_name;

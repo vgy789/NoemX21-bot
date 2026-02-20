@@ -3,7 +3,6 @@ package booking
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"sort"
 	"strings"
 	"time"
@@ -266,8 +265,7 @@ func getBookingData(ctx context.Context, queries db.Querier, userID int64, paylo
 
 	// Set visualization path
 	if cfg != nil && cfg.ScheduleImages.Enabled {
-		// Example: tmp/Europe/Moscow/MOSCOW.png
-		vizPath := filepath.Join(cfg.ScheduleImages.TempDir, loc.String(), campusName+".png")
+		vizPath := fmt.Sprintf("imgcache:schedule:%s", campusName)
 		vars["dashboard_visualization"] = vizPath
 	}
 

@@ -54,7 +54,7 @@ type Config struct {
 		Port int `env:"API_SERVER_PORT" envDefault:"8081"`
 	}
 	Charts struct {
-		TempDir string `env:"CHART_TEMP_DIR" envDefault:"tmp"`
+		TempDir string `env:"CHART_TEMP_DIR" envDefault:"tmp/skills_radar"`
 	}
 	ScheduleImages struct {
 		Enabled  bool          `env:"SCHEDULE_IMAGES_ENABLED" envDefault:"true"`

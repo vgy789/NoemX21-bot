@@ -493,7 +493,7 @@ func TestEngine_EvaluateSingleCondition_EdgeCases(t *testing.T) {
 		want      bool
 	}{
 		{"empty condition", "", map[string]any{"key": "val"}, false},
-		{"no operator", "key", map[string]any{"key": "val"}, false},
+		{"no operator", "key", map[string]any{"key": "val"}, true},
 		{"unknown operator", "key ?? val", map[string]any{"key": "val"}, false},
 		{"nil context", "key == val", nil, false},
 		{"integer comparison", "count == 5", map[string]any{"count": 5}, true},

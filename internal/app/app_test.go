@@ -52,7 +52,7 @@ func TestNew(t *testing.T) {
 	gitSync := gitsync.New(cfg.GitSync, nil, logger)
 	campusSvc := &mockStarter{}
 	scheduleGen := &mockStarter{}
-	a := New(cfg, logger, repo, rcClient, nil, nil, gitSync, campusSvc, scheduleGen)
+	a := New(cfg, logger, repo, rcClient, nil, nil, gitSync, campusSvc, scheduleGen, nil)
 	assert.NotNil(t, a)
 	assert.NotNil(t, a.tg)
 }

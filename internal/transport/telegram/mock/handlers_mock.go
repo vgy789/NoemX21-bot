@@ -131,7 +131,7 @@ func (mr *MockSenderMockRecorder) SendMessage(chatID, text, opts interface{}) *g
 }
 
 // SendPhoto mocks base method.
-func (m *MockSender) SendPhoto(chatID int64, photo gotgbot.InputFile, opts *gotgbot.SendPhotoOpts) (*gotgbot.Message, error) {
+func (m *MockSender) SendPhoto(chatID int64, photo gotgbot.InputFileOrString, opts *gotgbot.SendPhotoOpts) (*gotgbot.Message, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "SendPhoto", chatID, photo, opts)
 	ret0, _ := ret[0].(*gotgbot.Message)

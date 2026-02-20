@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
 	"github.com/vgy789/noemx21-bot/internal/config"
+	"github.com/vgy789/noemx21-bot/internal/crypto"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	dbMock "github.com/vgy789/noemx21-bot/internal/database/db/mock"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
@@ -35,7 +36,7 @@ func prepareRegistrationTestWithOTP(t *testing.T, useMockOTP bool) (*telegramSer
 	mockRCClient := rocketchat.NewClient("", "", "")
 
 	engine := setup.NewFSM(cfg, logger, mockQuerier, mockUserSvc, mockRCClient, nil, nil, "../../../docs/specs/flows")
-	tgService := NewTelegramService(cfg, logger, mockUserSvc, engine)
+	tgService := NewTelegramService(cfg, logger, mockUserSvc, engine, nil)
 	ts := tgService.(*telegramService)
 
 	// Override engine with test settings
@@ -53,7 +54,10 @@ func prepareRegistrationTestWithOTP(t *testing.T, useMockOTP bool) (*telegramSer
 	}
 
 	// Register actions and aliases in test engine
-	registrar := actions.NewRegistrar(cfg, logger, mockUserSvc, mockQuerier, mockRCClient, nil, nil, otpProvider, repo)
+	crypter, _ := crypto.NewCrypter("12345678123456781234567812345678")
+	credSvc := service.NewCredentialService(mockQuerier, crypter, nil, logger)
+	mockQuerier.EXPECT().GetPlatformCredentials(gomock.Any(), gomock.Any()).Return(db.PlatformCredential{}, fmt.Errorf("not found")).AnyTimes()
+	registrar := actions.NewRegistrar(cfg, logger, mockUserSvc, mockQuerier, mockRCClient, nil, credSvc, otpProvider, repo)
 	registrar.RegisterAll(ts.engine.Registry(), ts.engine.AddAlias)
 
 	return ts, mockUserSvc, mockQuerier, ctrl
@@ -119,9 +123,10 @@ func TestRegistration_UniquenessAndOTP(t *testing.T) {
 
 		// MockOTPProvider accepts any 6-digit code without DB calls
 		// Setup expectations for account lookup and profile loading
-		mockQueries.EXPECT().GetUserAccountByS21Login(gomock.Any(), "otheruser").Return(db.UserAccount{ExternalID: "555"}, nil)
-		mockQueries.EXPECT().GetUserAccountByExternalId(gomock.Any(), gomock.Any()).Return(db.UserAccount{}, nil)
-		mockUserSvc.EXPECT().GetProfileByExternalID(gomock.Any(), gomock.Any(), gomock.Any()).Return(&service.UserProfile{Login: "otheruser"}, nil)
+		mockQueries.EXPECT().GetUserAccountByS21Login(gomock.Any(), "otheruser").Return(db.UserAccount{ExternalID: "555"}, nil).AnyTimes()
+		mockQueries.EXPECT().GetUserAccountByExternalId(gomock.Any(), gomock.Any()).Return(db.UserAccount{}, nil).AnyTimes()
+		mockQueries.EXPECT().GetMyProfile(gomock.Any(), gomock.Any()).Return(db.GetMyProfileRow{}, nil).AnyTimes()
+		mockUserSvc.EXPECT().GetProfileByExternalID(gomock.Any(), gomock.Any(), gomock.Any()).Return(&service.UserProfile{Login: "otheruser"}, nil).AnyTimes()
 
 		// Any 6-digit code should be accepted by MockOTPProvider
 		render, err := ts.engine.Process(ctx, userID, "123456")
@@ -137,10 +142,12 @@ func TestRegistration_UniquenessAndOTP(t *testing.T) {
 		})
 
 		// MockOTPProvider accepts any 6-digit code without DB calls
-		mockQueries.EXPECT().GetUserAccountByS21Login(gomock.Any(), "newuser").Return(db.UserAccount{}, fmt.Errorf("not found"))
-		mockQueries.EXPECT().CreateUserAccount(gomock.Any(), gomock.Any()).Return(db.UserAccount{ID: 1}, nil)
-		mockQueries.EXPECT().UpsertUserBotSettings(gomock.Any(), gomock.Any()).Return(db.UserBotSetting{ID: 1}, nil)
-		mockUserSvc.EXPECT().GetProfileByExternalID(gomock.Any(), db.EnumPlatformTelegram, "301").Return(&service.UserProfile{Login: "newuser"}, nil)
+		mockQueries.EXPECT().GetUserAccountByS21Login(gomock.Any(), "newuser").Return(db.UserAccount{}, fmt.Errorf("not found")).AnyTimes()
+		mockQueries.EXPECT().CreateUserAccount(gomock.Any(), gomock.Any()).Return(db.UserAccount{ID: 1}, nil).AnyTimes()
+		mockQueries.EXPECT().UpsertUserBotSettings(gomock.Any(), gomock.Any()).Return(db.UserBotSetting{ID: 1}, nil).AnyTimes()
+		mockQueries.EXPECT().GetUserAccountByExternalId(gomock.Any(), gomock.Any()).Return(db.UserAccount{}, nil).AnyTimes()
+		mockQueries.EXPECT().GetMyProfile(gomock.Any(), gomock.Any()).Return(db.GetMyProfileRow{}, nil).AnyTimes()
+		mockUserSvc.EXPECT().GetProfileByExternalID(gomock.Any(), db.EnumPlatformTelegram, "301").Return(&service.UserProfile{Login: "newuser"}, nil).AnyTimes()
 
 		// Any 6-digit code should be accepted by MockOTPProvider
 		render, err := ts.engine.Process(ctx, userID, "654321")

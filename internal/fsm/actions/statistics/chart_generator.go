@@ -1,15 +1,12 @@
 package statistics
 
 import (
-	"encoding/binary"
 	"fmt"
-	"hash/fnv"
 	"math"
 	"os"
 	"path/filepath"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/vgy789/noemx21-bot/internal/pkg/charts"
@@ -202,59 +199,10 @@ var orderedSkills = []string{
 	"Copywriting",
 }
 
-var (
-	chartCache      = make(map[uint64]string)
-	chartCacheMutex sync.Mutex
-)
-
 func generateRadarChart(usersData map[string]map[string]int32, orderedLogins []string) (string, error) {
 	if len(usersData) == 0 {
 		return "", fmt.Errorf("no data provided for chart")
 	}
-
-	// Calculate hash of input data for caching. Use provided ordering when available
-	h := fnv.New64a()
-	var keysOrder []string
-	if len(orderedLogins) != 0 {
-		keysOrder = make([]string, 0, len(orderedLogins))
-		for _, l := range orderedLogins {
-			if _, ok := usersData[l]; ok {
-				keysOrder = append(keysOrder, l)
-			}
-		}
-	}
-	if len(keysOrder) == 0 {
-		for l := range usersData {
-			keysOrder = append(keysOrder, l)
-		}
-		sort.Strings(keysOrder)
-	}
-	for _, l := range keysOrder {
-		h.Write([]byte(l))
-		skills := usersData[l]
-		var sortedSkills []string
-		for s := range skills {
-			sortedSkills = append(sortedSkills, s)
-		}
-		sort.Strings(sortedSkills)
-		for _, s := range sortedSkills {
-			h.Write([]byte(s))
-			if err := binary.Write(h, binary.LittleEndian, skills[s]); err != nil {
-				return "", fmt.Errorf("failed to write hash data: %w", err)
-			}
-		}
-	}
-	dataHash := h.Sum64()
-
-	chartCacheMutex.Lock()
-	if path, ok := chartCache[dataHash]; ok {
-		// Check if file still exists
-		if _, err := os.Stat(path); err == nil {
-			chartCacheMutex.Unlock()
-			return path, nil
-		}
-	}
-	chartCacheMutex.Unlock()
 
 	// Respect provided order when possible so `me` can be first
 	var logins []string
@@ -454,8 +402,15 @@ func generateRadarChart(usersData map[string]map[string]int32, orderedLogins []s
 		return "", err
 	}
 
-	// Save to file
-	filename := fmt.Sprintf(chartFilenameFmt, time.Now().Format(chartTimeFormat))
+	var filename string
+	if isIndividual {
+		filename = fmt.Sprintf("%s.png", logins[0])
+	} else if len(logins) == 2 {
+		filename = fmt.Sprintf("%s+%s.png", logins[0], logins[1])
+	} else {
+		filename = fmt.Sprintf(chartFilenameFmt, time.Now().Format(chartTimeFormat))
+	}
+
 	if err := os.MkdirAll(chartTempDir, chartDirPerms); err != nil {
 		return "", err
 	}
@@ -464,10 +419,6 @@ func generateRadarChart(usersData map[string]map[string]int32, orderedLogins []s
 	if err := os.WriteFile(filePath, buf, chartFilePerms); err != nil {
 		return "", err
 	}
-
-	chartCacheMutex.Lock()
-	chartCache[dataHash] = filePath
-	chartCacheMutex.Unlock()
 
 	return filePath, nil
 }

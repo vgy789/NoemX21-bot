@@ -413,6 +413,45 @@ func (q *Queries) GetActiveRoomsByCampus(ctx context.Context, campusID pgtype.UU
 	return items, nil
 }
 
+const getAllActiveCampuses = `-- name: GetAllActiveCampuses :many
+SELECT id, short_name, full_name, timezone
+FROM campuses
+WHERE is_active = true
+ORDER BY short_name
+`
+
+type GetAllActiveCampusesRow struct {
+	ID        pgtype.UUID `json:"id"`
+	ShortName string      `json:"short_name"`
+	FullName  string      `json:"full_name"`
+	Timezone  pgtype.Text `json:"timezone"`
+}
+
+func (q *Queries) GetAllActiveCampuses(ctx context.Context) ([]GetAllActiveCampusesRow, error) {
+	rows, err := q.db.Query(ctx, getAllActiveCampuses)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAllActiveCampusesRow
+	for rows.Next() {
+		var i GetAllActiveCampusesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.ShortName,
+			&i.FullName,
+			&i.Timezone,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getApiKeyByHash = `-- name: GetApiKeyByHash :one
 SELECT id, user_account_id, key_hash, prefix, created_at, revoked_at, expires_at FROM api_keys
 WHERE key_hash = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
