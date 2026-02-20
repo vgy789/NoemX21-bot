@@ -119,7 +119,23 @@ func (s *CredentialService) Verify(ctx context.Context, login string) error {
 		return fmt.Errorf("API verification failed: %w", err)
 	}
 
-	// 5. Validate status and parallelName
+	// 5. Save the fresh token to DB so other services (like FSM) use it immediately
+	expiration := time.Now().Add(time.Duration(authResp.ExpiresIn) * time.Second)
+	refreshExpiration := time.Now().Add(time.Duration(authResp.RefreshExpiresIn) * time.Second)
+
+	err = s.repo.UpsertPlatformCredentials(ctx, db.UpsertPlatformCredentialsParams{
+		S21Login:         login,
+		PasswordEnc:      creds.PasswordEnc,
+		PasswordNonce:    creds.PasswordNonce,
+		AccessToken:      pgtype.Text{String: authResp.AccessToken, Valid: true},
+		AccessExpiresAt:  pgtype.Timestamptz{Time: expiration, Valid: true},
+		RefreshExpiresAt: pgtype.Timestamptz{Time: refreshExpiration, Valid: true},
+	})
+	if err != nil {
+		s.log.Error("failed to save verified token", "login", login, "error", err)
+	}
+
+	// 6. Validate status and parallelName
 	parallelName := ""
 	if participant.ParallelName != nil {
 		parallelName = *participant.ParallelName
@@ -131,7 +147,7 @@ func (s *CredentialService) Verify(ctx context.Context, login string) error {
 			"status", participant.Status,
 			"parallel", parallelName)
 	} else {
-		s.log.Warn("User verification failed: criteria not met",
+		s.log.Warn("User verification failed: criteria not met (this is a warning, not an error - check your account permisions)",
 			"login", login,
 			"status", participant.Status,
 			"parallel", parallelName,
@@ -190,20 +206,19 @@ func (s *CredentialService) Seed(ctx context.Context, cfg *config.Config) error 
 		}
 
 		// Check existing to preserve other fields
-		existing, err := s.repo.GetPlatformCredentials(ctx, cfg.Init.SchoolLogin)
+		_, err = s.repo.GetPlatformCredentials(ctx, cfg.Init.SchoolLogin)
 		var params db.UpsertPlatformCredentialsParams
 		if err == nil {
-			// Found existing, check what to preserve
-			// Map existing to params
+			// Found existing, we update the password and reset the token
 			params = db.UpsertPlatformCredentialsParams{
 				S21Login:         cfg.Init.SchoolLogin,
-				PasswordEnc:      pwdEnc,   // Update this
-				PasswordNonce:    pwdNonce, // Update this
-				AccessToken:      existing.AccessToken,
-				AccessExpiresAt:  existing.AccessExpiresAt,
-				RefreshTokenEnc:  existing.RefreshTokenEnc,
-				RefreshNonce:     existing.RefreshNonce,
-				RefreshExpiresAt: existing.RefreshExpiresAt,
+				PasswordEnc:      pwdEnc,                           // Update this
+				PasswordNonce:    pwdNonce,                         // Update this
+				AccessToken:      pgtype.Text{Valid: false},        // Reset token
+				AccessExpiresAt:  pgtype.Timestamptz{Valid: false}, // Reset expiry
+				RefreshTokenEnc:  nil,
+				RefreshNonce:     nil,
+				RefreshExpiresAt: pgtype.Timestamptz{Valid: false},
 			}
 		} else {
 			if err != pgx.ErrNoRows {
