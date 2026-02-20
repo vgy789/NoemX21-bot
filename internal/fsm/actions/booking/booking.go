@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -159,51 +160,184 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, cfg *config.Confi
 			Platform: db.EnumPlatformTelegram, ExternalID: fmt.Sprintf("%d", userID),
 		})
 		if err != nil {
-			// User not found, return empty list
-			return "", map[string]any{
-				"my_bookings_list":      "Список пуст.",
-				"my_bookings_formatted": "Список пуст.",
-			}, nil
+			return "", map[string]any{"active_bookings_list": "Список пуст.", "future_bookings_list": "Список пуст."}, nil
 		}
-
 		bookings, _ := queries.GetUserRoomBookings(ctx, acc.ID)
-
-		// We need a campus ID to resolve timezone, but bookings might be across campuses.
-		// For simplicity, we use the user's "primary"/current campus timezone or just the first booking's campus.
-		loc := time.UTC
-		if len(bookings) > 0 {
-			loc = getUserTimezone(ctx, queries, userID, bookings[0].CampusID)
-		}
-
-		var sb strings.Builder
-		if len(bookings) == 0 {
-			sb.WriteString("Список пуст.")
-		}
+		loc := getUserTimezone(ctx, queries, userID, pgtype.UUID{})
+		var activeSb, futureSb strings.Builder
 		vars := make(map[string]any)
-		for i, b := range bookings {
-			t := b.StartTime.Microseconds / 60000000
-			date := b.BookingDate.Time.In(loc).Format("02.01")
-			timeStr := fmt.Sprintf("%02d:%02d", t/60, t%60)
-			sb.WriteString(fmt.Sprintf("*%d.* *%s* %s %s (%d min)\n", i+1, date, timeStr, fsm.EscapeMarkdown(b.RoomName), b.DurationMinutes))
-			if i < 5 {
-				vars[fmt.Sprintf("cancel_id_%d", i+1)] = fmt.Sprintf("cancel_%d", b.ID)
-				vars[fmt.Sprintf("cancel_label_%d", i+1)] = fmt.Sprintf("❌ Отменить %s %s", date, timeStr)
+		now := time.Now().In(loc)
+		nowMinutes := int64(now.Hour()*60 + now.Minute())
+		activeCount, futureCount := 0, 0
+		for _, b := range bookings {
+			startMin := b.StartTime.Microseconds / 60000000
+			endMin := startMin + int64(b.DurationMinutes)
+			bookingDate := b.BookingDate.Time.In(loc)
+			isToday := bookingDate.Year() == now.Year() && bookingDate.YearDay() == now.YearDay()
+			isStarted := isToday && nowMinutes >= startMin && nowMinutes < endMin
+			isFuture := !isToday || (isToday && startMin > nowMinutes)
+			timeStr := fmt.Sprintf("%02d:%02d", startMin/60, startMin%60)
+			if isStarted {
+				activeCount++
+				timeLeft := endMin - nowMinutes
+				activeSb.WriteString(fmt.Sprintf("%s (%s)\n⏳ До %s (осталось %d мин)\n", fsm.EscapeMarkdown(b.RoomName), b.CampusShortName, calculateEndTime(timeStr, b.DurationMinutes), timeLeft))
+				vars["finish_early_id"] = fmt.Sprintf("release_%d", b.ID)
+				vars["room_name"] = b.RoomName
+				vars["minutes_left"] = timeLeft
+				vars["booking_id"] = b.ID
+			} else if isFuture {
+				futureCount++
+				dayLabel := bookingDate.Format("02.01")
+				if isToday {
+					dayLabel = "Сегодня"
+				} else if bookingDate.YearDay() == now.AddDate(0, 0, 1).YearDay() {
+					dayLabel = "Завтра"
+				}
+				futureSb.WriteString(fmt.Sprintf("%s | %s, %s — %s\n", fsm.EscapeMarkdown(b.RoomName), dayLabel, timeStr, calculateEndTime(timeStr, b.DurationMinutes)))
+				vars["cancel_future_id"] = fmt.Sprintf("cancel_%d", b.ID)
+				vars["date"] = bookingDate.Format("02.01.2006")
+				vars["time_start"] = timeStr
+				vars["time_end"] = calculateEndTime(timeStr, b.DurationMinutes)
 			}
 		}
-		vars["my_bookings_list"] = sb.String()
-		vars["my_bookings_formatted"] = sb.String()
+		if activeCount == 0 {
+			activeSb.WriteString("Нет активных броней.")
+		}
+		if futureCount == 0 {
+			futureSb.WriteString("Нет будущих броней.")
+		}
+		vars["active_bookings_list"] = activeSb.String()
+		vars["future_bookings_list"] = futureSb.String()
+		vars["bookings_count"] = activeCount + futureCount
 		return "", vars, nil
+	})
+
+	registry.Register("find_nearest_room", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		campusIDStr, _ := payload["campus_id"].(string)
+		var campusUUID pgtype.UUID
+		_ = campusUUID.Scan(campusIDStr)
+		rooms, err := queries.GetActiveRoomsByCampus(ctx, campusUUID)
+		if err != nil || len(rooms) == 0 {
+			return "", nil, fmt.Errorf("no rooms available")
+		}
+		room := rooms[0]
+		return "", map[string]any{"room_id": room.ID, "room_name": room.Name}, nil
+	})
+
+	registry.Register("process_duration_input", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		msg, _ := payload["message"].(map[string]any)
+		text, _ := msg["text"].(string)
+
+		var duration int
+		if strings.HasPrefix(text, "set_") && strings.HasSuffix(text, "_min") {
+			_, _ = fmt.Sscanf(text, "set_%d_min", &duration)
+		} else {
+			duration = int(toInt32(strings.TrimSpace(text)))
+		}
+
+		if duration <= 0 {
+			return "FAST_BOOK_ERROR_NONDIGIT", nil, nil
+		}
+		rounded := ((duration + 7) / 15) * 15
+		if rounded == 0 {
+			rounded = 15
+		}
+		return "", map[string]any{"duration": rounded}, nil
+	})
+
+	registry.Register("create_booking_with_duration", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		campusIDStr, _ := payload["campus_id"].(string)
+		roomIDVal := payload["room_id"]
+		durationVal := payload["duration"]
+		var campusUUID pgtype.UUID
+		_ = campusUUID.Scan(campusIDStr)
+		loc := getUserTimezone(ctx, queries, userID, campusUUID)
+		now := time.Now().In(loc)
+		roomID := toInt16(roomIDVal)
+		duration := toInt32(durationVal)
+		if duration > 120 {
+			return "", map[string]any{"success": false, "error": "limit_exceeded"}, nil
+		}
+		startMin := int64(now.Hour()*60 + now.Minute())
+		micros := startMin * 60000000
+		endMin := startMin + int64(duration)
+		acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
+			Platform: db.EnumPlatformTelegram, ExternalID: fmt.Sprintf("%d", userID),
+		})
+		if err != nil {
+			return "", nil, err
+		}
+		if checkBookingConflict(ctx, queries, campusUUID, roomID, now, startMin, endMin, loc) {
+			bookings, _ := queries.GetRoomBookingsByDate(ctx, db.GetRoomBookingsByDateParams{
+				CampusID: campusUUID, RoomID: roomID, BookingDate: pgtype.Date{Time: now, Valid: true},
+			})
+			nextBookingTime := "23:59"
+			minStart := int64(1440)
+			for _, b := range bookings {
+				bStart := b.StartTime.Microseconds / 60000000
+				if bStart > startMin && bStart < minStart {
+					minStart = bStart
+					nextBookingTime = fmt.Sprintf("%02d:%02d", bStart/60, bStart%60)
+				}
+			}
+			availableMins := int32(minStart - startMin)
+			if availableMins < 5 {
+				return "", map[string]any{"success": false, "error": "overlap", "available_minutes": 0, "next_booking_time": nextBookingTime}, nil
+			}
+			return "", map[string]any{"success": false, "error": "overlap", "available_minutes": availableMins, "next_booking_time": nextBookingTime, "requested_minutes": duration}, nil
+		}
+		_, _ = queries.CreateRoomBooking(ctx, db.CreateRoomBookingParams{
+			CampusID: campusUUID, RoomID: roomID, UserID: acc.ID,
+			BookingDate:     pgtype.Date{Time: now, Valid: true},
+			StartTime:       pgtype.Time{Microseconds: micros, Valid: true},
+			DurationMinutes: duration,
+		})
+		roomName, _ := payload["room_name"].(string)
+		return "", map[string]any{"success": true, "room_name": roomName, "duration": duration, "end_time": calculateEndTime(fmt.Sprintf("%02d:%02d", startMin/60, startMin%60), duration)}, nil
+	})
+
+	registry.Register("find_room_by_duration", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		campusIDStr, _ := payload["campus_id"].(string)
+		requestedDuration := toInt32(payload["requested_minutes"])
+		var campusUUID pgtype.UUID
+		_ = campusUUID.Scan(campusIDStr)
+		loc := getUserTimezone(ctx, queries, userID, campusUUID)
+		now := time.Now().In(loc)
+		startMin := int64(now.Hour()*60 + now.Minute())
+		endMin := startMin + int64(requestedDuration)
+		rooms, _ := queries.GetActiveRoomsByCampus(ctx, campusUUID)
+		for _, room := range rooms {
+			if !checkBookingConflict(ctx, queries, campusUUID, room.ID, now, startMin, endMin, loc) {
+				return "", map[string]any{"room_id": room.ID, "room_name": room.Name}, nil
+			}
+		}
+		return "BOOKING_DASHBOARD", nil, nil
+	})
+
+	registry.Register("release_booking_early", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		bookingID := toInt64(payload["booking_id"])
+		acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
+			Platform: db.EnumPlatformTelegram, ExternalID: fmt.Sprintf("%d", userID),
+		})
+		if err != nil {
+			return "", nil, err
+		}
+		if bookingID == 0 {
+			input, _ := payload["last_input"].(string)
+			fmt.Sscanf(input, "release_%d", &bookingID)
+		}
+		_ = queries.CancelRoomBooking(ctx, db.CancelRoomBookingParams{ID: bookingID, UserID: acc.ID})
+		return "", nil, nil
 	})
 
 	registry.Register("cancel_booking", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		input, _ := payload["last_input"].(string)
 		var id int64
-		_, _ = fmt.Sscanf(input, "cancel_%d", &id)
+		fmt.Sscanf(input, "cancel_%d", &id)
 		acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
 			Platform: db.EnumPlatformTelegram, ExternalID: fmt.Sprintf("%d", userID),
 		})
 		if err != nil {
-			// User not found, return safely
 			return "FETCH_MY_BOOKINGS", nil, nil
 		}
 		_ = queries.CancelRoomBooking(ctx, db.CancelRoomBookingParams{ID: id, UserID: acc.ID})
@@ -269,43 +403,48 @@ func getBookingData(ctx context.Context, queries db.Querier, userID int64, paylo
 		vars["dashboard_visualization"] = vizPath
 	}
 
-	// Fetch user's active bookings (for display on dashboard)
-	var userBookings []db.GetUserRoomBookingsRow
-	var myActiveBookingsBlock string
+	// Fetch user's active bookings
+	var activeBookingReminder string
+	smartReleaseID, smartReleaseLabel := "", ""
+	bookingsCount := 0
 	if accErr == nil {
-		userBookings, _ = queries.GetUserRoomBookings(ctx, acc.ID)
-		// Format active bookings for display (up to 5 nearest)
-		var bookingsSb strings.Builder
-		displayCount := 0
-		for _, b := range userBookings {
-			if displayCount >= 5 {
+		bookings, _ := queries.GetUserRoomBookings(ctx, acc.ID)
+		bookingsCount = len(bookings)
+		now := time.Now().In(loc)
+		nowMinutes := int64(now.Hour()*60 + now.Minute())
+		for _, b := range bookings {
+			startMin := b.StartTime.Microseconds / 60000000
+			endMin := startMin + int64(b.DurationMinutes)
+			bookingDate := b.BookingDate.Time.In(loc)
+			if bookingDate.Year() == now.Year() && bookingDate.YearDay() == now.YearDay() && nowMinutes >= startMin && nowMinutes < endMin {
+				activeBookingReminder = fmt.Sprintf("🔥 *СЕЙЧАС ИДЕТ:*\n%s (%s)\n⏳ До %s (осталось %d мин)\n\n---\n",
+					fsm.EscapeMarkdown(b.RoomName), b.CampusShortName, calculateEndTime(fmt.Sprintf("%02d:%02d", startMin/60, startMin%60), b.DurationMinutes), endMin-nowMinutes)
+				smartReleaseID, smartReleaseLabel = fmt.Sprintf("release_%d", b.ID), "🏁 Я ЗАКОНЧИЛ В ПЕРЕГОВОРКЕ"
+				break
+			} else if bookingDate.Year() == now.Year() && bookingDate.YearDay() == now.YearDay() && startMin > nowMinutes && startMin < nowMinutes+60 {
+				activeBookingReminder = fmt.Sprintf("📅 *СКОРО НАЧНЕТСЯ:*\n%s в %02d:%02d\n\n---\n",
+					fsm.EscapeMarkdown(b.RoomName), startMin/60, startMin%60)
 				break
 			}
-			t := b.StartTime.Microseconds / 60000000
-			bookingDate := b.BookingDate.Time.In(loc).Format("02.01")
-			timeStr := fmt.Sprintf("%02d:%02d", t/60, t%60)
-			endTime := calculateEndTime(timeStr, b.DurationMinutes)
-			if displayCount > 0 {
-				bookingsSb.WriteString("\n")
-			}
-			bookingsSb.WriteString(fmt.Sprintf("• %s %s %s (%d мин, до %s)", bookingDate, timeStr, fsm.EscapeMarkdown(b.RoomName), b.DurationMinutes, endTime))
-			displayCount++
 		}
-		if displayCount > 0 {
-			// Form full block with header and separator based on language
-			language, _ := payload["language"].(string)
-			if language == "en" {
-				myActiveBookingsBlock = "📅 *My upcoming bookings:*\n" + bookingsSb.String() + "\n\n---\n\n"
-			} else {
-				myActiveBookingsBlock = "📅 *Мои ближайшие брони:*\n" + bookingsSb.String() + "\n\n---\n\n"
-			}
-		} else {
-			myActiveBookingsBlock = ""
-		}
-	} else {
-		myActiveBookingsBlock = ""
 	}
-	vars["my_active_bookings_block"] = myActiveBookingsBlock
+	vars["active_booking_reminder_logic"] = activeBookingReminder
+	vars["smart_release_id"], vars["smart_release_label"] = smartReleaseID, smartReleaseLabel
+	vars["bookings_count"] = bookingsCount
+
+	if activeBookingReminder != "" {
+		vars["dashboard_text"] = activeBookingReminder
+		vars["dashboard_text_en"] = activeBookingReminder // Simplified
+		vars["primary_button_id"] = smartReleaseID
+		vars["primary_button_label"] = "🏁 ЗАВЕРШИТЬ ТЕКУЩУЮ"
+		vars["primary_button_next_state"] = "CONFIRM_EARLY_RELEASE"
+	} else {
+		vars["dashboard_text"] = "🤷‍♂️ У тебя пока нет активных броней.\n\nСамое время занять уютный уголок и поработать!"
+		vars["dashboard_text_en"] = "🤷‍♂️ You don't have any active bookings.\n\nTime to grab a cozy corner and get to work!"
+		vars["primary_button_id"] = "book_now"
+		vars["primary_button_label"] = "⚡️ Комната СЕЙЧАС"
+		vars["primary_button_next_state"] = "FAST_BOOK_DURATION"
+	}
 
 	type Slot struct {
 		RoomID   int16
@@ -476,13 +615,30 @@ func toInt16(v any) int16 {
 func toInt32(v any) int32 {
 	switch val := v.(type) {
 	case string:
-		var i int32
-		_, _ = fmt.Sscanf(val, "%d", &i)
-		return i
+		i, _ := strconv.ParseInt(val, 10, 32)
+		return int32(i)
 	case float64:
 		return int32(val)
 	case int:
 		return int32(val)
+	case int32:
+		return val
+	}
+	return 0
+}
+
+func toInt64(v any) int64 {
+	switch val := v.(type) {
+	case string:
+		var i int64
+		_, _ = fmt.Sscanf(val, "%d", &i)
+		return i
+	case float64:
+		return int64(val)
+	case int:
+		return int64(val)
+	case int64:
+		return val
 	}
 	return 0
 }

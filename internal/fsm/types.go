@@ -51,12 +51,14 @@ type Button struct {
 	URL       string `yaml:"url"`        // Optional: URL for link button (mutually exclusive with next_state)
 	Row       int    `yaml:"row"`        // Optional: buttons with same Row ID will be in the same row
 	Condition string `yaml:"condition"`  // Optional: condition to show the button
+	Action    string `yaml:"action"`
 }
 
 type Transition struct {
 	Condition string `yaml:"condition"`
 	NextState string `yaml:"next_state"`
 	Trigger   string `yaml:"trigger"`
+	Action    string `yaml:"action"`
 }
 
 type Logic struct {

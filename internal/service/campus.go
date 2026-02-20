@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -52,7 +53,11 @@ func (s *CampusService) Start() error {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
 		if err := s.UpdateCampuses(ctx); err != nil {
-			s.log.Error("initial campus update failed", "error", err)
+			msg := "initial campus update failed"
+			if strings.Contains(err.Error(), "status 401") {
+				msg += " (check SCHOOL21_USER_LOGIN/PASSWORD credentials)"
+			}
+			s.log.Warn(msg, "error", err)
 		}
 	}()
 

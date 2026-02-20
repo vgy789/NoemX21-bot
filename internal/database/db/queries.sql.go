@@ -1599,9 +1599,10 @@ func (q *Queries) GetUserBotSettings(ctx context.Context, userAccountID int64) (
 }
 
 const getUserRoomBookings = `-- name: GetUserRoomBookings :many
-SELECT rb.id, rb.campus_id, rb.room_id, rb.user_id, rb.booking_date, rb.start_time, rb.duration_minutes, rb.created_at, r.name as room_name
+SELECT rb.id, rb.campus_id, rb.room_id, rb.user_id, rb.booking_date, rb.start_time, rb.duration_minutes, rb.created_at, r.name as room_name, c.short_name as campus_short_name
 FROM room_bookings rb
 JOIN rooms r ON rb.campus_id = r.campus_id AND rb.room_id = r.id
+JOIN campuses c ON rb.campus_id = c.id
 WHERE rb.user_id = $1 AND rb.booking_date >= CURRENT_DATE
 ORDER BY rb.booking_date, rb.start_time
 `
@@ -1616,6 +1617,7 @@ type GetUserRoomBookingsRow struct {
 	DurationMinutes int32              `json:"duration_minutes"`
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 	RoomName        string             `json:"room_name"`
+	CampusShortName string             `json:"campus_short_name"`
 }
 
 func (q *Queries) GetUserRoomBookings(ctx context.Context, userID int64) ([]GetUserRoomBookingsRow, error) {
@@ -1637,6 +1639,7 @@ func (q *Queries) GetUserRoomBookings(ctx context.Context, userID int64) ([]GetU
 			&i.DurationMinutes,
 			&i.CreatedAt,
 			&i.RoomName,
+			&i.CampusShortName,
 		); err != nil {
 			return nil, err
 		}
@@ -1787,6 +1790,23 @@ func (q *Queries) SearchBooks(ctx context.Context, arg SearchBooksParams) ([]Sea
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateRoomBookingDuration = `-- name: UpdateRoomBookingDuration :exec
+UPDATE room_bookings
+SET duration_minutes = $3
+WHERE id = $1 AND user_id = $2
+`
+
+type UpdateRoomBookingDurationParams struct {
+	ID              int64 `json:"id"`
+	UserID          int64 `json:"user_id"`
+	DurationMinutes int32 `json:"duration_minutes"`
+}
+
+func (q *Queries) UpdateRoomBookingDuration(ctx context.Context, arg UpdateRoomBookingDurationParams) error {
+	_, err := q.db.Exec(ctx, updateRoomBookingDuration, arg.ID, arg.UserID, arg.DurationMinutes)
+	return err
 }
 
 const upsertBook = `-- name: UpsertBook :one

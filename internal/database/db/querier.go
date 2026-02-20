@@ -70,6 +70,7 @@ type Querier interface {
 	ReturnBookLoan(ctx context.Context, arg ReturnBookLoanParams) error
 	RevokeOldApiKeys(ctx context.Context, userAccountID int64) error
 	SearchBooks(ctx context.Context, arg SearchBooksParams) ([]SearchBooksRow, error)
+	UpdateRoomBookingDuration(ctx context.Context, arg UpdateRoomBookingDurationParams) error
 	UpsertBook(ctx context.Context, arg UpsertBookParams) (Book, error)
 	UpsertCampus(ctx context.Context, arg UpsertCampusParams) (Campuse, error)
 	UpsertClub(ctx context.Context, arg UpsertClubParams) (Club, error)

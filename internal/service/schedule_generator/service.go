@@ -86,8 +86,13 @@ func (s *Service) generate() {
 }
 
 func (s *Service) generateForCampus(ctx context.Context, campus db.GetAllActiveCampusesRow) {
+	if !campus.Timezone.Valid || campus.Timezone.String == "" {
+		s.log.Debug("timezone not set for campus, skipping generation", "campus", campus.ShortName)
+		return
+	}
+
 	loc, err := time.LoadLocation(campus.Timezone.String)
-	if err != nil || !campus.Timezone.Valid || campus.Timezone.String == "" {
+	if err != nil {
 		s.log.Error("invalid timezone for campus", "campus", campus.ShortName, "tz", campus.Timezone.String, "error", err)
 		return
 	}

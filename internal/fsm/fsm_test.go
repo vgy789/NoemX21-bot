@@ -547,14 +547,22 @@ func TestEngine_FindNextState(t *testing.T) {
 		Interface: Interface{
 			Buttons: []Button{
 				{ID: "btn1", NextState: "STATE1"},
-				{ID: "btn2", NextState: "STATE2"},
+				{ID: "btn2", NextState: "STATE2", Action: "action2"},
 			},
 		},
 	}
 
-	assert.Equal(t, "STATE1", e.findNextState(spec, "btn1", nil))
-	assert.Equal(t, "STATE2", e.findNextState(spec, "btn2", nil))
-	assert.Equal(t, "", e.findNextState(spec, "unknown", nil))
+	st, act := e.findNextState(spec, "btn1", nil)
+	assert.Equal(t, "STATE1", st)
+	assert.Equal(t, "", act)
+
+	st, act = e.findNextState(spec, "btn2", nil)
+	assert.Equal(t, "STATE2", st)
+	assert.Equal(t, "action2", act)
+
+	st, act = e.findNextState(spec, "unknown", nil)
+	assert.Equal(t, "", st)
+	assert.Equal(t, "", act)
 }
 
 func TestEngine_MoreEdgeCases(t *testing.T) {

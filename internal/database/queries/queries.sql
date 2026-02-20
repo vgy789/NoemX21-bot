@@ -465,14 +465,20 @@ ORDER BY rb.start_time;
 
 
 -- name: GetUserRoomBookings :many
-SELECT rb.*, r.name as room_name
+SELECT rb.*, r.name as room_name, c.short_name as campus_short_name
 FROM room_bookings rb
 JOIN rooms r ON rb.campus_id = r.campus_id AND rb.room_id = r.id
+JOIN campuses c ON rb.campus_id = c.id
 WHERE rb.user_id = $1 AND rb.booking_date >= CURRENT_DATE
 ORDER BY rb.booking_date, rb.start_time;
 
 -- name: CancelRoomBooking :exec
 DELETE FROM room_bookings
+WHERE id = $1 AND user_id = $2;
+
+-- name: UpdateRoomBookingDuration :exec
+UPDATE room_bookings
+SET duration_minutes = $3
 WHERE id = $1 AND user_id = $2;
 
 -- name: GetBooksByCampus :many

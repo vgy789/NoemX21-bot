@@ -131,13 +131,11 @@ func (e *Engine) InitState(ctx context.Context, userID int64, flowName, stateNam
 // GetCurrentRender returns the RenderObject for the user's current state.
 func (e *Engine) runHooks(ctx context.Context, hooks []Logic, state *UserState) {
 	for _, hook := range hooks {
-		if hook.Action != "" {
-			_, _, _ = e.runAction(ctx, hook, state)
-		}
+		_, _, _ = e.runAction(ctx, hook, state, nil)
 	}
 }
 
-func (e *Engine) runAction(ctx context.Context, logic Logic, state *UserState) (string, map[string]any, error) {
+func (e *Engine) runAction(ctx context.Context, logic Logic, state *UserState, extra map[string]any) (string, map[string]any, error) {
 	actionName := logic.Action
 	if action, ok := e.registry.Get(actionName); ok {
 		// Prepare payload
@@ -145,6 +143,9 @@ func (e *Engine) runAction(ctx context.Context, logic Logic, state *UserState) (
 
 		// Inject implicit context
 		maps.Copy(payload, state.Context)
+		if extra != nil {
+			maps.Copy(payload, extra)
+		}
 
 		payload["_last_input"] = state.Context["last_input"]
 		payload["last_input"] = state.Context["last_input"]
@@ -184,6 +185,7 @@ func (e *Engine) runAction(ctx context.Context, logic Logic, state *UserState) (
 			}
 		}
 
+		e.log.Debug("executing action", "action", actionName, "payload", payload)
 		next, updates, err := action(ctx, state.UserID, payload)
 		if err != nil {
 			e.log.Error("action failed", "action", actionName, "error", err)
@@ -271,7 +273,7 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 	}
 
 	// 2. Find transition based on input (button ID)
-	nextStateRaw := e.findNextState(currentStateSpec, input, state)
+	nextStateRaw, buttonAction := e.findNextState(currentStateSpec, input, state)
 
 	// If a button was pressed (we found a next state), record it as last_input
 	if nextStateRaw != "" {
@@ -279,6 +281,11 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 			state.Context = make(map[string]any)
 		}
 		state.Context["last_input"] = input
+
+		if buttonAction != "" {
+			_, updates, _ := e.runAction(ctx, Logic{Action: buttonAction}, state, map[string]any{"id": input})
+			e.updateStateContext(state, updates)
+		}
 	}
 
 	// If it's an input state and no button was pressed, validate the raw input
@@ -314,23 +321,54 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 	}
 
 	if nextStateRaw == "" {
-		// 2.2 Check for transitions with trigger "button_click" (useful for dynamic IDs with conditions)
+		// 2.2 Check for transitions with trigger "button_click" or "message"
 		evalCtx := make(map[string]any)
 		maps.Copy(evalCtx, state.Context)
 		evalCtx["id"] = input
+		evalCtx["message"] = map[string]any{"text": input}
 
+		// Try button_click first
 		for _, t := range currentStateSpec.Transitions {
 			if t.Trigger == "button_click" {
 				if t.Condition == "" || e.evaluateCondition(t.Condition, evalCtx) {
 					nextStateRaw = t.NextState
-					// Record last_input for fallback button clicks too
-					if state.Context == nil {
-						state.Context = make(map[string]any)
+					if t.Action != "" {
+						actionNext, updates, _ := e.runAction(ctx, Logic{Action: t.Action}, state, evalCtx)
+						if actionNext != "" {
+							nextStateRaw = actionNext
+						}
+						e.updateStateContext(state, updates)
 					}
-					state.Context["last_input"] = input
 					break
 				}
 			}
+		}
+
+		// If no button_click matched, try message trigger
+		if nextStateRaw == "" {
+			for _, t := range currentStateSpec.Transitions {
+				if t.Trigger == "message" {
+					if t.Condition == "" || e.evaluateCondition(t.Condition, evalCtx) {
+						nextStateRaw = t.NextState
+						if t.Action != "" {
+							actionNext, updates, _ := e.runAction(ctx, Logic{Action: t.Action}, state, evalCtx)
+							if actionNext != "" {
+								nextStateRaw = actionNext
+							}
+							e.updateStateContext(state, updates)
+						}
+						break
+					}
+				}
+			}
+		}
+
+		if nextStateRaw != "" {
+			// Record last_input for fallback triggers too
+			if state.Context == nil {
+				state.Context = make(map[string]any)
+			}
+			state.Context["last_input"] = input
 		}
 
 	}
@@ -340,7 +378,10 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 		return nil, fmt.Errorf("unknown input or no transition for: %s", input)
 	}
 
-	// 3. Apply transition and process system states recursively
+	// 3. Apply variable substitution to the target state name
+	nextStateRaw = e.replaceVariablesOpts(nextStateRaw, state, false)
+
+	// 4. Apply transition and process system states recursively
 	if err := e.transitionTo(ctx, state, nextStateRaw); err != nil {
 		return nil, err
 	}
@@ -360,22 +401,22 @@ func (e *Engine) handleSpecialInputs(state *UserState, input string, userID int6
 	}
 }
 
-func (e *Engine) findNextState(stateSpec State, input string, userState *UserState) string {
+func (e *Engine) findNextState(stateSpec State, input string, userState *UserState) (string, string) {
 	for _, btn := range stateSpec.Interface.Buttons {
 		// Direct match against static ID
 		if btn.ID == input {
-			return btn.NextState
+			return btn.NextState, btn.Action
 		}
 		// Try matching after replacing variables in the ID (allows IDs like "{category_1}")
 		// This handles dynamic button IDs that contain template variables
 		if userState != nil {
 			replacedID := e.replaceVariablesOpts(btn.ID, userState, false)
 			if replacedID == input {
-				return btn.NextState
+				return btn.NextState, btn.Action
 			}
 		}
 	}
-	return ""
+	return "", ""
 }
 
 // transitionTo updates the user state and automatically processes subsequent system states.
@@ -438,7 +479,7 @@ func (e *Engine) transitionTo(ctx context.Context, state *UserState, target stri
 // evaluateSystemState determines the next state via registry actions and transitions.
 func (e *Engine) evaluateSystemState(ctx context.Context, spec *State, state *UserState) string {
 	if spec.Logic.Action != "" {
-		next, _, _ := e.runAction(ctx, spec.Logic, state)
+		next, _, _ := e.runAction(ctx, spec.Logic, state, nil)
 		if next != "" {
 			return next
 		}
@@ -447,10 +488,10 @@ func (e *Engine) evaluateSystemState(ctx context.Context, spec *State, state *Us
 	// Evaluate transitions based on state context + results
 	for _, t := range spec.Transitions {
 		if t.Condition == "" {
-			return t.NextState // Unconditional transition
+			return e.replaceVariablesOpts(t.NextState, state, false) // Unconditional transition
 		}
 		if e.evaluateCondition(t.Condition, state.Context) {
-			return t.NextState
+			return e.replaceVariablesOpts(t.NextState, state, false)
 		}
 	}
 
@@ -480,6 +521,24 @@ func (e *Engine) evaluateSingleCondition(condition string, ctx map[string]any) b
 		operator = "<="
 	} else if strings.Contains(condition, ".startswith(") {
 		operator = ".startswith("
+	} else if strings.HasPrefix(condition, "is_numeric(") && strings.HasSuffix(condition, ")") {
+		inner := condition[11 : len(condition)-1]
+		val := e.getContextValue(ctx, inner)
+		if val == nil {
+			return false
+		}
+		s := fmt.Sprintf("%v", val)
+		_, err := strconv.ParseFloat(s, 64)
+		return err == nil
+	} else if strings.HasPrefix(condition, "not is_numeric(") && strings.HasSuffix(condition, ")") {
+		inner := condition[15 : len(condition)-1]
+		val := e.getContextValue(ctx, inner)
+		if val == nil {
+			return true // It's "not numeric" if it's nil
+		}
+		s := fmt.Sprintf("%v", val)
+		_, err := strconv.ParseFloat(s, 64)
+		return err != nil
 	} else if strings.Contains(condition, ">") {
 		operator = ">"
 	} else if strings.Contains(condition, "<") {
@@ -592,6 +651,9 @@ func (e *Engine) getContextValue(ctx map[string]any, key string) any {
 func (e *Engine) updateStateContext(state *UserState, updates map[string]any) {
 	if state.Context == nil {
 		state.Context = make(map[string]any)
+	}
+	if len(updates) > 0 {
+		e.log.Debug("updating context", "updates", updates)
 	}
 	if lang, ok := updates["language"].(string); ok {
 		state.Language = lang
@@ -771,8 +833,8 @@ func (e *Engine) replaceVariablesOpts(text string, state *UserState, sanitize bo
 		}
 	}
 
-	// Clean up any remaining {var} tags that weren't replaced to avoid showing raw braces to user
-	re := regexp.MustCompile(`\{[a-zA-Z0-9_.]+\}`)
+	// Clean up any remaining {var} or $context.var or $updates.var tags that weren't replaced
+	re := regexp.MustCompile(`\{[a-zA-Z0-9_.]+\}|\$[a-z]+\.[a-zA-Z0-9_.]+`)
 	result = re.ReplaceAllString(result, "")
 
 	return result

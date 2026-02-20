@@ -2,8 +2,8 @@
 meta:
   feature_id: BOOK-001
   name: Бронирование
-  description: 'Оптимизированный процесс с быстрым подтверждением'
-  version: 3.0.0
+  description: 'Обновленный флоу с контекстом, гибридным вводом и умной отменой'
+  version: 4.0.0
 
 initial_state: BOOKING_DASHBOARD
 
@@ -11,7 +11,7 @@ states:
   # --- ГЛАВНЫЙ ЭКРАН (DASHBOARD) ---
   BOOKING_DASHBOARD:
     type: interactive
-    description: Сводка состояния + Быстрые слоты
+    description: Контекст пользователя и главные пути бронирования
     on_enter:
       - action: get_dashboard_data
         payload:
@@ -19,97 +19,362 @@ states:
           reset: true
     interface:
       text:
-        ru: |
-          🏢 *Кампус: {my_campus}*
-
-          🟢 Свободно комнат: **{free_rooms_count}**
-          🔴 Занято сейчас: **{busy_rooms_count}**
-
-          {my_active_bookings_block}👇 *Ближайшие свободные слоты (нажми, чтобы забрать):*
-          ---
-          {hot_slots_list}
-        en: |
-          🏢 *Campus: {my_campus}*
-
-          🟢 Free rooms: **{free_rooms_count}**
-          🔴 Busy now: **{busy_rooms_count}**
-
-          {my_active_bookings_block}👇 *Hot slots (tap to book):*
-          ---
-          {hot_slots_list}
-      image: "{dashboard_visualization}" # Визуальная карта занятости
+        ru: "{dashboard_text}"
+        en: "{dashboard_text_en}"
       buttons:
-        # Динамические кнопки "Горячих слотов"
-        - id: "{slot_id_1}"
-          label: "{slot_label_1}"
+        - id: "{primary_button_id}"
+          label: "{primary_button_label}"
           row: 1
-          next_state: CONFIRM_FAST
-        - id: "{slot_id_2}"
-          label: "{slot_label_2}"
-          row: 1
-          next_state: CONFIRM_FAST
-        - id: "{slot_id_3}"
-          label: "{slot_label_3}"
-          row: 1
-          next_state: CONFIRM_FAST
-        - id: "{slot_id_4}"
-          label: "{slot_label_4}"
-          row: 2
-          next_state: CONFIRM_FAST
-        - id: "{slot_id_5}"
-          label: "{slot_label_5}"
-          row: 2
-          next_state: CONFIRM_FAST
-        - id: "{slot_id_6}"
-          label: "{slot_label_6}"
-          row: 2
-          next_state: CONFIRM_FAST
-        - id: "{slot_id_7}"
-          label: "{slot_label_7}"
-          row: 3
-          next_state: CONFIRM_FAST
-        - id: "{slot_id_8}"
-          label: "{slot_label_8}"
-          row: 3
-          next_state: CONFIRM_FAST
-        - id: "{slot_id_9}"
-          label: "{slot_label_9}"
-          row: 3
-          next_state: CONFIRM_FAST
-
-        # Статичное меню управления
-        - id: open_calendar
+          next_state: "{primary_button_next_state}"
+          
+        - id: select_schedule
           label:
-            ru: 📅 Выбрать другую дату/время
-            en: 📅 Pick another date/time
-          row: 5
+            ru: 📅 Забронировать на потом
+            en: 📅 Book for later
+          row: 2
           next_state: SELECT_FULL_SCHEDULE
-        
+          
+        - id: "{smart_release_id}"
+          label: "{smart_release_label}"
+          row: 3
+          next_state: CONFIRM_EARLY_RELEASE
+          
         - id: my_bookings
           label:
-            ru: 👤 Мои брони
-            en: 👤 My bookings
-          row: 5
+            ru: 👤 Мои брони ({bookings_count})
+            en: 👤 My bookings ({bookings_count})
+          row: 4
           next_state: FETCH_MY_BOOKINGS
           
-        - id: refresh
-          label: 🔄
-          row: 6
-          next_state: BOOKING_DASHBOARD
-
-        - id: back
+        - id: main_menu
           label:
             ru: 🏠 Главное меню
             en: 🏠 Main menu
-          row: 6
+          row: 4
           next_state: MAIN_MENU
 
-    transitions:
-      - trigger: button_click
-        condition: id.startswith('slot_')
-        next_state: CONFIRM_FAST
+  # --- ГИБРИДНЫЙ ЭКРАН (БЫСТРАЯ БРОНЬ) ---
+  FAST_BOOK_DURATION:
+    type: interactive
+    description: Запрос длительности для ближайшей комнаты (кнопки или текст)
+    on_enter:
+      - action: find_nearest_room
+    interface:
+      text:
+        ru: |
+          📍 Комната «{room_name}» (ближайшая к вам) сейчас свободна.
 
-  # --- ПОЛНОЕ РАСПИСАНИЕ (ЕСЛИ НЕ УСТРОИЛИ БЫСТРЫЕ СЛОТЫ) ---
+          На сколько минут бронируем?
+          Нажми кнопку или просто отправь мне числом нужное количество минут (например, 45).
+        en: |
+          📍 Room "{room_name}" is free right now.
+
+          For how many minutes?
+          Tap a button or type the number of minutes (e.g., 45).
+      buttons:
+        - id: set_15_min
+          label: 15 мин
+          row: 1
+          next_state: COMMIT_FAST_BOOK
+          action: process_duration_input
+        - id: set_30_min
+          label: 30 мин
+          row: 1
+          next_state: COMMIT_FAST_BOOK
+          action: process_duration_input
+        - id: set_60_min
+          label: 1 час
+          row: 2
+          next_state: COMMIT_FAST_BOOK
+          action: process_duration_input
+        - id: set_120_min
+          label: 2 часа
+          row: 2
+          next_state: COMMIT_FAST_BOOK
+          action: process_duration_input
+        - id: back
+          label: 🔙 Назад
+          row: 3
+          next_state: BOOKING_DASHBOARD
+    transitions:
+      - trigger: message
+        condition: is_numeric(message.text)
+        action: process_duration_input
+        next_state: COMMIT_FAST_BOOK
+      - trigger: message
+        condition: not is_numeric(message.text)
+        next_state: FAST_BOOK_ERROR_NONDIGIT
+
+  # КРАЙНИЕ СЛУЧАИ ДЛЯ ТЕКСТОВОГО ВВОДА (ОШИБКИ)
+  FAST_BOOK_ERROR_NONDIGIT:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          🤔 Я понимаю только цифры. Пожалуйста, отправь количество минут числом (например: 30) или нажми на кнопку ниже.
+        en: |
+          🤔 I only understand numbers. Please send the number of minutes (e.g., 30) or tap a button below.
+      buttons:
+        - id: set_30_min
+          label: 30 мин
+          row: 1
+          next_state: COMMIT_FAST_BOOK
+          action: process_duration_input
+        - id: set_60_min
+          label: 60 мин
+          row: 1
+          next_state: COMMIT_FAST_BOOK
+          action: process_duration_input
+        - id: set_60_min_alt
+          label: 1 час
+          row: 1
+          next_state: COMMIT_FAST_BOOK
+          action: process_duration_input
+
+  FAST_BOOK_ERROR_LIMIT:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          ⚠️ У нас действует лимит: переговорку можно занять максимум на 120 минут подряд, чтобы всем хватило места.
+
+          Введи число до 120 или выбери вариант:
+        en: |
+          ⚠️ We have a limit: maximum 120 minutes per booking to ensure availability for everyone.
+
+          Enter a number up to 120 or select:
+      buttons:
+        - id: set_30_min
+          label: 30 мин
+          row: 1
+          next_state: COMMIT_FAST_BOOK
+          action: process_duration_input
+        - id: set_60_min
+          label: 60 мин
+          row: 1
+          next_state: COMMIT_FAST_BOOK
+          action: process_duration_input
+        - id: set_120_min
+          label: 120 мин
+          row: 1
+          next_state: COMMIT_FAST_BOOK
+          action: process_duration_input
+
+  FAST_BOOK_ERROR_OVERLAP:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          ⏱ {room_name} свободна только на ближайшие {available_minutes} минут (в {next_booking_time} туда придут коллеги).
+
+          Забронировать на доступные {available_minutes} минут?
+        en: |
+          ⏱ {room_name} is only free for the next {available_minutes} minutes (colleagues arriving at {next_booking_time}).
+
+          Book for the available {available_minutes} minutes?
+      buttons:
+        - id: confirm_available
+          label: ✅ Да, занять на {available_minutes} мин
+          row: 1
+          next_state: COMMIT_FAST_BOOK
+        - id: search_other
+          label: 🔍 Найти другую комнату на {requested_minutes} мин
+          row: 2
+          next_state: FIND_OTHER_ROOM
+
+  FIND_OTHER_ROOM:
+    type: system
+    logic:
+      action: find_room_by_duration
+    transitions:
+      - next_state: FAST_BOOK_DURATION # Loop back to room confirmation with new room
+
+  # ЛОГИКА ЗАПИСИ И УСПЕХ БЫСТРОЙ БРОНИ
+  COMMIT_FAST_BOOK:
+    type: system
+    logic:
+      action: create_booking_with_duration
+      payload:
+        room_id: $context.room_id
+        duration: $context.duration
+    transitions:
+      - condition: success == true
+        next_state: COMPLETED
+      - condition: error == 'limit_exceeded'
+        next_state: FAST_BOOK_ERROR_LIMIT
+      - condition: error == 'overlap'
+        next_state: FAST_BOOK_ERROR_OVERLAP
+      - condition: success == false
+        next_state: BOOKING_DASHBOARD # Generic failure fallback
+
+  COMPLETED:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          🎉 Бронь подтверждена!
+
+          📍 Комната: {room_name}
+          ⏳ Длительность: {duration} минут (произошло округление)
+          🏁 Занято до: {end_time}
+        en: |
+          🎉 Booking confirmed!
+
+          📍 Room: {room_name}
+          ⏳ Duration: {duration} minutes (rounded)
+          🏁 Booked until: {end_time}
+      buttons:
+        - id: cancel_this
+          label: ❌ Отменить бронь
+          row: 1
+          next_state: CONFIRM_CANCEL_BOOKING
+        - id: home
+          label: 🏠 В главное меню
+          row: 1
+          next_state: MAIN_MENU
+
+  # --- МОИ БРОНИ И ОТМЕНА ---
+  FETCH_MY_BOOKINGS:
+    type: system
+    logic:
+      action: get_user_bookings
+    transitions:
+      - next_state: MY_BOOKINGS_LIST
+
+  MY_BOOKINGS_LIST:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          👤 Твои брони:
+
+          🔥 СЕЙЧАС ИДЕТ:
+          {active_bookings_list}
+
+          🗓 БУДУЩИЕ:
+          {future_bookings_list}
+        en: |
+          👤 Your bookings:
+
+          🔥 ONGOING:
+          {active_bookings_list}
+
+          🗓 UPCOMING:
+          {future_bookings_list}
+      buttons:
+        # Динамические кнопки генерируются из списка
+        - id: "{finish_early_id}"
+          label: "🏁 Завершить: {room_name}"
+          row: 1
+          next_state: CONFIRM_EARLY_RELEASE
+        - id: "{cancel_future_id}"
+          label: "❌ Отменить: {room_name} ({time})"
+          row: 2
+          next_state: CONFIRM_CANCEL_BOOKING
+        - id: back_home
+          label: 🏠 На главную
+          row: 3
+          next_state: BOOKING_DASHBOARD
+
+  # Сценарий А: Закончить досрочно
+  CONFIRM_EARLY_RELEASE:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          🏁 Подтверди завершение
+          Вы освобождаете комнату {room_name} на {minutes_left} минут раньше срока?
+        en: |
+          🏁 Confirm check-out
+          Are you leaving room {room_name} {minutes_left} minutes early?
+      buttons:
+        - id: confirm_release
+          label: ✅ Да, я вышел
+          row: 1
+          next_state: PROCESS_EARLY_RELEASE
+        - id: back_to_list
+          label: 🔙 Назад к списку
+          row: 1
+          next_state: MY_BOOKINGS_LIST
+
+  PROCESS_EARLY_RELEASE:
+    type: system
+    logic:
+      action: release_booking_early
+    transitions:
+      - next_state: RELEASE_SUCCESS
+
+  RELEASE_SUCCESS:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          🎉 Готово! Переговорка свободна.
+          Спасибо, что заботишься о коллегах.
+          Твоя карма выросла на +1 🌟
+        en: |
+          🎉 Done! Room is released.
+          Thanks for caring about colleagues.
+          Your karma increased by +1 🌟
+      buttons:
+        - id: back_home
+          label: 🏠 В начало
+          row: 1
+          next_state: BOOKING_DASHBOARD
+
+  # Сценарий Б: Отмена будущей записи
+  CONFIRM_CANCEL_BOOKING:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          ❌ Отменить бронь в «{room_name}»?
+
+          📅 {date}
+          ⏰ {time_start} — {time_end}
+        en: |
+          ❌ Cancel booking for "{room_name}"?
+
+          📅 {date}
+          ⏰ {time_start} — {time_end}
+      buttons:
+        - id: confirm_cancel
+          label: 🔥 Да, отменить
+          row: 1
+          next_state: PROCESS_CANCEL_BOOKING
+        - id: back_to_list
+          label: 🔙 Назад к списку
+          row: 1
+          next_state: MY_BOOKINGS_LIST
+
+  PROCESS_CANCEL_BOOKING:
+    type: system
+    logic:
+      action: cancel_booking
+    transitions:
+      - next_state: CANCEL_SUCCESS
+
+  CANCEL_SUCCESS:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          ✅ Бронирование отменено.
+          Слот снова доступен для коллег.
+        en: |
+          ✅ Booking cancelled.
+          The slot is available for colleagues again.
+      buttons:
+        - id: book_more
+          label: ➕ Забронировать ещё
+          row: 1
+          next_state: SELECT_FULL_SCHEDULE
+        - id: back_home
+          label: 🔙 В начало
+          row: 1
+          next_state: BOOKING_DASHBOARD
+
+  # --- ПОЛНОЕ РАСПИСАНИЕ ---
   SELECT_FULL_SCHEDULE:
     type: interactive
     description: Календарь и полный список
@@ -126,7 +391,6 @@ states:
           
           Choose room and start time:
       buttons:
-        # Навигация по датам
         - id: prev_day
           label: "⬅️ {prev_date_short}"
           row: 0
@@ -135,230 +399,7 @@ states:
           label: "{next_date_short} ➡️"
           row: 0
           next_state: UPDATE_CALENDAR_NEXT
-          
-        # Список всех слотов
-        - id: "{slot_id_1}"
-          label: "{time} — {room_name}"
-        - id: "{slot_id_2}"
-          label: "{time} — {room_name}"
-        # ... (список генерируется)
-
         - id: back
-          label:
-            ru: 🔙 Назад
-            en: 🔙 Back
-          next_state: BOOKING_DASHBOARD
-    transitions:
-      - trigger: button_click
-        condition: id.startswith('slot_')
-        next_state: CONFIRM_FAST
-
-  # --- ГИБРИДНЫЙ ЭКРАН (ВЫБОР ДЛИТЕЛЬНОСТИ + ПОДТВЕРЖДЕНИЕ) ---
-  CONFIRM_FAST:
-    type: interactive
-    description: Финальный аккорд. Выбор длительности СРАЗУ бронирует.
-    on_enter:
-      - action: resolve_slot_from_last_input
-        payload:
-          last_input: $context.last_input
-          
-    interface:
-      text:
-        ru: |
-          ⚡️ *Почти готово!*
-          
-          📍 Комната: **{room_name}**
-          🕔 Начало: **{start_time}**
-          
-          На сколько занимаем? (Нажми кнопку для подтверждения)
-        en: |
-          ⚡️ *Almost done!*
-          
-          📍 Room: **{room_name}**
-          🕔 Start: **{start_time}**
-          
-          How long? (Tap to confirm booking)
-      buttons:
-        - id: book_30
-          label:
-            ru: ✅ На 30 мин
-            en: ✅ For 30 min
+          label: "🔙 Назад"
           row: 1
-          next_state: COMMIT_BOOKING_30
-          
-        - id: book_60
-          label:
-            ru: ✅ На 1 час
-            en: ✅ For 1 hour
-          row: 1
-          next_state: COMMIT_BOOKING_60
-          
-        - id: cancel
-          label:
-            ru: ❌ Отмена
-            en: ❌ Cancel
-          row: 2
           next_state: BOOKING_DASHBOARD
-
-  # --- ЛОГИКА ЗАПИСИ (Разделена для передачи параметра duration) ---
-  COMMIT_BOOKING_30:
-    type: system
-    logic:
-      action: create_booking
-      payload:
-        campus_id: $context.campus_id
-        room_id: $context.room_id
-        time: $context.time
-        duration: 30
-    transitions:
-      - condition: success == true
-        next_state: COMPLETED
-      - condition: success == false
-        next_state: ERROR_SLOT_RACE
-
-  COMMIT_BOOKING_60:
-    type: system
-    logic:
-      action: create_booking
-      payload:
-        campus_id: $context.campus_id
-        room_id: $context.room_id
-        time: $context.time
-        duration: 60
-    transitions:
-      - condition: success == true
-        next_state: COMPLETED
-      - condition: conflict == true
-        next_state: ERROR_CONFLICT
-      - condition: success == false
-        next_state: ERROR_SLOT_RACE
-
-  # --- ОШИБКА (RACE CONDITION) ---
-  ERROR_SLOT_RACE:
-    type: interactive
-    description: Умная обработка ошибки
-    interface:
-      text:
-        ru: |
-          🏎 *Слот перехватили!*
-
-          Пока мы думали, {room_name} на {time} заняли.
-          Но я обновил данные. Попробуем соседнюю?
-        en: |
-          🏎 *Too slow!*
-
-          {room_name} at {time} was just taken.
-          I've refreshed the data. Try the one next door?
-      buttons:
-        - id: to_dashboard
-          label:
-            ru: 🔄 Показать, что осталось
-            en: 🔄 Show available
-          next_state: BOOKING_DASHBOARD
-
-  # --- ОШИБКА (КОНФЛИКТ) ---
-  ERROR_CONFLICT:
-    type: interactive
-    description: Обработка конфликта бронирования
-    interface:
-      text:
-        ru: |
-          ⛔️ *Это время уже занято*
-
-          {room_name} на {time} уже забронировано.
-          Выберите другое время.
-        en: |
-          ⛔️ *This slot is taken*
-
-          {room_name} at {time} is already booked.
-          Please choose another time.
-      buttons:
-        - id: to_dashboard
-          label:
-            ru: 🔄 Выбрать другое время
-            en: 🔄 Choose another time
-          next_state: BOOKING_DASHBOARD
-
-  # --- УСПЕХ ---
-  COMPLETED:
-    type: interactive
-    interface:
-      text:
-        ru: |
-          🎉 *Бронь подтверждена!*
-          
-          📍 **{room_name}**
-          ⏰ {time_interval}
-          
-          Продуктивной работы!
-        en: |
-          🎉 *Booking Confirmed!*
-          
-          📍 **{room_name}**
-          ⏰ {time_interval}
-          
-          Have a great session!
-      buttons:
-        - id: home
-          label:
-            ru: 👌 Спасибо
-            en: 👌 Thanks
-          next_state: BOOKING_DASHBOARD
-
-  # --- МОИ БРОНИ (Стандартный блок) ---
-  FETCH_MY_BOOKINGS:
-    type: system
-    logic:
-      action: get_user_bookings
-    transitions:
-      - next_state: MY_BOOKINGS_LIST
-
-  MY_BOOKINGS_LIST:
-    type: interactive
-    interface:
-      text:
-        ru: |
-          👤 Твои активные записи:
-
-          {my_bookings_formatted}
-        en: |
-          👤 Your active slots:
-
-          {my_bookings_formatted}
-      buttons:
-        # Динамические кнопки отмены (генерируются в get_user_bookings)
-        - id: "{cancel_id_1}"
-          label: "{cancel_label_1}"
-          row: 1
-          next_state: CANCEL_BOOKING
-        - id: "{cancel_id_2}"
-          label: "{cancel_label_2}"
-          row: 1
-          next_state: CANCEL_BOOKING
-        - id: "{cancel_id_3}"
-          label: "{cancel_label_3}"
-          row: 2
-          next_state: CANCEL_BOOKING
-        - id: "{cancel_id_4}"
-          label: "{cancel_label_4}"
-          row: 2
-          next_state: CANCEL_BOOKING
-        - id: "{cancel_id_5}"
-          label: "{cancel_label_5}"
-          row: 2
-          next_state: CANCEL_BOOKING
-
-        - id: back
-          label:
-            ru: "🔙 Назад"
-            en: "🔙 Back"
-          row: 4
-          next_state: BOOKING_DASHBOARD
-
-  # --- ОБРАБОТКА ОТМЕНЫ БРОНИРОВАНИЯ ---
-  CANCEL_BOOKING:
-    type: system
-    logic:
-      action: cancel_booking
-    transitions:
-      - next_state: FETCH_MY_BOOKINGS

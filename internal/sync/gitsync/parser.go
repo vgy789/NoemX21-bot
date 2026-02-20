@@ -35,3 +35,8 @@ type RoomYAML struct {
 type RoomsFileYAML struct {
 	Rooms []RoomYAML `yaml:"rooms"`
 }
+
+type CampusFileYAML struct {
+	IsActive bool   `yaml:"is_active"`
+	Timezone string `yaml:"timezone"`
+}
