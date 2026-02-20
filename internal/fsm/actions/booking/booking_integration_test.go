@@ -4,6 +4,7 @@ package booking
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -248,4 +249,88 @@ func TestBooking_Integration_MidnightCrossing(t *testing.T) {
 	tomorrow := today.AddDate(0, 0, 1)
 	hasConflict := checkBookingConflict(ctx, queries, campusID, 1, tomorrow, 0, 30, loc)
 	assert.True(t, hasConflict, "Booking from previous day crossing midnight should conflict with 00:00 slot")
+}
+
+func TestBookingCount_OnlyActiveAndFuture(t *testing.T) {
+	if testing.Short() {
+		t.Skip("skipping integration test")
+	}
+
+	tdb := testdb.NewPostgres(t)
+	queries := tdb.DB.Queries
+	campusID, userAID, _ := seedTestData(t, queries)
+	ctx := context.Background()
+	loc, _ := time.LoadLocation("Europe/Moscow")
+	now := time.Now().In(loc)
+
+	// 1. Past booking (today, but finished)
+	// Create a booking that ended 1 hour ago
+	if now.Hour() >= 1 {
+		startMin := int64((now.Hour()-1)*60 + now.Minute())
+		_, err := queries.CreateRoomBooking(ctx, db.CreateRoomBookingParams{
+			CampusID:        campusID,
+			RoomID:          1,
+			UserID:          userAID,
+			BookingDate:     pgtype.Date{Time: now, Valid: true},
+			StartTime:       pgtype.Time{Microseconds: startMin * 60000000, Valid: true},
+			DurationMinutes: 30,
+		})
+		assert.NoError(t, err)
+	}
+
+	// 2. Active booking
+	startMinActive := int64(now.Hour()*60 + now.Minute())
+	_, err := queries.CreateRoomBooking(ctx, db.CreateRoomBookingParams{
+		CampusID:        campusID,
+		RoomID:          2, // Different room to avoid conflict
+		UserID:          userAID,
+		BookingDate:     pgtype.Date{Time: now, Valid: true},
+		StartTime:       pgtype.Time{Microseconds: startMinActive * 60000000, Valid: true},
+		DurationMinutes: 30,
+	})
+	assert.NoError(t, err)
+
+	// 3. Future booking (today)
+	if now.Hour() < 23 {
+		startMinFuture := int64((now.Hour()+1)*60 + now.Minute())
+		_, err = queries.CreateRoomBooking(ctx, db.CreateRoomBookingParams{
+			CampusID:        campusID,
+			RoomID:          1,
+			UserID:          userAID,
+			BookingDate:     pgtype.Date{Time: now, Valid: true},
+			StartTime:       pgtype.Time{Microseconds: startMinFuture * 60000000, Valid: true},
+			DurationMinutes: 30,
+		})
+		assert.NoError(t, err)
+	}
+
+	// 4. Future booking (tomorrow)
+	tomorrow := now.AddDate(0, 0, 1)
+	_, err = queries.CreateRoomBooking(ctx, db.CreateRoomBookingParams{
+		CampusID:        campusID,
+		RoomID:          1,
+		UserID:          userAID,
+		BookingDate:     pgtype.Date{Time: tomorrow, Valid: true},
+		StartTime:       pgtype.Time{Microseconds: 10 * 60 * 60 * 1000000, Valid: true},
+		DurationMinutes: 30,
+	})
+	assert.NoError(t, err)
+
+	// Call getBookingData
+	payload := map[string]any{
+		"campus_id": fmt.Sprintf("%x-%x-%x-%x-%x", campusID.Bytes[0:4], campusID.Bytes[4:6], campusID.Bytes[6:8], campusID.Bytes[8:10], campusID.Bytes[10:16]),
+	}
+	_, vars, err := getBookingData(ctx, queries, 100, payload, nil)
+	assert.NoError(t, err)
+
+	bookingsCount := vars["bookings_count"].(int)
+
+	// We expect: 1 (active) + 1 (future today, if not midnight) + 1 (future tomorrow) = 3
+	// The past booking should NOT be counted.
+	expected := 3
+	if now.Hour() >= 23 {
+		expected = 2 // No room for "future today"
+	}
+
+	assert.Equal(t, expected, bookingsCount, "Should only count active and future bookings")
 }

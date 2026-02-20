@@ -209,24 +209,56 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, cfg *config.Confi
 		vars["active_bookings_list"] = activeSb.String()
 		vars["future_bookings_list"] = futureSb.String()
 		vars["bookings_count"] = activeCount + futureCount
+
+		// Ensure we clear these if they were set previously but are not present now
+		if activeCount == 0 {
+			vars["finish_early_id"] = ""
+			vars["room_name"] = ""
+			vars["minutes_left"] = 0
+			vars["booking_id"] = 0
+		}
+		if futureCount == 0 {
+			vars["cancel_future_id"] = ""
+			vars["date"] = ""
+			vars["time_start"] = ""
+			vars["time_end"] = ""
+		}
+
 		return "", vars, nil
 	})
 
 	registry.Register("find_nearest_room", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		campusIDStr, _ := payload["campus_id"].(string)
 		var campusUUID pgtype.UUID
-		_ = campusUUID.Scan(campusIDStr)
+		if err := campusUUID.Scan(campusIDStr); err != nil {
+			return "", nil, fmt.Errorf("invalid campus_id")
+		}
 		rooms, err := queries.GetActiveRoomsByCampus(ctx, campusUUID)
 		if err != nil || len(rooms) == 0 {
 			return "", nil, fmt.Errorf("no rooms available")
 		}
 		room := rooms[0]
-		return "", map[string]any{"room_id": room.ID, "room_name": room.Name}, nil
+
+		vars := map[string]any{"room_id": room.ID, "room_name": room.Name}
+		if viz := getVisualizationPath(ctx, queries, campusUUID, cfg); viz != "" {
+			vars["dashboard_visualization"] = viz
+		}
+
+		return "", vars, nil
 	})
 
 	registry.Register("process_duration_input", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		msg, _ := payload["message"].(map[string]any)
 		text, _ := msg["text"].(string)
+
+		// Fallback for button clicks where text might be in id or last_input
+		if text == "" {
+			if id, ok := payload["id"].(string); ok && id != "" {
+				text = id
+			} else if li, ok := payload["last_input"].(string); ok && li != "" {
+				text = li
+			}
+		}
 
 		var duration int
 		if strings.HasPrefix(text, "set_") && strings.HasSuffix(text, "_min") {
@@ -255,6 +287,9 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, cfg *config.Confi
 		now := time.Now().In(loc)
 		roomID := toInt16(roomIDVal)
 		duration := toInt32(durationVal)
+		if duration == 0 {
+			duration = 30 // Fallback
+		}
 		if duration > 120 {
 			return "", map[string]any{"success": false, "error": "limit_exceeded"}, nil
 		}
@@ -398,53 +433,62 @@ func getBookingData(ctx context.Context, queries db.Querier, userID int64, paylo
 	}
 
 	// Set visualization path
-	if cfg != nil && cfg.ScheduleImages.Enabled {
-		vizPath := fmt.Sprintf("imgcache:schedule:%s", campusName)
-		vars["dashboard_visualization"] = vizPath
+	if viz := getVisualizationPath(ctx, queries, campusUUID, cfg); viz != "" {
+		vars["dashboard_visualization"] = viz
 	}
 
 	// Fetch user's active bookings
 	var activeBookingReminder string
-	smartReleaseID, smartReleaseLabel := "", ""
 	bookingsCount := 0
 	if accErr == nil {
 		bookings, _ := queries.GetUserRoomBookings(ctx, acc.ID)
-		bookingsCount = len(bookings)
 		now := time.Now().In(loc)
 		nowMinutes := int64(now.Hour()*60 + now.Minute())
 		for _, b := range bookings {
 			startMin := b.StartTime.Microseconds / 60000000
 			endMin := startMin + int64(b.DurationMinutes)
 			bookingDate := b.BookingDate.Time.In(loc)
-			if bookingDate.Year() == now.Year() && bookingDate.YearDay() == now.YearDay() && nowMinutes >= startMin && nowMinutes < endMin {
-				activeBookingReminder = fmt.Sprintf("🔥 *СЕЙЧАС ИДЕТ:*\n%s (%s)\n⏳ До %s (осталось %d мин)\n\n---\n",
-					fsm.EscapeMarkdown(b.RoomName), b.CampusShortName, calculateEndTime(fmt.Sprintf("%02d:%02d", startMin/60, startMin%60), b.DurationMinutes), endMin-nowMinutes)
-				smartReleaseID, smartReleaseLabel = fmt.Sprintf("release_%d", b.ID), "🏁 Я ЗАКОНЧИЛ В ПЕРЕГОВОРКЕ"
-				break
-			} else if bookingDate.Year() == now.Year() && bookingDate.YearDay() == now.YearDay() && startMin > nowMinutes && startMin < nowMinutes+60 {
-				activeBookingReminder = fmt.Sprintf("📅 *СКОРО НАЧНЕТСЯ:*\n%s в %02d:%02d\n\n---\n",
-					fsm.EscapeMarkdown(b.RoomName), startMin/60, startMin%60)
-				break
+
+			isToday := bookingDate.Year() == now.Year() && bookingDate.YearDay() == now.YearDay()
+			isStarted := isToday && nowMinutes >= startMin && nowMinutes < endMin
+			isFuture := !isToday || (isToday && startMin > nowMinutes)
+
+			if isStarted || isFuture {
+				bookingsCount++
+			}
+
+			if isStarted {
+				if activeBookingReminder == "" {
+					activeBookingReminder = fmt.Sprintf("🔥 *СЕЙЧАС ИДЕТ:*\n%s (%s)\n⏳ До %s (осталось %d мин)\n\n---\n",
+						fsm.EscapeMarkdown(b.RoomName), b.CampusShortName, calculateEndTime(fmt.Sprintf("%02d:%02d", startMin/60, startMin%60), b.DurationMinutes), endMin-nowMinutes)
+				}
+			} else if isToday && startMin > nowMinutes && startMin < nowMinutes+60 {
+				if activeBookingReminder == "" {
+					activeBookingReminder = fmt.Sprintf("📅 *СКОРО НАЧНЕТСЯ:*\n%s в %02d:%02d\n\n---\n",
+						fsm.EscapeMarkdown(b.RoomName), startMin/60, startMin%60)
+				}
 			}
 		}
 	}
 	vars["active_booking_reminder_logic"] = activeBookingReminder
-	vars["smart_release_id"], vars["smart_release_label"] = smartReleaseID, smartReleaseLabel
 	vars["bookings_count"] = bookingsCount
 
 	if activeBookingReminder != "" {
 		vars["dashboard_text"] = activeBookingReminder
 		vars["dashboard_text_en"] = activeBookingReminder // Simplified
-		vars["primary_button_id"] = smartReleaseID
-		vars["primary_button_label"] = "🏁 ЗАВЕРШИТЬ ТЕКУЩУЮ"
-		vars["primary_button_next_state"] = "CONFIRM_EARLY_RELEASE"
 	} else {
 		vars["dashboard_text"] = "🤷‍♂️ У тебя пока нет активных броней.\n\nСамое время занять уютный уголок и поработать!"
 		vars["dashboard_text_en"] = "🤷‍♂️ You don't have any active bookings.\n\nTime to grab a cozy corner and get to work!"
-		vars["primary_button_id"] = "book_now"
-		vars["primary_button_label"] = "⚡️ Комната СЕЙЧАС"
-		vars["primary_button_next_state"] = "FAST_BOOK_DURATION"
 	}
+
+	// Always show book_now as primary button
+	vars["primary_button_id"] = "book_now"
+	vars["primary_button_label"] = "⚡️ Комната СЕЙЧАС"
+	vars["primary_button_next_state"] = "FAST_BOOK_DURATION"
+
+	// These variables are no longer used for buttons, clear them
+	vars["smart_release_id"] = ""
+	vars["smart_release_label"] = ""
 
 	type Slot struct {
 		RoomID   int16
@@ -736,4 +780,14 @@ func checkBookingConflict(
 	}
 
 	return false
+}
+
+func getVisualizationPath(ctx context.Context, queries db.Querier, campusUUID pgtype.UUID, cfg *config.Config) string {
+	if cfg == nil || !cfg.ScheduleImages.Enabled || !campusUUID.Valid {
+		return ""
+	}
+	if c, err := queries.GetCampusByID(ctx, campusUUID); err == nil {
+		return fmt.Sprintf("imgcache:schedule:%s", c.ShortName)
+	}
+	return ""
 }

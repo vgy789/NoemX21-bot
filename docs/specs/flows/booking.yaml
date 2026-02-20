@@ -21,6 +21,7 @@ states:
       text:
         ru: "{dashboard_text}"
         en: "{dashboard_text_en}"
+      image: "{dashboard_visualization}"
       buttons:
         - id: "{primary_button_id}"
           label: "{primary_button_label}"
@@ -71,6 +72,7 @@ states:
 
           For how many minutes?
           Tap a button or type the number of minutes (e.g., 45).
+      image: "{dashboard_visualization}"
       buttons:
         - id: set_15_min
           label: 15 мин
@@ -378,6 +380,8 @@ states:
   SELECT_FULL_SCHEDULE:
     type: interactive
     description: Календарь и полный список
+    on_enter:
+      - action: get_booking_data
     interface:
       text:
         ru: |
@@ -390,6 +394,7 @@ states:
           Date: *{selected_date}*
           
           Choose room and start time:
+      image: "{dashboard_visualization}"
       buttons:
         - id: prev_day
           label: "⬅️ {prev_date_short}"
