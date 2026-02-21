@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -22,12 +23,16 @@ type ScheduleInvalidator interface {
 
 // Service handles periodic generation of room schedule images.
 type Service struct {
-	queries    db.Querier
-	cfg        *config.Config
-	stopCh     chan struct{}
-	log        *slog.Logger
-	imgCache   *imgcache.Store
+	queries     db.Querier
+	cfg         *config.Config
+	stopCh      chan struct{}
+	log         *slog.Logger
+	imgCache    *imgcache.Store
 	invalidator ScheduleInvalidator
+
+	regenMu         sync.Mutex
+	regenInProgress bool
+	regenPending    bool
 }
 
 // New creates a new schedule generation service.
@@ -85,7 +90,33 @@ func (s *Service) Stop() {
 // Called when bookings are created or cancelled.
 func (s *Service) ForceRegenerate() {
 	s.log.Info("force-triggering schedule image generation due to booking changes")
-	s.generate()
+
+	s.regenMu.Lock()
+	if s.regenInProgress {
+		s.regenPending = true
+		s.regenMu.Unlock()
+		return
+	}
+	s.regenInProgress = true
+	s.regenMu.Unlock()
+
+	go s.runRegenerationLoop()
+}
+
+func (s *Service) runRegenerationLoop() {
+	for {
+		s.generate()
+
+		s.regenMu.Lock()
+		if s.regenPending {
+			s.regenPending = false
+			s.regenMu.Unlock()
+			continue
+		}
+		s.regenInProgress = false
+		s.regenMu.Unlock()
+		return
+	}
 }
 
 func (s *Service) generate() {
@@ -164,11 +195,11 @@ func (s *Service) generateForCampus(ctx context.Context, campus db.GetAllActiveC
 			s.log.Debug("failed to write schedule image to disk", "campus", campus.ShortName, "path", path, "error", err)
 		}
 	}
-	
+
 	// Invalidate cached file_id so next send will upload new image
 	if s.invalidator != nil {
 		s.invalidator.InvalidateScheduleFileID(campus.ShortName)
 	}
-	
+
 	s.log.Debug("generated and cached schedule image", "campus", campus.ShortName, "key", key)
 }
