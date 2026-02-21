@@ -338,7 +338,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, cfg *config.Confi
 			}
 			return "", map[string]any{"success": false, "error": "overlap", "available_minutes": availableMins, "next_booking_time": nextBookingTime, "requested_minutes": duration}, nil
 		}
-		if _, err := queries.CreateRoomBooking(ctx, db.CreateRoomBookingParams{
+		if err := queries.CreateRoomBooking(ctx, db.CreateRoomBookingParams{
 			CampusID: campusUUID, RoomID: roomID, UserID: acc.ID,
 			BookingDate:     pgtype.Date{Time: now, Valid: true},
 			StartTime:       pgtype.Time{Microseconds: micros, Valid: true},
