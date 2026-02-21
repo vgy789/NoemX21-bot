@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -13,13 +15,19 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/pkg/schedule"
 )
 
+// ScheduleInvalidator defines the interface for invalidating cached schedule file IDs.
+type ScheduleInvalidator interface {
+	InvalidateScheduleFileID(campusShortName string)
+}
+
 // Service handles periodic generation of room schedule images.
 type Service struct {
-	queries  db.Querier
-	cfg      *config.Config
-	stopCh   chan struct{}
-	log      *slog.Logger
-	imgCache *imgcache.Store
+	queries    db.Querier
+	cfg        *config.Config
+	stopCh     chan struct{}
+	log        *slog.Logger
+	imgCache   *imgcache.Store
+	invalidator ScheduleInvalidator
 }
 
 // New creates a new schedule generation service.
@@ -31,6 +39,11 @@ func New(cfg *config.Config, log *slog.Logger, queries db.Querier, cache *imgcac
 		stopCh:   make(chan struct{}),
 		imgCache: cache,
 	}
+}
+
+// SetInvalidator sets the invalidator callback for cached file IDs.
+func (s *Service) SetInvalidator(invalidator ScheduleInvalidator) {
+	s.invalidator = invalidator
 }
 
 // Start initiates the background generation process.
@@ -66,6 +79,13 @@ func (s *Service) Start() error {
 // Stop signals the background service to stop.
 func (s *Service) Stop() {
 	close(s.stopCh)
+}
+
+// ForceRegenerate triggers immediate schedule image regeneration for all campuses.
+// Called when bookings are created or cancelled.
+func (s *Service) ForceRegenerate() {
+	s.log.Info("force-triggering schedule image generation due to booking changes")
+	s.generate()
 }
 
 func (s *Service) generate() {
@@ -111,7 +131,6 @@ func (s *Service) generateForCampus(ctx context.Context, campus db.GetAllActiveC
 	today := pgtype.Date{Time: now, Valid: true}
 
 	dbBookings := make(map[int16][]db.GetRoomBookingsByDateRow)
-	hasBookings := false
 	for _, room := range rooms {
 		bookings, err := s.queries.GetRoomBookingsByDate(ctx, db.GetRoomBookingsByDateParams{
 			CampusID:    campus.ID,
@@ -124,12 +143,7 @@ func (s *Service) generateForCampus(ctx context.Context, campus db.GetAllActiveC
 		}
 		if len(bookings) > 0 {
 			dbBookings[room.ID] = bookings
-			hasBookings = true
 		}
-	}
-
-	if !hasBookings {
-		return
 	}
 
 	scheduleRooms := convertRooms(rooms, dbBookings, loc)
@@ -140,7 +154,21 @@ func (s *Service) generateForCampus(ctx context.Context, campus db.GetAllActiveC
 		return
 	}
 
-	key := fmt.Sprintf("schedule:%s", campus.ShortName)
+	key := fmt.Sprintf("imgcache:schedule:%s", campus.ShortName)
 	s.imgCache.Set(key, imgBytes)
+
+	dir := filepath.Join(s.cfg.ScheduleImages.TempDir, loc.String())
+	if err := os.MkdirAll(dir, 0755); err == nil {
+		path := filepath.Join(dir, campus.ShortName+".png")
+		if err := os.WriteFile(path, imgBytes, 0644); err != nil {
+			s.log.Debug("failed to write schedule image to disk", "campus", campus.ShortName, "path", path, "error", err)
+		}
+	}
+	
+	// Invalidate cached file_id so next send will upload new image
+	if s.invalidator != nil {
+		s.invalidator.InvalidateScheduleFileID(campus.ShortName)
+	}
+	
 	s.log.Debug("generated and cached schedule image", "campus", campus.ShortName, "key", key)
 }

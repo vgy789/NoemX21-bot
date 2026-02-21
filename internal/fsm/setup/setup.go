@@ -10,6 +10,7 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 	"github.com/vgy789/noemx21-bot/internal/fsm/actions"
+	"github.com/vgy789/noemx21-bot/internal/fsm/actions/booking"
 	"github.com/vgy789/noemx21-bot/internal/service"
 )
 
@@ -23,6 +24,7 @@ func NewFSM(
 	s21Client *s21.Client,
 	credService *service.CredentialService,
 	flowsPath string,
+	scheduleGen booking.ScheduleRegenerator,
 ) *fsm.Engine {
 	// Initialize FSM components
 	parser := fsm.NewFlowParser(flowsPath, log)
@@ -47,7 +49,7 @@ func NewFSM(
 
 	// Create registry and register actions
 	registry := fsm.NewLogicRegistry()
-	registrar := actions.NewRegistrar(cfg, log, userSvc, queries, rcClient, s21Client, credService, otpProvider, repoFSM)
+	registrar := actions.NewRegistrar(cfg, log, userSvc, queries, rcClient, s21Client, credService, otpProvider, repoFSM, scheduleGen)
 
 	// Initialize Engine with sanitizer: escape Markdown specials in values from context/DB
 	// so that e.g. campus "24_04_NSK" is not interpreted as italic in Telegram.

@@ -3,6 +3,7 @@ package booking
 import (
 	"context"
 	"fmt"
+	"path/filepath"
 	"sort"
 	"strconv"
 	"strings"
@@ -14,8 +15,13 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 )
 
+// ScheduleRegenerator defines the interface for triggering schedule regeneration.
+type ScheduleRegenerator interface {
+	ForceRegenerate()
+}
+
 // Register registers booking-related actions.
-func Register(registry *fsm.LogicRegistry, queries db.Querier, cfg *config.Config, aliasRegistrar func(alias, target string)) {
+func Register(registry *fsm.LogicRegistry, queries db.Querier, cfg *config.Config, aliasRegistrar func(alias, target string), scheduleRegen ScheduleRegenerator) {
 
 	if aliasRegistrar != nil {
 		aliasRegistrar("BOOKING_MENU", "booking.yaml/BOOKING_DASHBOARD")
@@ -145,6 +151,11 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, cfg *config.Confi
 			return "", map[string]any{"success": false}, nil
 		}
 
+		// Trigger schedule regeneration
+		if scheduleRegen != nil {
+			scheduleRegen.ForceRegenerate()
+		}
+
 		roomName, _ := payload["room_name"].(string)
 		endT := tParsed.Add(time.Duration(duration) * time.Minute)
 		// Format end time, handling midnight crossing
@@ -240,9 +251,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, cfg *config.Confi
 		room := rooms[0]
 
 		vars := map[string]any{"room_id": room.ID, "room_name": room.Name}
-		if viz := getVisualizationPath(ctx, queries, campusUUID, cfg); viz != "" {
-			vars["dashboard_visualization"] = viz
-		}
+		vars["dashboard_visualization"] = getVisualizationPath(ctx, queries, campusUUID, cfg)
 
 		return "", vars, nil
 	})
@@ -327,6 +336,12 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, cfg *config.Confi
 			StartTime:       pgtype.Time{Microseconds: micros, Valid: true},
 			DurationMinutes: duration,
 		})
+		
+		// Trigger schedule regeneration
+		if scheduleRegen != nil {
+			scheduleRegen.ForceRegenerate()
+		}
+		
 		roomName, _ := payload["room_name"].(string)
 		return "", map[string]any{"success": true, "room_name": roomName, "duration": duration, "end_time": calculateEndTime(fmt.Sprintf("%02d:%02d", startMin/60, startMin%60), duration)}, nil
 	})
@@ -362,6 +377,10 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, cfg *config.Confi
 			fmt.Sscanf(input, "release_%d", &bookingID)
 		}
 		_ = queries.CancelRoomBooking(ctx, db.CancelRoomBookingParams{ID: bookingID, UserID: acc.ID})
+		// Trigger schedule regeneration
+		if scheduleRegen != nil {
+			scheduleRegen.ForceRegenerate()
+		}
 		return "", nil, nil
 	})
 
@@ -376,6 +395,10 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, cfg *config.Confi
 			return "FETCH_MY_BOOKINGS", nil, nil
 		}
 		_ = queries.CancelRoomBooking(ctx, db.CancelRoomBookingParams{ID: id, UserID: acc.ID})
+		// Trigger schedule regeneration
+		if scheduleRegen != nil {
+			scheduleRegen.ForceRegenerate()
+		}
 		return "FETCH_MY_BOOKINGS", nil, nil
 	})
 }
@@ -432,10 +455,7 @@ func getBookingData(ctx context.Context, queries db.Querier, userID int64, paylo
 		"my_campus": campusName, "campus_id": campusIDStr,
 	}
 
-	// Set visualization path
-	if viz := getVisualizationPath(ctx, queries, campusUUID, cfg); viz != "" {
-		vars["dashboard_visualization"] = viz
-	}
+	vars["dashboard_visualization"] = getVisualizationPath(ctx, queries, campusUUID, cfg)
 
 	// Fetch user's active bookings
 	var activeBookingReminder string
@@ -786,8 +806,14 @@ func getVisualizationPath(ctx context.Context, queries db.Querier, campusUUID pg
 	if cfg == nil || !cfg.ScheduleImages.Enabled || !campusUUID.Valid {
 		return ""
 	}
-	if c, err := queries.GetCampusByID(ctx, campusUUID); err == nil {
-		return fmt.Sprintf("imgcache:schedule:%s", c.ShortName)
+	c, err := queries.GetCampusByID(ctx, campusUUID)
+	if err != nil {
+		return ""
 	}
-	return ""
+	if c.Timezone.Valid && c.Timezone.String != "" {
+		if loc, err := time.LoadLocation(c.Timezone.String); err == nil {
+			return filepath.Join(cfg.ScheduleImages.TempDir, loc.String(), c.ShortName+".png")
+		}
+	}
+	return fmt.Sprintf("imgcache:schedule:%s", c.ShortName)
 }

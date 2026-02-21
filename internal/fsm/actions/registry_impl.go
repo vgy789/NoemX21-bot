@@ -29,6 +29,7 @@ type registrar struct {
 	credService *service.CredentialService
 	otpProvider service.OTPProvider
 	repo        fsm.StateRepository
+	scheduleGen booking.ScheduleRegenerator
 }
 
 // NewRegistrar creates a new action registrar.
@@ -42,6 +43,7 @@ func NewRegistrar(
 	credService *service.CredentialService,
 	otpProvider service.OTPProvider,
 	repo fsm.StateRepository,
+	scheduleGen booking.ScheduleRegenerator,
 ) ActionRegistrar {
 	return &registrar{
 		cfg:         cfg,
@@ -53,6 +55,7 @@ func NewRegistrar(
 		credService: credService,
 		otpProvider: otpProvider,
 		repo:        repo,
+		scheduleGen: scheduleGen,
 	}
 }
 
@@ -62,7 +65,7 @@ func (r *registrar) RegisterAll(registry *fsm.LogicRegistry, aliasRegistrar func
 	common.RegisterReviews(registry, aliasRegistrar)
 
 	admin.Register(registry, aliasRegistrar)
-	booking.Register(registry, r.queries, r.cfg, aliasRegistrar)
+	booking.Register(registry, r.queries, r.cfg, aliasRegistrar, r.scheduleGen)
 
 	clubs.Register(registry, r.queries, aliasRegistrar)
 	library.Register(registry, r.queries, aliasRegistrar)

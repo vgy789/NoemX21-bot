@@ -58,7 +58,7 @@ type Config struct {
 	}
 	ScheduleImages struct {
 		Enabled  bool          `env:"SCHEDULE_IMAGES_ENABLED" envDefault:"true"`
-		Interval time.Duration `env:"SCHEDULE_IMAGES_INTERVAL" envDefault:"30s"`
+		Interval time.Duration `env:"SCHEDULE_IMAGES_INTERVAL" envDefault:"5m"`
 		TempDir  string        `env:"SCHEDULE_IMAGES_TEMP_DIR" envDefault:"tmp/schedules"`
 	}
 	Production    bool `env:"PRODUCTION" envDefault:"false"`

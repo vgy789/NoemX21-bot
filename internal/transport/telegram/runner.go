@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
 	"sync"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
@@ -56,7 +57,7 @@ func (s *DefaultSender) AnswerCallbackQuery(id string, opts *gotgbot.AnswerCallb
 }
 
 // NewTelegramService creates new telegram service.
-func NewTelegramService(cfg *config.Config, log *slog.Logger, userSvc service.UserService, engine *fsm.Engine, cache *imgcache.Store) TelegramService {
+func NewTelegramService(cfg *config.Config, log *slog.Logger, userSvc service.UserService, engine *fsm.Engine, cache *imgcache.Store) *telegramService {
 	return &telegramService{
 		cfg:      cfg,
 		log:      log,
@@ -207,5 +208,23 @@ func (h *updaterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		handler.ServeHTTP(w, r)
 	} else {
 		http.Error(w, "updater does not implement http.Handler", http.StatusInternalServerError)
+	}
+}
+
+// InvalidateScheduleFileID removes cached file_id for a schedule image.
+// Called when schedule is regenerated to ensure users receive updated image.
+func (s *telegramService) InvalidateScheduleFileID(campusShortName string) {
+	s.log.Info("invalidating cached file_id for schedule", "campus", campusShortName)
+	// Build the same key used in sendRender
+	// The key is the file path: tmp/schedules/{timezone}/{campus}.png
+	// We need to find all cached keys for this campus and remove them
+	s.fileIDsMu.Lock()
+	defer s.fileIDsMu.Unlock()
+	
+	for key := range s.fileIDs {
+		if strings.HasSuffix(key, campusShortName+".png") {
+			delete(s.fileIDs, key)
+			s.log.Info("invalidated cached file_id for schedule", "campus", campusShortName, "key", key)
+		}
 	}
 }

@@ -35,9 +35,8 @@ func prepareRegistrationTestWithOTP(t *testing.T, useMockOTP bool) (*telegramSer
 	mockQuerier := dbMock.NewMockQuerier(ctrl)
 	mockRCClient := rocketchat.NewClient("", "", "")
 
-	engine := setup.NewFSM(cfg, logger, mockQuerier, mockUserSvc, mockRCClient, nil, nil, "../../../docs/specs/flows")
-	tgService := NewTelegramService(cfg, logger, mockUserSvc, engine, nil)
-	ts := tgService.(*telegramService)
+	engine := setup.NewFSM(cfg, logger, mockQuerier, mockUserSvc, mockRCClient, nil, nil, "../../../docs/specs/flows", nil)
+	ts := NewTelegramService(cfg, logger, mockUserSvc, engine, nil)
 
 	// Override engine with test settings
 	repo := fsm.NewMemoryStateRepository()
@@ -57,7 +56,7 @@ func prepareRegistrationTestWithOTP(t *testing.T, useMockOTP bool) (*telegramSer
 	crypter, _ := crypto.NewCrypter("12345678123456781234567812345678")
 	credSvc := service.NewCredentialService(mockQuerier, crypter, nil, logger)
 	mockQuerier.EXPECT().GetPlatformCredentials(gomock.Any(), gomock.Any()).Return(db.PlatformCredential{}, fmt.Errorf("not found")).AnyTimes()
-	registrar := actions.NewRegistrar(cfg, logger, mockUserSvc, mockQuerier, mockRCClient, nil, credSvc, otpProvider, repo)
+	registrar := actions.NewRegistrar(cfg, logger, mockUserSvc, mockQuerier, mockRCClient, nil, credSvc, otpProvider, repo, nil)
 	registrar.RegisterAll(ts.engine.Registry(), ts.engine.AddAlias)
 
 	return ts, mockUserSvc, mockQuerier, ctrl

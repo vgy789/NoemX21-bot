@@ -94,7 +94,7 @@ func (b *Builder) BuildApp(repo *db.DBWrapper, rcClient *rocketchat.Client, s21C
 	campusSvc := service.NewCampusService(repo.Queries, s21Client, b.cfg, b.log, credService)
 	scheduleGen := schedule_generator.New(b.cfg, b.log, repo.Queries, imgCache)
 
-	return app.New(b.cfg, b.log, repo, rcClient, s21Client, credService, gitSync, campusSvc, scheduleGen, imgCache)
+	return app.New(b.cfg, b.log, repo, rcClient, s21Client, credService, gitSync, campusSvc, scheduleGen, scheduleGen, imgCache)
 
 }
 

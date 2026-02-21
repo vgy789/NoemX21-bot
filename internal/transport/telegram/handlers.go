@@ -167,7 +167,7 @@ func (s *telegramService) sendRender(sender Sender, chatID int64, render *fsm.Re
 		var fileToClose *os.File
 
 		if cached {
-			s.log.Debug("using cached file_id for image", "image_key", render.Image)
+			s.log.Info("using cached file_id for image", "image_key", render.Image)
 			photo = gotgbot.InputFileByID(fileID)
 		} else {
 			if strings.HasPrefix(render.Image, "imgcache:") {
