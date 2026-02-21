@@ -111,7 +111,9 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, cfg *config.Confi
 		}
 
 		var campusUUID pgtype.UUID
-		_ = campusUUID.Scan(campusIDStr)
+		if err := campusUUID.Scan(campusIDStr); err != nil {
+			return "", map[string]any{"success": false, "error": "invalid_campus"}, nil
+		}
 
 		// Resolve timezone
 		loc := getUserTimezone(ctx, queries, userID, campusUUID)
@@ -122,8 +124,14 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, cfg *config.Confi
 			duration = 30
 		}
 
-		date, _ := time.ParseInLocation("02.01.2006", dateStr, loc)
-		tParsed, _ := time.ParseInLocation("15:04", timeStr, loc)
+		date, err := time.ParseInLocation("02.01.2006", dateStr, loc)
+		if err != nil {
+			return "", map[string]any{"success": false, "error": "invalid_date"}, nil
+		}
+		tParsed, err := time.ParseInLocation("15:04", timeStr, loc)
+		if err != nil {
+			return "", map[string]any{"success": false, "error": "invalid_time"}, nil
+		}
 		startMin := int64(tParsed.Hour()*60 + tParsed.Minute())
 		micros := startMin * 60000000
 		endMin := startMin + int64(duration)
@@ -148,7 +156,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, cfg *config.Confi
 			DurationMinutes: duration,
 		})
 		if err != nil {
-			return "", map[string]any{"success": false}, nil
+			return "", map[string]any{"success": false, "error": "create_failed"}, nil
 		}
 
 		// Trigger schedule regeneration
@@ -330,18 +338,20 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, cfg *config.Confi
 			}
 			return "", map[string]any{"success": false, "error": "overlap", "available_minutes": availableMins, "next_booking_time": nextBookingTime, "requested_minutes": duration}, nil
 		}
-		_, _ = queries.CreateRoomBooking(ctx, db.CreateRoomBookingParams{
+		if err := queries.CreateRoomBooking(ctx, db.CreateRoomBookingParams{
 			CampusID: campusUUID, RoomID: roomID, UserID: acc.ID,
 			BookingDate:     pgtype.Date{Time: now, Valid: true},
 			StartTime:       pgtype.Time{Microseconds: micros, Valid: true},
 			DurationMinutes: duration,
-		})
-		
+		}); err != nil {
+			return "", map[string]any{"success": false, "error": "create_failed"}, nil
+		}
+
 		// Trigger schedule regeneration
 		if scheduleRegen != nil {
 			scheduleRegen.ForceRegenerate()
 		}
-		
+
 		roomName, _ := payload["room_name"].(string)
 		return "", map[string]any{"success": true, "room_name": roomName, "duration": duration, "end_time": calculateEndTime(fmt.Sprintf("%02d:%02d", startMin/60, startMin%60), duration)}, nil
 	})
@@ -376,12 +386,14 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, cfg *config.Confi
 			input, _ := payload["last_input"].(string)
 			fmt.Sscanf(input, "release_%d", &bookingID)
 		}
-		_ = queries.CancelRoomBooking(ctx, db.CancelRoomBookingParams{ID: bookingID, UserID: acc.ID})
+		if err := queries.CancelRoomBooking(ctx, db.CancelRoomBookingParams{ID: bookingID, UserID: acc.ID}); err != nil {
+			return "", map[string]any{"success": false, "error": "cancel_failed"}, nil
+		}
 		// Trigger schedule regeneration
 		if scheduleRegen != nil {
 			scheduleRegen.ForceRegenerate()
 		}
-		return "", nil, nil
+		return "", map[string]any{"success": true}, nil
 	})
 
 	registry.Register("cancel_booking", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
@@ -394,12 +406,14 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, cfg *config.Confi
 		if err != nil {
 			return "FETCH_MY_BOOKINGS", nil, nil
 		}
-		_ = queries.CancelRoomBooking(ctx, db.CancelRoomBookingParams{ID: id, UserID: acc.ID})
+		if err := queries.CancelRoomBooking(ctx, db.CancelRoomBookingParams{ID: id, UserID: acc.ID}); err != nil {
+			return "FETCH_MY_BOOKINGS", map[string]any{"success": false, "error": "cancel_failed"}, nil
+		}
 		// Trigger schedule regeneration
 		if scheduleRegen != nil {
 			scheduleRegen.ForceRegenerate()
 		}
-		return "FETCH_MY_BOOKINGS", nil, nil
+		return "FETCH_MY_BOOKINGS", map[string]any{"success": true}, nil
 	})
 }
 

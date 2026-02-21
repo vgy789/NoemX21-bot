@@ -182,3 +182,25 @@ func TestBuildMarkup(t *testing.T) {
 		assert.NotNil(t, markup)
 	})
 }
+
+func TestTelegramService_InvalidateScheduleFileID(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	s := &telegramService{
+		log: logger,
+		fileIDs: map[string]string{
+			"tmp/schedules/Europe/Moscow/KZN.png": "id-path",
+			"imgcache:schedule:KZN":               "id-cache",
+			"tmp/schedules/Europe/Moscow/SPB.png": "id-other",
+		},
+	}
+
+	s.InvalidateScheduleFileID("KZN")
+
+	_, hasPath := s.fileIDs["tmp/schedules/Europe/Moscow/KZN.png"]
+	_, hasCache := s.fileIDs["imgcache:schedule:KZN"]
+	_, hasOther := s.fileIDs["tmp/schedules/Europe/Moscow/SPB.png"]
+
+	assert.False(t, hasPath)
+	assert.False(t, hasCache)
+	assert.True(t, hasOther)
+}
