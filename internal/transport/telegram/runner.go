@@ -220,9 +220,11 @@ func (s *telegramService) InvalidateScheduleFileID(campusShortName string) {
 	// We need to find all cached keys for this campus and remove them
 	s.fileIDsMu.Lock()
 	defer s.fileIDsMu.Unlock()
-	
+
+	imageCacheKey := "imgcache:schedule:" + campusShortName
+
 	for key := range s.fileIDs {
-		if strings.HasSuffix(key, campusShortName+".png") {
+		if strings.HasSuffix(key, campusShortName+".png") || key == imageCacheKey {
 			delete(s.fileIDs, key)
 			s.log.Info("invalidated cached file_id for schedule", "campus", campusShortName, "key", key)
 		}
