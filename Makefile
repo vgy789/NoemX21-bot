@@ -53,6 +53,9 @@ run: build ## Run binary
 test:		## Run tests
 	go test -race -cover ./...
 
+test-integration: ## Run integration tests (requires Docker)
+	go test -tags=integration ./...
+
 cover:		## Coverage HTML report
 	go test -race -coverprofile=coverage.out ./...
 	go tool cover -html=coverage.out -o coverage.html
