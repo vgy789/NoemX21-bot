@@ -485,15 +485,18 @@ func Register(
 		}
 
 		// 5. Telegram/peer_id — только если пир зарегистрирован в боте (есть в user_accounts)
+		peerTelegram := ""
 		peerAcc, err := queries.GetUserAccountByS21Login(ctx, login)
 		if err == nil {
 			vars["peer_id"] = peerAcc.ExternalID
 			// Get telegram username from peer profile (via participant_stats_cache + user_accounts)
 			peerProfile, err := queries.GetPeerProfile(ctx, login)
-			if err == nil {
-				vars["peer_telegram"] = peerProfile.TelegramUsername
+			if err == nil && peerProfile.TelegramUsername != "" && peerProfile.IsSearchable.Valid && peerProfile.IsSearchable.Bool {
+				peerTelegram = peerProfile.TelegramUsername
 			}
 		}
+		vars["peer_telegram"] = peerTelegram
+		vars["peer_contact_line_ru"], vars["peer_contact_line_en"] = buildPeerContactLines(peerTelegram)
 
 		return "", vars, nil
 	})
@@ -584,24 +587,22 @@ func Register(
 				continue
 			}
 
-			// If not in DB and not self, try API
-			if !isSelf {
-				if token == "" {
-					token, _ = credService.GetValidToken(ctx, cfg.Init.SchoolLogin)
-				}
-				if token != "" {
-					skillsResp, err := s21Client.GetParticipantSkills(ctx, token, login)
-					if err == nil {
-						skillsMap := make(map[string]int32)
-						for _, s := range skillsResp.Skills {
-							skillsMap[s.Name] = s.Points
-							// Background save
-							hash := hashSkillName(s.Name)
-							_, _ = queries.UpsertSkill(ctx, db.UpsertSkillParams{ID: hash, Name: s.Name, Category: pgtype.Text{String: defaultSkillCategory, Valid: true}})
-							_ = queries.UpsertParticipantSkill(ctx, db.UpsertParticipantSkillParams{S21Login: login, SkillID: hash, Value: s.Points})
-						}
-						usersData[login] = skillsMap
+			// If not in DB, try API (including self as a fallback for comparisons)
+			if token == "" {
+				token, _ = credService.GetValidToken(ctx, cfg.Init.SchoolLogin)
+			}
+			if token != "" {
+				skillsResp, err := s21Client.GetParticipantSkills(ctx, token, login)
+				if err == nil {
+					skillsMap := make(map[string]int32)
+					for _, s := range skillsResp.Skills {
+						skillsMap[s.Name] = s.Points
+						// Background save
+						hash := hashSkillName(s.Name)
+						_, _ = queries.UpsertSkill(ctx, db.UpsertSkillParams{ID: hash, Name: s.Name, Category: pgtype.Text{String: defaultSkillCategory, Valid: true}})
+						_ = queries.UpsertParticipantSkill(ctx, db.UpsertParticipantSkillParams{S21Login: login, SkillID: hash, Value: s.Points})
 					}
+					usersData[login] = skillsMap
 				}
 			}
 		}
@@ -732,13 +733,16 @@ func getPeerStatsFromCache(ctx context.Context, login string, row db.GetParticip
 	if row.Thoroughness.Valid {
 		vars["peer_thoroughness"] = fmt.Sprintf(socialMetricFormat, row.Thoroughness.Float32)
 	}
+	peerTelegram := ""
 	acc, err := queries.GetUserAccountByS21Login(ctx, login)
 	if err == nil {
 		vars["peer_id"] = acc.ExternalID
-		if acc.Username.Valid {
-			vars["peer_telegram"] = acc.Username.String
+		if acc.Username.Valid && acc.IsSearchable.Valid && acc.IsSearchable.Bool {
+			peerTelegram = acc.Username.String
 		}
 	}
+	vars["peer_telegram"] = peerTelegram
+	vars["peer_contact_line_ru"], vars["peer_contact_line_en"] = buildPeerContactLines(peerTelegram)
 	return "", vars, nil
 }
 
@@ -762,7 +766,7 @@ func getPeerStatsFromDB(ctx context.Context, login string, queries db.Querier, l
 		"peer_coins":        profile.Coins,
 		"peer_prps":         profile.Prp,
 		"peer_crps":         profile.Crp,
-		"peer_telegram":     profile.TelegramUsername,
+		"peer_telegram":     "",
 		"peer_status":       string(profile.Status),
 		"peer_class":        defaultEmptyValue,
 		"peer_parallel":     defaultEmptyValue,
@@ -797,8 +801,22 @@ func getPeerStatsFromDB(ctx context.Context, login string, queries db.Querier, l
 		vars["peer_thoroughness"] = fmt.Sprintf(socialMetricFormat, profile.Thoroughness.Float32)
 	}
 
+	peerTelegram := ""
+	if profile.TelegramUsername != "" && profile.IsSearchable.Valid && profile.IsSearchable.Bool {
+		peerTelegram = profile.TelegramUsername
+	}
+	vars["peer_telegram"] = peerTelegram
+	vars["peer_contact_line_ru"], vars["peer_contact_line_en"] = buildPeerContactLines(peerTelegram)
+
 	vars["peer_id"] = profile.ExternalID
 	return "", vars, nil
+}
+
+func buildPeerContactLines(telegram string) (string, string) {
+	if telegram == "" {
+		return "", ""
+	}
+	return fmt.Sprintf("📬 Связь: @%s", telegram), fmt.Sprintf("📬 Contact: @%s", telegram)
 }
 
 func hashSkillName(name string) int32 {

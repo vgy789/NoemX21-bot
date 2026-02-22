@@ -16,7 +16,6 @@ states:
     transitions:
       - next_state: STATS_SEARCH_MENU
 
-  ## TODO: на каком месте в трайбе
   STATS_SEARCH_MENU:
     type: interactive
     description: Личный профиль
@@ -217,9 +216,8 @@ states:
           • ИНТ: `{peer_interest}` | ДОБ: `{peer_friendliness}`
           • ПНК: `{peer_punctuality}` | СТР: `{peer_thoroughness}`
 
-          📬 *Связь:* @{peer_telegram}
+          {peer_contact_line_ru}
           `{alternative_contact}`
-        ## TODO: ДОДЕЛАЙ СВЯЗЬ
         en: |
           📂 *Peer: {peer_login}*
 
@@ -237,7 +235,7 @@ states:
           • INT: `{peer_interest}` | FRD: `{peer_friendliness}`
           • PNC: `{peer_punctuality}` | THO: `{peer_thoroughness}`
 
-          📬 *Contact:* @{peer_telegram}
+          {peer_contact_line_en}
           `{alternative_contact}`
       buttons:
         - id: compare_skills
@@ -273,7 +271,6 @@ states:
           • Опыт: `{peer_exp} XP`
           • Коины: `{peer_coins} ₡`
           • PRP: `{peer_prps}` | CRP: `{peer_crps}`
-        ## TODO: ДОДЕЛАЙ СВЯЗЬ
         en: |
           📂 *Peer: {peer_login}*
 

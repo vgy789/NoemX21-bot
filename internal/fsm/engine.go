@@ -857,6 +857,12 @@ func (e *Engine) getReplacementMap(state *UserState) map[string]string {
 	// Get language-aware defaults
 	replacements := GetDefaultVariables(state.Language)
 
+	// Always expose user_id (state.UserID) for template replacements.
+	userID := fmt.Sprintf("%d", state.UserID)
+	replacements["{user_id}"] = userID
+	replacements["$context.user_id"] = userID
+	replacements["$updates.user_id"] = userID
+
 	// Merge with Context (Context overrides defaults)
 	for k, v := range state.Context {
 		val := fmt.Sprintf("%v", v)

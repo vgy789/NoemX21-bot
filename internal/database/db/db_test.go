@@ -196,8 +196,8 @@ func TestQueries_Remaining(t *testing.T) {
 	t.Run("GetPeerProfile", func(t *testing.T) {
 		mockRow := new(MockRow)
 		mockDB.On("QueryRow", ctx, getPeerProfile, mock.Anything).Return(mockRow)
-		// GetPeerProfileRow has 17 fields
-		scans := make([]any, 17)
+		// GetPeerProfileRow has 18 fields
+		scans := make([]any, 18)
 		for i := range scans {
 			scans[i] = mock.Anything
 		}

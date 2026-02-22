@@ -325,6 +325,7 @@ SELECT
     c.s21_login,
     COALESCE(ua.username, '') AS telegram_username,
     COALESCE(ua.external_id, '') AS external_id,
+    ua.is_searchable,
     camp.short_name AS campus_name,
     co.name AS coalition_name,
     c.status,

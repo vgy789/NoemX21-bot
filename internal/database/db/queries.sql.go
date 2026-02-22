@@ -1238,6 +1238,7 @@ SELECT
     c.s21_login,
     COALESCE(ua.username, '') AS telegram_username,
     COALESCE(ua.external_id, '') AS external_id,
+    ua.is_searchable,
     camp.short_name AS campus_name,
     co.name AS coalition_name,
     c.status,
@@ -1263,6 +1264,7 @@ type GetPeerProfileRow struct {
 	S21Login         string            `json:"s21_login"`
 	TelegramUsername string            `json:"telegram_username"`
 	ExternalID       string            `json:"external_id"`
+	IsSearchable     pgtype.Bool       `json:"is_searchable"`
 	CampusName       pgtype.Text       `json:"campus_name"`
 	CoalitionName    pgtype.Text       `json:"coalition_name"`
 	Status           EnumStudentStatus `json:"status"`
@@ -1287,6 +1289,7 @@ func (q *Queries) GetPeerProfile(ctx context.Context, s21Login string) (GetPeerP
 		&i.S21Login,
 		&i.TelegramUsername,
 		&i.ExternalID,
+		&i.IsSearchable,
 		&i.CampusName,
 		&i.CoalitionName,
 		&i.Status,
