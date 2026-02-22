@@ -161,24 +161,15 @@ func (m *Migrator) getAppliedMigrations(ctx context.Context) (map[string]bool, e
 	applied := make(map[string]bool)
 
 	if dataType == "bigint" {
-		// Existing golang-migrate schema - convert bigint versions to our format
-		rows, err := m.pool.Query(ctx, `SELECT version FROM schema_migrations ORDER BY version`)
+		// golang-migrate stores current schema version in this table.
+		// Treat all versions <= current as already applied.
+		var currentVersion int64
+		err := m.pool.QueryRow(ctx, `SELECT COALESCE(MAX(version), 0) FROM schema_migrations`).Scan(&currentVersion)
 		if err != nil {
-			return nil, fmt.Errorf("failed to query applied migrations: %w", err)
+			return nil, fmt.Errorf("failed to query current migration version: %w", err)
 		}
-		defer rows.Close()
-
-		for rows.Next() {
-			var version int64
-			if err := rows.Scan(&version); err != nil {
-				return nil, fmt.Errorf("failed to scan migration version: %w", err)
-			}
-			// Convert bigint version to our format (e.g., 1 -> "000001")
-			applied[fmt.Sprintf("%06d", version)] = true
-		}
-
-		if err := rows.Err(); err != nil {
-			return nil, fmt.Errorf("error iterating migration rows: %w", err)
+		for v := int64(1); v <= currentVersion; v++ {
+			applied[fmt.Sprintf("%06d", v)] = true
 		}
 	} else {
 		// Our VARCHAR schema

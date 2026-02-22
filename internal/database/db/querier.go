@@ -11,18 +11,36 @@ import (
 )
 
 type Querier interface {
+	CancelRoomBooking(ctx context.Context, arg CancelRoomBookingParams) error
+	CountBooksByCampus(ctx context.Context, campusID pgtype.UUID) (CountBooksByCampusRow, error)
+	CountBooksByCategory(ctx context.Context, arg CountBooksByCategoryParams) (int32, error)
+	CountSearchBooks(ctx context.Context, arg CountSearchBooksParams) (int32, error)
 	CreateApiKey(ctx context.Context, arg CreateApiKeyParams) (ApiKey, error)
 	CreateAuthVerificationCode(ctx context.Context, arg CreateAuthVerificationCodeParams) (AuthVerificationCode, error)
+	CreateBookLoan(ctx context.Context, arg CreateBookLoanParams) (BookLoan, error)
+	CreateRoomBooking(ctx context.Context, arg CreateRoomBookingParams) (RoomBooking, error)
 	CreateUserAccount(ctx context.Context, arg CreateUserAccountParams) (UserAccount, error)
+	DeactivateBooksByCampus(ctx context.Context, campusID pgtype.UUID) error
 	DeactivateClubsByCampus(ctx context.Context, campusID pgtype.UUID) error
+	DeactivateRoomsByCampus(ctx context.Context, campusID pgtype.UUID) error
 	DeleteAllAuthVerificationCodes(ctx context.Context, s21Login pgtype.Text) error
 	DeleteAuthVerificationCode(ctx context.Context, arg DeleteAuthVerificationCodeParams) error
 	DeleteExpiredAuthVerificationCodes(ctx context.Context) error
 	DeleteUserAccountByExternalId(ctx context.Context, arg DeleteUserAccountByExternalIdParams) error
 	GetActiveApiKey(ctx context.Context, userAccountID int64) (ApiKey, error)
+	GetActiveRoomsByCampus(ctx context.Context, campusID pgtype.UUID) ([]Room, error)
+	GetAllActiveCampuses(ctx context.Context) ([]GetAllActiveCampusesRow, error)
 	GetApiKeyByHash(ctx context.Context, keyHash string) (ApiKey, error)
+	GetBookAuthors(ctx context.Context, campusID pgtype.UUID) ([]string, error)
+	GetBookByID(ctx context.Context, arg GetBookByIDParams) (GetBookByIDRow, error)
+	GetBookCategories(ctx context.Context, campusID pgtype.UUID) ([]string, error)
+	GetBooksByCampus(ctx context.Context, arg GetBooksByCampusParams) ([]GetBooksByCampusRow, error)
+	GetBooksByCampusAndAuthor(ctx context.Context, arg GetBooksByCampusAndAuthorParams) ([]GetBooksByCampusAndAuthorRow, error)
+	GetBooksByCampusAndCategory(ctx context.Context, arg GetBooksByCampusAndCategoryParams) ([]GetBooksByCampusAndCategoryRow, error)
 	GetCampusByID(ctx context.Context, id pgtype.UUID) (GetCampusByIDRow, error)
 	GetCampusByShortName(ctx context.Context, shortName string) (Campuse, error)
+	GetCampusesWithBookingsForTimezone(ctx context.Context, timezone pgtype.Text) ([]GetCampusesWithBookingsForTimezoneRow, error)
+	GetDistinctUserTimezones(ctx context.Context) ([]string, error)
 	GetFSMState(ctx context.Context, userID int64) (FsmUserState, error)
 	GetGlobalClubs(ctx context.Context) ([]GetGlobalClubsRow, error)
 	GetLastAuthVerificationCode(ctx context.Context, s21Login pgtype.Text) (AuthVerificationCode, error)
@@ -38,11 +56,22 @@ type Querier interface {
 	// queries.sql
 	GetRegisteredUserByS21Login(ctx context.Context, s21Login string) (RegisteredUser, error)
 	GetRocketChatCredentials(ctx context.Context, s21Login string) (RocketchatCredential, error)
+	GetRoomBookingsByDate(ctx context.Context, arg GetRoomBookingsByDateParams) ([]GetRoomBookingsByDateRow, error)
+	GetRoomByID(ctx context.Context, arg GetRoomByIDParams) (Room, error)
 	GetUserAccountByExternalId(ctx context.Context, arg GetUserAccountByExternalIdParams) (UserAccount, error)
 	GetUserAccountByS21Login(ctx context.Context, s21Login string) (UserAccount, error)
+	GetUserActiveLoanCount(ctx context.Context, userID int64) (int32, error)
+	GetUserBookLoans(ctx context.Context, userID int64) ([]GetUserBookLoansRow, error)
 	GetUserBotSettings(ctx context.Context, userAccountID int64) (UserBotSetting, error)
+	GetUserRoomBookings(ctx context.Context, userID int64) ([]GetUserRoomBookingsRow, error)
 	GetValidAuthVerificationCode(ctx context.Context, arg GetValidAuthVerificationCodeParams) (AuthVerificationCode, error)
+	HasActiveBooks(ctx context.Context, campusID pgtype.UUID) (bool, error)
+	HasActiveRooms(ctx context.Context, campusID pgtype.UUID) (bool, error)
+	ReturnBookLoan(ctx context.Context, arg ReturnBookLoanParams) error
 	RevokeOldApiKeys(ctx context.Context, userAccountID int64) error
+	SearchBooks(ctx context.Context, arg SearchBooksParams) ([]SearchBooksRow, error)
+	UpdateRoomBookingDuration(ctx context.Context, arg UpdateRoomBookingDurationParams) error
+	UpsertBook(ctx context.Context, arg UpsertBookParams) (Book, error)
 	UpsertCampus(ctx context.Context, arg UpsertCampusParams) (Campuse, error)
 	UpsertClub(ctx context.Context, arg UpsertClubParams) (Club, error)
 	UpsertClubCategory(ctx context.Context, name string) (ClubCategory, error)
@@ -53,6 +82,7 @@ type Querier interface {
 	UpsertPlatformCredentials(ctx context.Context, arg UpsertPlatformCredentialsParams) error
 	UpsertRegisteredUser(ctx context.Context, arg UpsertRegisteredUserParams) (RegisteredUser, error)
 	UpsertRocketChatCredentials(ctx context.Context, arg UpsertRocketChatCredentialsParams) error
+	UpsertRoom(ctx context.Context, arg UpsertRoomParams) (Room, error)
 	UpsertSkill(ctx context.Context, arg UpsertSkillParams) (Skill, error)
 	UpsertUserBotSettings(ctx context.Context, arg UpsertUserBotSettingsParams) (UserBotSetting, error)
 }

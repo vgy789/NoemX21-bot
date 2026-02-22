@@ -161,6 +161,29 @@ type AuthVerificationCode struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type Book struct {
+	ID          int16              `json:"id"`
+	CampusID    pgtype.UUID        `json:"campus_id"`
+	Title       string             `json:"title"`
+	Author      string             `json:"author"`
+	Category    string             `json:"category"`
+	TotalStock  int32              `json:"total_stock"`
+	Description pgtype.Text        `json:"description"`
+	IsActive    pgtype.Bool        `json:"is_active"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type BookLoan struct {
+	ID         int64              `json:"id"`
+	CampusID   pgtype.UUID        `json:"campus_id"`
+	BookID     int16              `json:"book_id"`
+	UserID     int64              `json:"user_id"`
+	BorrowedAt pgtype.Timestamptz `json:"borrowed_at"`
+	DueAt      pgtype.Timestamptz `json:"due_at"`
+	ReturnedAt pgtype.Timestamptz `json:"returned_at"`
+}
+
 type Campuse struct {
 	ID             pgtype.UUID        `json:"id"`
 	ShortName      string             `json:"short_name"`
@@ -262,6 +285,30 @@ type RocketchatCredential struct {
 	RcTokenEnc []byte             `json:"rc_token_enc"`
 	RcNonce    []byte             `json:"rc_nonce"`
 	UpdatedAt  pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Room struct {
+	ID          int16              `json:"id"`
+	CampusID    pgtype.UUID        `json:"campus_id"`
+	Name        string             `json:"name"`
+	MinDuration int32              `json:"min_duration"`
+	MaxDuration int32              `json:"max_duration"`
+	IsActive    pgtype.Bool        `json:"is_active"`
+	Description pgtype.Text        `json:"description"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+	Capacity    int32              `json:"capacity"`
+}
+
+type RoomBooking struct {
+	ID              int64              `json:"id"`
+	CampusID        pgtype.UUID        `json:"campus_id"`
+	RoomID          int16              `json:"room_id"`
+	UserID          int64              `json:"user_id"`
+	BookingDate     pgtype.Date        `json:"booking_date"`
+	StartTime       pgtype.Time        `json:"start_time"`
+	DurationMinutes int32              `json:"duration_minutes"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
 type Skill struct {
