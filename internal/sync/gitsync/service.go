@@ -14,6 +14,7 @@ import (
 	gitconfig "github.com/go-git/go-git/v5/config"
 	"github.com/go-git/go-git/v5/plumbing"
 	"github.com/go-git/go-git/v5/plumbing/transport/ssh"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/robfig/cron/v3"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
@@ -111,7 +112,7 @@ func (s *Service) Sync(ctx context.Context) error {
 			}
 		}
 
-		if err := s.syncCampus(ctx, campus, filepath.Join(campusesPath, entry.Name())); err != nil {
+		if err := s.syncCampus(ctx, &campus, filepath.Join(campusesPath, entry.Name())); err != nil {
 			s.log.Error("failed to sync campus", "campus", campusName, "error", err)
 		} else {
 			synced++
@@ -390,12 +391,60 @@ func (s *Service) getAuth() (ssh.AuthMethod, error) {
 	return auth, nil
 }
 
-func (s *Service) syncCampus(ctx context.Context, campus db.Campuse, path string) error {
-	clubsPath := filepath.Join(path, "clubs.yaml")
-	if _, err := os.Stat(clubsPath); os.IsNotExist(err) {
-		return nil
+func (s *Service) syncCampus(ctx context.Context, campus *db.Campuse, path string) error {
+	// Sync campus.yaml
+	campusYAMLPath := filepath.Join(path, "campus.yaml")
+	if _, err := os.Stat(campusYAMLPath); err == nil {
+		data, err := os.ReadFile(campusYAMLPath)
+		if err != nil {
+			s.log.Error("failed to read campus.yaml", "campus", campus.ShortName, "error", err)
+		} else {
+			var campusFile CampusFileYAML
+			if err := yaml.Unmarshal(data, &campusFile); err != nil {
+				s.log.Error("failed to parse campus.yaml", "campus", campus.ShortName, "error", err)
+			} else {
+				campus.IsActive = campusFile.IsActive
+				campus.Timezone = toText(campusFile.Timezone)
+
+				_, err = s.queries.UpsertCampus(ctx, db.UpsertCampusParams{
+					ID:             campus.ID,
+					ShortName:      campus.ShortName,
+					FullName:       campus.FullName,
+					Timezone:       campus.Timezone,
+					IsActive:       campus.IsActive,
+					LeaderName:     pgtype.Text{Valid: false},
+					LeaderFormLink: pgtype.Text{Valid: false},
+				})
+				if err != nil {
+					s.log.Error("failed to update campus from campus.yaml", "campus", campus.ShortName, "error", err)
+				} else {
+					s.log.Debug("campus config updated from campus.yaml", "campus", campus.ShortName, "timezone", campusFile.Timezone, "is_active", campusFile.IsActive)
+				}
+			}
+		}
 	}
 
+	// Sync clubs
+	clubsPath := filepath.Join(path, "clubs.yaml")
+	if _, err := os.Stat(clubsPath); err == nil {
+		if err := s.syncClubs(ctx, campus, clubsPath); err != nil {
+			s.log.Error("failed to sync clubs", "campus", campus.ShortName, "error", err)
+		}
+	}
+
+	// Sync rooms
+	roomsPath := filepath.Join(path, "rooms.yaml")
+	if _, err := os.Stat(roomsPath); err == nil {
+		if err := s.syncRooms(ctx, campus, roomsPath); err != nil {
+			s.log.Error("failed to sync rooms", "campus", campus.ShortName, "error", err)
+		}
+	}
+
+	s.log.Debug("campus sync done", "campus", campus.ShortName)
+	return nil
+}
+
+func (s *Service) syncClubs(ctx context.Context, campus *db.Campuse, clubsPath string) error {
 	data, err := os.ReadFile(clubsPath)
 	if err != nil {
 		return err
@@ -454,6 +503,60 @@ func (s *Service) syncCampus(ctx context.Context, campus db.Campuse, path string
 		}
 	}
 
-	s.log.Info("campus sync done", "campus", campus.ShortName, "clubs", len(clubsYAML.Clubs))
+	s.log.Debug("clubs synced", "campus", campus.ShortName, "clubs", len(clubsYAML.Clubs))
+	return nil
+}
+
+func (s *Service) syncRooms(ctx context.Context, campus *db.Campuse, roomsPath string) error {
+	data, err := os.ReadFile(roomsPath)
+	if err != nil {
+		return err
+	}
+
+	var roomsYAML RoomsFileYAML
+	if err := yaml.Unmarshal(data, &roomsYAML); err != nil {
+		return fmt.Errorf("failed to parse rooms.yaml: %w", err)
+	}
+
+	// Mark all rooms in this campus as inactive first
+	if err := s.queries.DeactivateRoomsByCampus(ctx, campus.ID); err != nil {
+		return err
+	}
+
+	for _, r := range roomsYAML.Rooms {
+		minDur := int32(r.MinDuration)
+		if minDur == 0 {
+			minDur = 15
+		}
+		maxDur := int32(r.MaxDuration)
+		if maxDur == 0 {
+			maxDur = 120
+		}
+		capacity := int32(r.Capacity)
+		if capacity == 0 {
+			capacity = 2
+		}
+
+		description := strings.TrimSpace(r.Description)
+		if description == "" {
+			description = strings.TrimSpace(r.DescriptionUpper)
+		}
+
+		_, err = s.queries.UpsertRoom(ctx, db.UpsertRoomParams{
+			ID:          int16(r.ID),
+			CampusID:    campus.ID,
+			Name:        r.Name,
+			MinDuration: minDur,
+			MaxDuration: maxDur,
+			IsActive:    toBool(r.IsActive),
+			Description: toText(description),
+			Capacity:    capacity,
+		})
+		if err != nil {
+			s.log.Error("failed to upsert room", "room_id", r.ID, "name", r.Name, "error", err)
+		}
+	}
+
+	s.log.Debug("rooms synced", "campus", campus.ShortName, "rooms", len(roomsYAML.Rooms))
 	return nil
 }

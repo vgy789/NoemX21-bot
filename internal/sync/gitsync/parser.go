@@ -21,3 +21,23 @@ type ClubsFileYAML struct {
 	Leader ClubLeaderYAML `yaml:"leader"`
 	Clubs  []ClubYAML     `yaml:"clubs"`
 }
+
+type RoomYAML struct {
+	ID               int    `yaml:"id"`
+	Name             string `yaml:"name"`
+	Description      string `yaml:"description"`
+	DescriptionUpper string `yaml:"Description"`
+	Capacity         int    `yaml:"capacity"`
+	MinDuration      int    `yaml:"min_duration"`
+	MaxDuration      int    `yaml:"max_duration"`
+	IsActive         *bool  `yaml:"is_active"`
+}
+
+type RoomsFileYAML struct {
+	Rooms []RoomYAML `yaml:"rooms"`
+}
+
+type CampusFileYAML struct {
+	IsActive bool   `yaml:"is_active"`
+	Timezone string `yaml:"timezone"`
+}
