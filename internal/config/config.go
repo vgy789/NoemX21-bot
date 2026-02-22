@@ -70,6 +70,7 @@ type GitSync struct {
 	Branch       string `env:"GIT_BRANCH" envDefault:"main"`
 	Interval     string `env:"GIT_SYNC_INTERVAL" envDefault:"5m"`
 	LocalPath    string `env:"GIT_LOCAL_PATH" envDefault:"data"`
+	CampusesPath string `env:"GIT_CAMPUSES_PATH" envDefault:"campuses"`
 	SSHKeyBase64 Secret `env:"SSH_KEY_BASE64"`
 }
 
