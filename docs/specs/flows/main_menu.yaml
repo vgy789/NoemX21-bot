@@ -3,7 +3,7 @@ meta:
   feature_id: MAIN-001
   name: Главное меню
   description: Центральное меню бота для навигации между функциями
-  version: 2.0.0
+  version: 2.1.0
 
 initial_state: MAIN_MENU
 states:

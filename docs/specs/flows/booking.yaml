@@ -2,281 +2,631 @@
 meta:
   feature_id: BOOK-001
   name: Бронирование переговорок
-  description: Система бронирования слотов в кампусе (Friendly UI)
-  version: 2.1.0
+  description: TUI-поток со sliding window и smart rounding
+  version: 5.0.0
 
-initial_state: AUTO_SYNC_BOOKING
+initial_state: BOOKING_DASHBOARD
 
 states:
-  AUTO_SYNC_BOOKING:
-    type: system
-    description: "Pre-load campus rooms and current slots"
-    logic:
-      action: get_booking_data
-      payload:
-        campus_id: $context.campus_id
-    transitions:
-      - next_state: BOOKING_MENU
-
-  BOOKING_MENU:
+  BOOKING_DASHBOARD:
     type: interactive
-    description: Главное меню (Слоты на сегодня)
+    on_enter:
+      - action: get_dashboard_data
+        payload:
+          campus_id: $context.campus_id
     interface:
+      image: "{dashboard_visualization}"
       text:
         ru: |
-          💬 *Переговорки: {my_campus}*
+          *Твои планы и бронирования*
 
-          Нужно тихое место для созвона или командного кода? 🛋
-          Выбирай свободный слот на сегодня.
-
-          📅 *Сегодня:* `{current_date}`
-          ---
-          {free_slots_list}
+          {dashboard_text}
         en: |
-          💬 *Rooms: {my_campus}*
+          *Your plans and bookings*
 
-          Need a quiet spot for a call or group coding? 🛋
-          Pick an available slot for today.
-
-          📅 *Today:* `{current_date}`
-          ---
-          {free_slots_list}
-      image: "{schedule_image}"
+          {dashboard_text}
       buttons:
-        - id: slot_{room_id}_{time}
-          label: "⚡ {time} | {room_name}"
-        - id: select_date
+        - id: book_now
           label:
-            ru: 🗓 Выбрать другой день
-            en: 🗓 Select another day
+            ru: "⚡️ Занять сейчас"
+            en: "⚡️ Book now"
           row: 1
-          next_state: SELECT_DATE
+          next_state: BOOKING_ROOM_SELECTION
+
         - id: my_bookings
           label:
-            ru: 👤 Мои брони
-            en: 👤 My bookings
+            ru: "✨ Мои брони ({bookings_count})"
+            en: "✨ My bookings ({bookings_count})"
           row: 1
           next_state: FETCH_MY_BOOKINGS
-        - id: back
+
+        - id: plan_ahead
           label:
-            ru: 🏠 В главное меню
-            en: 🏠 Main menu
+            ru: "📅 Запланировать на потом"
+            en: "📅 Plan ahead"
+          row: 2
+          next_state: BOOKING_PLAN_DAY
+
+        - id: main_menu
+          label:
+            ru: "Назад"
+            en: "Back"
+          row: 3
           next_state: MAIN_MENU
-    transitions:
-      - trigger: button_click
-        condition: id.startswith('slot_')
-        next_state: SELECT_DURATION
 
-  SELECT_DATE:
+  BOOKING_PLAN_DAY:
     type: interactive
-    description: Календарная навигация
+    on_enter:
+      - action: prepare_plan_day
+        payload:
+          campus_id: $context.campus_id
     interface:
       text:
         ru: |
-          📅 *Планируем заранее*
+          *На какой день ищем переговорку?*
 
-          Выбрана дата: *{selected_date}*
-          Вот список доступных комнат:
-          ---
-          {free_slots_list}
+          👇 Выбери:
         en: |
-          📅 *Planning ahead*
+          *Which day are we looking for?*
 
-          Date selected: *{selected_date}*
-          Available rooms:
-          ---
-          {free_slots_list}
-      image: "{schedule_image}"
+          👇 Choose:
       buttons:
-        - id: slot_{room_id}_{time}
-          label: "{time} — {room_name}"
-        - id: prev_day
-          label: "⬅️"
-          next_state: SELECT_DATE
+        - id: "{plan_day_btn_id_1}"
+          label: "{plan_day_btn_label_1}"
           row: 1
-        - id: next_day
-          label: "➡️"
-          next_state: SELECT_DATE
+          next_state: BOOKING_PLAN_TIME
+          action: plan_select_day
+        - id: "{plan_day_btn_id_2}"
+          label: "{plan_day_btn_label_2}"
+          row: 2
+          next_state: BOOKING_PLAN_TIME
+          action: plan_select_day
+        - id: "{plan_day_btn_id_3}"
+          label: "{plan_day_btn_label_3}"
+          row: 3
+          next_state: BOOKING_PLAN_TIME
+          action: plan_select_day
+        - id: plan_day_back
+          label:
+            ru: "🔙 Назад"
+            en: "🔙 Back"
+          row: 4
+          next_state: BOOKING_DASHBOARD
+
+  BOOKING_PLAN_TIME:
+    type: interactive
+    on_enter:
+      - action: prepare_plan_time
+        payload:
+          campus_id: $context.campus_id
+    interface:
+      image: "{dashboard_visualization}"
+      text:
+        ru: |
+          {plan_time_text}
+
+          *> Во сколько начинаем?*
+          👇 Введи `ЧЧ:ММ` или выбери слот:
+          {plan_time_error}
+        en: |
+          {plan_time_text}
+
+          *> What time do we start?*
+          👇 Enter `HH:MM` or pick a slot:
+          {plan_time_error}
+      buttons:
+        - id: "{plan_time_btn_id_1}"
+          label: "{plan_time_btn_label_1}"
           row: 1
-        - id: back
+          next_state: BOOKING_PLAN_DURATION
+          action: plan_process_time
+        - id: "{plan_time_btn_id_2}"
+          label: "{plan_time_btn_label_2}"
+          row: 1
+          next_state: BOOKING_PLAN_DURATION
+          action: plan_process_time
+        - id: "{plan_time_btn_id_3}"
+          label: "{plan_time_btn_label_3}"
+          row: 2
+          next_state: BOOKING_PLAN_DURATION
+          action: plan_process_time
+        - id: plan_time_back
           label:
-            ru: 🔙 Назад
-            en: 🔙 Back
-          next_state: BOOKING_MENU
+            ru: "🔙 Назад к датам"
+            en: "🔙 Back to dates"
+          row: 3
+          next_state: BOOKING_PLAN_DAY
     transitions:
-      - trigger: button_click
-        condition: id.startswith('slot_')
-        next_state: SELECT_DURATION
+      - trigger: message
+        action: plan_process_time
+        next_state: BOOKING_PLAN_DURATION
 
-  SELECT_DURATION:
+  BOOKING_PLAN_DURATION:
     type: interactive
-    description: Выбор длительности сессии
+    on_enter:
+      - action: prepare_plan_duration
+        payload:
+          campus_id: $context.campus_id
+    interface:
+      image: "{dashboard_visualization}"
+      text:
+        ru: |
+          {plan_duration_text}
+
+          *> На сколько её займем?*
+          👇 Выбери:
+        en: |
+          {plan_duration_text}
+
+          *> How long do you need it for?*
+          👇 Choose:
+      buttons:
+        - id: "{plan_dur_15_id}"
+          label:
+            ru: "15 мин."
+            en: "15 min."
+          row: 1
+          next_state: BOOKING_PLAN_ROOMS
+          action: plan_process_duration
+        - id: "{plan_dur_30_id}"
+          label:
+            ru: "30 мин."
+            en: "30 min."
+          row: 1
+          next_state: BOOKING_PLAN_ROOMS
+          action: plan_process_duration
+        - id: "{plan_dur_45_id}"
+          label:
+            ru: "45 мин."
+            en: "45 min."
+          row: 2
+          next_state: BOOKING_PLAN_ROOMS
+          action: plan_process_duration
+        - id: "{plan_dur_60_id}"
+          label:
+            ru: "1 час"
+            en: "1 hour"
+          row: 2
+          next_state: BOOKING_PLAN_ROOMS
+          action: plan_process_duration
+        - id: plan_duration_back
+          label:
+            ru: "🔙 Изменить время"
+            en: "🔙 Change time"
+          row: 3
+          next_state: BOOKING_PLAN_TIME
+
+  BOOKING_PLAN_ROOMS:
+    type: interactive
+    on_enter:
+      - action: prepare_plan_rooms
+        payload:
+          campus_id: $context.campus_id
     interface:
       text:
         ru: |
-          ⏱ *Сколько времени нужно?*
+          *Что свободно на это время:*
 
-          📍 Комната: *{room_name}*
-          🕔 Начало: `{time}`
-          ---
-          ℹ️ Лимиты бронирования: {min_duration}–{max_duration} мин.
+          {plan_rooms_text}
         en: |
-          ⏱ *Duration of stay?*
+          *Available rooms for this time:*
 
-          📍 Room: *{room_name}*
-          🕔 Start: `{time}`
-          ---
-          ℹ️ Booking limits: {min_duration}–{max_duration} min.
+          {plan_rooms_text}
       buttons:
-        - id: duration_30
-          label: "30 мин"
-          next_state: CONFIRM_BOOKING
-        - id: duration_60
-          label: "60 мин"
-          next_state: CONFIRM_BOOKING
-        - id: back
-          label:
-            ru: 🔙 Отмена
-            en: 🔙 Cancel
-          next_state: BOOKING_MENU
-
-  CONFIRM_BOOKING:
-    type: interactive
-    description: Финальная проверка данных
-    interface:
-      text:
-        ru: |
-          📝 *Всё верно?*
-
-          📍 *{room_name}*
-          🗓 {selected_date}
-          🕔 В *{selected_time}*
-          ⏳ На {duration} минут
-          ---
-          Подтверждаешь бронирование?
-        en: |
-          📝 *Double check*
-
-          📍 *{room_name}*
-          🗓 {selected_date}
-          🕔 At *{selected_time}*
-          ⏳ For {duration} minutes
-          ---
-          Confirm booking?
-      buttons:
-        - id: confirm
-          label:
-            ru: ✅ Да, бронируем
-            en: ✅ Yes, book it
+        - id: "{room_btn_id_1}"
+          label: "{room_btn_label_1}"
+          row: 1
           next_state: COMMIT_BOOKING
-        - id: cancel
+          action: plan_select_room
+        - id: "{room_btn_id_2}"
+          label: "{room_btn_label_2}"
+          row: 2
+          next_state: COMMIT_BOOKING
+          action: plan_select_room
+        - id: "{room_btn_id_3}"
+          label: "{room_btn_label_3}"
+          row: 3
+          next_state: COMMIT_BOOKING
+          action: plan_select_room
+        - id: "{room_btn_id_4}"
+          label: "{room_btn_label_4}"
+          row: 4
+          next_state: COMMIT_BOOKING
+          action: plan_select_room
+        - id: "{room_btn_id_5}"
+          label: "{room_btn_label_5}"
+          row: 5
+          next_state: COMMIT_BOOKING
+          action: plan_select_room
+        - id: "{room_btn_id_6}"
+          label: "{room_btn_label_6}"
+          row: 6
+          next_state: COMMIT_BOOKING
+          action: plan_select_room
+        - id: "{room_btn_id_7}"
+          label: "{room_btn_label_7}"
+          row: 7
+          next_state: COMMIT_BOOKING
+          action: plan_select_room
+        - id: "{room_btn_id_8}"
+          label: "{room_btn_label_8}"
+          row: 8
+          next_state: COMMIT_BOOKING
+          action: plan_select_room
+        - id: plan_rooms_back
           label:
-            ru: ❌ Нет, назад
-            en: ❌ No, go back
-          next_state: BOOKING_MENU
+            ru: "🔙 Изменить длительность"
+            en: "🔙 Change duration"
+          row: 9
+          next_state: BOOKING_PLAN_DURATION
+
+  BOOKING_ROOM_SELECTION:
+    type: interactive
+    on_enter:
+      - action: prepare_room_selection
+        payload:
+          campus_id: $context.campus_id
+    interface:
+      text:
+        ru: |
+          Какую переговорку займем?
+
+          {rooms_tui_list}
+        en: |
+          Pick a meeting room:
+
+          {rooms_tui_list}
+      buttons:
+        - id: "{room_btn_id_1}"
+          label: "{room_btn_label_1}"
+          row: 1
+          next_state: BOOKING_DURATION_CHOICE
+
+        - id: "{room_btn_id_2}"
+          label: "{room_btn_label_2}"
+          row: 2
+          next_state: BOOKING_DURATION_CHOICE
+
+        - id: "{room_btn_id_3}"
+          label: "{room_btn_label_3}"
+          row: 3
+          next_state: BOOKING_DURATION_CHOICE
+
+        - id: "{room_btn_id_4}"
+          label: "{room_btn_label_4}"
+          row: 4
+          next_state: BOOKING_DURATION_CHOICE
+
+        - id: "{room_btn_id_5}"
+          label: "{room_btn_label_5}"
+          row: 5
+          next_state: BOOKING_DURATION_CHOICE
+
+        - id: "{room_btn_id_6}"
+          label: "{room_btn_label_6}"
+          row: 6
+          next_state: BOOKING_DURATION_CHOICE
+
+        - id: "{room_btn_id_7}"
+          label: "{room_btn_label_7}"
+          row: 7
+          next_state: BOOKING_DURATION_CHOICE
+
+        - id: "{room_btn_id_8}"
+          label: "{room_btn_label_8}"
+          row: 8
+          next_state: BOOKING_DURATION_CHOICE
+
+        - id: back_dashboard
+          label:
+            ru: "Назад"
+            en: "Back"
+          row: 9
+          next_state: BOOKING_DASHBOARD
+
+  BOOKING_DURATION_CHOICE:
+    type: interactive
+    on_enter:
+      - action: prepare_duration_choice
+        payload:
+          campus_id: $context.campus_id
+    interface:
+      text:
+        ru: |
+          *{selected_room_name}* доступна на _{max_gap} мин._
+          {duration_text}
+
+          *> На сколько бронируем?*
+          👇 Выбери или введи вручную:
+        en: |
+          *{selected_room_name}* is free for _{max_gap} min._
+          {duration_text}
+  
+          *> How long do we book it for?*
+          👇 Pick or enter manually:
+      buttons:
+        - id: "{duration_15_id}"
+          label:
+            ru: "15 мин."
+            en: "15 min."
+          row: 1
+          next_state: COMMIT_BOOKING
+          action: process_duration_input
+
+        - id: "{duration_30_id}"
+          label:
+            ru: "30 мин."
+            en: "30 min."
+          row: 1
+          next_state: COMMIT_BOOKING
+          action: process_duration_input
+
+        - id: "{duration_45_id}"
+          label:
+            ru: "45 мин."
+            en: "45 min."
+          row: 2
+          next_state: COMMIT_BOOKING
+          action: process_duration_input
+
+        - id: "{duration_60_id}"
+          label:
+            ru: "1 час"
+            en: "1 hour"
+          row: 2
+          next_state: COMMIT_BOOKING
+          action: process_duration_input
+
+        - id: "{duration_max_id}"
+          label:
+            ru: "Максимум {max_gap} мин."
+            en: "Max {max_gap} min."
+          row: 3
+          next_state: COMMIT_BOOKING
+          action: process_duration_input
+
+        - id: back_rooms
+          label:
+            ru: "Назад"
+            en: "Back"
+          row: 4
+          next_state: BOOKING_ROOM_SELECTION
+    transitions:
+      - trigger: message
+        condition: is_numeric(message.text)
+        action: process_duration_input
+        next_state: COMMIT_BOOKING
+      - trigger: message
+        condition: not is_numeric(message.text)
+        next_state: BOOKING_DURATION_CHOICE
 
   COMMIT_BOOKING:
     type: system
-    description: Запись в базу данных
     logic:
-      action: create_booking
+      action: create_booking_with_duration
       payload:
-        room_id: $context.room_id
-        date: $context.date
-        time: $context.time
-        duration: $context.duration
+        campus_id: $context.campus_id
     transitions:
       - condition: success == true
-        next_state: COMPLETED
-      - condition: success == false
-        next_state: ERROR_SLOT_ALREADY_TAKEN
+        next_state: BOOKING_SUCCESS
+      - condition: error == 'user_overlap'
+        next_state: BOOKING_USER_OVERLAP
+      - condition: error == 'user_booking_count_limit'
+        next_state: BOOKING_USER_LIMIT_COUNT
+      - condition: error == 'user_daily_limit'
+        next_state: BOOKING_USER_LIMIT_DAILY
+      - condition: error == 'conflict' && booking_mode == 'planned'
+        next_state: BOOKING_PLAN_ROOMS
+      - condition: error == 'conflict'
+        next_state: BOOKING_CONFLICT
+      - condition: error == 'invalid_duration' && booking_mode == 'planned'
+        next_state: BOOKING_PLAN_DURATION
+      - condition: error == 'invalid_duration'
+        next_state: BOOKING_DURATION_CHOICE
+      - next_state: BOOKING_CONFLICT
 
-  ERROR_SLOT_ALREADY_TAKEN:
+  BOOKING_SUCCESS:
     type: interactive
-    description: Ошибка занятого слота (Race Condition)
+    interface:
+      text:
+        ru: "✅ {selected_room_name} {booking_starts_local} - {booking_end_time} ({duration} мин.)"
+        en: "✅ {selected_room_name} {booking_starts_local} - {booking_end_time} ({duration} min.)"
+      buttons:
+        - id: done_to_dashboard
+          label:
+            ru: "К дашборду"
+            en: "Dashboard"
+          row: 1
+          next_state: BOOKING_DASHBOARD
+
+        - id: done_to_my
+          label:
+            ru: "✨ Мои брони"
+            en: "✨ My bookings"
+          row: 1
+          next_state: FETCH_MY_BOOKINGS
+
+  BOOKING_CONFLICT:
+    type: interactive
     interface:
       text:
         ru: |
-          🐢 *Упс, опоздал!*
+          ❌ *Пока выбирал, эту комнату уже успели занять.*
 
-          Пока ты выбирал, кто-то другой успел занять этот слот.
-          Пиры не спят! 🏎
-
-          Выбери другое время или комнату.
+          Попробуй другую.
         en: |
-          🐢 *Too slow!*
+          ❌ *While you were picking, someone booked this room.*
 
-          While you were choosing, another peer grabbed this slot.
-          Peers are fast! 🏎
-
-          Please try another time or room.
+          Try another one.
       buttons:
-        - id: refresh
+        - id: find_other
           label:
-            ru: 🔄 Обновить расписание
-            en: 🔄 Refresh schedule
-          next_state: BOOKING_MENU
+            ru: "🔙 Выбрать другую"
+            en: "🔙 Choose another"
+          row: 1
+          next_state: BOOKING_ROOM_SELECTION
+
+        - id: conflict_dashboard
+          label:
+            ru: "К дашборду"
+            en: "Dashboard"
+          row: 2
+          next_state: BOOKING_DASHBOARD
+
+  BOOKING_USER_OVERLAP:
+    type: interactive
+    interface:
+      image: "{dashboard_visualization}"
+      text:
+        ru: |
+          ❌ *На это время у тебя уже запланирована другая переговорка.*
+
+          Заверши текущую или выбери другой слот.
+        en: |
+          ❌ *You already have a booking for this time.*
+
+          Finish current one or choose another slot.
+      buttons:
+        - id: user_overlap_my
+          label:
+            ru: "✨ Мои брони"
+            en: "✨ My bookings"
+          row: 1
+          next_state: FETCH_MY_BOOKINGS
+
+        - id: user_overlap_other
+          label:
+            ru: "🔙 Выбрать другую"
+            en: "🔙 Choose another"
+          row: 2
+          next_state: BOOKING_ROOM_SELECTION
+
+  BOOKING_USER_LIMIT_COUNT:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          ❌ *Слишком много активных броней.*
+
+          Чтобы создать новую, нужно отменить одну из текущих.
+        en: |
+          ❌ *Too many active bookings.*
+
+            To create a new one, you need to cancel one of the current bookings.
+      buttons:
+        - id: user_limit_count_my
+          label:
+            ru: "✨ Мои брони"
+            en: "✨ My bookings"
+          row: 1
+          next_state: FETCH_MY_BOOKINGS
+        - id: user_limit_count_back
+          label:
+            ru: "Назад к комнатам"
+            en: "Back to rooms"
+          row: 2
+          next_state: BOOKING_ROOM_SELECTION
+
+  BOOKING_USER_LIMIT_DAILY:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          ❌ *Дневной лимит (3 часа) исчерпан.*
+          
+          Пожалуйста, освободи место для коллег.
+        en: |
+          ❌ *Daily limit: no more than 3 hours.*
+
+            Please free up some time for your colleagues.
+      buttons:
+        - id: user_limit_daily_my
+          label:
+            ru: "✨ Мои брони"
+            en: "✨ My bookings"
+          row: 1
+          next_state: FETCH_MY_BOOKINGS
+        - id: user_limit_daily_back
+          label:
+            ru: "Назад к комнатам"
+            en: "Back to rooms"
+          row: 2
+          next_state: BOOKING_ROOM_SELECTION
 
   FETCH_MY_BOOKINGS:
     type: system
-    description: Загрузка бронирований пользователя
     logic:
       action: get_user_bookings
-      payload:
-        user_id: $context.user_id
     transitions:
-      - next_state: MY_BOOKINGS
+      - next_state: MY_BOOKINGS_LIST
 
-  MY_BOOKINGS:
+  MY_BOOKINGS_LIST:
     type: interactive
-    description: Список активных броней пользователя
     interface:
       text:
         ru: |
-          👤 *Твои бронирования*
+          *✨ Мои бронирования*
 
-          Вот слоты, которые закреплены за тобой:
-          ---
-          {my_bookings_list}
+          {my_bookings_text}
+
+          {my_bookings_hint_ru}
         en: |
-          👤 *Your bookings*
+          *✨ My bookings*
 
-          Here are the slots reserved for you:
-          ---
-          {my_bookings_list}
+          {my_bookings_text}
+
+          {my_bookings_hint_en}
       buttons:
-        - id: cancel_{booking_id}
+        - id: "{booking_btn_id_1}"
+          label: "{booking_btn_label_1}"
+          row: 1
+          next_state: PROCESS_MY_BOOKING
+
+        - id: "{booking_btn_id_2}"
+          label: "{booking_btn_label_2}"
+          row: 2
+          next_state: PROCESS_MY_BOOKING
+
+        - id: "{booking_btn_id_3}"
+          label: "{booking_btn_label_3}"
+          row: 3
+          next_state: PROCESS_MY_BOOKING
+
+        - id: "{booking_btn_id_4}"
+          label: "{booking_btn_label_4}"
+          row: 4
+          next_state: PROCESS_MY_BOOKING
+
+        - id: "{booking_btn_id_5}"
+          label: "{booking_btn_label_5}"
+          row: 5
+          next_state: PROCESS_MY_BOOKING
+
+        - id: "{booking_btn_id_6}"
+          label: "{booking_btn_label_6}"
+          row: 6
+          next_state: PROCESS_MY_BOOKING
+
+        - id: "{booking_btn_id_7}"
+          label: "{booking_btn_label_7}"
+          row: 7
+          next_state: PROCESS_MY_BOOKING
+
+        - id: "{booking_btn_id_8}"
+          label: "{booking_btn_label_8}"
+          row: 8
+          next_state: PROCESS_MY_BOOKING
+
+        - id: my_back
           label:
-            ru: 🗑 Отменить бронь
-            en: 🗑 Cancel booking
-        - id: back
-          label:
-            ru: 🏠 В меню
-            en: 🏠 To menu
-          next_state: BOOKING_MENU
+            ru: "Назад"
+            en: "Back"
+          row: 9
+          next_state: BOOKING_DASHBOARD
 
-  COMPLETED:
-    type: interactive
-    description: Успешный результат
-    interface:
-      text:
-        ru: |
-          🎉 *Готово!*
-
-          Переговорка *{room_name}* твоя на *{time}*.
-
-          Не забудь убрать за собой и оставить место чистым для следующего пира.
-          Удачной работы! 👨‍💻
-        en: |
-          🎉 *Confirmed!*
-
-          Room *{room_name}* is yours at *{time}*.
-
-          Please remember to leave the room tidy for the next peer.
-          Have a productive session! 👨‍💻
-      buttons:
-        - id: menu
-          label:
-            ru: 🏠 В главное меню
-            en: 🏠 Main menu
-          next_state: MAIN_MENU
+  PROCESS_MY_BOOKING:
+    type: system
+    logic:
+      action: cancel_booking
+    transitions:
+      - next_state: FETCH_MY_BOOKINGS
