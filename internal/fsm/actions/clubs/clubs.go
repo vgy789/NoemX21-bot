@@ -17,28 +17,13 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 	}
 
 	registry.Register("get_campus_info", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		campusIDStr, ok := payload["campus_id"].(string)
-		if !ok || campusIDStr == "" || campusIDStr == "$context.campus_id" {
-			// Try to fetch from DB if missing in context
-			acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
-				Platform:   db.EnumPlatformTelegram,
-				ExternalID: fmt.Sprintf("%d", userID),
-			})
-			if err == nil {
-				profile, err := queries.GetMyProfile(ctx, acc.S21Login)
-				if err == nil && profile.CampusID.Valid {
-					b := profile.CampusID.Bytes
-					campusIDStr = fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
-				}
-			}
-		}
-
-		if campusIDStr == "" || campusIDStr == "$context.campus_id" {
+		campusIDStr := ensureCampusID(ctx, queries, userID, payload)
+		if campusIDStr == "" {
 			return "", nil, fmt.Errorf("campus_id missing for campus info fetch and could not be recovered from DB")
 		}
 
-		var campusUUID pgtype.UUID
-		if err := campusUUID.Scan(campusIDStr); err != nil {
+		campusUUID, err := parseCampusUUID(campusIDStr)
+		if err != nil {
 			return "", nil, fmt.Errorf("invalid campus_id format: %w (got: %s)", err, campusIDStr)
 		}
 
@@ -51,54 +36,23 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 			"leader_name":      campus.LeaderName.String,
 			"leader_form_link": campus.LeaderFormLink.String,
 			"campus_id":        campusIDStr, // Ensure it's back in context
+			"my_campus":        campus.ShortName,
 		}, nil
 	})
 
 	registry.Register("get_clubs", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		// Log the raw payload for debugging
-		fmt.Printf("DEBUG: get_clubs payload: %+v\n", payload)
-
-		var isLocal bool
-		if val, ok := payload["is_local"]; ok {
-			switch v := val.(type) {
-			case bool:
-				isLocal = v
-			case string:
-				isLocal = (v == "true")
-			default:
-				isLocal = false
-			}
-		}
-		fmt.Printf("DEBUG: isLocal evaluated to: %v\n", isLocal)
-
+		isLocal := boolFromPayload(payload, "is_local")
+		campusIDStr := ensureCampusID(ctx, queries, userID, payload)
 		var clubsList string
 
 		if isLocal {
-			campusIDStr, ok := payload["campus_id"].(string)
-			if !ok || campusIDStr == "" || campusIDStr == "$context.campus_id" {
-				// Try to fetch from DB if missing in context
-				acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
-					Platform:   db.EnumPlatformTelegram,
-					ExternalID: fmt.Sprintf("%d", userID),
-				})
-				if err == nil {
-					profile, err := queries.GetMyProfile(ctx, acc.S21Login)
-					if err == nil && profile.CampusID.Valid {
-						b := profile.CampusID.Bytes
-						campusIDStr = fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
-					}
-				}
-			}
-
-			if campusIDStr == "" || campusIDStr == "$context.campus_id" {
+			if campusIDStr == "" {
 				return "", nil, fmt.Errorf("campus_id missing for local clubs fetch and could not be recovered from DB")
 			}
-
-			var campusUUID pgtype.UUID
-			if err := campusUUID.Scan(campusIDStr); err != nil {
+			campusUUID, err := parseCampusUUID(campusIDStr)
+			if err != nil {
 				return "", nil, fmt.Errorf("invalid campus_id format: %w (got: %s)", err, campusIDStr)
 			}
-
 			clubs, err := queries.GetLocalClubs(ctx, campusUUID)
 			if err != nil {
 				return "", nil, fmt.Errorf("failed to fetch local clubs: %w", err)
@@ -123,46 +77,20 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 
 	// prepare_clubs_for_buttons: Fetch clubs and expose them for button rendering
 	registry.Register("prepare_clubs_for_buttons", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		var isLocal bool
-		if val, ok := payload["is_local"]; ok {
-			switch v := val.(type) {
-			case bool:
-				isLocal = v
-			case string:
-				isLocal = (v == "true")
-			default:
-				isLocal = false
-			}
-		}
+		isLocal := boolFromPayload(payload, "is_local")
+		campusIDStr := ensureCampusID(ctx, queries, userID, payload)
 
 		var clubs any
 		var clubList []any
 
 		if isLocal {
-			campusIDStr, ok := payload["campus_id"].(string)
-			if !ok || campusIDStr == "" || campusIDStr == "$context.campus_id" {
-				acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
-					Platform:   db.EnumPlatformTelegram,
-					ExternalID: fmt.Sprintf("%d", userID),
-				})
-				if err == nil {
-					profile, err := queries.GetMyProfile(ctx, acc.S21Login)
-					if err == nil && profile.CampusID.Valid {
-						b := profile.CampusID.Bytes
-						campusIDStr = fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
-					}
-				}
-			}
-
-			if campusIDStr == "" || campusIDStr == "$context.campus_id" {
+			if campusIDStr == "" {
 				return "", nil, fmt.Errorf("campus_id missing for local clubs")
 			}
-
-			var campusUUID pgtype.UUID
-			if err := campusUUID.Scan(campusIDStr); err != nil {
+			campusUUID, err := parseCampusUUID(campusIDStr)
+			if err != nil {
 				return "", nil, fmt.Errorf("invalid campus_id format: %w", err)
 			}
-
 			localClubs, err := queries.GetLocalClubs(ctx, campusUUID)
 			if err != nil {
 				return "", nil, fmt.Errorf("failed to fetch local clubs: %w", err)
@@ -182,88 +110,39 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 			}
 		}
 
-		// Populate context with individual club names for button rendering
-		// Format: club_name_1, club_name_2, etc. (up to 20 clubs)
-		updates := make(map[string]any)
-		updates["clubs"] = clubs
-		updates["is_local"] = isLocal
-
-		for i, clubAny := range clubList {
-			if i >= 20 { // Limit to 20 buttons
-				break
-			}
-			clubNum := i + 1
-
-			// Extract club name from union type (could be local or global)
-			var clubName string
-			switch c := clubAny.(type) {
-			case db.GetLocalClubsRow:
-				clubName = c.Name
-			case db.GetGlobalClubsRow:
-				clubName = c.Name
-			}
-
-			updates[fmt.Sprintf("club_name_%d", clubNum)] = clubName
+		updates := map[string]any{
+			"clubs":    clubs,
+			"is_local": isLocal,
+		}
+		if campusIDStr != "" && isLocal {
+			updates["campus_id"] = campusIDStr
 		}
 
+		writeClubButtons(updates, clubList, 20)
 		return "", updates, nil
 	})
 
 	// get_categories: Fetch unique categories from clubs
 	registry.Register("get_categories", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		var isLocal bool
-		if val, ok := payload["is_local"]; ok {
-			switch v := val.(type) {
-			case bool:
-				isLocal = v
-			case string:
-				isLocal = (v == "true")
-			default:
-				isLocal = false
-			}
-		}
+		isLocal := boolFromPayload(payload, "is_local")
 
-		// Get all clubs and extract unique categories
 		categoryMap := make(map[string]bool)
 		var categories []string
-		var resolvedCampusID string
+		campusIDStr := ensureCampusID(ctx, queries, userID, payload)
 
-		if isLocal {
-			campusIDStr, ok := payload["campus_id"].(string)
-			if !ok || campusIDStr == "" || campusIDStr == "$context.campus_id" {
-				acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
-					Platform:   db.EnumPlatformTelegram,
-					ExternalID: fmt.Sprintf("%d", userID),
-				})
-				if err == nil {
-					profile, err := queries.GetMyProfile(ctx, acc.S21Login)
-					if err == nil && profile.CampusID.Valid {
-						b := profile.CampusID.Bytes
-						campusIDStr = fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
-					}
-				}
-			}
-			if campusIDStr != "" && campusIDStr != "$context.campus_id" {
-				resolvedCampusID = campusIDStr
-			}
-
-			if campusIDStr != "" && campusIDStr != "$context.campus_id" {
-				var campusUUID pgtype.UUID
-				if err := campusUUID.Scan(campusIDStr); err == nil {
-					clubs, err := queries.GetLocalClubs(ctx, campusUUID)
-					if err == nil {
-						for _, c := range clubs {
-							if !categoryMap[c.CategoryName] {
-								categoryMap[c.CategoryName] = true
-								categories = append(categories, c.CategoryName)
-							}
+		if isLocal && campusIDStr != "" {
+			if campusUUID, err := parseCampusUUID(campusIDStr); err == nil {
+				if clubs, err := queries.GetLocalClubs(ctx, campusUUID); err == nil {
+					for _, c := range clubs {
+						if !categoryMap[c.CategoryName] {
+							categoryMap[c.CategoryName] = true
+							categories = append(categories, c.CategoryName)
 						}
 					}
 				}
 			}
-		} else {
-			clubs, err := queries.GetGlobalClubs(ctx)
-			if err == nil {
+		} else if !isLocal {
+			if clubs, err := queries.GetGlobalClubs(ctx); err == nil {
 				for _, c := range clubs {
 					if !categoryMap[c.CategoryName] {
 						categoryMap[c.CategoryName] = true
@@ -273,27 +152,14 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 			}
 		}
 
-		// Populate context with category names for button rendering
-		updates := make(map[string]any)
-		updates["is_local"] = isLocal
-		if resolvedCampusID != "" {
-			updates["campus_id"] = resolvedCampusID
+		updates := map[string]any{
+			"is_local": isLocal,
+		}
+		if campusIDStr != "" {
+			updates["campus_id"] = campusIDStr
 		}
 
-		// First, fill actual categories (up to 15)
-		maxCategories := 15
-		for i, cat := range categories {
-			if i >= maxCategories {
-				break
-			}
-			catNum := i + 1
-			updates[fmt.Sprintf("category_%d", catNum)] = cat
-		}
-		// Then, explicitly clear the rest so старые значения не утекали между экранами
-		for i := len(categories) + 1; i <= maxCategories; i++ {
-			updates[fmt.Sprintf("category_%d", i)] = ""
-		}
-
+		writeCategoryButtons(updates, categories, 15)
 		return "", updates, nil
 	})
 
@@ -310,56 +176,22 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 			return "", nil, fmt.Errorf("category_name or last_input required")
 		}
 
-		var isLocal bool
-		if val, ok := payload["is_local"]; ok {
-			switch v := val.(type) {
-			case bool:
-				isLocal = v
-			case string:
-				isLocal = (v == "true")
-			default:
-				isLocal = false
-			}
-		}
+		isLocal := boolFromPayload(payload, "is_local")
+		campusIDStr := ensureCampusID(ctx, queries, userID, payload)
 
 		var filteredClubs []any
-		var resolvedCampusID string
-
-		if isLocal {
-			campusIDStr, ok := payload["campus_id"].(string)
-			if !ok || campusIDStr == "" || campusIDStr == "$context.campus_id" {
-				acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
-					Platform:   db.EnumPlatformTelegram,
-					ExternalID: fmt.Sprintf("%d", userID),
-				})
-				if err == nil {
-					profile, err := queries.GetMyProfile(ctx, acc.S21Login)
-					if err == nil && profile.CampusID.Valid {
-						b := profile.CampusID.Bytes
-						campusIDStr = fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
-					}
-				}
-			}
-			if campusIDStr != "" && campusIDStr != "$context.campus_id" {
-				resolvedCampusID = campusIDStr
-			}
-
-			if campusIDStr != "" && campusIDStr != "$context.campus_id" {
-				var campusUUID pgtype.UUID
-				if err := campusUUID.Scan(campusIDStr); err == nil {
-					clubs, err := queries.GetLocalClubs(ctx, campusUUID)
-					if err == nil {
-						for _, c := range clubs {
-							if c.CategoryName == categoryName {
-								filteredClubs = append(filteredClubs, c)
-							}
+		if isLocal && campusIDStr != "" {
+			if campusUUID, err := parseCampusUUID(campusIDStr); err == nil {
+				if clubs, err := queries.GetLocalClubs(ctx, campusUUID); err == nil {
+					for _, c := range clubs {
+						if c.CategoryName == categoryName {
+							filteredClubs = append(filteredClubs, c)
 						}
 					}
 				}
 			}
-		} else {
-			clubs, err := queries.GetGlobalClubs(ctx)
-			if err == nil {
+		} else if !isLocal {
+			if clubs, err := queries.GetGlobalClubs(ctx); err == nil {
 				for _, c := range clubs {
 					if c.CategoryName == categoryName {
 						filteredClubs = append(filteredClubs, c)
@@ -368,43 +200,16 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 			}
 		}
 
-		// Populate context with club names for button rendering
-		updates := make(map[string]any)
-		updates["clubs"] = filteredClubs
-		updates["category_name"] = categoryName
-		updates["is_local"] = isLocal
-		if resolvedCampusID != "" {
-			updates["campus_id"] = resolvedCampusID
+		updates := map[string]any{
+			"clubs":         filteredClubs,
+			"category_name": categoryName,
+			"is_local":      isLocal,
+		}
+		if campusIDStr != "" {
+			updates["campus_id"] = campusIDStr
 		}
 
-		// First, fill actual clubs (up to 20)
-		maxClubs := 20
-		limit := min(len(filteredClubs), maxClubs)
-		for i := range limit {
-			clubNum := i + 1
-			clubAny := filteredClubs[i]
-
-			var clubName string
-			var clubID int16
-			switch c := clubAny.(type) {
-			case db.GetLocalClubsRow:
-				clubName = c.Name
-				clubID = c.ID
-			case db.GetGlobalClubsRow:
-				clubName = c.Name
-				clubID = c.ID
-			}
-
-			updates[fmt.Sprintf("club_name_%d", clubNum)] = clubName
-			updates[fmt.Sprintf("club_id_%d", clubNum)] = clubID
-		}
-		// Then, explicitly clear оставшиеся club_name_i / club_id_i,
-		// чтобы при смене категории не показывались клубы из прошлого выбора.
-		for i := limit + 1; i <= maxClubs; i++ {
-			updates[fmt.Sprintf("club_name_%d", i)] = ""
-			updates[fmt.Sprintf("club_id_%d", i)] = ""
-		}
-
+		writeClubButtons(updates, filteredClubs, 20)
 		return "", updates, nil
 	})
 
@@ -473,12 +278,10 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 		}
 
 		// If not found globally, try locally
-		campusIDStr, _ := payload["campus_id"].(string)
-		if campusIDStr != "" && campusIDStr != "$context.campus_id" {
-			var campusUUID pgtype.UUID
-			if err := campusUUID.Scan(campusIDStr); err == nil {
-				localClubs, err := queries.GetLocalClubs(ctx, campusUUID)
-				if err == nil {
+		campusIDStr := stringFromPayload(payload, "campus_id")
+		if campusIDStr != "" {
+			if campusUUID, err := parseCampusUUID(campusIDStr); err == nil {
+				if localClubs, err := queries.GetLocalClubs(ctx, campusUUID); err == nil {
 					for _, c := range localClubs {
 						if c.ID == clubID {
 							card := formatLocalClubCard(c)
@@ -501,12 +304,12 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 func formatLocalClubs(clubs []db.GetLocalClubsRow) string {
 	var sb strings.Builder
 	for _, c := range clubs {
-		sb.WriteString(fmt.Sprintf("*%s* [%s]\n", c.Name, c.CategoryName))
+		sb.WriteString(fmt.Sprintf("*%s* [%s]\n", fsm.EscapeMarkdown(c.Name), fsm.EscapeMarkdown(c.CategoryName)))
 		if c.Description.Valid && c.Description.String != "" {
-			sb.WriteString(fmt.Sprintf("_%s_\n", c.Description.String))
+			sb.WriteString(fmt.Sprintf("%s\n", fsm.EscapeMarkdown(c.Description.String)))
 		}
 		if c.LeaderLogin.Valid && c.LeaderLogin.String != "" {
-			sb.WriteString(fmt.Sprintf("👤 Leader: %s\n", c.LeaderLogin.String))
+			sb.WriteString(fmt.Sprintf("👤 Leader: %s\n", fsm.EscapeMarkdown(c.LeaderLogin.String)))
 		}
 		if c.ExternalLink.Valid && c.ExternalLink.String != "" {
 			sb.WriteString(fmt.Sprintf("🔗 [Join](%s)\n", c.ExternalLink.String))
@@ -519,12 +322,12 @@ func formatLocalClubs(clubs []db.GetLocalClubsRow) string {
 func formatGlobalClubs(clubs []db.GetGlobalClubsRow) string {
 	var sb strings.Builder
 	for _, c := range clubs {
-		sb.WriteString(fmt.Sprintf("🌍 *%s* [%s]\n", c.Name, c.CategoryName))
+		sb.WriteString(fmt.Sprintf("*%s* [%s]\n", fsm.EscapeMarkdown(c.Name), fsm.EscapeMarkdown(c.CategoryName)))
 		if c.Description.Valid && c.Description.String != "" {
-			sb.WriteString(fmt.Sprintf("_%s_\n", c.Description.String))
+			sb.WriteString(fmt.Sprintf("%s\n", fsm.EscapeMarkdown(c.Description.String)))
 		}
 		if c.LeaderLogin.Valid && c.LeaderLogin.String != "" {
-			sb.WriteString(fmt.Sprintf("👤 Leader: %s\n", c.LeaderLogin.String))
+			sb.WriteString(fmt.Sprintf("👤 Leader: %s\n", fsm.EscapeMarkdown(c.LeaderLogin.String)))
 		}
 		if c.ExternalLink.Valid && c.ExternalLink.String != "" {
 			sb.WriteString(fmt.Sprintf("🔗 [Join](%s)\n", c.ExternalLink.String))
@@ -534,36 +337,21 @@ func formatGlobalClubs(clubs []db.GetGlobalClubsRow) string {
 	return sb.String()
 }
 
-// escapeMarkdown escapes Telegram Markdown special characters in user-generated content
-// so that *_`[ do not break parse_mode=Markdown.
-func escapeMarkdown(s string) string {
-	var b strings.Builder
-	for _, r := range s {
-		switch r {
-		case '\\', '_', '*', '`', '[':
-			b.WriteRune('\\')
-			b.WriteRune(r)
-		default:
-			b.WriteRune(r)
-		}
-	}
-	return b.String()
-}
-
 // formatClubCard formats a global club as a detailed card
 func formatClubCard(c db.GetGlobalClubsRow) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("🌍 *%s*\n\n", escapeMarkdown(c.Name)))
+	sb.WriteString(fmt.Sprintf("*%s*\n\n", fsm.EscapeMarkdown(c.Name)))
 
 	if c.Description.Valid && c.Description.String != "" {
-		sb.WriteString(fmt.Sprintf("_%s_\n\n", escapeMarkdown(c.Description.String)))
+		// Use plain text for description to avoid nested italics issues with underscores
+		sb.WriteString(fmt.Sprintf("%s\n\n", fsm.EscapeMarkdown(c.Description.String)))
 	}
 	if c.LeaderLogin.Valid && c.LeaderLogin.String != "" {
-		sb.WriteString(fmt.Sprintf("👤 *Лидер:* %s\n", escapeMarkdown(c.LeaderLogin.String)))
+		sb.WriteString(fmt.Sprintf("👤 *Лидер:* %s\n", fsm.EscapeMarkdown(c.LeaderLogin.String)))
 	}
-	sb.WriteString(fmt.Sprintf("📂 *Категория:* %s\n", escapeMarkdown(c.CategoryName)))
+	sb.WriteString(fmt.Sprintf("📂 *Категория:* %s\n", fsm.EscapeMarkdown(c.CategoryName)))
 	if c.CampusName != "" {
-		sb.WriteString(fmt.Sprintf("📍 *Кампус:* %s\n", escapeMarkdown(c.CampusName)))
+		sb.WriteString(fmt.Sprintf("📍 *Кампус:* %s\n", fsm.EscapeMarkdown(c.CampusName)))
 	}
 	return sb.String()
 }
@@ -571,15 +359,109 @@ func formatClubCard(c db.GetGlobalClubsRow) string {
 // formatLocalClubCard formats a local club as a detailed card
 func formatLocalClubCard(c db.GetLocalClubsRow) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("*%s*\n\n", escapeMarkdown(c.Name)))
+	sb.WriteString(fmt.Sprintf("*%s*\n\n", fsm.EscapeMarkdown(c.Name)))
 
 	if c.Description.Valid && c.Description.String != "" {
-		sb.WriteString(fmt.Sprintf("_%s_\n\n", escapeMarkdown(c.Description.String)))
+		// Use plain text for description to avoid nested italics issues with underscores
+		sb.WriteString(fmt.Sprintf("%s\n\n", fsm.EscapeMarkdown(c.Description.String)))
 	}
 	if c.LeaderLogin.Valid && c.LeaderLogin.String != "" {
-		sb.WriteString(fmt.Sprintf("👤 *Лидер:* %s\n", escapeMarkdown(c.LeaderLogin.String)))
+		sb.WriteString(fmt.Sprintf("👤 *Лидер:* %s\n", fsm.EscapeMarkdown(c.LeaderLogin.String)))
 	}
-	sb.WriteString(fmt.Sprintf("📂 *Категория:* %s\n", escapeMarkdown(c.CategoryName)))
-	sb.WriteString(fmt.Sprintf("📍 *Организовали в:* %s\n", escapeMarkdown(c.CampusName)))
+	sb.WriteString(fmt.Sprintf("📂 *Категория:* %s\n", fsm.EscapeMarkdown(c.CategoryName)))
+	sb.WriteString(fmt.Sprintf("📍 *Организовали в:* %s\n", fsm.EscapeMarkdown(c.CampusName)))
 	return sb.String()
+}
+
+func stringFromPayload(payload map[string]any, key string) string {
+	if val, ok := payload[key]; ok {
+		if s, ok := val.(string); ok && s != "" && s != "$context.campus_id" {
+			return s
+		}
+	}
+	return ""
+}
+
+func boolFromPayload(payload map[string]any, key string) bool {
+	if val, ok := payload[key]; ok {
+		switch v := val.(type) {
+		case bool:
+			return v
+		case string:
+			return strings.EqualFold(v, "true")
+		}
+	}
+	return false
+}
+
+func ensureCampusID(ctx context.Context, queries db.Querier, userID int64, payload map[string]any) string {
+	if campusID := stringFromPayload(payload, "campus_id"); campusID != "" {
+		return campusID
+	}
+	return campusIDFromProfile(ctx, queries, userID)
+}
+
+func campusIDFromProfile(ctx context.Context, queries db.Querier, userID int64) string {
+	acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
+		Platform:   db.EnumPlatformTelegram,
+		ExternalID: fmt.Sprintf("%d", userID),
+	})
+	if err != nil {
+		return ""
+	}
+	profile, err := queries.GetMyProfile(ctx, acc.S21Login)
+	if err != nil || !profile.CampusID.Valid {
+		return ""
+	}
+	b := profile.CampusID.Bytes
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+func parseCampusUUID(campusIDStr string) (pgtype.UUID, error) {
+	var campusUUID pgtype.UUID
+	if err := campusUUID.Scan(campusIDStr); err != nil {
+		return pgtype.UUID{}, err
+	}
+	return campusUUID, nil
+}
+
+func writeClubButtons(updates map[string]any, clubs []any, max int) {
+	limit := minInt(len(clubs), max)
+	for i := range limit {
+		name, id := clubData(clubs[i])
+		updates[fmt.Sprintf("club_name_%d", i+1)] = name
+		updates[fmt.Sprintf("club_id_%d", i+1)] = id
+	}
+	for i := limit; i < max; i++ {
+		updates[fmt.Sprintf("club_name_%d", i+1)] = ""
+		updates[fmt.Sprintf("club_id_%d", i+1)] = ""
+	}
+}
+
+func writeCategoryButtons(updates map[string]any, categories []string, max int) {
+	limit := minInt(len(categories), max)
+	for i := range limit {
+		updates[fmt.Sprintf("category_%d", i+1)] = categories[i]
+	}
+	for i := limit; i < max; i++ {
+		updates[fmt.Sprintf("category_%d", i+1)] = ""
+	}
+}
+
+func clubData(club any) (string, int16) {
+	switch c := club.(type) {
+	case db.GetLocalClubsRow:
+		return c.Name, c.ID
+	case db.GetGlobalClubsRow:
+		return c.Name, c.ID
+	default:
+		return "", 0
+	}
+}
+
+func minInt(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
 }

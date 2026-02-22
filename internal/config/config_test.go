@@ -2,6 +2,7 @@ package config
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -57,6 +58,18 @@ func TestConfig_Defaults(t *testing.T) {
 	t.Setenv("SCHOOL21_API_URL", "http://localhost:8080")
 	t.Setenv("AEAD_KEY", "0123456789abcdef0123456789abcdef")
 	t.Setenv("SCHOOL21_USER_PASSWORD", "test_password")
+	t.Setenv("TELEGRAM_WEBHOOK_ENABLED", "false")
+	t.Setenv("TELEGRAM_WEBHOOK_PATH", "/telegram/webhook")
+	t.Setenv("TELEGRAM_WEBHOOK_PORT", "8080")
+	t.Setenv("POLLING_TIMEOUT", "9")
+	t.Setenv("REQUEST_TIMEOUT", "25s")
+	t.Setenv("MAX_ROUTINES", "0")
+	t.Setenv("DROP_PENDING_UPDATES", "true")
+	t.Setenv("API_SERVER_PORT", "8081")
+	t.Setenv("CHART_TEMP_DIR", "tmp/skills_radar")
+	t.Setenv("GIT_BRANCH", "main")
+	t.Setenv("GIT_SYNC_INTERVAL", "5m")
+	t.Setenv("GIT_LOCAL_PATH", "data")
 
 	cfg := MustLoad()
 
@@ -65,11 +78,11 @@ func TestConfig_Defaults(t *testing.T) {
 	assert.Equal(t, 8080, cfg.Telegram.Webhook.ListenPort)
 	assert.Equal(t, "/telegram/webhook", cfg.Telegram.Webhook.ListenPath)
 	assert.Equal(t, int64(9), cfg.Telegram.Polling.Timeout)
-	assert.Equal(t, 10000000000, int(cfg.Telegram.Polling.RequestTimeout))
+	assert.Equal(t, 25*time.Second, cfg.Telegram.Polling.RequestTimeout)
 	assert.Equal(t, 0, cfg.Telegram.Polling.MaxRoutines)
 	assert.True(t, cfg.Telegram.Polling.DropPendingUpdates)
 	assert.Equal(t, 8081, cfg.APIServer.Port)
-	assert.Equal(t, "tmp", cfg.Charts.TempDir)
+	assert.Equal(t, "tmp/skills_radar", cfg.Charts.TempDir)
 	assert.False(t, cfg.Production)
 	assert.Equal(t, "main", cfg.GitSync.Branch)
 	assert.Equal(t, "5m", cfg.GitSync.Interval)

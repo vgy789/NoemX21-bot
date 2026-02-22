@@ -64,6 +64,9 @@ func TestCredentialSeeder_Verify(t *testing.T) {
 	mockRepo.EXPECT().
 		GetPlatformCredentials(gomock.Any(), "alice").
 		Return(creds, nil)
+	mockRepo.EXPECT().
+		UpsertPlatformCredentials(gomock.Any(), gomock.Any()).
+		Return(nil)
 
 	s21Fake := &fakeS21Client{
 		authResp: &s21.AuthResponse{AccessToken: "tok"},
@@ -185,6 +188,9 @@ func TestCredentialSeeder_Verify_criteriaNotMet(t *testing.T) {
 
 	mockRepo := mock.NewMockQuerier(ctrl)
 	mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "inactive").Return(creds, nil)
+	mockRepo.EXPECT().
+		UpsertPlatformCredentials(gomock.Any(), gomock.Any()).
+		Return(nil)
 
 	s21Fake := &fakeS21Client{
 		authResp:    &s21.AuthResponse{AccessToken: "tok"},
@@ -331,7 +337,7 @@ func TestCredentialSeeder_Seed_upsertRocketChat(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestCredentialSeeder_Seed_existingPlatformCredsPreserved(t *testing.T) {
+func TestCredentialSeeder_Seed_existingPlatformCredsReset(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -346,7 +352,10 @@ func TestCredentialSeeder_Seed_existingPlatformCredsPreserved(t *testing.T) {
 	mockRepo.EXPECT().
 		UpsertPlatformCredentials(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(ctx context.Context, arg db.UpsertPlatformCredentialsParams) error {
-			assert.Equal(t, "old-token", arg.AccessToken.String)
+			assert.False(t, arg.AccessToken.Valid)
+			assert.False(t, arg.AccessExpiresAt.Valid)
+			assert.NotEmpty(t, arg.PasswordEnc)
+			assert.NotEmpty(t, arg.PasswordNonce)
 			return nil
 		})
 

@@ -178,6 +178,7 @@ func Register(
 				state.Context["is_generating_chart"] = false
 				state.Context["_alert"] = alertErrorToken
 				_ = repo.SetState(ctx, state)
+				maps.Copy(dbVars, state.Context)
 				return "", dbVars, nil
 			}
 
@@ -186,7 +187,9 @@ func Register(
 			participant, err := s21Client.GetParticipant(ctx, token, acc.S21Login)
 			if err != nil {
 				log.Error("failed to get participant", "error", err)
-				return "", map[string]any{"_alert": alertErrorData, "is_generating_chart": false}, nil
+				dbVars["_alert"] = alertErrorData
+				dbVars["_is_generating_chart"] = false
+				return "", dbVars, nil
 			}
 			log.Info("got participant data", "login", acc.S21Login, "status", participant.Status)
 

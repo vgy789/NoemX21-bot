@@ -24,7 +24,7 @@ type TelegramBot struct {
 	}
 	Polling struct {
 		// 8-byte aligned fields first
-		RequestTimeout time.Duration `env:"REQUEST_TIMEOUT" envDefault:"10s"`
+		RequestTimeout time.Duration `env:"REQUEST_TIMEOUT" envDefault:"25s"`
 		Timeout        int64         `env:"POLLING_TIMEOUT" envDefault:"9"`
 		// 4-byte aligned fields
 		MaxRoutines int `env:"MAX_ROUTINES" envDefault:"0"`
@@ -54,9 +54,15 @@ type Config struct {
 		Port int `env:"API_SERVER_PORT" envDefault:"8081"`
 	}
 	Charts struct {
-		TempDir string `env:"CHART_TEMP_DIR" envDefault:"tmp"`
+		TempDir string `env:"CHART_TEMP_DIR" envDefault:"tmp/skills_radar"`
 	}
-	Production bool `env:"PRODUCTION" envDefault:"false"`
+	ScheduleImages struct {
+		Enabled  bool          `env:"SCHEDULE_IMAGES_ENABLED" envDefault:"true"`
+		Interval time.Duration `env:"SCHEDULE_IMAGES_INTERVAL" envDefault:"5m"`
+		TempDir  string        `env:"SCHEDULE_IMAGES_TEMP_DIR" envDefault:"tmp/schedules"`
+	}
+	Production    bool `env:"PRODUCTION" envDefault:"false"`
+	TestModeNoOTP bool `env:"TEST_MODE_NO_OTP" envDefault:"false"` // Skip OTP verification for testing
 }
 
 type GitSync struct {

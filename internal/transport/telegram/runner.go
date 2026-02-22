@@ -4,12 +4,15 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strings"
+	"sync"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
 	"github.com/vgy789/noemx21-bot/internal/clients/telegram"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
+	"github.com/vgy789/noemx21-bot/internal/pkg/imgcache"
 	"github.com/vgy789/noemx21-bot/internal/service"
 )
 
@@ -22,7 +25,7 @@ type TelegramService interface {
 // Sender defines interface for sending messages to Telegram.
 type Sender interface {
 	SendMessage(chatID int64, text string, opts *gotgbot.SendMessageOpts) (*gotgbot.Message, error)
-	SendPhoto(chatID int64, photo gotgbot.InputFile, opts *gotgbot.SendPhotoOpts) (*gotgbot.Message, error)
+	SendPhoto(chatID int64, photo gotgbot.InputFileOrString, opts *gotgbot.SendPhotoOpts) (*gotgbot.Message, error)
 	EditMessageText(text string, opts *gotgbot.EditMessageTextOpts) (*gotgbot.Message, bool, error)
 	DeleteMessage(chatID int64, messageID int64) (bool, error)
 	AnswerCallbackQuery(callbackQueryId string, opts *gotgbot.AnswerCallbackQueryOpts) (bool, error)
@@ -37,7 +40,7 @@ func (s *DefaultSender) SendMessage(chatID int64, text string, opts *gotgbot.Sen
 	return s.Bot.SendMessage(chatID, text, opts)
 }
 
-func (s *DefaultSender) SendPhoto(chatID int64, photo gotgbot.InputFile, opts *gotgbot.SendPhotoOpts) (*gotgbot.Message, error) {
+func (s *DefaultSender) SendPhoto(chatID int64, photo gotgbot.InputFileOrString, opts *gotgbot.SendPhotoOpts) (*gotgbot.Message, error) {
 	return s.Bot.SendPhoto(chatID, photo, opts)
 }
 
@@ -54,23 +57,28 @@ func (s *DefaultSender) AnswerCallbackQuery(id string, opts *gotgbot.AnswerCallb
 }
 
 // NewTelegramService creates new telegram service.
-func NewTelegramService(cfg *config.Config, log *slog.Logger, userSvc service.UserService, engine *fsm.Engine) TelegramService {
+func NewTelegramService(cfg *config.Config, log *slog.Logger, userSvc service.UserService, engine *fsm.Engine, cache *imgcache.Store) *telegramService {
 	return &telegramService{
-		cfg:     cfg,
-		log:     log,
-		userSvc: userSvc,
-		engine:  engine,
+		cfg:      cfg,
+		log:      log,
+		userSvc:  userSvc,
+		engine:   engine,
+		imgCache: cache,
+		fileIDs:  make(map[string]string),
 	}
 }
 
 type telegramService struct {
-	cfg     *config.Config
-	log     *slog.Logger
-	userSvc service.UserService
-	engine  *fsm.Engine
-	sender  Sender // For testing
-	bot     *gotgbot.Bot
-	updater *ext.Updater
+	cfg       *config.Config
+	log       *slog.Logger
+	userSvc   service.UserService
+	engine    *fsm.Engine
+	imgCache  *imgcache.Store
+	sender    Sender // For testing
+	bot       *gotgbot.Bot
+	updater   *ext.Updater
+	fileIDs   map[string]string
+	fileIDsMu sync.RWMutex
 }
 
 func (s *telegramService) getSender(b *gotgbot.Bot) Sender {
@@ -200,5 +208,25 @@ func (h *updaterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		handler.ServeHTTP(w, r)
 	} else {
 		http.Error(w, "updater does not implement http.Handler", http.StatusInternalServerError)
+	}
+}
+
+// InvalidateScheduleFileID removes cached file_id for a schedule image.
+// Called when schedule is regenerated to ensure users receive updated image.
+func (s *telegramService) InvalidateScheduleFileID(campusShortName string) {
+	s.log.Info("invalidating cached file_id for schedule", "campus", campusShortName)
+	// Build the same key used in sendRender
+	// The key is the file path: tmp/schedules/{timezone}/{campus}.png
+	// We need to find all cached keys for this campus and remove them
+	s.fileIDsMu.Lock()
+	defer s.fileIDsMu.Unlock()
+
+	imageCacheKey := "imgcache:schedule:" + campusShortName
+
+	for key := range s.fileIDs {
+		if strings.HasSuffix(key, campusShortName+".png") || key == imageCacheKey {
+			delete(s.fileIDs, key)
+			s.log.Info("invalidated cached file_id for schedule", "campus", campusShortName, "key", key)
+		}
 	}
 }

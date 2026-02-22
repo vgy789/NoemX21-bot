@@ -13,8 +13,9 @@ func MustNew(cfg *config.TelegramBot) *gotgbot.Bot {
 	clientTimeout := max(time.Duration(cfg.Polling.Timeout+10)*time.Second, time.Second*60)
 
 	// Set up request opts with default or custom API URL
+	// Use longer timeout for file uploads (photos, documents)
 	requestOpts := &gotgbot.RequestOpts{
-		Timeout: gotgbot.DefaultTimeout,
+		Timeout: 120 * time.Second, // Increased timeout for file uploads
 		APIURL:  gotgbot.DefaultAPIURL,
 	}
 

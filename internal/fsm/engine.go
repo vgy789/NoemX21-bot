@@ -6,6 +6,8 @@ import (
 	"log/slog"
 	"maps"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -13,7 +15,16 @@ import (
 // safe Markdown (built with intentional */_ and user content escaped). They
 // must not be sanitized on substitution so that *Лидер:* etc. render as bold.
 var preformattedContextKeys = map[string]bool{
-	"club_card": true,
+	"club_card":                      true,
+	"clubs_list":                     true,
+	"books_list_numbered":            true,
+	"my_books_list_formatted":        true,
+	"formatted_book_list_with_icons": true,
+	"loans_list_formatted":           true,
+	"free_slots_list":                true,
+	"my_bookings_list":               true,
+	"my_bookings_formatted":          true,
+	"hot_slots_list":                 true,
 }
 
 // Engine handles the core FSM logic.
@@ -107,10 +118,90 @@ func (e *Engine) InitState(ctx context.Context, userID int64, flowName, stateNam
 		Language:     LangRu,
 		Context:      initialContext,
 	}
+
+	// 1. Process OnEnter hooks for the initial state
+	if flow, err := e.parser.GetFlow(flowName); err == nil {
+		if spec, ok := flow.States[stateName]; ok {
+			e.runHooks(ctx, spec.OnEnter, newState)
+		}
+	}
+
 	return e.repo.SetState(ctx, newState)
 }
 
 // GetCurrentRender returns the RenderObject for the user's current state.
+func (e *Engine) runHooks(ctx context.Context, hooks []Logic, state *UserState) {
+	for _, hook := range hooks {
+		_, _, _ = e.runAction(ctx, hook, state, nil)
+	}
+}
+
+func (e *Engine) runAction(ctx context.Context, logic Logic, state *UserState, extra map[string]any) (string, map[string]any, error) {
+	actionName := logic.Action
+	if action, ok := e.registry.Get(actionName); ok {
+		// Prepare payload
+		payload := make(map[string]any)
+
+		// Inject implicit context
+		maps.Copy(payload, state.Context)
+		if extra != nil {
+			maps.Copy(payload, extra)
+		}
+
+		payload["_last_input"] = state.Context["last_input"]
+		payload["last_input"] = state.Context["last_input"]
+
+		// Inject language for localization
+		payload["language"] = state.Language
+
+		if logic.Payload != nil {
+			for k, v := range logic.Payload {
+				switch val := v.(type) {
+				case string:
+					payload[k] = e.replaceVariablesOpts(val, state, false)
+				case map[string]any:
+					// Support localization within payload: if map has "ru"/"en" keys, pick the right one
+					if localized, ok := val[state.Language].(string); ok {
+						payload[k] = e.replaceVariablesOpts(localized, state, false)
+					} else if fallback, ok := val[LangEn].(string); ok {
+						payload[k] = e.replaceVariablesOpts(fallback, state, false)
+					} else {
+						payload[k] = v
+					}
+
+				case []any:
+					newList := make([]any, len(val))
+					for i, item := range val {
+						if s, ok := item.(string); ok {
+							newList[i] = e.replaceVariablesOpts(s, state, false)
+						} else {
+							newList[i] = item
+						}
+					}
+					payload[k] = newList
+
+				default:
+					payload[k] = v
+				}
+			}
+		}
+
+		e.log.Debug("executing action", "action", actionName, "payload", payload)
+		next, updates, err := action(ctx, state.UserID, payload)
+		if err != nil {
+			e.log.Error("action failed", "action", actionName, "error", err)
+			return "", nil, err
+		}
+
+		// Update context
+		e.updateStateContext(state, updates)
+		return next, updates, nil
+	}
+
+	e.log.Warn("action not found in registry", "action", actionName)
+	return "", nil, fmt.Errorf("action not found: %s", actionName)
+}
+
 func (e *Engine) GetCurrentRender(ctx context.Context, userID int64) (*RenderObject, error) {
 	state, err := e.repo.GetState(ctx, userID)
 	if err != nil {
@@ -183,7 +274,7 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 	}
 
 	// 2. Find transition based on input (button ID)
-	nextStateRaw := e.findNextState(currentStateSpec, input, state)
+	nextStateRaw, buttonAction := e.findNextState(currentStateSpec, input, state)
 
 	// If a button was pressed (we found a next state), record it as last_input
 	if nextStateRaw != "" {
@@ -191,6 +282,11 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 			state.Context = make(map[string]any)
 		}
 		state.Context["last_input"] = input
+
+		if buttonAction != "" {
+			_, updates, _ := e.runAction(ctx, Logic{Action: buttonAction}, state, map[string]any{"id": input})
+			e.updateStateContext(state, updates)
+		}
 	}
 
 	// If it's an input state and no button was pressed, validate the raw input
@@ -216,9 +312,9 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 		state.Context["last_input"] = input
 		state.Context["last_input_invalid"] = false
 
-		// For input states, we look for a transition with trigger "on_valid_input"
+		// For input states, we look for a transition with trigger "on_valid_input" or "on_input"
 		for _, t := range currentStateSpec.Transitions {
-			if t.Trigger == "on_valid_input" {
+			if t.Trigger == "on_valid_input" || t.Trigger == "on_input" {
 				nextStateRaw = t.NextState
 				break
 			}
@@ -226,11 +322,67 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 	}
 
 	if nextStateRaw == "" {
+		// 2.2 Check for transitions with trigger "button_click" or "message"
+		evalCtx := make(map[string]any)
+		maps.Copy(evalCtx, state.Context)
+		evalCtx["id"] = input
+		evalCtx["message"] = map[string]any{"text": input}
+
+		// Try button_click first
+		for _, t := range currentStateSpec.Transitions {
+			if t.Trigger == "button_click" {
+				if t.Condition == "" || e.evaluateCondition(t.Condition, evalCtx) {
+					nextStateRaw = t.NextState
+					if t.Action != "" {
+						actionNext, updates, _ := e.runAction(ctx, Logic{Action: t.Action}, state, evalCtx)
+						if actionNext != "" {
+							nextStateRaw = actionNext
+						}
+						e.updateStateContext(state, updates)
+					}
+					break
+				}
+			}
+		}
+
+		// If no button_click matched, try message trigger
+		if nextStateRaw == "" {
+			for _, t := range currentStateSpec.Transitions {
+				if t.Trigger == "message" {
+					if t.Condition == "" || e.evaluateCondition(t.Condition, evalCtx) {
+						nextStateRaw = t.NextState
+						if t.Action != "" {
+							actionNext, updates, _ := e.runAction(ctx, Logic{Action: t.Action}, state, evalCtx)
+							if actionNext != "" {
+								nextStateRaw = actionNext
+							}
+							e.updateStateContext(state, updates)
+						}
+						break
+					}
+				}
+			}
+		}
+
+		if nextStateRaw != "" {
+			// Record last_input for fallback triggers too
+			if state.Context == nil {
+				state.Context = make(map[string]any)
+			}
+			state.Context["last_input"] = input
+		}
+
+	}
+
+	if nextStateRaw == "" {
 		e.log.Warn("no transition found for input", "input", input, "state", state.CurrentState)
 		return nil, fmt.Errorf("unknown input or no transition for: %s", input)
 	}
 
-	// 3. Apply transition and process system states recursively
+	// 3. Apply variable substitution to the target state name
+	nextStateRaw = e.replaceVariablesOpts(nextStateRaw, state, false)
+
+	// 4. Apply transition and process system states recursively
 	if err := e.transitionTo(ctx, state, nextStateRaw); err != nil {
 		return nil, err
 	}
@@ -250,28 +402,35 @@ func (e *Engine) handleSpecialInputs(state *UserState, input string, userID int6
 	}
 }
 
-func (e *Engine) findNextState(stateSpec State, input string, userState *UserState) string {
+func (e *Engine) findNextState(stateSpec State, input string, userState *UserState) (string, string) {
 	for _, btn := range stateSpec.Interface.Buttons {
 		// Direct match against static ID
 		if btn.ID == input {
-			return btn.NextState
+			return btn.NextState, btn.Action
 		}
 		// Try matching after replacing variables in the ID (allows IDs like "{category_1}")
 		// This handles dynamic button IDs that contain template variables
 		if userState != nil {
-			replacedID := e.replaceVariables(btn.ID, userState)
+			replacedID := e.replaceVariablesOpts(btn.ID, userState, false)
 			if replacedID == input {
-				return btn.NextState
+				return btn.NextState, btn.Action
 			}
 		}
 	}
-	return ""
+	return "", ""
 }
 
 // transitionTo updates the user state and automatically processes subsequent system states.
 func (e *Engine) transitionTo(ctx context.Context, state *UserState, target string) error {
 	targetFlow := state.CurrentFlow
 	targetState := target
+
+	// 1. Process OnExit hooks for the current state
+	if oldFlow, err := e.parser.GetFlow(state.CurrentFlow); err == nil {
+		if oldSpec, ok := oldFlow.States[state.CurrentState]; ok {
+			e.runHooks(ctx, oldSpec.OnExit, state)
+		}
+	}
 
 	// Resolve alias
 	if resolved, ok := e.aliases[target]; ok {
@@ -289,22 +448,24 @@ func (e *Engine) transitionTo(ctx context.Context, state *UserState, target stri
 	state.CurrentFlow = targetFlow
 	state.CurrentState = targetState
 
-	// Save intermediate state
-	if err := e.repo.SetState(ctx, state); err != nil {
-		return err
-	}
-
-	// Process system state if necessary
+	// Process OnEnter hooks for the new state
 	flow, err := e.parser.GetFlow(targetFlow)
 	if err != nil {
 		return err
 	}
-
 	spec, ok := flow.States[targetState]
 	if !ok {
 		return fmt.Errorf("target state %s not found in flow %s", targetState, targetFlow)
 	}
 
+	e.runHooks(ctx, spec.OnEnter, state)
+
+	// Save final state after all hooks
+	if err := e.repo.SetState(ctx, state); err != nil {
+		return err
+	}
+
+	// Process system state if necessary
 	if spec.Type == StateTypeSystem {
 		e.log.Debug("auto-processing system state", "state", targetState)
 		next := e.evaluateSystemState(ctx, &spec, state)
@@ -318,74 +479,20 @@ func (e *Engine) transitionTo(ctx context.Context, state *UserState, target stri
 
 // evaluateSystemState determines the next state via registry actions and transitions.
 func (e *Engine) evaluateSystemState(ctx context.Context, spec *State, state *UserState) string {
-	actionName := spec.Logic.Action
-
-	// var results map[string]interface{}
-
-	if actionName != "" {
-		if action, ok := e.registry.Get(actionName); ok {
-			e.log.Debug("executing system action", "action", actionName)
-			// Prepare payload
-			payload := make(map[string]any)
-			if spec.Logic.Payload != nil {
-				for k, v := range spec.Logic.Payload {
-					switch val := v.(type) {
-					case string:
-						payload[k] = e.replaceVariables(val, state)
-					case map[string]any:
-						// Support localization within payload: if map has "ru"/"en" keys, pick the right one
-						if localized, ok := val[state.Language].(string); ok {
-							payload[k] = e.replaceVariables(localized, state)
-						} else if fallback, ok := val[LangEn].(string); ok {
-							payload[k] = e.replaceVariables(fallback, state)
-						} else {
-							payload[k] = v
-						}
-					case []any:
-						newList := make([]any, len(val))
-						for i, item := range val {
-							if s, ok := item.(string); ok {
-								newList[i] = e.replaceVariables(s, state)
-							} else {
-								newList[i] = item
-							}
-						}
-						payload[k] = newList
-					default:
-						payload[k] = v
-					}
-				}
-			}
-
-			// Inject implicit context
-			payload["_last_input"] = state.Context["last_input"]
-
-			next, updates, err := action(ctx, state.UserID, payload)
-			if err != nil {
-				e.log.Error("system action failed", "action", actionName, "error", err)
-				// Ideally handle error transition here
-			}
-
-			// Update context
-			e.updateStateContext(state, updates)
-			// results = updates
-
-			// If action returned a forced next state, use it
-			if next != "" {
-				return next
-			}
-		} else {
-			e.log.Warn("system action not found in registry", "action", actionName)
+	if spec.Logic.Action != "" {
+		next, _, _ := e.runAction(ctx, spec.Logic, state, nil)
+		if next != "" {
+			return next
 		}
 	}
 
 	// Evaluate transitions based on state context + results
 	for _, t := range spec.Transitions {
 		if t.Condition == "" {
-			return t.NextState // Unconditional transition
+			return e.replaceVariablesOpts(t.NextState, state, false) // Unconditional transition
 		}
 		if e.evaluateCondition(t.Condition, state.Context) {
-			return t.NextState
+			return e.replaceVariablesOpts(t.NextState, state, false)
 		}
 	}
 
@@ -409,8 +516,45 @@ func (e *Engine) evaluateSingleCondition(condition string, ctx map[string]any) b
 		operator = "=="
 	} else if strings.Contains(condition, "!=") {
 		operator = "!="
+	} else if strings.Contains(condition, ">=") {
+		operator = ">="
+	} else if strings.Contains(condition, "<=") {
+		operator = "<="
+	} else if strings.Contains(condition, ".startswith(") {
+		operator = ".startswith("
+	} else if strings.HasPrefix(condition, "is_numeric(") && strings.HasSuffix(condition, ")") {
+		inner := condition[11 : len(condition)-1]
+		val := e.getContextValue(ctx, inner)
+		if val == nil {
+			return false
+		}
+		s := fmt.Sprintf("%v", val)
+		_, err := strconv.ParseFloat(s, 64)
+		return err == nil
+	} else if strings.HasPrefix(condition, "not is_numeric(") && strings.HasSuffix(condition, ")") {
+		inner := condition[15 : len(condition)-1]
+		val := e.getContextValue(ctx, inner)
+		if val == nil {
+			return true // It's "not numeric" if it's nil
+		}
+		s := fmt.Sprintf("%v", val)
+		_, err := strconv.ParseFloat(s, 64)
+		return err != nil
+	} else if strings.Contains(condition, ">") {
+		operator = ">"
+	} else if strings.Contains(condition, "<") {
+		operator = "<"
 	} else {
-		return false
+		// Variable-only check: e.g. "has_rooms" (check if truthy/exists)
+		val := e.getContextValue(ctx, condition)
+		if val == nil {
+			return false
+		}
+		if b, ok := val.(bool); ok {
+			return b
+		}
+		s := strings.ToLower(fmt.Sprintf("%v", val))
+		return s != "" && s != "false" && s != "0"
 	}
 
 	parts := strings.Split(condition, operator)
@@ -419,17 +563,71 @@ func (e *Engine) evaluateSingleCondition(condition string, ctx map[string]any) b
 	}
 
 	key := strings.TrimSpace(parts[0])
-	val := strings.TrimSpace(parts[1])
-	val = strings.Trim(val, "'\"") // Trim quotes
+	valStr := strings.TrimSpace(parts[1])
+	valStr = strings.Trim(valStr, "'\"") // Trim quotes
 
 	// Get context value with support for dot notation
 	ctxVal := e.getContextValue(ctx, key)
+
+	// Numeric comparison
+	if operator == ">" || operator == "<" || operator == ">=" || operator == "<=" {
+		v1, err1 := toFloat(ctxVal)
+		v2, err2 := strconv.ParseFloat(valStr, 64)
+		if err1 == nil && err2 == nil {
+			switch operator {
+			case ">":
+				return v1 > v2
+			case "<":
+				return v1 < v2
+			case ">=":
+				return v1 >= v2
+			case "<=":
+				return v1 <= v2
+			}
+		}
+		return false
+	}
+
+	// String comparison
 	ctxString := fmt.Sprintf("%v", ctxVal)
+	if operator == ".startswith(" {
+		// Format: key.startswith('prefix') or key.startswith("prefix")
+		startIndex := strings.Index(condition, "(")
+		endIndex := strings.LastIndex(condition, ")")
+		if startIndex != -1 && endIndex != -1 && endIndex > startIndex {
+			prefix := condition[startIndex+1 : endIndex]
+			prefix = strings.Trim(prefix, "'\"")
+			return strings.HasPrefix(ctxString, prefix)
+		}
+		return false
+	}
 
 	if operator == "==" {
-		return ctxString == val
+		return ctxString == valStr
 	} else {
-		return ctxString != val
+		return ctxString != valStr
+	}
+}
+
+func toFloat(v any) (float64, error) {
+	if v == nil {
+		return 0, fmt.Errorf("nil value")
+	}
+	switch val := v.(type) {
+	case int:
+		return float64(val), nil
+	case int32:
+		return float64(val), nil
+	case int64:
+		return float64(val), nil
+	case float32:
+		return float64(val), nil
+	case float64:
+		return val, nil
+	case string:
+		return strconv.ParseFloat(val, 64)
+	default:
+		return 0, fmt.Errorf("unsupported type: %T", v)
 	}
 }
 
@@ -454,6 +652,9 @@ func (e *Engine) getContextValue(ctx map[string]any, key string) any {
 func (e *Engine) updateStateContext(state *UserState, updates map[string]any) {
 	if state.Context == nil {
 		state.Context = make(map[string]any)
+	}
+	if len(updates) > 0 {
+		e.log.Debug("updating context", "updates", updates)
 	}
 	if lang, ok := updates["language"].(string); ok {
 		state.Language = lang
@@ -507,6 +708,13 @@ func (e *Engine) renderState(ctx context.Context, userState *UserState, flowStat
 	shortCount := 0
 
 	for _, btn := range flowState.Interface.Buttons {
+		// Check condition if present
+		if btn.Condition != "" {
+			if !e.evaluateCondition(btn.Condition, userState.Context) {
+				continue
+			}
+		}
+
 		// Подстановки без санитайзера, чтобы не экранировать "_" и "*" в названиях
 		label := e.replaceVariablesOpts(e.getButtonLabel(btn, userState), userState, false)
 		url := ""
@@ -517,8 +725,9 @@ func (e *Engine) renderState(ctx context.Context, userState *UserState, flowStat
 		// Apply replacements to button IDs too (allows dynamic callback data like {category_1})
 		buttonID := e.replaceVariablesOpts(btn.ID, userState, false)
 
-		// Пропускаем "пустые" динамические кнопки (когда в контексте нет значения)
-		if strings.TrimSpace(label) == "" && strings.TrimSpace(buttonID) == "" && url == "" {
+		// Skip buttons if both ID (callback data) and URL are empty - they are invalid for inline keyboard.
+		// Also skip if buttonID is empty (Telegram requires callback_data or url for inline buttons).
+		if strings.TrimSpace(buttonID) == "" && strings.TrimSpace(url) == "" {
 			continue
 		}
 
@@ -606,9 +815,21 @@ func (e *Engine) replaceVariablesOpts(text string, state *UserState, sanitize bo
 
 	// Apply all replacements
 	result := text
-	// e.log.Debug("applying template replacements", "original_text_len", len(text))
+	keys := make([]string, 0, len(replacements))
+	for key := range replacements {
+		keys = append(keys, key)
+	}
+	sort.Slice(keys, func(i, j int) bool {
+		// Replace longer keys first to avoid partial replacements,
+		// e.g. "$context.campus" before "$context.campus_id".
+		if len(keys[i]) != len(keys[j]) {
+			return len(keys[i]) > len(keys[j])
+		}
+		return keys[i] < keys[j]
+	})
 
-	for key, val := range replacements {
+	for _, key := range keys {
+		val := replacements[key]
 		if strings.Contains(result, key) {
 			e.log.Info("replacing template variable", "key", key, "val", val)
 
@@ -625,8 +846,8 @@ func (e *Engine) replaceVariablesOpts(text string, state *UserState, sanitize bo
 		}
 	}
 
-	// Clean up any remaining {var} tags that weren't replaced to avoid showing raw braces to user
-	re := regexp.MustCompile(`\{[a-zA-Z0-9_.]+\}`)
+	// Clean up any remaining {var} or $context.var or $updates.var tags that weren't replaced
+	re := regexp.MustCompile(`\{[a-zA-Z0-9_.]+\}|\$[a-z]+\.[a-zA-Z0-9_.]+`)
 	result = re.ReplaceAllString(result, "")
 
 	return result

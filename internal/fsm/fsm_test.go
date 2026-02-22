@@ -301,6 +301,20 @@ func TestEngine_ReplaceVariables(t *testing.T) {
 		assert.Contains(t, result, "vgy\\_789")
 		assert.Contains(t, result, "5*")
 	})
+
+	t.Run("replace overlapping context keys deterministically", func(t *testing.T) {
+		state := &UserState{
+			Language: "ru",
+			Context: map[string]any{
+				"campus":    "21 Novosibirsk",
+				"campus_id": "46e7d965-21e9-4936-bea9-f5ea0d1fddf2",
+			},
+		}
+		text := "campus_id=$context.campus_id campus=$context.campus"
+		result := engine.replaceVariables(text, state)
+		assert.Contains(t, result, "campus_id=46e7d965-21e9-4936-bea9-f5ea0d1fddf2")
+		assert.Contains(t, result, "campus=21 Novosibirsk")
+	})
 }
 
 func TestEngine_RegistrationFlow(t *testing.T) {
@@ -493,7 +507,7 @@ func TestEngine_EvaluateSingleCondition_EdgeCases(t *testing.T) {
 		want      bool
 	}{
 		{"empty condition", "", map[string]any{"key": "val"}, false},
-		{"no operator", "key", map[string]any{"key": "val"}, false},
+		{"no operator", "key", map[string]any{"key": "val"}, true},
 		{"unknown operator", "key ?? val", map[string]any{"key": "val"}, false},
 		{"nil context", "key == val", nil, false},
 		{"integer comparison", "count == 5", map[string]any{"count": 5}, true},
@@ -547,14 +561,22 @@ func TestEngine_FindNextState(t *testing.T) {
 		Interface: Interface{
 			Buttons: []Button{
 				{ID: "btn1", NextState: "STATE1"},
-				{ID: "btn2", NextState: "STATE2"},
+				{ID: "btn2", NextState: "STATE2", Action: "action2"},
 			},
 		},
 	}
 
-	assert.Equal(t, "STATE1", e.findNextState(spec, "btn1", nil))
-	assert.Equal(t, "STATE2", e.findNextState(spec, "btn2", nil))
-	assert.Equal(t, "", e.findNextState(spec, "unknown", nil))
+	st, act := e.findNextState(spec, "btn1", nil)
+	assert.Equal(t, "STATE1", st)
+	assert.Equal(t, "", act)
+
+	st, act = e.findNextState(spec, "btn2", nil)
+	assert.Equal(t, "STATE2", st)
+	assert.Equal(t, "action2", act)
+
+	st, act = e.findNextState(spec, "unknown", nil)
+	assert.Equal(t, "", st)
+	assert.Equal(t, "", act)
 }
 
 func TestEngine_MoreEdgeCases(t *testing.T) {

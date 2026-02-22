@@ -30,6 +30,27 @@ func NewCredentialService(repo db.Querier, crypter *crypto.Crypter, s21Client S2
 	return &CredentialService{repo: repo, crypter: crypter, s21Client: s21Client, log: log}
 }
 
+func buildTokenUpsertParams(login string, creds db.PlatformCredential, authResp *s21.AuthResponse) db.UpsertPlatformCredentialsParams {
+	now := time.Now()
+	return db.UpsertPlatformCredentialsParams{
+		S21Login:         login,
+		PasswordEnc:      creds.PasswordEnc,
+		PasswordNonce:    creds.PasswordNonce,
+		AccessToken:      pgtype.Text{String: authResp.AccessToken, Valid: true},
+		AccessExpiresAt:  pgtype.Timestamptz{Time: now.Add(time.Duration(authResp.ExpiresIn) * time.Second), Valid: true},
+		RefreshTokenEnc:  nil,
+		RefreshNonce:     nil,
+		RefreshExpiresAt: pgtype.Timestamptz{Time: now.Add(time.Duration(authResp.RefreshExpiresIn) * time.Second), Valid: true},
+	}
+}
+
+func (s *CredentialService) persistToken(ctx context.Context, login string, creds db.PlatformCredential, authResp *s21.AuthResponse, errorMessage string) {
+	err := s.repo.UpsertPlatformCredentials(ctx, buildTokenUpsertParams(login, creds, authResp))
+	if err != nil {
+		s.log.Error(errorMessage, "login", login, "error", err)
+	}
+}
+
 // GetValidToken retrieves a valid access token for the user, refreshing or re-authenticating if needed.
 func (s *CredentialService) GetValidToken(ctx context.Context, login string) (string, error) {
 	// 1. Check existing token
@@ -66,23 +87,7 @@ func (s *CredentialService) GetValidToken(ctx context.Context, login string) (st
 	}
 
 	// 4. Save new token
-	expiration := time.Now().Add(time.Duration(authResp.ExpiresIn) * time.Second)
-	refreshExpiration := time.Now().Add(time.Duration(authResp.RefreshExpiresIn) * time.Second)
-
-	err = s.repo.UpsertPlatformCredentials(ctx, db.UpsertPlatformCredentialsParams{
-		S21Login:         login,
-		PasswordEnc:      creds.PasswordEnc,   // Keep existing
-		PasswordNonce:    creds.PasswordNonce, // Keep existing
-		AccessToken:      pgtype.Text{String: authResp.AccessToken, Valid: true},
-		AccessExpiresAt:  pgtype.Timestamptz{Time: expiration, Valid: true},
-		RefreshTokenEnc:  nil, // We are not storing refresh token encrypted yet, or maybe we should? api doesn't give refresh token?
-		RefreshNonce:     nil, // The auth response likely has refresh token, but let's stick to access for now.
-		RefreshExpiresAt: pgtype.Timestamptz{Time: refreshExpiration, Valid: true},
-	})
-	if err != nil {
-		s.log.Error("failed to save new token", "login", login, "error", err)
-		// Proceed anyway since we have the token
-	}
+	s.persistToken(ctx, login, creds, authResp, "failed to save new token")
 
 	return authResp.AccessToken, nil
 }
@@ -119,7 +124,10 @@ func (s *CredentialService) Verify(ctx context.Context, login string) error {
 		return fmt.Errorf("API verification failed: %w", err)
 	}
 
-	// 5. Validate status and parallelName
+	// 5. Save the fresh token to DB so other services (like FSM) use it immediately
+	s.persistToken(ctx, login, creds, authResp, "failed to save verified token")
+
+	// 6. Validate status and parallelName
 	parallelName := ""
 	if participant.ParallelName != nil {
 		parallelName = *participant.ParallelName
@@ -131,7 +139,7 @@ func (s *CredentialService) Verify(ctx context.Context, login string) error {
 			"status", participant.Status,
 			"parallel", parallelName)
 	} else {
-		s.log.Warn("User verification failed: criteria not met",
+		s.log.Warn("User verification failed: criteria not met (this is a warning, not an error - check your account permisions)",
 			"login", login,
 			"status", participant.Status,
 			"parallel", parallelName,
@@ -190,20 +198,19 @@ func (s *CredentialService) Seed(ctx context.Context, cfg *config.Config) error 
 		}
 
 		// Check existing to preserve other fields
-		existing, err := s.repo.GetPlatformCredentials(ctx, cfg.Init.SchoolLogin)
+		_, err = s.repo.GetPlatformCredentials(ctx, cfg.Init.SchoolLogin)
 		var params db.UpsertPlatformCredentialsParams
 		if err == nil {
-			// Found existing, check what to preserve
-			// Map existing to params
+			// Found existing, we update the password and reset the token
 			params = db.UpsertPlatformCredentialsParams{
 				S21Login:         cfg.Init.SchoolLogin,
-				PasswordEnc:      pwdEnc,   // Update this
-				PasswordNonce:    pwdNonce, // Update this
-				AccessToken:      existing.AccessToken,
-				AccessExpiresAt:  existing.AccessExpiresAt,
-				RefreshTokenEnc:  existing.RefreshTokenEnc,
-				RefreshNonce:     existing.RefreshNonce,
-				RefreshExpiresAt: existing.RefreshExpiresAt,
+				PasswordEnc:      pwdEnc,                           // Update this
+				PasswordNonce:    pwdNonce,                         // Update this
+				AccessToken:      pgtype.Text{Valid: false},        // Reset token
+				AccessExpiresAt:  pgtype.Timestamptz{Valid: false}, // Reset expiry
+				RefreshTokenEnc:  nil,
+				RefreshNonce:     nil,
+				RefreshExpiresAt: pgtype.Timestamptz{Valid: false},
 			}
 		} else {
 			if err != pgx.ErrNoRows {

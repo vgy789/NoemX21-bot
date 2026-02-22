@@ -1,9 +1,11 @@
 package telegram
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
@@ -14,8 +16,58 @@ import (
 // registerHandlers registers handlers for the dispatcher.
 func (s *telegramService) registerHandlers(d *ext.Dispatcher) {
 	d.AddHandler(handlers.NewCommand("start", s.handleStart))
-	d.AddHandler(handlers.NewCallback(func(cq *gotgbot.CallbackQuery) bool { return true }, s.handleCallback))
-	d.AddHandler(handlers.NewMessage(func(msg *gotgbot.Message) bool { return true }, s.handleTextMessage))
+	d.AddHandler(handlers.NewCallback(func(cq *gotgbot.CallbackQuery) bool { return true }, s.withCallbackDebugMiddleware(s.handleCallback)))
+	d.AddHandler(handlers.NewMessage(func(msg *gotgbot.Message) bool { return true }, s.withDurationCleanupMiddleware(s.handleTextMessage)))
+}
+
+func (s *telegramService) withCallbackDebugMiddleware(next handlers.Response) handlers.Response {
+	return func(b *gotgbot.Bot, ctx *ext.Context) error {
+		cb := ctx.CallbackQuery
+		if cb != nil {
+			s.log.Debug("callback_data middleware",
+				"user_id", ctx.EffectiveUser.Id,
+				"callback_data", cb.Data,
+			)
+		}
+		return next(b, ctx)
+	}
+}
+
+func (s *telegramService) withDurationCleanupMiddleware(next handlers.Response) handlers.Response {
+	return func(b *gotgbot.Bot, ctx *ext.Context) error {
+		if ctx.Message != nil && s.shouldCleanupDurationInput(ctx.EffectiveUser.Id) {
+			chatID := ctx.EffectiveChat.Id
+			messageID := int64(ctx.Message.MessageId)
+			sender := s.getSender(b)
+			go func() {
+				time.Sleep(1 * time.Second)
+				if _, err := sender.DeleteMessage(chatID, messageID); err != nil {
+					s.log.Debug("duration input cleanup failed",
+						"chat_id", chatID,
+						"message_id", messageID,
+						"error", err,
+					)
+				}
+			}()
+		}
+		return next(b, ctx)
+	}
+}
+
+func (s *telegramService) shouldCleanupDurationInput(userID int64) bool {
+	if s.engine == nil || s.engine.Repo() == nil {
+		return false
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	state, err := s.engine.Repo().GetState(ctx, userID)
+	if err != nil || state == nil {
+		return false
+	}
+
+	return state.CurrentFlow == "booking.yaml" && state.CurrentState == "BOOKING_DURATION_CHOICE"
 }
 
 // handleStart handles the start command.
@@ -158,21 +210,66 @@ func (s *telegramService) handleCallback(b *gotgbot.Bot, ctx *ext.Context) error
 
 func (s *telegramService) sendRender(sender Sender, chatID int64, render *fsm.RenderObject) error {
 	if render.Image != "" {
-		f, err := os.Open(render.Image)
-		if err != nil {
-			s.log.Error("failed to open image", "path", render.Image, "error", err)
+		s.fileIDsMu.RLock()
+		fileID, cached := s.fileIDs[render.Image]
+		s.fileIDsMu.RUnlock()
+
+		var photo gotgbot.InputFileOrString
+		var fileToClose *os.File
+
+		if cached {
+			s.log.Info("using cached file_id for image", "image_key", render.Image)
+			photo = gotgbot.InputFileByID(fileID)
 		} else {
-			defer func() { _ = f.Close() }()
-			// Trying InputFileByReader as NamedFile was undefined
-			_, err = sender.SendPhoto(chatID, gotgbot.InputFileByReader("chart.png", f), &gotgbot.SendPhotoOpts{
-				Caption:     render.Text,
-				ParseMode:   "Markdown",
-				ReplyMarkup: buildMarkup(render.Buttons),
-			})
-			return err
+			if strings.HasPrefix(render.Image, "imgcache:") {
+				if s.imgCache != nil {
+					data, ok := s.imgCache.Get(render.Image)
+					if ok {
+						photo = gotgbot.InputFileByReader("chart.png", bytes.NewReader(data))
+					} else {
+						s.log.Error("image not found in imgcache", "key", render.Image)
+						return s.sendRenderText(sender, chatID, render)
+					}
+				} else {
+					s.log.Error("imgcache not initialized but requested", "key", render.Image)
+					return s.sendRenderText(sender, chatID, render)
+				}
+			} else {
+				var err error
+				fileToClose, err = os.Open(render.Image)
+				if err != nil {
+					s.log.Error("failed to open image file", "path", render.Image, "error", err)
+					return s.sendRenderText(sender, chatID, render)
+				}
+				photo = gotgbot.InputFileByReader("chart.png", fileToClose)
+			}
 		}
+
+		msg, err := sender.SendPhoto(chatID, photo, &gotgbot.SendPhotoOpts{
+			Caption:     render.Text,
+			ParseMode:   "Markdown",
+			ReplyMarkup: buildMarkup(render.Buttons),
+		})
+
+		if fileToClose != nil {
+			_ = fileToClose.Close()
+		}
+
+		if err == nil && !cached && msg != nil && len(msg.Photo) > 0 {
+			largestPhoto := msg.Photo[len(msg.Photo)-1]
+			s.fileIDsMu.Lock()
+			s.fileIDs[render.Image] = largestPhoto.FileId
+			s.fileIDsMu.Unlock()
+			s.log.Debug("cached file_id for image", "image_key", render.Image, "file_id", largestPhoto.FileId)
+		}
+
+		return err
 	}
 
+	return s.sendRenderText(sender, chatID, render)
+}
+
+func (s *telegramService) sendRenderText(sender Sender, chatID int64, render *fsm.RenderObject) error {
 	_, err := sender.SendMessage(chatID, render.Text, &gotgbot.SendMessageOpts{
 		ParseMode:   "Markdown",
 		ReplyMarkup: buildMarkup(render.Buttons),

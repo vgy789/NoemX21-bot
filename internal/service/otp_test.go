@@ -72,13 +72,13 @@ func TestOTPService_VerifyOTP(t *testing.T) {
 			}).
 			Return(nil)
 
-		ok, err := svc.VerifyOTP(ctxWithS21, 1, "123456")
+		ok, err := svc.verifyOTP(ctxWithS21, 1, "123456")
 		assert.NoError(t, err)
 		assert.True(t, ok)
 	})
 
 	t.Run("S21 login not in context", func(t *testing.T) {
-		ok, err := svc.VerifyOTP(ctx, 1, "123456")
+		ok, err := svc.verifyOTP(ctx, 1, "123456")
 		assert.Error(t, err)
 		assert.False(t, ok)
 		assert.Contains(t, err.Error(), "S21 login not found")
@@ -90,7 +90,7 @@ func TestOTPService_VerifyOTP(t *testing.T) {
 			GetValidAuthVerificationCode(ctxWithS21, gomock.Any()).
 			Return(db.AuthVerificationCode{}, &noRowsErr{})
 
-		ok, err := svc.VerifyOTP(ctxWithS21, 1, "000000")
+		ok, err := svc.verifyOTP(ctxWithS21, 1, "000000")
 		assert.NoError(t, err)
 		assert.False(t, ok)
 	})
@@ -101,7 +101,7 @@ func TestOTPService_VerifyOTP(t *testing.T) {
 			GetValidAuthVerificationCode(ctxWithS21, gomock.Any()).
 			Return(db.AuthVerificationCode{}, assert.AnError)
 
-		ok, err := svc.VerifyOTP(ctxWithS21, 1, "111111")
+		ok, err := svc.verifyOTP(ctxWithS21, 1, "111111")
 		assert.Error(t, err)
 		assert.False(t, ok)
 		assert.Contains(t, err.Error(), "database error")
@@ -132,7 +132,7 @@ func TestOTPService_GenerateAndSendOTP_studentNotFound(t *testing.T) {
 		GetRegisteredUserByS21Login(ctx, "unknown").
 		Return(db.RegisteredUser{}, assert.AnError)
 
-	err := svc.GenerateAndSendOTP(ctx, "unknown", fsm.UserInfo{ID: 1, Username: "u", Platform: "Telegram"})
+	err := svc.generateAndSendOTP(ctx, "unknown", fsm.UserInfo{ID: 1, Username: "u", Platform: "Telegram"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to get registered user info")
 }
@@ -151,7 +151,7 @@ func TestOTPService_GenerateAndSendOTP_RateLimited(t *testing.T) {
 		GetLastAuthVerificationCode(ctx, gomock.Any()).
 		Return(db.AuthVerificationCode{CreatedAt: pgtype.Timestamptz{Valid: true, Time: time.Now().Add(-30 * time.Second)}}, nil)
 
-	err := svc.GenerateAndSendOTP(ctx, "student1", fsm.UserInfo{ID: 1, Username: "u", Platform: "Telegram"})
+	err := svc.generateAndSendOTP(ctx, "student1", fsm.UserInfo{ID: 1, Username: "u", Platform: "Telegram"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "RATE_LIMIT:")
 }
@@ -174,7 +174,7 @@ func TestOTPService_GenerateAndSendOTP_MissingRocketChatID(t *testing.T) {
 		GetRegisteredUserByS21Login(ctx, "student1").
 		Return(db.RegisteredUser{RocketchatID: ""}, nil)
 
-	err := svc.GenerateAndSendOTP(ctx, "student1", fsm.UserInfo{ID: 1, Username: "u", Platform: "Telegram"})
+	err := svc.generateAndSendOTP(ctx, "student1", fsm.UserInfo{ID: 1, Username: "u", Platform: "Telegram"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "rocketchat_id")
 }

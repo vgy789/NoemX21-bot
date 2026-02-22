@@ -10,7 +10,9 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/crypto"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
+	"github.com/vgy789/noemx21-bot/internal/pkg/imgcache"
 	"github.com/vgy789/noemx21-bot/internal/service"
+	"github.com/vgy789/noemx21-bot/internal/service/schedule_generator"
 	"github.com/vgy789/noemx21-bot/internal/sync/gitsync"
 )
 
@@ -87,9 +89,13 @@ func (b *Builder) BuildCredentialService(repo *db.Queries, crypter *crypto.Crypt
 
 // BuildApp creates the application instance.
 func (b *Builder) BuildApp(repo *db.DBWrapper, rcClient *rocketchat.Client, s21Client *s21.Client, credService *service.CredentialService) *app.App {
+	imgCache := imgcache.New()
 	gitSync := gitsync.New(b.cfg.GitSync, repo.Queries, b.log)
 	campusSvc := service.NewCampusService(repo.Queries, s21Client, b.cfg, b.log, credService)
-	return app.New(b.cfg, b.log, repo, rcClient, s21Client, credService, gitSync, campusSvc)
+	scheduleGen := schedule_generator.New(b.cfg, b.log, repo.Queries, imgCache)
+
+	return app.New(b.cfg, b.log, repo, rcClient, s21Client, credService, gitSync, campusSvc, scheduleGen, scheduleGen, imgCache)
+
 }
 
 // Run runs the application.

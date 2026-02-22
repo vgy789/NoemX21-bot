@@ -32,15 +32,12 @@ func TestNewTelegramService(t *testing.T) {
 	mockQuerier := dbMock.NewMockQuerier(ctrl)
 	mockRCClient := rocketchat.NewClient("", "", "")
 
-	engine := setup.NewFSM(cfg, logger, mockQuerier, mockUserSvc, mockRCClient, nil, nil, "docs/specs/flows")
-	svc := NewTelegramService(cfg, logger, mockUserSvc, engine)
-	ts, ok := svc.(*telegramService)
-	require.True(t, ok, "NewTelegramService did not return *telegramService")
+	engine := setup.NewFSM(cfg, logger, mockQuerier, mockUserSvc, mockRCClient, nil, nil, "docs/specs/flows", nil)
+	ts := NewTelegramService(cfg, logger, mockUserSvc, engine, nil)
 	// Use memory repo for tests
 	ts.engine = fsm.NewEngine(ts.engine.Parser(), fsm.NewMemoryStateRepository(), logger, ts.engine.Registry(), ts.engine.Sanitizer())
 
-	require.NotNil(t, svc)
-	require.True(t, ok, "NewTelegramService did not return *telegramService")
+	require.NotNil(t, ts)
 
 	assert.NotNil(t, ts.log)
 	assert.NotNil(t, ts.engine, "FSM engine should be initialized")
@@ -184,4 +181,26 @@ func TestBuildMarkup(t *testing.T) {
 		markup := buildMarkup(render.Buttons)
 		assert.NotNil(t, markup)
 	})
+}
+
+func TestTelegramService_InvalidateScheduleFileID(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	s := &telegramService{
+		log: logger,
+		fileIDs: map[string]string{
+			"tmp/schedules/Europe/Moscow/KZN.png": "id-path",
+			"imgcache:schedule:KZN":               "id-cache",
+			"tmp/schedules/Europe/Moscow/SPB.png": "id-other",
+		},
+	}
+
+	s.InvalidateScheduleFileID("KZN")
+
+	_, hasPath := s.fileIDs["tmp/schedules/Europe/Moscow/KZN.png"]
+	_, hasCache := s.fileIDs["imgcache:schedule:KZN"]
+	_, hasOther := s.fileIDs["tmp/schedules/Europe/Moscow/SPB.png"]
+
+	assert.False(t, hasPath)
+	assert.False(t, hasCache)
+	assert.True(t, hasOther)
 }

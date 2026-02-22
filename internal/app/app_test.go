@@ -51,8 +51,8 @@ func TestNew(t *testing.T) {
 
 	gitSync := gitsync.New(cfg.GitSync, nil, logger)
 	campusSvc := &mockStarter{}
-
-	a := New(cfg, logger, repo, rcClient, nil, nil, gitSync, campusSvc)
+	scheduleGen := &mockStarter{}
+	a := New(cfg, logger, repo, rcClient, nil, nil, gitSync, campusSvc, scheduleGen, nil, nil)
 	assert.NotNil(t, a)
 	assert.NotNil(t, a.tg)
 }
@@ -65,14 +65,16 @@ func TestApp_Run(t *testing.T) {
 	mockHTTPServer := &mockHTTPServer{}
 	mockGitSync := &mockStarter{}
 	mockCampusSvc := &mockStarter{}
+	mockScheduleGen := &mockStarter{}
 
 	a := &App{
-		tg:         mockTG,
-		httpServer: mockHTTPServer,
-		gitSync:    mockGitSync,
-		campusSvc:  mockCampusSvc,
-		cfg:        &config.Config{},
-		log:        slog.Default(),
+		tg:          mockTG,
+		httpServer:  mockHTTPServer,
+		gitSync:     mockGitSync,
+		campusSvc:   mockCampusSvc,
+		scheduleGen: mockScheduleGen,
+		cfg:         &config.Config{},
+		log:         slog.Default(),
 	}
 
 	a.Run()
@@ -85,6 +87,7 @@ func TestApp_Run_WebhookMode(t *testing.T) {
 	mockHTTPServer := &mockHTTPServer{}
 	mockGitSync := &mockStarter{}
 	mockCampusSvc := &mockStarter{}
+	mockScheduleGen := &mockStarter{}
 
 	cfg := &config.Config{}
 	cfg.Telegram.Webhook.Enabled = true
@@ -92,12 +95,13 @@ func TestApp_Run_WebhookMode(t *testing.T) {
 	cfg.Telegram.Webhook.ListenPort = 8080
 
 	a := &App{
-		tg:         mockTG,
-		httpServer: mockHTTPServer,
-		gitSync:    mockGitSync,
-		campusSvc:  mockCampusSvc,
-		cfg:        cfg,
-		log:        slog.Default(),
+		tg:          mockTG,
+		httpServer:  mockHTTPServer,
+		gitSync:     mockGitSync,
+		campusSvc:   mockCampusSvc,
+		scheduleGen: mockScheduleGen,
+		cfg:         cfg,
+		log:         slog.Default(),
 	}
 
 	// Run in goroutine since it blocks
@@ -123,14 +127,16 @@ func TestApp_Run_GitSyncError(t *testing.T) {
 	mockHTTPServer := &mockHTTPServer{}
 	mockGitSync := &mockStarterError{}
 	mockCampusSvc := &mockStarter{}
+	mockScheduleGen := &mockStarter{}
 
 	a := &App{
-		tg:         mockTG,
-		httpServer: mockHTTPServer,
-		gitSync:    mockGitSync,
-		campusSvc:  mockCampusSvc,
-		cfg:        &config.Config{},
-		log:        slog.Default(),
+		tg:          mockTG,
+		httpServer:  mockHTTPServer,
+		gitSync:     mockGitSync,
+		campusSvc:   mockCampusSvc,
+		scheduleGen: mockScheduleGen,
+		cfg:         &config.Config{},
+		log:         slog.Default(),
 	}
 
 	// Should not panic, just log error
@@ -151,14 +157,16 @@ func TestApp_Run_CampusSvcError(t *testing.T) {
 	mockHTTPServer := &mockHTTPServer{}
 	mockGitSync := &mockStarter{}
 	mockCampusSvc := &mockStarterError{}
+	mockScheduleGen := &mockStarter{}
 
 	a := &App{
-		tg:         mockTG,
-		httpServer: mockHTTPServer,
-		gitSync:    mockGitSync,
-		campusSvc:  mockCampusSvc,
-		cfg:        &config.Config{},
-		log:        slog.Default(),
+		tg:          mockTG,
+		httpServer:  mockHTTPServer,
+		gitSync:     mockGitSync,
+		campusSvc:   mockCampusSvc,
+		scheduleGen: mockScheduleGen,
+		cfg:         &config.Config{},
+		log:         slog.Default(),
 	}
 
 	done := make(chan struct{})
