@@ -31,7 +31,9 @@ func ParseRoomsCSV(path string) ([]RoomCSV, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	reader := csv.NewReader(file)
 	reader.Comma = ';'
@@ -79,7 +81,9 @@ func ParseBooksCSV(path string) ([]BookCSV, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer func() {
+		_ = file.Close()
+	}()
 
 	reader := csv.NewReader(file)
 	reader.Comma = ';'

@@ -1092,14 +1092,13 @@ func manageBookingTUI(
 		return "FETCH_MY_BOOKINGS", nil, nil
 	}
 
-	action := "cancel"
 	bookingID := int64(0)
+	requestFinish := false
 	switch {
 	case strings.HasPrefix(lastInput, "finish_"):
-		action = "finish"
+		requestFinish = true
 		bookingID = toInt64(strings.TrimPrefix(lastInput, "finish_"))
 	case strings.HasPrefix(lastInput, "cancel_"):
-		action = "cancel"
 		bookingID = toInt64(strings.TrimPrefix(lastInput, "cancel_"))
 	default:
 		return "FETCH_MY_BOOKINGS", nil, nil
@@ -1137,7 +1136,7 @@ func manageBookingTUI(
 	isStarted := !now.Before(startAt) && now.Before(endAt)
 
 	// Security rule: cancel for already-started bookings turns into finish.
-	shouldFinish := action == "finish" || isStarted
+	shouldFinish := requestFinish || isStarted
 	if shouldFinish {
 		elapsed := min(max(int32(now.Sub(startAt).Minutes()), 0), target.DurationMinutes)
 		_ = withTimeoutExec(ctx, func(qctx context.Context) error {

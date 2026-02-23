@@ -26,12 +26,12 @@ func NewRealOTPProvider(otpService *OTPService) *RealOTPProvider {
 
 // GenerateAndSendOTP generates and sends real OTP via Rocket.Chat
 func (p *RealOTPProvider) GenerateAndSendOTP(ctx context.Context, s21Login string, ui fsm.UserInfo) error {
-	return p.OTPService.generateAndSendOTP(ctx, s21Login, ui)
+	return p.generateAndSendOTP(ctx, s21Login, ui)
 }
 
 // VerifyOTP verifies OTP code against database
 func (p *RealOTPProvider) VerifyOTP(ctx context.Context, telegramUserID int64, code string) (bool, error) {
-	return p.OTPService.verifyOTP(ctx, telegramUserID, code)
+	return p.verifyOTP(ctx, telegramUserID, code)
 }
 
 // MockOTPProvider is the test OTP provider that accepts any code
