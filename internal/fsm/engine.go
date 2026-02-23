@@ -25,6 +25,8 @@ var preformattedContextKeys = map[string]bool{
 	"my_bookings_list":               true,
 	"my_bookings_formatted":          true,
 	"hot_slots_list":                 true,
+	"peer_contact_line":              true,
+	"alternative_contact_line":       true,
 }
 
 // Engine handles the core FSM logic.

@@ -341,6 +341,7 @@ func Register(
 	})
 
 	registry.Register("get_peer_data_with_permissions", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		lang, _ := payload["language"].(string)
 		login, ok := payload["login"].(string)
 		if !ok {
 			return "", nil, fmt.Errorf("login not found in payload")
@@ -352,7 +353,7 @@ func Register(
 			isFresh := cacheRow.LatSyncedAt.Valid && time.Since(cacheRow.LatSyncedAt.Time) < peerDataCacheFreshnessDuration
 			if isExpelled || isFresh {
 				log.Info("using cached peer data", "login", login, "is_expelled", isExpelled, "is_fresh", isFresh)
-				return getPeerStatsFromCache(ctx, login, cacheRow, queries, log)
+				return getPeerStatsFromCache(ctx, lang, login, cacheRow, queries, log)
 			}
 		}
 
@@ -361,9 +362,9 @@ func Register(
 		if err != nil {
 			log.Warn("failed to get valid token, falling back to cache/DB", "error", err)
 			if cacheRow, cErr := queries.GetParticipantStatsCache(ctx, login); cErr == nil {
-				return getPeerStatsFromCache(ctx, login, cacheRow, queries, log)
+				return getPeerStatsFromCache(ctx, lang, login, cacheRow, queries, log)
 			}
-			return getPeerStatsFromDB(ctx, login, queries, log)
+			return getPeerStatsFromDB(ctx, lang, login, queries, log)
 		}
 
 		// 2. Fetch peer from API
@@ -371,9 +372,9 @@ func Register(
 		if err != nil {
 			log.Error("failed to get peer from API", "peer", login, "error", err)
 			if cacheRow, cErr := queries.GetParticipantStatsCache(ctx, login); cErr == nil {
-				return getPeerStatsFromCache(ctx, login, cacheRow, queries, log)
+				return getPeerStatsFromCache(ctx, lang, login, cacheRow, queries, log)
 			}
-			return getPeerStatsFromDB(ctx, login, queries, log)
+			return getPeerStatsFromDB(ctx, lang, login, queries, log)
 		}
 
 		points, _ := s21Client.GetParticipantPoints(ctx, token, login)
@@ -391,22 +392,24 @@ func Register(
 
 		// 3. Prepare variables
 		vars := map[string]any{
-			"peer_found":        true,
-			"peer_login":        participant.Login,
-			"peer_campus":       participant.Campus.ShortName,
-			"peer_coalition":    defaultCoalitionValue,
-			"peer_level":        participant.Level,
-			"peer_exp":          participant.ExpValue,
-			"peer_status":       participant.Status,
-			"peer_coins":        0,
-			"peer_telegram":     "",
-			"peer_id":           0,
-			"peer_interest":     defaultSocialMetricValue,
-			"peer_friendliness": defaultSocialMetricValue,
-			"peer_punctuality":  defaultSocialMetricValue,
-			"peer_thoroughness": defaultSocialMetricValue,
-			"peer_prps":         0,
-			"peer_crps":         0,
+			"peer_found":               true,
+			"peer_login":               participant.Login,
+			"peer_campus":              participant.Campus.ShortName,
+			"peer_coalition":           defaultCoalitionValue,
+			"peer_level":               participant.Level,
+			"peer_exp":                 participant.ExpValue,
+			"peer_status":              participant.Status,
+			"peer_coins":               0,
+			"peer_telegram":            "",
+			"peer_id":                  0,
+			"peer_interest":            defaultSocialMetricValue,
+			"peer_friendliness":        defaultSocialMetricValue,
+			"peer_punctuality":         defaultSocialMetricValue,
+			"peer_thoroughness":        defaultSocialMetricValue,
+			"peer_prps":                0,
+			"peer_crps":                0,
+			"alternative_contact":      "",
+			"alternative_contact_line": "",
 		}
 
 		if participant.ClassName != nil {
@@ -489,6 +492,9 @@ func Register(
 		peerAcc, err := queries.GetUserAccountByS21Login(ctx, login)
 		if err == nil {
 			vars["peer_id"] = peerAcc.ExternalID
+			if regUser, rErr := queries.GetRegisteredUserByS21Login(ctx, login); rErr == nil && regUser.AlternativeContact.Valid {
+				vars["alternative_contact"] = regUser.AlternativeContact.String
+			}
 			// Get telegram username from peer profile (via participant_stats_cache + user_accounts)
 			peerProfile, err := queries.GetPeerProfile(ctx, login)
 			if err == nil && peerProfile.TelegramUsername != "" && peerProfile.IsSearchable.Valid && peerProfile.IsSearchable.Bool {
@@ -496,7 +502,7 @@ func Register(
 			}
 		}
 		vars["peer_telegram"] = peerTelegram
-		vars["peer_contact_line_ru"], vars["peer_contact_line_en"] = buildPeerContactLines(peerTelegram)
+		vars["peer_contact_line"] = buildPeerContactLine(lang, peerTelegram)
 
 		return "", vars, nil
 	})
@@ -688,26 +694,28 @@ func getStatsFromDB(ctx context.Context, s21Login string, queries db.Querier, lo
 }
 
 // getPeerStatsFromCache строит vars для FSM из строки participant_stats_cache (и при необходимости — telegram из user_accounts).
-func getPeerStatsFromCache(ctx context.Context, login string, row db.GetParticipantStatsCacheRow, queries db.Querier, log *slog.Logger) (string, map[string]any, error) {
+func getPeerStatsFromCache(ctx context.Context, lang string, login string, row db.GetParticipantStatsCacheRow, queries db.Querier, log *slog.Logger) (string, map[string]any, error) {
 	vars := map[string]any{
-		"peer_found":        true,
-		"peer_login":        row.S21Login,
-		"peer_campus":       defaultCampusValue,
-		"peer_coalition":    defaultCoalitionValue,
-		"peer_level":        row.Level,
-		"peer_exp":          row.ExpValue,
-		"peer_coins":        row.Coins,
-		"peer_prps":         row.Prp,
-		"peer_crps":         row.Crp,
-		"peer_telegram":     "",
-		"peer_id":           0,
-		"peer_status":       string(row.Status),
-		"peer_class":        defaultEmptyValue,
-		"peer_parallel":     defaultEmptyValue,
-		"peer_interest":     defaultSocialMetricValue,
-		"peer_friendliness": defaultSocialMetricValue,
-		"peer_punctuality":  defaultSocialMetricValue,
-		"peer_thoroughness": defaultSocialMetricValue,
+		"peer_found":               true,
+		"peer_login":               row.S21Login,
+		"peer_campus":              defaultCampusValue,
+		"peer_coalition":           defaultCoalitionValue,
+		"peer_level":               row.Level,
+		"peer_exp":                 row.ExpValue,
+		"peer_coins":               row.Coins,
+		"peer_prps":                row.Prp,
+		"peer_crps":                row.Crp,
+		"peer_telegram":            "",
+		"peer_id":                  0,
+		"peer_status":              string(row.Status),
+		"peer_class":               defaultEmptyValue,
+		"peer_parallel":            defaultEmptyValue,
+		"peer_interest":            defaultSocialMetricValue,
+		"peer_friendliness":        defaultSocialMetricValue,
+		"peer_punctuality":         defaultSocialMetricValue,
+		"peer_thoroughness":        defaultSocialMetricValue,
+		"alternative_contact":      "",
+		"alternative_contact_line": "",
 	}
 	if row.CampusName.Valid {
 		vars["peer_campus"] = row.CampusName.String
@@ -737,17 +745,22 @@ func getPeerStatsFromCache(ctx context.Context, login string, row db.GetParticip
 	acc, err := queries.GetUserAccountByS21Login(ctx, login)
 	if err == nil {
 		vars["peer_id"] = acc.ExternalID
+		if regUser, rErr := queries.GetRegisteredUserByS21Login(ctx, login); rErr == nil && regUser.AlternativeContact.Valid {
+			contact := regUser.AlternativeContact.String
+			vars["alternative_contact"] = contact
+			vars["alternative_contact_line"] = buildAlternativeContactLine(lang, contact)
+		}
 		if acc.Username.Valid && acc.IsSearchable.Valid && acc.IsSearchable.Bool {
 			peerTelegram = acc.Username.String
 		}
 	}
 	vars["peer_telegram"] = peerTelegram
-	vars["peer_contact_line_ru"], vars["peer_contact_line_en"] = buildPeerContactLines(peerTelegram)
+	vars["peer_contact_line"] = buildPeerContactLine(lang, peerTelegram)
 	return "", vars, nil
 }
 
 // getPeerStatsFromDB — fallback для пиров, у которых нет записи в кеше, но есть в participant_stats_cache через GetPeerProfile.
-func getPeerStatsFromDB(ctx context.Context, login string, queries db.Querier, log *slog.Logger) (string, map[string]any, error) {
+func getPeerStatsFromDB(ctx context.Context, lang string, login string, queries db.Querier, log *slog.Logger) (string, map[string]any, error) {
 	profile, err := queries.GetPeerProfile(ctx, login)
 	if err != nil {
 		log.Debug("peer not found in DB", "login", login, "error", err)
@@ -757,23 +770,25 @@ func getPeerStatsFromDB(ctx context.Context, login string, queries db.Querier, l
 	}
 
 	vars := map[string]any{
-		"peer_found":        true,
-		"peer_login":        profile.S21Login,
-		"peer_campus":       defaultCampusValue,
-		"peer_coalition":    defaultCoalitionValue,
-		"peer_level":        profile.Level,
-		"peer_exp":          profile.ExpValue,
-		"peer_coins":        profile.Coins,
-		"peer_prps":         profile.Prp,
-		"peer_crps":         profile.Crp,
-		"peer_telegram":     "",
-		"peer_status":       string(profile.Status),
-		"peer_class":        defaultEmptyValue,
-		"peer_parallel":     defaultEmptyValue,
-		"peer_interest":     defaultSocialMetricValue,
-		"peer_friendliness": defaultSocialMetricValue,
-		"peer_punctuality":  defaultSocialMetricValue,
-		"peer_thoroughness": defaultSocialMetricValue,
+		"peer_found":               true,
+		"peer_login":               profile.S21Login,
+		"peer_campus":              defaultCampusValue,
+		"peer_coalition":           defaultCoalitionValue,
+		"peer_level":               profile.Level,
+		"peer_exp":                 profile.ExpValue,
+		"peer_coins":               profile.Coins,
+		"peer_prps":                profile.Prp,
+		"peer_crps":                profile.Crp,
+		"peer_telegram":            "",
+		"peer_status":              string(profile.Status),
+		"peer_class":               defaultEmptyValue,
+		"peer_parallel":            defaultEmptyValue,
+		"peer_interest":            defaultSocialMetricValue,
+		"peer_friendliness":        defaultSocialMetricValue,
+		"peer_punctuality":         defaultSocialMetricValue,
+		"peer_thoroughness":        defaultSocialMetricValue,
+		"alternative_contact":      "",
+		"alternative_contact_line": "",
 	}
 
 	if profile.CampusName.Valid {
@@ -806,17 +821,35 @@ func getPeerStatsFromDB(ctx context.Context, login string, queries db.Querier, l
 		peerTelegram = profile.TelegramUsername
 	}
 	vars["peer_telegram"] = peerTelegram
-	vars["peer_contact_line_ru"], vars["peer_contact_line_en"] = buildPeerContactLines(peerTelegram)
+	vars["peer_contact_line"] = buildPeerContactLine(lang, peerTelegram)
+	if regUser, rErr := queries.GetRegisteredUserByS21Login(ctx, login); rErr == nil && regUser.AlternativeContact.Valid {
+		contact := regUser.AlternativeContact.String
+		vars["alternative_contact"] = contact
+		vars["alternative_contact_line"] = buildAlternativeContactLine(lang, contact)
+	}
 
 	vars["peer_id"] = profile.ExternalID
 	return "", vars, nil
 }
 
-func buildPeerContactLines(telegram string) (string, string) {
+func buildPeerContactLine(lang, telegram string) string {
 	if telegram == "" {
-		return "", ""
+		return ""
 	}
-	return fmt.Sprintf("📬 Связь: @%s", telegram), fmt.Sprintf("📬 Contact: @%s", telegram)
+	if lang == fsm.LangEn {
+		return fmt.Sprintf("📬 *Contact:* @%s", telegram)
+	}
+	return fmt.Sprintf("📬 *Связь:* @%s", telegram)
+}
+
+func buildAlternativeContactLine(lang, contact string) string {
+	if contact == "" {
+		return ""
+	}
+	if lang == fsm.LangEn {
+		return fmt.Sprintf("*Alt:* %s", contact)
+	}
+	return fmt.Sprintf("*Доп:* %s", contact)
 }
 
 func hashSkillName(name string) int32 {

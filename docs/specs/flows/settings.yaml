@@ -3,7 +3,7 @@ meta:
   feature_id: SET-001
   name: Настройки пользователя
   description: Конфигурация профиля и API
-  version: 2.2.0
+  version: 2.3.0
 
 initial_state: SETTINGS_MENU
 states:
@@ -13,171 +13,163 @@ states:
     interface:
       text:
         ru: |
-          ⚙️ *System Config*
+          ⚙️ *Настройки*
 
-          🆔 *Profile Config*
-          Приватность, контакты, уведомления.
-
-          🔑 *Dev Tools*
-          API Gateway, токены, Data-Provider.
+          Здесь ты можешь управлять своим профилем, настроить резервную связь и получить доступ к API.
         en: |
-          ⚙️ *System Config*
+          ⚙️ *Settings*
 
-          🆔 *Profile Config*
-          Privacy, contacts, notifications.
-
-          🔑 *Dev Tools*
-          API Gateway, tokens, Data-Provider.
+          Here you can manage your profile, set up an emergency contact, and access the API.
+          > *What do you want to configure?*
       buttons:
         - id: profile
           label:
-            ru: 🆔 Профиль
-            en: 🆔 Profile
+            ru: 👤 Мой профиль
+            en: 👤 My Profile
           next_state: PROFILE_SETTINGS
           row: 1
         - id: api
           label:
-            ru: 🔑 API / Dev
-            en: 🔑 API / Dev
-          next_state: API_SETTINGS
+            ru: 👨‍💻 API для разработчиков
+            en: 👨‍💻 API for dev
+          next_state: LOAD_API_TOKEN
           row: 1
         - id: language
           label:
-            ru: "🌐 Язык: {my_lang_emoji}"
-            en: "🌐 Lang: {my_lang_emoji}"
+            ru: "Язык: {my_lang_emoji}"
+            en: "Lang: {my_lang_emoji}"
           next_state: SET_LANGUAGE
         - id: back
           label:
-            ru: 🏠 Главное меню
+            ru: 🏠 На главную
             en: 🏠 Main menu
           next_state: MAIN_MENU
 
   PROFILE_SETTINGS:
     type: interactive
     description: Меню настроек профиля
+    on_enter:
+      - action: load_profile_settings
     interface:
       text:
         ru: |
-          🆔 *Profile Configuration*
+          👤 *Мой профиль*
+
+          Настрой то, как тебя видят другие пиры и укажи дополнительный способ связи.
+
+          ```👁️ Видимость Telegram @username:
+          {my_searchable_status_ru}
+          ```
+          ```📞 Дополнительный контакт:
+          {my_alt_contact_display_ru}
+          ```
         en: |
-          🆔 *Profile Configuration*
+          👤 *My Profile*
+
+          Configure how peers see you and set up an alternative contact method.
+
+          👁️ *Telegram @username visibility:* `{my_searchable_status_en}`
+
+          📞 *Alternative contact:* `{my_alt_contact_display_en}`
       buttons:
         - id: searchable
           label:
-            ru: "👁️ Видимость: {is_searchable_label_ru}"
-            en: "👁️ Visibility: {is_searchable_label_en}"
+            # Note: по умолчанию виден
+            # TODO: изменить SEARCHABLE на более подходящий термин, например, TELEGRAM_USERNAME_VISIBILITY
+            ru: "👁️ Изменить видимость"
+            en: "👁️ Change visibility"
           next_state: TOGGLE_SEARCHABLE
+          row: 1
         - id: contact
           label:
-            ru: 📞 Внешний контакт
-            en: 📞 Ext. Contact
+            ru: 📞 Изменить контакт
+            en: 📞 Change contact
           next_state: SET_ALTERNATIVE_CONTACT
+          row: 1
         - id: delete_profile
           label:
             ru: 🗑️ Удалить профиль
             en: 🗑️ Delete Profile
           next_state: DELETE_PROFILE_CONFIRMATION
+          row: 2
         - id: back
           label:
             ru: 🔙 Назад
             en: 🔙 Back
           next_state: SETTINGS_MENU
+          row: 2
 
-  DELETE_PROFILE_CONFIRMATION:
-    type: interactive
-    description: Подтверждение удаления профиля
-    interface:
-      text:
-        ru: |
-          ⚠️ *Подтверждение удаления*
-
-          Действительно хочешь удалить свой профиль?
-        en: |
-          ⚠️ *Delete Confirmation*
-
-          Are you sure you want to delete your profile?
-      buttons:
-        - id: confirm
-          label:
-            ru: 🗑️ Да, удалить
-            en: 🗑️ Yes, delete
-          next_state: DELETE_PROFILE
-        - id: cancel
-          label:
-            ru: ❌ Отмена
-            en: ❌ Cancel
-          next_state: PROFILE_SETTINGS
-
-  DELETE_PROFILE:
+  # Например используется в {peer_contact_line_ru} в статистике пиров
+  TOGGLE_SEARCHABLE:
     type: system
-    description: Удаление профиля
-    interface:
-      text:
-        ru: |
-          🗑️ *Profile Deletion*
-
-          Профиль удален. До новых встреч!
-          Введите /start для регистрации нового профиля.
-        en: |
-          🗑️ *Profile Deletion*
-
-          Profile deleted. See you next time!
-          Type /start to register a new profile.
+    description: Переключение видимости
     logic:
-      action: delete_profile
+      action: toggle_searchable
       payload:
         user_id: $context.user_id
     transitions:
-      - next_state: registration.yaml/START
+      - next_state: SEARCHABLE_STATUS_NOTIFICATION
 
-  API_SETTINGS:
+  SEARCHABLE_STATUS_NOTIFICATION:
     type: interactive
-    description: Меню настроек API
+    description: Уведомление о смене видимости
     interface:
       text:
         ru: |
-          🔑 *Developer Tools*
+          👁️ *Изменение видимости*
+
+          Видимость твоего Telegram @username для других пиров обновлена.
+
+          *Статус:* `{is_searchable_label_ru}`
         en: |
-          🔑 *Developer Tools*
+          👁️ *Visibility Update*
+
+          The visibility of your Telegram @username to other parties has been updated.
+
+          *Status:* `{is_searchable_label_en}`
       buttons:
-        - id: provider
-          label:
-            ru: 📡 Data-Provider
-            en: 📡 Data-Provider
-          next_state: CHECK_PROVIDER_CREDENTIALS
-        - id: api_token
-          label:
-            ru: 🔑 Access Token
-            en: 🔑 Access Token
-          next_state: LOAD_API_TOKEN
         - id: back
           label:
-            ru: 🔙 Назад
-            en: 🔙 Back
-          next_state: SETTINGS_MENU
+            ru: 💾 OK
+            en: 💾 OK
+          next_state: PROFILE_SETTINGS
 
+  # Например, используется как {alternative_contact} в статистике пиров
   SET_ALTERNATIVE_CONTACT:
     type: input
     description: Ввод альтернативного контакта
     interface:
       text:
         ru: |
-          📞 *Внешний контакт*
+          📞 *Дополнительный контакт*
 
-          Введи `email` или `telegram_alias` для экстренной связи.
-          _Отправь пустую строку для удаления._
+          Отправь в чат свой запасной email или другую информацию о связи с тобой.
+          Это будут видеть пиры, при просмотре твоего профиля.
         en: |
           📞 *External Contact*
 
-          Input `email` or `telegram_alias` for emergency downlink.
-          _Send empty string to purge._
+          Send an alternative email or other contact info to be displayed on your profile.
+          This will be visible to parties when they view your profile.
       error_invalid:
         ru: |
-          ⚠️ *Ошибка формата*
-          Максимум 42 символа.
+          ⚠️ Не похоже на корректный контакт (максимум 42 символа).
+          Попробуй еще раз!
         en: |
-          ⚠️ *Format Error*
-          Max 42 characters.
+          ⚠️ This does not appear to be a valid contact (maximum 42 characters).
+          Please try again!
+      buttons:
+        # кнопка видна, только если контакт уже задан
+        - id: delete
+          label:
+            ru: 🗑️ Удалить текущий
+            en: 🗑️ Delete Current Contact
+          condition: has_alt_contact == true
+          next_state: DELETE_ALTERNATIVE_CONTACT
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: PROFILE_SETTINGS
     validation:
       regex: ^.{1,42}$
     transitions:
@@ -201,14 +193,18 @@ states:
   CONFIRM_ALTERNATIVE_CONTACT:
     type: interactive
     description: Подтверждение сохранения контакта
+    on_enter:
+      - action: set_alternative_contact
     interface:
       text:
         ru: |
-          ✅ *Контакт обновлен*
-          Value: `{my_alt_contact}`
+          ✅ *Готово!*
+
+          Резервный контакт обновлен: `{my_alt_contact}`
         en: |
-          ✅ *Contact Updated*
-          Value: `{my_alt_contact}`
+          ✅ *Done!*
+
+          Backup contact updated: `{my_alt_contact}`
       buttons:
         - id: back
           label:
@@ -216,24 +212,77 @@ states:
             en: 💾 OK
           next_state: PROFILE_SETTINGS
 
-  SET_LANGUAGE:
+  DELETE_PROFILE_CONFIRMATION:
     type: interactive
-    description: Выбор локали
+    description: Подтверждение удаления профиля
     interface:
       text:
-        ru: 🌐 *System Locale*
-        en: 🌐 *System Locale*
+        ru: |
+          ⚠️ *Удаление профиля*
+
+          Ты собираешься удалить свой профиль из бота. Мы забудем все твои настройки и сохранённые данные.
+
+          Уверен, что хочешь продолжить? Это действие нельзя отменить.
+        en: |
+          ⚠️ *Delete Profile*
+
+          You are about to delete your profile from the bot. We will forget all your settings and saved data.
+
+          Are you sure you want to proceed? This action cannot be undone.
       buttons:
-        - id: ru
+        - id: confirm
           label:
-            ru: 🇷🇺 Русский
-            en: 🇷🇺 Russian
-          next_state: SETTINGS_MENU
-        - id: en
+            ru: 🗑️ Да, удалить
+            en: 🗑️ Yes, delete
+          next_state: DELETE_PROFILE
+          row: 1
+        - id: cancel
           label:
-            ru: 🇺🇸 English
-            en: 🇺🇸 English
-          next_state: SETTINGS_MENU
+            ru: 🔙 Нет, я передумал:а
+            en: 🔙 No, I changed my mind
+          next_state: PROFILE_SETTINGS
+          row: 1
+
+  DELETE_PROFILE:
+    type: system
+    description: Удаление профиля
+    interface:
+      text:
+        ru: |
+          🗑️ *Профиль удален*
+
+          Если захочешь вернуться, просто отправь команду /start.
+        en: |
+          🗑️ *Profile Deletion*
+
+          If you want to come back, just send the /start command.
+    logic:
+      action: delete_profile
+      payload:
+        user_id: $context.user_id
+    transitions:
+      - next_state: START
+
+  # API_SETTINGS:
+  #   type: interactive
+  #   description: Меню настроек API
+  #   interface:
+  #     text:
+  #       ru: |
+  #         🔌 *Инструменты разработчика*
+  #       en: |
+  #         🔌 *Developer Tools*
+  #     buttons:
+  #       - id: api_token
+  #         label:
+  #           ru: 🔑 API ключ
+  #           en: 🔑 API Token
+  #         next_state: LOAD_API_TOKEN
+  #       - id: back
+  #         label:
+  #           ru: 🔙 Назад
+  #           en: 🔙 Back
+  #         next_state: SETTINGS_MENU
 
   LOAD_API_TOKEN:
     type: system
@@ -249,34 +298,34 @@ states:
     interface:
       text:
         ru: |
-          🔑 *Access Token*
+          👨‍💻 *Токен API*
 
-          Используй этот ключ для интеграции внешних сервисов с School 21 API.
+          Используй этот ключ для доступа к данным NoemX21 по API.
 
-          🔰 *Current Token:*
+          🔑 *Твой токен:*
           `{my_botapi_token}`
         en: |
-          🔑 *Access Token*
+          👨‍💻 *API Token*
 
-          Use this key to integrate external services with School 21 API.
+          Use this key to access NoemX21 data via API.
 
-          🔰 *Current Token:*
+          🔑 *Current Token:*
           `{my_botapi_token}`
       buttons:
         - id: regenerate
           label:
-            ru: 🔁 Регенерация ключа
-            en: 🔁 Regenerate Key
+            ru: 🔁 Выпустить новый токен
+            en: 🔁 Generate New Token
           next_state: GENERATE_API_TOKEN
         - id: back
           label:
             ru: 🔙 Назад
             en: 🔙 Back
-          next_state: API_SETTINGS
+          next_state: SETTINGS_MENU
 
   GENERATE_API_TOKEN:
     type: system
-    description: Генерация токена
+    description: Создание нового токена
     logic:
       action: generate_api_token
       payload:
@@ -290,13 +339,15 @@ states:
     interface:
       text:
         ru: |
-          ✅ *Token Generated*
+          ✅ Новый токен сгенерирован!
 
           `{my_botapi_token}`
+          Старый ключ больше не работает.
         en: |
-          ✅ *Token Generated*
+          ✅ *New Token Generated*
 
           `{my_botapi_token}`
+          The old token is no longer valid.
       buttons:
         - id: back
           label:
@@ -304,178 +355,27 @@ states:
             en: 🔙 Back
           next_state: MANAGE_API_TOKEN
 
-  CHECK_PROVIDER_CREDENTIALS:
-    type: system
-    description: Проверка статуса провайдера
-    logic:
-      action: is_provider_credentials
-      payload:
-        user_id: $context.user_id
-    transitions:
-      - condition: provider_credentials != null
-        next_state: ALREADY_PROVIDER_CREDENTIALS
-      - condition: provider_credentials == null
-        next_state: NEED_PROVIDER_CREDENTIALS
-
-  ALREADY_PROVIDER_CREDENTIALS:
+  SET_LANGUAGE:
     type: interactive
-    description: Статус активного провайдера
+    description: Выбор локали
     interface:
       text:
         ru: |
-          📡 *Data Provider Status*
+          🌐 *Язык интерфейса*
 
-          ✅ *Active*
-          Твоя нода успешно передает данные.
+          👇 Выбери язык на котором будет отображаться интерфейс бота.
         en: |
-          📡 *Data Provider Status*
+          🌐 *Interface Language*
 
-          ✅ *Active*
-          Your node is successfully transmitting data.
+          👇 Select the language in which the bot interface will be displayed.
       buttons:
-        - id: refuse
+        - id: ru
           label:
-            ru: 🛑 Остановить ноду
-            en: 🛑 Stop Node
-          next_state: RESET_PROVIDER_CREDENTIALS
-        - id: back
+            ru: 🇷🇺 Русский
+            en: 🇷🇺 Russian
+          next_state: SETTINGS_MENU
+        - id: en
           label:
-            ru: 🔙 Назад
-            en: 🔙 Back
-          next_state: API_SETTINGS
-
-  RESET_PROVIDER_CREDENTIALS:
-    type: system
-    description: Отключение провайдера
-    interface:
-      text:
-        ru: |
-          🚫 *Node Stopped*
-          Провайдер отключен.
-        en: |
-          🚫 *Node Stopped*
-          Provider disabled.
-    logic:
-      action: reset_provider_credentials
-      payload:
-        user_id: $context.user_id
-    transitions:
-      - next_state: API_SETTINGS
-
-  NEED_PROVIDER_CREDENTIALS:
-    type: interactive
-    description: Предложение стать провайдером
-    interface:
-      text:
-        ru: |
-          📡 *Data Provider: Inactive*
-
-          Требуется подключение локальной ноды для синхронизации данных кампуса.
-
-          🟢 *Active Nodes ({my_campus}):* `{count}`
-        en: |
-          📡 *Data Provider: Inactive*
-
-          Local node connection required for campus data synchronization.
-
-          🟢 *Active Nodes ({my_campus}):* `{count}`
-      buttons:
-        - id: set_provider_credentials
-          label:
-            ru: 🔌 Подключить
-            en: 🔌 Connect
-          next_state: SET_PROVIDER_CREDENTIALS
-        - id: back
-          label:
-            ru: 🔙 Назад
-            en: 🔙 Back
-          next_state: API_SETTINGS
-
-  SET_PROVIDER_CREDENTIALS:
-    type: input
-    description: Ввод креденшалов
-    interface:
-      text:
-        ru: |
-          🔐 *Node Authorization*
-
-          Введи данные для подключения к School 21 API.
-          *Format:* `Login` | `Password` | `Token`
-        en: |
-          🔐 *Node Authorization*
-
-          Enter credentials to connect to School 21 API.
-          *Format:* `Login` | `Password` | `Token`
-      error_invalid:
-        ru: |
-          ⚠️ *Auth Error*
-          Токен или логин не распознан.
-        en: |
-          ⚠️ *Auth Error*
-          Token or login not recognized.
-    validation:
-      regex: (?:ey[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+\.[A-Za-z0-9\-_]+)|(?<![A-Za-z0-9\-_])[a-z]{4,9}(?![A-Za-z0-9\-_])
-    transitions:
-      - trigger: on_valid_input
-        next_state: CONFIRM_PROVIDER_CREDENTIALS
-      - trigger: on_invalid_input
-        next_state: FAULT_PROVIDER_CREDENTIALS
-
-  FAULT_PROVIDER_CREDENTIALS:
-    type: interactive
-    description: Ошибка подключения провайдера
-    interface:
-      text:
-        ru: |
-          ❌ *Connection Failed*
-          API Школы отклонил запрос. Проверь данные.
-        en: |
-          ❌ *Connection Failed*
-          School API rejected request. Verify credentials.
-      buttons:
-        - id: back
-          next_state: SET_PROVIDER_CREDENTIALS
-
-  CONFIRM_PROVIDER_CREDENTIALS:
-    type: interactive
-    description: Успешное подключение провайдера
-    interface:
-      text:
-        ru: |
-          ✅ *Node Connected*
-          Синхронизация данных активирована.
-        en: |
-          ✅ *Node Connected*
-          Data synchronization activated.
-      buttons:
-        - id: back
-          next_state: API_SETTINGS
-
-  TOGGLE_SEARCHABLE:
-    type: system
-    description: Переключение видимости
-    logic:
-      action: toggle_searchable
-      payload:
-        user_id: $context.user_id
-    transitions:
-      - next_state: SEARCHABLE_STATUS_NOTIFICATION
-
-  SEARCHABLE_STATUS_NOTIFICATION:
-    type: interactive
-    description: Уведомление о смене видимости
-    interface:
-      text:
-        ru: |
-          👁️ *Visibility Update*
-
-          Status: {is_searchable_label_ru}
-          {search_restriction_ru}
-        en: |
-          👁️ *Visibility Update*
-
-          Status: {is_searchable_label_en}
-          {search_restriction_en}
-      buttons:
-        - id: back
-          next_state: PROFILE_SETTINGS
+            ru: 🇺🇸 English
+            en: 🇺🇸 English
+          next_state: SETTINGS_MENU

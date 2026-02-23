@@ -1812,6 +1812,35 @@ func (q *Queries) UpdateRoomBookingDuration(ctx context.Context, arg UpdateRoomB
 	return err
 }
 
+const updateUserAccountSearchableByExternalId = `-- name: UpdateUserAccountSearchableByExternalId :one
+UPDATE user_accounts
+SET is_searchable = $3
+WHERE platform = $1 AND external_id = $2
+RETURNING id, s21_login, platform, external_id, username, is_searchable, role, linked_at
+`
+
+type UpdateUserAccountSearchableByExternalIdParams struct {
+	Platform     EnumPlatform `json:"platform"`
+	ExternalID   string       `json:"external_id"`
+	IsSearchable pgtype.Bool  `json:"is_searchable"`
+}
+
+func (q *Queries) UpdateUserAccountSearchableByExternalId(ctx context.Context, arg UpdateUserAccountSearchableByExternalIdParams) (UserAccount, error) {
+	row := q.db.QueryRow(ctx, updateUserAccountSearchableByExternalId, arg.Platform, arg.ExternalID, arg.IsSearchable)
+	var i UserAccount
+	err := row.Scan(
+		&i.ID,
+		&i.S21Login,
+		&i.Platform,
+		&i.ExternalID,
+		&i.Username,
+		&i.IsSearchable,
+		&i.Role,
+		&i.LinkedAt,
+	)
+	return i, err
+}
+
 const upsertBook = `-- name: UpsertBook :one
 INSERT INTO books (
     id, campus_id, title, author, category, total_stock, description, is_active, updated_at

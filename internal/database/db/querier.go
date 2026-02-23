@@ -71,6 +71,7 @@ type Querier interface {
 	RevokeOldApiKeys(ctx context.Context, userAccountID int64) error
 	SearchBooks(ctx context.Context, arg SearchBooksParams) ([]SearchBooksRow, error)
 	UpdateRoomBookingDuration(ctx context.Context, arg UpdateRoomBookingDurationParams) error
+	UpdateUserAccountSearchableByExternalId(ctx context.Context, arg UpdateUserAccountSearchableByExternalIdParams) (UserAccount, error)
 	UpsertBook(ctx context.Context, arg UpsertBookParams) (Book, error)
 	UpsertCampus(ctx context.Context, arg UpsertCampusParams) (Campuse, error)
 	UpsertClub(ctx context.Context, arg UpsertClubParams) (Club, error)

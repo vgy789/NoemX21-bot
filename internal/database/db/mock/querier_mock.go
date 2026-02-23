@@ -886,6 +886,21 @@ func (mr *MockQuerierMockRecorder) UpdateRoomBookingDuration(ctx, arg any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRoomBookingDuration", reflect.TypeOf((*MockQuerier)(nil).UpdateRoomBookingDuration), ctx, arg)
 }
 
+// UpdateUserAccountSearchableByExternalId mocks base method.
+func (m *MockQuerier) UpdateUserAccountSearchableByExternalId(ctx context.Context, arg db.UpdateUserAccountSearchableByExternalIdParams) (db.UserAccount, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateUserAccountSearchableByExternalId", ctx, arg)
+	ret0, _ := ret[0].(db.UserAccount)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateUserAccountSearchableByExternalId indicates an expected call of UpdateUserAccountSearchableByExternalId.
+func (mr *MockQuerierMockRecorder) UpdateUserAccountSearchableByExternalId(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserAccountSearchableByExternalId", reflect.TypeOf((*MockQuerier)(nil).UpdateUserAccountSearchableByExternalId), ctx, arg)
+}
+
 // UpsertBook mocks base method.
 func (m *MockQuerier) UpsertBook(ctx context.Context, arg db.UpsertBookParams) (db.Book, error) {
 	m.ctrl.T.Helper()

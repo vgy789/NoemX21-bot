@@ -25,6 +25,12 @@ RETURNING *;
 SELECT * FROM user_accounts 
 WHERE platform = $1 AND external_id = $2;
 
+-- name: UpdateUserAccountSearchableByExternalId :one
+UPDATE user_accounts
+SET is_searchable = $3
+WHERE platform = $1 AND external_id = $2
+RETURNING *;
+
 -- name: DeleteUserAccountByExternalId :exec
 DELETE FROM user_accounts
 WHERE platform = $1 AND external_id = $2;

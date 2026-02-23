@@ -3,7 +3,7 @@ meta:
   feature_id: STAT-001
   name: Статистика и поиск
   description: 'Центр аналитики: личный прогресс, поиск пиров и сравнение скиллов'
-  version: 2.2.0
+  version: 2.2.1
 
 initial_state: AUTO_SYNC_STATS
 
@@ -216,8 +216,8 @@ states:
           • ИНТ: `{peer_interest}` | ДОБ: `{peer_friendliness}`
           • ПНК: `{peer_punctuality}` | СТР: `{peer_thoroughness}`
 
-          {peer_contact_line_ru}
-          `{alternative_contact}`
+          {peer_contact_line}
+          {alternative_contact_line}
         en: |
           📂 *Peer: {peer_login}*
 
@@ -235,8 +235,8 @@ states:
           • INT: `{peer_interest}` | FRD: `{peer_friendliness}`
           • PNC: `{peer_punctuality}` | THO: `{peer_thoroughness}`
 
-          {peer_contact_line_en}
-          `{alternative_contact}`
+          📬 *Contact:* {peer_contact_line}
+          *Alt:* {alternative_contact_line}
       buttons:
         - id: compare_skills
           label:

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
@@ -17,11 +18,15 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 		aliasRegistrar("SETTINGS_MENU", "settings.yaml/SETTINGS_MENU")
 	}
 
-	updateLanguage := func(ctx context.Context, userID int64, langCode string) {
-		ua, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
+	getTelegramAccount := func(ctx context.Context, userID int64) (db.UserAccount, error) {
+		return queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
 			Platform:   db.EnumPlatformTelegram,
 			ExternalID: fmt.Sprintf("%d", userID),
 		})
+	}
+
+	updateLanguage := func(ctx context.Context, userID int64, langCode string) {
+		ua, err := getTelegramAccount(ctx, userID)
 		if err != nil {
 			log.Warn("user account not found when updating language", "user_id", userID)
 			return
@@ -70,12 +75,158 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 		return "", map[string]any{"language": fsm.LangEn}, nil
 	})
 
+	registry.Register("load_profile_settings", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		vars := map[string]any{
+			"my_searchable_status_ru":   "❌ не виден",
+			"my_searchable_status_en":   "❌ not visible",
+			"is_searchable_label_ru":    "❌ не виден",
+			"is_searchable_label_en":    "❌ not visible",
+			"my_alt_contact":            "❌ not set",
+			"my_alt_contact_display_ru": "❌ не задан",
+			"my_alt_contact_display_en": "❌ not set",
+			"has_alt_contact":           false,
+		}
+
+		ua, err := getTelegramAccount(ctx, userID)
+		if err != nil {
+			log.Warn("user account not found when loading profile settings", "user_id", userID, "error", err)
+			return "", vars, nil
+		}
+
+		if ua.IsSearchable.Valid && ua.IsSearchable.Bool {
+			vars["my_searchable_status_ru"] = "✅ виден"
+			vars["my_searchable_status_en"] = "✅ visible"
+			vars["is_searchable_label_ru"] = "✅ виден"
+			vars["is_searchable_label_en"] = "✅ visible"
+		}
+
+		profile, err := queries.GetMyProfile(ctx, ua.S21Login)
+		if err != nil {
+			log.Warn("user profile not found when loading profile settings", "user_id", userID, "s21_login", ua.S21Login, "error", err)
+			return "", vars, nil
+		}
+
+		if profile.AlternativeContact.Valid {
+			alt := strings.TrimSpace(profile.AlternativeContact.String)
+			if alt != "" {
+				vars["my_alt_contact"] = alt
+				vars["my_alt_contact_display_ru"] = alt
+				vars["my_alt_contact_display_en"] = alt
+				vars["has_alt_contact"] = true
+			}
+		}
+
+		return "", vars, nil
+	})
+
+	registry.Register("toggle_searchable", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		ua, err := getTelegramAccount(ctx, userID)
+		if err != nil {
+			return "", nil, fmt.Errorf("user account not found: %w", err)
+		}
+
+		newValue := true
+		if ua.IsSearchable.Valid {
+			newValue = !ua.IsSearchable.Bool
+		}
+
+		if _, err := queries.UpdateUserAccountSearchableByExternalId(ctx, db.UpdateUserAccountSearchableByExternalIdParams{
+			Platform:     db.EnumPlatformTelegram,
+			ExternalID:   fmt.Sprintf("%d", userID),
+			IsSearchable: pgtype.Bool{Bool: newValue, Valid: true},
+		}); err != nil {
+			return "", nil, fmt.Errorf("failed to update user searchable status: %w", err)
+		}
+
+		if newValue {
+			return "", map[string]any{
+				"my_searchable_status_ru": "виден",
+				"my_searchable_status_en": "visible",
+				"is_searchable_label_ru":  "✅ Виден",
+				"is_searchable_label_en":  "✅ Visible",
+			}, nil
+		}
+
+		return "", map[string]any{
+			"my_searchable_status_ru": "не виден",
+			"my_searchable_status_en": "not visible",
+			"is_searchable_label_ru":  "❌ Не виден",
+			"is_searchable_label_en":  "❌ Not visible",
+		}, nil
+	})
+
+	registry.Register("set_alternative_contact", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		input, _ := payload["last_input"].(string)
+		contact := strings.TrimSpace(input)
+		if contact == "" {
+			return "", nil, fmt.Errorf("empty contact")
+		}
+		if len([]rune(contact)) > 42 {
+			return "", nil, fmt.Errorf("contact is too long")
+		}
+
+		ua, err := getTelegramAccount(ctx, userID)
+		if err != nil {
+			return "", nil, fmt.Errorf("user account not found: %w", err)
+		}
+
+		r, err := queries.GetRegisteredUserByS21Login(ctx, ua.S21Login)
+		if err != nil {
+			return "", nil, fmt.Errorf("registered user not found: %w", err)
+		}
+
+		_, err = queries.UpsertRegisteredUser(ctx, db.UpsertRegisteredUserParams{
+			S21Login:           r.S21Login,
+			RocketchatID:       r.RocketchatID,
+			Timezone:           r.Timezone,
+			AlternativeContact: pgtype.Text{String: contact, Valid: true},
+			HasCoffeeBan:       r.HasCoffeeBan,
+		})
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to update alternative contact: %w", err)
+		}
+
+		return "", map[string]any{
+			"my_alt_contact":            contact,
+			"my_alt_contact_display_ru": contact,
+			"my_alt_contact_display_en": contact,
+			"has_alt_contact":           true,
+		}, nil
+	})
+
+	registry.Register("delete_alternative_contact", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		ua, err := getTelegramAccount(ctx, userID)
+		if err != nil {
+			return "", nil, fmt.Errorf("user account not found: %w", err)
+		}
+
+		r, err := queries.GetRegisteredUserByS21Login(ctx, ua.S21Login)
+		if err != nil {
+			return "", nil, fmt.Errorf("registered user not found: %w", err)
+		}
+
+		_, err = queries.UpsertRegisteredUser(ctx, db.UpsertRegisteredUserParams{
+			S21Login:           r.S21Login,
+			RocketchatID:       r.RocketchatID,
+			Timezone:           r.Timezone,
+			AlternativeContact: pgtype.Text{String: "", Valid: true},
+			HasCoffeeBan:       r.HasCoffeeBan,
+		})
+		if err != nil {
+			return "", nil, fmt.Errorf("failed to delete alternative contact: %w", err)
+		}
+
+		return "", map[string]any{
+			"my_alt_contact":            "not set",
+			"my_alt_contact_display_ru": "не задан",
+			"my_alt_contact_display_en": "not set",
+			"has_alt_contact":           false,
+		}, nil
+	})
+
 	// API Token actions
 	registry.Register("generate_api_token", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		ua, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
-			Platform:   db.EnumPlatformTelegram,
-			ExternalID: fmt.Sprintf("%d", userID),
-		})
+		ua, err := getTelegramAccount(ctx, userID)
 		if err != nil {
 			return "", nil, fmt.Errorf("user account not found: %w", err)
 		}
@@ -92,10 +243,7 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 	})
 
 	registry.Register("load_api_token", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		ua, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
-			Platform:   db.EnumPlatformTelegram,
-			ExternalID: fmt.Sprintf("%d", userID),
-		})
+		ua, err := getTelegramAccount(ctx, userID)
 		if err != nil {
 			return "", nil, fmt.Errorf("user account not found: %w", err)
 		}
