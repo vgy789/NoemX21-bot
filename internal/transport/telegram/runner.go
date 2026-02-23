@@ -95,8 +95,9 @@ func (s *telegramService) Run() {
 
 	dispatcher := ext.NewDispatcher(&ext.DispatcherOpts{
 		Error: func(b *gotgbot.Bot, ctx *ext.Context, err error) ext.DispatcherAction {
+			errMsg := config.RedactString(err.Error(), s.cfg.Telegram.Token, s.cfg.Telegram.Webhook.Secret)
 			s.log.Error("an error occurred while handling update",
-				"error", err,
+				"error", errMsg,
 				"user_id", ctx.EffectiveUser.Id,
 				"chat_id", ctx.EffectiveChat.Id,
 			)
@@ -118,7 +119,8 @@ func (s *telegramService) Run() {
 		},
 	})
 	if err != nil {
-		panic("failed to start polling: " + err.Error())
+		errMsg := config.RedactString(err.Error(), s.cfg.Telegram.Token, s.cfg.Telegram.Webhook.Secret)
+		panic("failed to start polling: " + errMsg)
 	}
 	s.log.Info("start polling")
 	s.updater.Idle()
@@ -131,8 +133,9 @@ func (s *telegramService) RunWebhook() error {
 
 	dispatcher := ext.NewDispatcher(&ext.DispatcherOpts{
 		Error: func(b *gotgbot.Bot, ctx *ext.Context, err error) ext.DispatcherAction {
+			errMsg := config.RedactString(err.Error(), s.cfg.Telegram.Token, s.cfg.Telegram.Webhook.Secret)
 			s.log.Error("an error occurred while handling update",
-				"error", err,
+				"error", errMsg,
 				"user_id", ctx.EffectiveUser.Id,
 				"chat_id", ctx.EffectiveChat.Id,
 			)
@@ -159,7 +162,8 @@ func (s *telegramService) RunWebhook() error {
 		SecretToken: secretToken,
 	})
 	if err != nil {
-		return fmt.Errorf("failed to set webhook: %w", err)
+		errMsg := config.RedactString(err.Error(), s.cfg.Telegram.Token, s.cfg.Telegram.Webhook.Secret)
+		return fmt.Errorf("failed to set webhook: %s", errMsg)
 	}
 
 	s.log.Info("webhook set successfully", "url", webhookURL)
@@ -171,7 +175,8 @@ func (s *telegramService) RunWebhook() error {
 		SecretToken: secretToken,
 	})
 	if err != nil {
-		return err
+		errMsg := config.RedactString(err.Error(), s.cfg.Telegram.Token, s.cfg.Telegram.Webhook.Secret)
+		return fmt.Errorf("failed to start webhook: %s", errMsg)
 	}
 
 	s.log.Info("webhook server started", "path", s.cfg.Telegram.Webhook.ListenPath, "addr", listenAddr)

@@ -36,7 +36,8 @@ func MustNew(cfg *config.TelegramBot) *gotgbot.Bot {
 
 	b, err := gotgbot.NewBot(cfg.Token.Expose(), botOpts)
 	if err != nil {
-		panic("failed to create bot: " + err.Error())
+		errMsg := config.RedactString(err.Error(), cfg.Token)
+		panic("failed to create bot: " + errMsg)
 	}
 	return b
 }
