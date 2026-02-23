@@ -20,7 +20,6 @@ states:
           ⚙️ *Settings*
 
           Here you can manage your profile, set up an emergency contact, and access the API.
-          > *What do you want to configure?*
       buttons:
         - id: profile
           label:
@@ -57,12 +56,12 @@ states:
 
           Настрой то, как тебя видят другие пиры и укажи дополнительный способ связи.
 
-          ```👁️ Видимость Telegram @username:
-          {my_searchable_status_ru}
-          ```
-          ```📞 Дополнительный контакт:
-          {my_alt_contact_display_ru}
-          ```
+          👁️ *Видимость Telegram @username:*
+          `{my_searchable_status_ru}`
+
+          📞 *Дополнительный контакт:*
+          `{my_alt_contact_display_ru}`
+
         en: |
           👤 *My Profile*
 
@@ -144,12 +143,14 @@ states:
           📞 *Дополнительный контакт*
 
           Отправь в чат свой запасной email или другую информацию о связи с тобой.
-          Это будут видеть пиры, при просмотре твоего профиля.
+
+          > Это будут видеть пиры, при просмотре твоего профиля.
         en: |
           📞 *External Contact*
 
           Send an alternative email or other contact info to be displayed on your profile.
-          This will be visible to parties when they view your profile.
+
+          > This will be visible to parties when they view your profile.
       error_invalid:
         ru: |
           ⚠️ Не похоже на корректный контакт (максимум 42 символа).
@@ -161,15 +162,17 @@ states:
         # кнопка видна, только если контакт уже задан
         - id: delete
           label:
-            ru: 🗑️ Удалить текущий
-            en: 🗑️ Delete Current Contact
+            ru: 🧹 Удалить текущий
+            en: 🧹 Delete Current Contact
           condition: has_alt_contact == true
           next_state: DELETE_ALTERNATIVE_CONTACT
+          row: 1
         - id: back
           label:
             ru: 🔙 Назад
             en: 🔙 Back
           next_state: PROFILE_SETTINGS
+          row: 1
     validation:
       regex: ^.{1,42}$
     transitions:
@@ -222,13 +225,13 @@ states:
 
           Ты собираешься удалить свой профиль из бота. Мы забудем все твои настройки и сохранённые данные.
 
-          Уверен, что хочешь продолжить? Это действие нельзя отменить.
+          > Уверен, что хочешь продолжить? Это действие нельзя отменить.
         en: |
           ⚠️ *Delete Profile*
 
           You are about to delete your profile from the bot. We will forget all your settings and saved data.
 
-          Are you sure you want to proceed? This action cannot be undone.
+          > Are you sure you want to proceed? This action cannot be undone.
       buttons:
         - id: confirm
           label:

@@ -26,23 +26,15 @@ states:
           🎲 *Клубы и сообщества*
 
           📍 *Локация:* `{my_campus}`
-
-          📂 *Категории:*
-          • *Local:* Клубы твоего кампуса
-          • *Global:* Межкампусные проекты
         en: |
           🎲 *Clubs & Communities*
 
           📍 *Location:* `{my_campus}`
-
-          📂 *Categories:*
-          • *Local:* Your campus clubs
-          • *Global:* Inter-campus projects
       buttons:
         - id: local
           label:
-            ru: 📍 Локальные клубы
-            en: 📍 Local clubs
+            ru: 🏫 Клубы кампуса
+            en: 🏫 Campus clubs
           next_state: FETCH_LOCAL_CATEGORIES
           row: 1
         - id: global
@@ -90,9 +82,13 @@ states:
     interface:
       text:
         ru: |
-          🗂️ *Выбери категорию:*
+          🗂️ *Категории*
+
+          👇 Нажми для выбора категории:
         en: |
-          🗂️ *Choose category:*
+          🗂️ *Categories*
+
+          👇 Click to select a category:
       buttons:
         # Максимум 15 категорий, реальные значения подставляются из контекста
         - id: "{category_1}"

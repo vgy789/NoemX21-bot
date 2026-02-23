@@ -341,7 +341,7 @@ states:
         en: |
           *{selected_room_name}* is free for _{max_gap} min._
           {duration_text}
-  
+
           *> How long do we book it for?*
           👇 Pick or enter manually:
       buttons:
@@ -533,7 +533,7 @@ states:
       text:
         ru: |
           ❌ *Дневной лимит (3 часа) исчерпан.*
-          
+
           Пожалуйста, освободи место для коллег.
         en: |
           ❌ *Daily limit: no more than 3 hours.*

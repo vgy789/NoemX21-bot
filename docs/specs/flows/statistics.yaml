@@ -161,12 +161,14 @@ states:
           🕵️ *Поиск пира*
 
           Введи логин студента.
-          _Например:_ `verter`
+
+          > Например: `verter`
         en: |
           🕵️ *Find a Peer*
 
           Enter the student's login.
-          _Example:_ `verter`
+
+          > Example: `verter`
       buttons:
         - id: back
           label:

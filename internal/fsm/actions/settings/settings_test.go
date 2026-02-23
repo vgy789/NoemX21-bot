@@ -39,8 +39,8 @@ func TestLoadProfileSettings(t *testing.T) {
 
 	_, updates, err := action(context.Background(), 42, nil)
 	require.NoError(t, err)
-	require.Equal(t, "✅ виден", updates["my_searchable_status_ru"])
-	require.Equal(t, "✅ visible", updates["my_searchable_status_en"])
+	require.Equal(t, "✅ Виден", updates["my_searchable_status_ru"])
+	require.Equal(t, "✅ Visible", updates["my_searchable_status_en"])
 	require.Equal(t, "peer@example.com", updates["my_alt_contact"])
 	require.Equal(t, true, updates["has_alt_contact"])
 }
@@ -71,7 +71,7 @@ func TestToggleSearchable(t *testing.T) {
 
 	_, updates, err := action(context.Background(), 42, nil)
 	require.NoError(t, err)
-	require.Equal(t, "не виден", updates["my_searchable_status_ru"])
+	require.Equal(t, "❌ Не виден", updates["my_searchable_status_ru"])
 	require.Equal(t, "❌ Not visible", updates["is_searchable_label_en"])
 }
 
