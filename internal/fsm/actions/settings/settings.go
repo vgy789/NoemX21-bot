@@ -77,13 +77,13 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 
 	registry.Register("load_profile_settings", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		vars := map[string]any{
-			"my_searchable_status_ru":   "❌ не виден",
-			"my_searchable_status_en":   "❌ not visible",
-			"is_searchable_label_ru":    "❌ не виден",
-			"is_searchable_label_en":    "❌ not visible",
-			"my_alt_contact":            "❌ not set",
-			"my_alt_contact_display_ru": "❌ не задан",
-			"my_alt_contact_display_en": "❌ not set",
+			"my_searchable_status_ru":   "❌ Не виден",
+			"my_searchable_status_en":   "❌ Not visible",
+			"is_searchable_label_ru":    "❌ Не виден",
+			"is_searchable_label_en":    "❌ Not visible",
+			"my_alt_contact":            "❌ Not set",
+			"my_alt_contact_display_ru": "❌ Не задан",
+			"my_alt_contact_display_en": "❌ Not set",
 			"has_alt_contact":           false,
 		}
 
@@ -94,10 +94,10 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 		}
 
 		if ua.IsSearchable.Valid && ua.IsSearchable.Bool {
-			vars["my_searchable_status_ru"] = "✅ виден"
-			vars["my_searchable_status_en"] = "✅ visible"
-			vars["is_searchable_label_ru"] = "✅ виден"
-			vars["is_searchable_label_en"] = "✅ visible"
+			vars["my_searchable_status_ru"] = "✅ Виден"
+			vars["my_searchable_status_en"] = "✅ Visible"
+			vars["is_searchable_label_ru"] = "✅ Виден"
+			vars["is_searchable_label_en"] = "✅ Visible"
 		}
 
 		profile, err := queries.GetMyProfile(ctx, ua.S21Login)
@@ -140,16 +140,16 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 
 		if newValue {
 			return "", map[string]any{
-				"my_searchable_status_ru": "виден",
-				"my_searchable_status_en": "visible",
+				"my_searchable_status_ru": "✅ Виден",
+				"my_searchable_status_en": "✅ Visible",
 				"is_searchable_label_ru":  "✅ Виден",
 				"is_searchable_label_en":  "✅ Visible",
 			}, nil
 		}
 
 		return "", map[string]any{
-			"my_searchable_status_ru": "не виден",
-			"my_searchable_status_en": "not visible",
+			"my_searchable_status_ru": "❌ Не виден",
+			"my_searchable_status_en": "❌ Not visible",
 			"is_searchable_label_ru":  "❌ Не виден",
 			"is_searchable_label_en":  "❌ Not visible",
 		}, nil

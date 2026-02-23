@@ -2,104 +2,91 @@
 meta:
   feature_id: LIB-001
   name: Библиотека
-  description: 'Оптимизированный процесс: Личный дашборд, Быстрый поиск, Умные фильтры'
-  version: 3.0.0
+  description: Личный дашборд, поиск, фильтры и бронирование книг
+  version: 4.0.0
 
 initial_state: AUTO_SYNC_USER_STATS
 
 states:
-  # -------------------------------------------------------------------------
-  # 1. ЗАГРУЗКА И ГЛАВНОЕ МЕНЮ (ДАШБОРД)
-  # -------------------------------------------------------------------------
   AUTO_SYNC_USER_STATS:
     type: system
-    description: "Загружаем личные данные пользователя (долги, книги на руках)"
+    description: Подтягиваем сводку по пользователю и кампусу
     logic:
       action: get_user_summary
-      payload:
-        user_id: $context.user_id
     transitions:
       - next_state: LIBRARY_HOME
 
   LIBRARY_HOME:
     type: interactive
-    description: "Персональный дашборд вместо общей статистики"
+    description: Главный экран библиотеки
+    # TODO: сечас {user_status_message} меняется только при переходе их главного меню!
+    # TODO: сечас {overdure_line} меняется только при переходе их главного меню!
     interface:
       text:
         ru: |
-          👋 *Привет, {user_firstname}!*
+          📚 *Библиотека*
+          📍 Твоя локация: `{campus_name}`
 
-          🏫 Библиотека: {campus_name}
-
-          👤 *Твой статус:*
-          📚 На руках: *{active_loans_count}*
-          ⚠️ Просрочено: *{overdue_count}*
-          {user_status_message}
-
-          _Что будем читать сегодня?_
+          {user_status_message_ru}
+          {overdue_line_ru}
         en: |
-          👋 *Hi, {user_firstname}!*
+          📍 Your location: `{campus_name}`
 
-          🏫 Library: {campus_name}
-
-          👤 *Your Status:*
-          📚 Active loans: *{active_loans_count}*
-          ⚠️ Overdue: *{overdue_count}*
-          {user_status_message}
-
-          _What are we reading today?_
+          {user_status_message_en}
+          {overdue_line_en}
       buttons:
+        - id: categories
+          label:
+            ru: 🗂 Разделы каталога
+            en: 🗂 Catalog sections
+          next_state: FETCH_CATEGORIES
+          row: 1
         - id: search
           label:
             ru: 🔍 Найти книгу
             en: 🔍 Find a book
           next_state: SEARCH_INPUT_MODE
-          row: 1
+          row: 2
         - id: my_books
+          # TODO: сечас число книг меняется только при переходе их главного меню!
           label:
             ru: 👤 Мои книги ({active_loans_count})
             en: 👤 My books ({active_loans_count})
           next_state: FETCH_MY_BOOKS
-          row: 1
-        - id: categories
-          label:
-            ru: 📂 Каталог
-            en: 📂 Catalog
-          next_state: FETCH_CATEGORIES
           row: 2
         - id: help
           label:
-            ru: ❓ Правила
-            en: ❓ Rules
+            ru: ℹ️ Как это работает?
+            en: ℹ️ How it works?
           next_state: SHOW_RULES
-          row: 2
+          row: 3
         - id: back
           label:
             ru: 🏠 Главное меню
             en: 🏠 Main menu
           next_state: MAIN_MENU
+          row: 3
 
-  # -------------------------------------------------------------------------
-  # 2. ПОИСК И СПИСКИ (ЕДИНЫЙ КОНТУР)
-  # -------------------------------------------------------------------------
   SEARCH_INPUT_MODE:
     type: input
-    description: "Ввод поискового запроса"
+    description: Ожидаем текстовый запрос для поиска
     interface:
       text:
         ru: |
-          ⌨️ *Поиск по библиотеке*
-          Напиши название, автора или ключевое слово.
-          _Пример:_ `Java`, `Достоевский`, `Design Patterns`
+          🔎 *Поиск по библиотеке*
+
+          Напиши название, автора или тему.
+          _Например:_ `Маркетинг`, `Оруэлл`, `Python`
         en: |
-          ⌨️ *Library Search*
-          Type title, author, or keyword.
-          _Example:_ `Java`, `Dostoevsky`, `Design Patterns`
+          🔎 *Library Search*
+
+          Type a title, author, or topic.
+          _Example:_ `Marketing`, `Orwell`, `Python`
       buttons:
         - id: cancel
           label:
-            ru: 🙅‍♂️ Отмена
-            en: 🙅‍♂️ Cancel
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: LIBRARY_HOME
     transitions:
       - trigger: on_input
@@ -107,21 +94,15 @@ states:
 
   PREPARE_SEARCH:
     type: system
-    description: "Сброс пагинации и сохранение запроса"
+    description: Сохраняем новый поисковый запрос и сбрасываем фильтры
     logic:
-      action: set_context
-      payload:
-        search_query: $context.last_input
-        selected_category_id: "" # Сбрасываем категорию при новом поиске
-        page: 1
-        only_available: false # По умолчанию ищем всё
-
+      action: prepare_search_context
     transitions:
       - next_state: EXECUTE_SEARCH
 
   EXECUTE_SEARCH:
     type: system
-    description: "Выполнение запроса к API"
+    description: Выполнение поиска по каталогу
     logic:
       action: search_books
       payload:
@@ -129,7 +110,7 @@ states:
         category_id: $context.selected_category_id
         only_available: $context.only_available
         page: $context.page
-        limit: 5 # Меньше книг на странице — легче читать с телефона
+        limit: 7
     transitions:
       - condition: total_count == 0
         next_state: SEARCH_EMPTY
@@ -137,111 +118,112 @@ states:
 
   DISPLAY_RESULTS:
     type: interactive
-    description: "Выдача результатов с фильтром 'на лету'"
+    description: Результаты поиска с фильтрами и пагинацией
     interface:
       text:
+        # TODO: Замени page_caption_ru/page_caption_en на {page_caption}
+        # TODO: Замени results_scope_label_ru/results_scope_label_en на {results_scope_label}
         ru: |
-          🔎 *Результаты поиска*
-          📖 Найдено: *{total_count}*
-          ⚙️ Фильтр: {filter_status_text_ru}
+          🎯 Результаты: *{results_scope_label_ru}*
+          ⚙️ Фильтр: _{filter_status_text_ru}_
+          🧭 Страница: _{page_caption_ru}_
 
           {formatted_book_list_with_icons}
-          _🟢 – доступна, 🔴 – занята_
+          🟢 — свободна / 🔴 — на руках
+          {results_error_text}
         en: |
-          🔎 *Search Results*
-          📖 Found: *{total_count}*
-          ⚙️ Filter: {filter_status_text_en}
+          🎯 Results: *{results_scope_label_en}*
+          ⚙️ Filter: _{filter_status_text_en}_
+          🧭 Page: _{page_caption_en}_
 
           {formatted_book_list_with_icons}
-          _🟢 – available, 🔴 – taken_
+          🟢 — available / 🔴 — borrowed
+          {results_error_text}
       buttons:
-        # Динамические кнопки книг (1-5)
         - id: "{book_id_1}"
-          label: "1. {short_title_1}"
+          label: "{book_btn_label_1}"
+          condition: "book_id_1 != ''"
+          action: select_book_from_callback
           next_state: FETCH_BOOK_DETAILS
         - id: "{book_id_2}"
-          label: "2. {short_title_2}"
+          label: "{book_btn_label_2}"
+          condition: "book_id_2 != ''"
+          action: select_book_from_callback
           next_state: FETCH_BOOK_DETAILS
         - id: "{book_id_3}"
-          label: "3. {short_title_3}"
+          label: "{book_btn_label_3}"
+          condition: "book_id_3 != ''"
+          action: select_book_from_callback
           next_state: FETCH_BOOK_DETAILS
         - id: "{book_id_4}"
-          label: "4. {short_title_4}"
+          label: "{book_btn_label_4}"
+          condition: "book_id_4 != ''"
+          action: select_book_from_callback
           next_state: FETCH_BOOK_DETAILS
         - id: "{book_id_5}"
-          label: "5. {short_title_5}"
+          label: "{book_btn_label_5}"
+          condition: "book_id_5 != ''"
+          action: select_book_from_callback
           next_state: FETCH_BOOK_DETAILS
-        
-        # Управление
+        - id: "{book_id_6}"
+          label: "{book_btn_label_6}"
+          condition: "book_id_6 != ''"
+          action: select_book_from_callback
+          next_state: FETCH_BOOK_DETAILS
+        - id: "{book_id_7}"
+          label: "{book_btn_label_7}"
+          condition: "book_id_7 != ''"
+          action: select_book_from_callback
+          next_state: FETCH_BOOK_DETAILS
+        - id: prev_page
+          label:
+            ru: ⬅️ Назад
+            en: ⬅️ Prev
+          action: go_to_prev_page
+          next_state: EXECUTE_SEARCH
+          row: 7
+        - id: page
+          label:
+            ru: "{page_caption_ru}"
+            en: "{page_caption_en}"
+          # TODO: добавь action, который ничего не делает
+          action: none
+          row: 7
+        - id: next_page
+          label:
+            ru: Вперёд ➡️
+            en: Next ➡️
+          action: go_to_next_page
+          next_state: EXECUTE_SEARCH
+          row: 7
         - id: toggle_avail
           label:
-            ru: "🔄 {toggle_btn_label_ru}" # Меняется: "Только доступные" / "Показать все"
+            ru: "🔄 {toggle_btn_label_ru}"
             en: "🔄 {toggle_btn_label_en}"
-          next_state: TOGGLE_FILTER_STATE
-          row: 2
-        
-        # Пагинация
-        - id: prev
-          label: "⬅️"
-          next_state: PREV_PAGE
-          condition: page > 1
-          row: 3
-        - id: page
-          label: "{page}/{total_pages}"
-          row: 3
-        - id: next
-          label: "➡️"
-          next_state: NEXT_PAGE
-          condition: page < total_pages
-          row: 3
-          
-        - id: back
+          action: toggle_search_availability
+          next_state: EXECUTE_SEARCH
+          row: 8
+        - id: categories
           label:
-            ru: 🔙 Назад
-            en: 🔙 Back
+            ru: 🗂 Разделы
+            en: 🗂 Categories
+          next_state: FETCH_CATEGORIES
+          row: 9
+        - id: home
+          label:
+            ru: 📚 Главная
+            en: 📚 Home
           next_state: LIBRARY_HOME
-          row: 4
+          row: 9
     transitions:
-      - trigger: button_click
-        condition: id.startswith('book_') # Обработка клика по книге
+      - trigger: message
+        condition: "is_numeric(id)"
+        action: select_book_by_number
         next_state: FETCH_BOOK_DETAILS
 
-  # Состояния для переключения фильтров "на лету" без ввода текста
-  TOGGLE_FILTER_STATE:
-    type: system
-    logic:
-      action: toggle_boolean_context
-      payload:
-        key: "only_available"
-        reset_pagination: true
-    transitions:
-      - next_state: EXECUTE_SEARCH
-
-  NEXT_PAGE:
-    type: system
-    logic:
-      action: increment_context
-      payload:
-        key: "page"
-        value: 1
-    transitions:
-      - next_state: EXECUTE_SEARCH
-
-  PREV_PAGE:
-    type: system
-    logic:
-      action: increment_context
-      payload:
-        key: "page"
-        value: -1
-    transitions:
-      - next_state: EXECUTE_SEARCH
-
-  # -------------------------------------------------------------------------
-  # 3. ДЕТАЛИ КНИГИ И ДЕЙСТВИЯ
-  # -------------------------------------------------------------------------
   FETCH_BOOK_DETAILS:
     type: system
+    description: Подгружаем детальную карточку книги
     logic:
       action: get_book_details
       payload:
@@ -251,53 +233,52 @@ states:
 
   BOOK_CARD:
     type: interactive
-    description: "Карточка книги с четким статусом"
+    description: Карточка выбранной книги
+    # TODO: в {status_test_ru}/{status_test_ru} если книга на руках, то нужно вывести login у кого она на руках. Пример: На руках у `jonnabin`, `morslomy`.
     interface:
       text:
         ru: |
           📖 *{title}*
-          ✍️ {author}
-          📂 {category}
-          
-          ---
-          📊 *Статус:* {status_emoji} {status_text_ru}
-          🏢 *Место:* Полка {shelf_number}
+          ✍️ Автор: {author}
+          🗂 Раздел: {category}
+
+          {status_emoji} *Книга {status_text_ru}*
+
+          *Описание:*
           {description_snippet}
         en: |
           📖 *{title}*
-          ✍️ {author}
-          📂 {category}
-          
-          ---
-          📊 *Status:* {status_emoji} {status_text_en}
-          🏢 *Location:* Shelf {shelf_number}
+          ✍️ Author: {author}
+          🗂 Category: {category}
+
+          {status_emoji} *Book {status_text_en}*
+
+          *Description:*
           {description_snippet}
       buttons:
         - id: borrow
           label:
-            ru: ⚡ Взять почитать
-            en: ⚡ Borrow now
+            ru: ⚡️ Забронировать
+            en: ⚡️ Reserve
+          condition: "is_available == true"
           next_state: ACTION_BORROW
-          condition: is_available == true
-        - id: notify
-          label:
-            ru: 🔔 Уведомить о возврате
-            en: 🔔 Notify when available
-          next_state: ACTION_SUBSCRIBE
-          condition: is_available == false
-        - id: back_list
+          row: 1
+        - id: back_results
           label:
             ru: 🔙 К результатам
             en: 🔙 Back to results
-          next_state: DISPLAY_RESULTS # Возвращаемся к сохраненному списку
-        - id: menu
+          next_state: DISPLAY_RESULTS
+          row: 2
+        - id: home
           label:
-            ru: 🏠 Меню
-            en: 🏠 Menu
+            ru: 📚 Главная
+            en: 📚 Home
           next_state: LIBRARY_HOME
+          row: 2
 
   ACTION_BORROW:
     type: system
+    description: Пытаемся выдать книгу пользователю
     logic:
       action: borrow_book
       payload:
@@ -305,45 +286,39 @@ states:
     transitions:
       - condition: success == true
         next_state: BORROW_SUCCESS
-      - condition: success == false
-        next_state: BORROW_ERROR
+      - next_state: BORROW_ERROR
 
   BORROW_SUCCESS:
     type: interactive
-    description: "Чек об успешной операции"
+    description: Успешное бронирование книги
     interface:
       text:
         ru: |
-          ✅ *Бронь подтверждена!*
-          
-          Книга: "{title}"
-          🗓 **Вернуть до:** {due_date}
-          
-          Забери книгу на стойке в течение 24 часов.
+          ✅ *Книга забронирована*
+
+          Экземпляр “`{title}`” уже ждёт в библиотеке.
+
+          🗓 Вернуть до: `{due_date}`
         en: |
-          ✅ *Reservation confirmed!*
-          
-          Book: "{title}"
-          🗓 **Return by:** {due_date}
-          
-          Pick up the book at the desk within 24 hours.
+          ✅ *Book reserved*
+
+          “`{title}`” is waiting for you in library.
+          🗓 Return by: `{due_date}`
       buttons:
         - id: my_books
           label:
-            ru: 👤 Перейти к моим книгам
-            en: 👤 Go to my books
+            ru: 👤 Моя полка
+            en: 👤 My shelf
           next_state: FETCH_MY_BOOKS
-        - id: search_more
+        - id: home
           label:
-            ru: 🔎 Искать ещё
-            en: 🔎 Search more
-          next_state: SEARCH_INPUT_MODE
+            ru: 📚 Главная
+            en: 📚 Home
+          next_state: LIBRARY_HOME
 
-  # -------------------------------------------------------------------------
-  # 4. МОИ КНИГИ (ЛИЧНЫЙ КАБИНЕТ)
-  # -------------------------------------------------------------------------
   FETCH_MY_BOOKS:
     type: system
+    description: Загружаем активные выдачи пользователя
     logic:
       action: get_user_loans
     transitions:
@@ -354,19 +329,15 @@ states:
     interface:
       text:
         ru: |
-          👤 *Твоя полка*
-          
+          👤 *Твоя книжная полка*
+
           {loans_list_formatted}
-          
-          _⚠️ - скоро срок сдачи или просрочено_
-          _✅ - все ок_
+          ✅ — в срок / ⚠️ — пора вернуть
         en: |
-          👤 *Your Shelf*
-          
+          👤 *Your bookshelf*
+
           {loans_list_formatted}
-          
-          _⚠️ - due soon or overdue_
-          _✅ - all good_
+          ✅ — on time / ⚠️ — due soon
       buttons:
         - id: home
           label:
@@ -376,6 +347,7 @@ states:
 
   FETCH_CATEGORIES:
     type: system
+    description: Получаем список категорий книг в кампусе
     logic:
       action: get_book_categories
     transitions:
@@ -383,46 +355,72 @@ states:
 
   DISPLAY_CATEGORIES:
     type: interactive
+    description: Выбор категории для быстрого каталожного поиска
     interface:
       text:
-        ru: "📂 *Каталог по категориям*\nВыберите интересующий раздел:"
-        en: "📂 *Catalog by Categories*\nSelect a section:"
+        ru: |
+          🗂 *Разделы библиотеки*
+
+          Выбери тему, и я сразу покажу доступные книги.
+        en: |
+          🗂 *Library categories*
+
+          Choose a topic and I'll show matching books.
       buttons:
-        - id: "{category_1}"
-          label: "{category_1}"
-          condition: "category_1 != ''"
-        - id: "{category_2}"
-          label: "{category_2}"
-          condition: "category_2 != ''"
-        - id: "{category_3}"
-          label: "{category_3}"
-          condition: "category_3 != ''"
-        - id: "{category_4}"
-          label: "{category_4}"
-          condition: "category_4 != ''"
-        - id: "{category_5}"
-          label: "{category_5}"
-          condition: "category_5 != ''"
+        - id: "{category_id_1}"
+          label: "{category_label_1}"
+          condition: "category_id_1 != ''"
+          action: prepare_category_search
+          next_state: EXECUTE_SEARCH
+          row: 1
+        - id: "{category_id_2}"
+          label: "{category_label_2}"
+          condition: "category_id_2 != ''"
+          action: prepare_category_search
+          next_state: EXECUTE_SEARCH
+          row: 2
+        - id: "{category_id_3}"
+          label: "{category_label_3}"
+          condition: "category_id_3 != ''"
+          action: prepare_category_search
+          next_state: EXECUTE_SEARCH
+          row: 3
+        - id: "{category_id_4}"
+          label: "{category_label_4}"
+          condition: "category_id_4 != ''"
+          action: prepare_category_search
+          next_state: EXECUTE_SEARCH
+          row: 4
+        - id: "{category_id_5}"
+          label: "{category_label_5}"
+          condition: "category_id_5 != ''"
+          action: prepare_category_search
+          next_state: EXECUTE_SEARCH
+          row: 5
+        - id: "{category_id_6}"
+          label: "{category_label_6}"
+          condition: "category_id_6 != ''"
+          action: prepare_category_search
+          next_state: EXECUTE_SEARCH
+          row: 6
+        - id: "{category_id_7}"
+          label: "{category_label_7}"
+          condition: "category_id_7 != ''"
+          action: prepare_category_search
+          next_state: EXECUTE_SEARCH
+          row: 7
+        - id: "{category_id_8}"
+          label: "{category_label_8}"
+          condition: "category_id_8 != ''"
+          action: prepare_category_search
+          next_state: EXECUTE_SEARCH
+          row: 8
         - id: back
           label:
             ru: 🔙 Назад
             en: 🔙 Back
           next_state: LIBRARY_HOME
-          row: 5
-    transitions:
-      - trigger: button_click
-        next_state: PREPARE_CATEGORY_SEARCH
-
-  PREPARE_CATEGORY_SEARCH:
-    type: system
-    logic:
-      action: set_context
-      payload:
-        search_query: "" # Пустой поиск
-        selected_category_id: $context.last_input # В action search_books используется category_id
-        page: 1
-    transitions:
-      - next_state: EXECUTE_SEARCH
+          row: 9
 
   SHOW_RULES:
     type: interactive
@@ -430,43 +428,42 @@ states:
       text:
         ru: |
           📜 *Правила библиотеки*
-          1. Книги выдаются на 14 дней.
-          2. Берегите книги!
-        en: |
-          📜 *Library Rules*
-          1. Books are issued for 14 days.
-          2. Take care of the books!
-      buttons:
-        - id: back
-          label:
-            ru: 🔙 Понятно
-            en: 🔙 I see
-          next_state: LIBRARY_HOME
 
-  ACTION_SUBSCRIBE:
-    type: interactive
-    interface:
-      text:
-        ru: "🔔 Вы подписаны на уведомление о возврате книги. Мы сообщим, как только она появится!"
-        en: "🔔 You are subscribed to return notifications. We will notify you once it is available!"
+          1. Книги можно взять максимум на 14 дней.
+          2. Бронирование фиксируется мгновенно.
+          3. Если книга уже занята, попробуй другую или включи фильтр доступных.
+        en: |
+          📜 *Library rules*
+          1. Books are issued for 14 days.
+          2. Reservation is instant.
+          3. If a book is unavailable, try another one or use available-only filter.
       buttons:
         - id: back
           label:
-            ru: 🔙 В меню
-            en: 🔙 Menu
+            ru: 🔙 OK
+            en: 🔙 OK
           next_state: LIBRARY_HOME
 
   BORROW_ERROR:
     type: interactive
     interface:
       text:
-        ru: "❌ Ошибка при бронировании. Возможно, книгу уже кто-то успел взять или произошел технический сбой."
-        en: "❌ Borrowing error. Maybe someone else just took the book or there was a technical glitch."
+        ru: |
+          ❌ Не удалось забронировать книгу.
+          Возможно, её уже взяли или произошла техническая ошибка.
+        en: |
+          ❌ Could not reserve the book.
+          It may already be borrowed or a technical error occurred.
       buttons:
         - id: retry
           label:
-            ru: 🔄 Попробовать снова
-            en: 🔄 Try again
+            ru: 🔄 К результатам
+            en: 🔄 Back to results
+          next_state: DISPLAY_RESULTS
+        - id: home
+          label:
+            ru: 🏠 Домой
+            en: 🏠 Home
           next_state: LIBRARY_HOME
 
   SEARCH_EMPTY:
@@ -474,20 +471,28 @@ states:
     interface:
       text:
         ru: |
-          🤷‍♂️ *Ничего не найдено*
-          Попробуй изменить запрос или сбросить фильтры.
+          🤷 *Ничего не нашлось*
+
+          Для *{results_scope_label_ru}* в кампусе `{campus_name}` пока нет книг.
+          Попробуй другой запрос или раздел.
         en: |
-          🤷‍♂️ *Nothing found*
-          Try changing the query or resetting filters.
+          🤷 *Nothing found*
+
+          We found no books for *{results_scope_label_en}* in `{campus_name}`.
+          Try another query or category.
       buttons:
         - id: retry
           label:
-            ru: 🔄 Искать заново
-            en: 🔄 Search again
+            ru: 🔎 Новый поиск
+            en: 🔎 New search
           next_state: SEARCH_INPUT_MODE
+        - id: categories
+          label:
+            ru: 🗂 Разделы
+            en: 🗂 Categories
+          next_state: FETCH_CATEGORIES
         - id: home
           label:
-            ru: 🏠 Домой
-            en: 🏠 Home
+            ru: 📚 Главная
+            en: 📚 Home
           next_state: LIBRARY_HOME
-

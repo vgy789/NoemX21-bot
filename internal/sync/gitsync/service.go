@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 
@@ -440,6 +441,14 @@ func (s *Service) syncCampus(ctx context.Context, campus *db.Campuse, path strin
 		}
 	}
 
+	// Sync books
+	booksPath := filepath.Join(path, "books.csv")
+	if _, err := os.Stat(booksPath); err == nil {
+		if err := s.syncBooks(ctx, campus, booksPath); err != nil {
+			s.log.Error("failed to sync books", "campus", campus.ShortName, "error", err)
+		}
+	}
+
 	s.log.Debug("campus sync done", "campus", campus.ShortName)
 	return nil
 }
@@ -559,4 +568,72 @@ func (s *Service) syncRooms(ctx context.Context, campus *db.Campuse, roomsPath s
 
 	s.log.Debug("rooms synced", "campus", campus.ShortName, "rooms", len(roomsYAML.Rooms))
 	return nil
+}
+
+func (s *Service) syncBooks(ctx context.Context, campus *db.Campuse, booksPath string) error {
+	booksCSV, err := ParseBooksCSV(booksPath)
+	if err != nil {
+		return err
+	}
+
+	if err := s.queries.DeactivateBooksByCampus(ctx, campus.ID); err != nil {
+		return err
+	}
+
+	synced := 0
+	for _, b := range booksCSV {
+		id, err := strconv.Atoi(strings.TrimSpace(b.ID))
+		if err != nil || id <= 0 || id > 32767 {
+			s.log.Warn("skipping book with invalid id", "campus", campus.ShortName, "book_id", b.ID)
+			continue
+		}
+
+		title := strings.TrimSpace(b.Title)
+		if title == "" {
+			s.log.Warn("skipping book with empty title", "campus", campus.ShortName, "book_id", id)
+			continue
+		}
+
+		totalStock, err := strconv.Atoi(strings.TrimSpace(b.TotalStock))
+		if err != nil {
+			totalStock = 1
+		}
+		if totalStock < 0 {
+			totalStock = 0
+		}
+
+		author := normalizeBookField(b.Author, "Unknown")
+		category := normalizeBookField(b.Category, "General")
+		description := strings.TrimSpace(b.Description)
+		if description == "-" {
+			description = ""
+		}
+
+		_, err = s.queries.UpsertBook(ctx, db.UpsertBookParams{
+			ID:          int16(id),
+			CampusID:    campus.ID,
+			Title:       title,
+			Author:      author,
+			Category:    category,
+			TotalStock:  int32(totalStock),
+			Description: toText(description),
+			IsActive:    pgtype.Bool{Bool: true, Valid: true},
+		})
+		if err != nil {
+			s.log.Error("failed to upsert book", "campus", campus.ShortName, "book_id", id, "title", title, "error", err)
+			continue
+		}
+		synced++
+	}
+
+	s.log.Debug("books synced", "campus", campus.ShortName, "books", synced)
+	return nil
+}
+
+func normalizeBookField(v, fallback string) string {
+	out := strings.TrimSpace(v)
+	if out == "" || out == "-" {
+		return fallback
+	}
+	return out
 }
