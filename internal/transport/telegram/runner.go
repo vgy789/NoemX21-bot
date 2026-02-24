@@ -1,6 +1,7 @@
 package telegram
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -17,8 +18,8 @@ import (
 )
 
 type TelegramService interface {
-	Run()
-	RunWebhook() error
+	Run(ctx context.Context) error
+	RunWebhook(ctx context.Context) error
 	GetWebhookHandler() http.Handler
 }
 
@@ -77,6 +78,7 @@ type telegramService struct {
 	sender    Sender // For testing
 	bot       *gotgbot.Bot
 	updater   *ext.Updater
+	updaterMu sync.RWMutex
 	fileIDs   map[string]string
 	fileIDsMu sync.RWMutex
 }
@@ -88,8 +90,20 @@ func (s *telegramService) getSender(b *gotgbot.Bot) Sender {
 	return &DefaultSender{Bot: b}
 }
 
+func (s *telegramService) setUpdater(updater *ext.Updater) {
+	s.updaterMu.Lock()
+	defer s.updaterMu.Unlock()
+	s.updater = updater
+}
+
+func (s *telegramService) getUpdater() *ext.Updater {
+	s.updaterMu.RLock()
+	defer s.updaterMu.RUnlock()
+	return s.updater
+}
+
 // Run starts the telegram bot using long polling.
-func (s *telegramService) Run() {
+func (s *telegramService) Run(ctx context.Context) error {
 	tgBot := telegram.MustNew(&s.cfg.Telegram)
 	s.bot = tgBot
 
@@ -106,10 +120,11 @@ func (s *telegramService) Run() {
 		MaxRoutines: s.cfg.Telegram.Polling.MaxRoutines,
 	})
 
-	s.updater = ext.NewUpdater(dispatcher, nil)
+	updater := ext.NewUpdater(dispatcher, nil)
+	s.setUpdater(updater)
 	s.registerHandlers(dispatcher)
 
-	err := s.updater.StartPolling(tgBot, &ext.PollingOpts{
+	err := updater.StartPolling(tgBot, &ext.PollingOpts{
 		DropPendingUpdates: s.cfg.Telegram.Polling.DropPendingUpdates,
 		GetUpdatesOpts: &gotgbot.GetUpdatesOpts{
 			Timeout: s.cfg.Telegram.Polling.Timeout,
@@ -120,14 +135,26 @@ func (s *telegramService) Run() {
 	})
 	if err != nil {
 		errMsg := config.RedactString(err.Error(), s.cfg.Telegram.Token, s.cfg.Telegram.Webhook.Secret)
-		panic("failed to start polling: " + errMsg)
+		return fmt.Errorf("failed to start polling: %s", errMsg)
 	}
 	s.log.Info("start polling")
-	s.updater.Idle()
+
+	done := make(chan struct{})
+	go func() {
+		updater.Idle()
+		close(done)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return updater.Stop()
+	case <-done:
+		return nil
+	}
 }
 
 // RunWebhook sets up and starts the telegram bot using webhook.
-func (s *telegramService) RunWebhook() error {
+func (s *telegramService) RunWebhook(ctx context.Context) error {
 	tgBot := telegram.MustNew(&s.cfg.Telegram)
 	s.bot = tgBot
 
@@ -144,7 +171,8 @@ func (s *telegramService) RunWebhook() error {
 		MaxRoutines: s.cfg.Telegram.Polling.MaxRoutines,
 	})
 
-	s.updater = ext.NewUpdater(dispatcher, nil)
+	updater := ext.NewUpdater(dispatcher, nil)
+	s.setUpdater(updater)
 	s.registerHandlers(dispatcher)
 
 	// Set webhook URL with Telegram
@@ -170,7 +198,7 @@ func (s *telegramService) RunWebhook() error {
 
 	// Start webhook server
 	listenAddr := fmt.Sprintf(":%d", s.cfg.Telegram.Webhook.ListenPort)
-	err = s.updater.StartWebhook(tgBot, s.cfg.Telegram.Webhook.ListenPath, ext.WebhookOpts{
+	err = updater.StartWebhook(tgBot, s.cfg.Telegram.Webhook.ListenPath, ext.WebhookOpts{
 		ListenAddr:  listenAddr,
 		SecretToken: secretToken,
 	})
@@ -180,26 +208,31 @@ func (s *telegramService) RunWebhook() error {
 	}
 
 	s.log.Info("webhook server started", "path", s.cfg.Telegram.Webhook.ListenPath, "addr", listenAddr)
-	return nil
+
+	done := make(chan struct{})
+	go func() {
+		updater.Idle()
+		close(done)
+	}()
+
+	select {
+	case <-ctx.Done():
+		return updater.Stop()
+	case <-done:
+		return nil
+	}
 }
 
 // GetWebhookHandler returns the HTTP handler for webhook.
 // Note: When using StartWebhook, the updater handles HTTP directly via ListenAndServe.
 // This method is provided for custom HTTP server integration.
 func (s *telegramService) GetWebhookHandler() http.Handler {
-	if s.updater == nil {
-		s.log.Warn("webhook handler requested before updater initialized")
-		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			http.Error(w, "webhook not initialized", http.StatusServiceUnavailable)
-		})
-	}
-	// ext.Updater implements http.Handler via its ServeHTTP method for webhook updates
-	return &updaterHandler{updater: s.updater, path: s.cfg.Telegram.Webhook.ListenPath}
+	return &updaterHandler{service: s, path: s.cfg.Telegram.Webhook.ListenPath}
 }
 
 // updaterHandler wraps ext.Updater to only handle requests at the configured path.
 type updaterHandler struct {
-	updater *ext.Updater
+	service *telegramService
 	path    string
 }
 
@@ -208,8 +241,13 @@ func (h *updaterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	// ext.Updater has ServeHTTP method
-	if handler, ok := any(h.updater).(http.Handler); ok {
+	updater := h.service.getUpdater()
+	if updater == nil {
+		h.service.log.Warn("webhook request received before updater initialized")
+		http.Error(w, "webhook not initialized", http.StatusServiceUnavailable)
+		return
+	}
+	if handler, ok := any(updater).(http.Handler); ok {
 		handler.ServeHTTP(w, r)
 	} else {
 		http.Error(w, "updater does not implement http.Handler", http.StatusInternalServerError)

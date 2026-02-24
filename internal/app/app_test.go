@@ -1,9 +1,12 @@
 package app
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
@@ -15,17 +18,32 @@ import (
 
 // mockTelegramService is a simple mock for testing
 type mockTelegramService struct {
-	runCalled         bool
-	runWebhookCalled  bool
-	webhookHandlerRet http.Handler
+	runCalled          atomic.Bool
+	runWebhookCalled   atomic.Bool
+	runCalledCh        chan struct{}
+	runWebhookCalledCh chan struct{}
+	webhookHandlerRet  http.Handler
 }
 
-func (m *mockTelegramService) Run() {
-	m.runCalled = true
+func (m *mockTelegramService) Run(ctx context.Context) error { //nolint:revive,stylecheck // test helper
+	m.runCalled.Store(true)
+	if m.runCalledCh != nil {
+		select {
+		case m.runCalledCh <- struct{}{}:
+		default:
+		}
+	}
+	return nil
 }
 
-func (m *mockTelegramService) RunWebhook() error {
-	m.runWebhookCalled = true
+func (m *mockTelegramService) RunWebhook(ctx context.Context) error { //nolint:revive,stylecheck // test helper
+	m.runWebhookCalled.Store(true)
+	if m.runWebhookCalledCh != nil {
+		select {
+		case m.runWebhookCalledCh <- struct{}{}:
+		default:
+		}
+	}
 	return nil
 }
 
@@ -61,7 +79,7 @@ func TestApp_Run(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
-	mockTG := &mockTelegramService{}
+	mockTG := &mockTelegramService{runCalledCh: make(chan struct{}, 1)}
 	mockHTTPServer := &mockHTTPServer{}
 	mockGitSync := &mockStarter{}
 	mockCampusSvc := &mockStarter{}
@@ -77,13 +95,25 @@ func TestApp_Run(t *testing.T) {
 		log:         slog.Default(),
 	}
 
-	a.Run()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		_ = a.Run(ctx)
+		close(done)
+	}()
+	select {
+	case <-mockTG.runCalledCh:
+	case <-time.After(time.Second):
+		t.Fatal("telegram Run was not called")
+	}
+	cancel()
+	<-done
 
-	assert.True(t, mockTG.runCalled)
+	assert.True(t, mockTG.runCalled.Load())
 }
 
 func TestApp_Run_WebhookMode(t *testing.T) {
-	mockTG := &mockTelegramService{}
+	mockTG := &mockTelegramService{runWebhookCalledCh: make(chan struct{}, 1)}
 	mockHTTPServer := &mockHTTPServer{}
 	mockGitSync := &mockStarter{}
 	mockCampusSvc := &mockStarter{}
@@ -104,26 +134,25 @@ func TestApp_Run_WebhookMode(t *testing.T) {
 		log:         slog.Default(),
 	}
 
-	// Run in goroutine since it blocks
 	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		a.Run()
+		_ = a.Run(ctx)
 		close(done)
 	}()
-
-	// Give it a moment to execute
 	select {
-	case <-done:
-		// Completed
-	case <-make(chan struct{}, 1):
-		// Still running
+	case <-mockTG.runWebhookCalledCh:
+	case <-time.After(time.Second):
+		t.Fatal("telegram RunWebhook was not called")
 	}
+	cancel()
+	<-done
 
-	assert.True(t, mockTG.runWebhookCalled)
+	assert.True(t, mockTG.runWebhookCalled.Load())
 }
 
 func TestApp_Run_GitSyncError(t *testing.T) {
-	mockTG := &mockTelegramService{}
+	mockTG := &mockTelegramService{runCalledCh: make(chan struct{}, 1)}
 	mockHTTPServer := &mockHTTPServer{}
 	mockGitSync := &mockStarterError{}
 	mockCampusSvc := &mockStarter{}
@@ -139,21 +168,23 @@ func TestApp_Run_GitSyncError(t *testing.T) {
 		log:         slog.Default(),
 	}
 
-	// Should not panic, just log error
 	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		a.Run()
+		_ = a.Run(ctx)
 		close(done)
 	}()
-
 	select {
-	case <-done:
-	case <-make(chan struct{}, 1):
+	case <-mockTG.runCalledCh:
+	case <-time.After(time.Second):
+		t.Fatal("telegram Run was not called")
 	}
+	cancel()
+	<-done
 }
 
 func TestApp_Run_CampusSvcError(t *testing.T) {
-	mockTG := &mockTelegramService{}
+	mockTG := &mockTelegramService{runCalledCh: make(chan struct{}, 1)}
 	mockHTTPServer := &mockHTTPServer{}
 	mockGitSync := &mockStarter{}
 	mockCampusSvc := &mockStarterError{}
@@ -170,15 +201,18 @@ func TestApp_Run_CampusSvcError(t *testing.T) {
 	}
 
 	done := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		a.Run()
+		_ = a.Run(ctx)
 		close(done)
 	}()
-
 	select {
-	case <-done:
-	case <-make(chan struct{}, 1):
+	case <-mockTG.runCalledCh:
+	case <-time.After(time.Second):
+		t.Fatal("telegram Run was not called")
 	}
+	cancel()
+	<-done
 }
 
 // mockStarterError returns error from Start()
@@ -191,8 +225,10 @@ func (m *mockStarterError) Start() error {
 // mockHTTPServer is a simple mock for testing
 type mockHTTPServer struct{}
 
-func (m *mockHTTPServer) Start() {
+func (m *mockHTTPServer) Start(ctx context.Context) error {
 	// Do nothing in tests
+	<-ctx.Done()
+	return nil
 }
 
 func (m *mockHTTPServer) AddHandler(path string, handler http.Handler) {

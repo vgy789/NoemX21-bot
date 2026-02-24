@@ -11,22 +11,8 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
+	"github.com/vgy789/noemx21-bot/internal/fsm/actions/common"
 )
-
-const (
-	searchPageLimit    = 7
-	maxResultButtons   = 7
-	maxCategoryButtons = 8
-	loanPeriodDays     = 14
-)
-
-type catalogBook struct {
-	ID             int16
-	Title          string
-	Author         string
-	Category       string
-	AvailableStock int32
-}
 
 // Register registers library-related actions.
 func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar func(alias, target string)) {
@@ -40,7 +26,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 
 	registry.Register("prepare_search_context", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
 		return "", map[string]any{
-			"search_query":           strings.TrimSpace(toString(payload["last_input"])),
+			"search_query":           strings.TrimSpace(common.ToString(payload["last_input"])),
 			"selected_category_id":   "",
 			"page":                   1,
 			"only_available":         false,
@@ -58,7 +44,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 	})
 
 	registry.Register("toggle_search_availability", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
-		onlyAvailable := toBool(payload["only_available"])
+		onlyAvailable := common.ToBool(payload["only_available"])
 		return "", map[string]any{
 			"only_available":     !onlyAvailable,
 			"page":               1,
@@ -67,7 +53,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 	})
 
 	registry.Register("go_to_prev_page", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
-		page := toInt(payload["page"])
+		page := common.ToInt(payload["page"])
 		if page <= 1 {
 			page = 1
 		} else {
@@ -77,8 +63,8 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 	})
 
 	registry.Register("go_to_next_page", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
-		page := max(toInt(payload["page"]), 1)
-		totalPages := toInt(payload["total_pages"])
+		page := max(common.ToInt(payload["page"]), 1)
+		totalPages := common.ToInt(payload["total_pages"])
 		if totalPages <= 0 || page < totalPages {
 			page++
 		}
@@ -86,10 +72,10 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 	})
 
 	registry.Register("prepare_category_search", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
-		id := strings.TrimSpace(toString(payload["id"]))
+		id := strings.TrimSpace(common.ToString(payload["id"]))
 		category := ""
 		if after, ok := strings.CutPrefix(id, "cat_"); ok {
-			category = strings.TrimSpace(toString(payload["category_value_"+after]))
+			category = strings.TrimSpace(common.ToString(payload["category_value_"+after]))
 		}
 		if category == "" && id != "" && id != "back" {
 			// Backward compatibility for legacy callback data where category name was used as button ID.
@@ -109,13 +95,13 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 	})
 
 	registry.Register("select_book_by_number", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
-		raw := strings.TrimSpace(toString(payload["last_input"]))
+		raw := strings.TrimSpace(common.ToString(payload["last_input"]))
 		num, err := strconv.Atoi(raw)
 		if err != nil || num <= 0 {
 			return "DISPLAY_RESULTS", map[string]any{"results_error_text": invalidBookNumberHint(payload)}, nil
 		}
 
-		bookID := toInt16(payload[fmt.Sprintf("result_book_id_%d", num)])
+		bookID := common.ToInt16(payload[fmt.Sprintf("result_book_id_%d", num)])
 		if bookID == 0 {
 			return "DISPLAY_RESULTS", map[string]any{"results_error_text": invalidBookNumberHint(payload)}, nil
 		}
@@ -127,9 +113,9 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 	})
 
 	registry.Register("select_book_from_callback", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
-		raw := strings.TrimSpace(toString(payload["id"]))
+		raw := strings.TrimSpace(common.ToString(payload["id"]))
 		if raw == "" {
-			raw = strings.TrimSpace(toString(payload["last_input"]))
+			raw = strings.TrimSpace(common.ToString(payload["last_input"]))
 		}
 		bookID := extractBookID(raw)
 		if bookID == 0 {
@@ -164,11 +150,11 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 		}
 
 		description := "Отсутствует"
-		if lang := toString(payload["language"]); lang == fsm.LangEn {
+		if lang := common.ToString(payload["language"]); lang == fsm.LangEn {
 			description = "No yet"
 		}
 		if book.Description.Valid && strings.TrimSpace(book.Description.String) != "" && strings.TrimSpace(book.Description.String) != "-" {
-			description = trimRunes(strings.TrimSpace(book.Description.String), 300)
+			description = common.TrimRunes(strings.TrimSpace(book.Description.String), 300)
 		}
 
 		return "", map[string]any{
@@ -216,7 +202,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 			return "", map[string]any{"success": false}, nil
 		}
 
-		title := strings.TrimSpace(toString(payload["title"]))
+		title := strings.TrimSpace(common.ToString(payload["title"]))
 		if title == "" {
 			if book, err := queries.GetBookByID(ctx, db.GetBookByIDParams{CampusID: campusUUID, ID: bookID}); err == nil {
 				title = book.Title
@@ -305,7 +291,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 				break
 			}
 			vars[fmt.Sprintf("category_id_%d", i+1)] = fmt.Sprintf("cat_%d", i+1)
-			vars[fmt.Sprintf("category_label_%d", i+1)] = trimRunes(strings.TrimSpace(category), 28)
+			vars[fmt.Sprintf("category_label_%d", i+1)] = common.TrimRunes(strings.TrimSpace(category), 28)
 			vars[fmt.Sprintf("category_value_%d", i+1)] = strings.TrimSpace(category)
 		}
 		return "", vars, nil
@@ -389,14 +375,14 @@ func getUserSummary(ctx context.Context, queries db.Querier, userID int64, paylo
 }
 
 func searchBooks(ctx context.Context, queries db.Querier, userID int64, payload map[string]any) map[string]any {
-	query := strings.TrimSpace(toString(payload["query"]))
+	query := strings.TrimSpace(common.ToString(payload["query"]))
 	if strings.EqualFold(query, "search") {
 		query = ""
 	}
-	category := strings.TrimSpace(toString(payload["category_id"]))
-	onlyAvailable := toBool(payload["only_available"])
-	page := max(toInt(payload["page"]), 1)
-	limit := toInt(payload["limit"])
+	category := strings.TrimSpace(common.ToString(payload["category_id"]))
+	onlyAvailable := common.ToBool(payload["only_available"])
+	page := max(common.ToInt(payload["page"]), 1)
+	limit := common.ToInt(payload["limit"])
 	if limit <= 0 {
 		limit = searchPageLimit
 	}
@@ -575,76 +561,28 @@ func fillSearchView(
 }
 
 func invalidBookNumberHint(payload map[string]any) string {
-	maxNum := toInt(payload["shown_results_count"])
+	maxNum := common.ToInt(payload["shown_results_count"])
 	if maxNum <= 0 {
 		maxNum = maxResultButtons
 	}
-	if toString(payload["language"]) == fsm.LangEn {
+	if common.ToString(payload["language"]) == fsm.LangEn {
 		return fmt.Sprintf("⚠️ Enter a number from 1 to %d.", maxNum)
 	}
 	return fmt.Sprintf("⚠️ Введи номер от 1 до %d.", maxNum)
 }
 
 func noLoansText(payload map[string]any) string {
-	if toString(payload["language"]) == fsm.LangEn {
+	if common.ToString(payload["language"]) == fsm.LangEn {
 		return "📭 You have no active loans right now."
 	}
 	return "📭 Сейчас у тебя нет книг на руках."
-}
-
-func resolveCampusID(ctx context.Context, queries db.Querier, userID int64, payload map[string]any) pgtype.UUID {
-	campusUUID := robustScanUUID(payload["campus_id"])
-	if campusUUID.Valid {
-		return campusUUID
-	}
-
-	acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
-		Platform:   db.EnumPlatformTelegram,
-		ExternalID: fmt.Sprintf("%d", userID),
-	})
-	if err != nil {
-		return campusUUID
-	}
-
-	profile, err := queries.GetMyProfile(ctx, acc.S21Login)
-	if err != nil {
-		return campusUUID
-	}
-	return profile.CampusID
-}
-
-func resolveBookID(payload map[string]any) int16 {
-	bookID := toInt16(payload["book_id"])
-	if bookID != 0 {
-		return bookID
-	}
-
-	bookID = toInt16(payload["selected_book_id"])
-	if bookID != 0 {
-		return bookID
-	}
-
-	lastInput := strings.TrimSpace(toString(payload["last_input"]))
-	if after, ok := strings.CutPrefix(lastInput, "book_"); ok {
-		parsed, _ := strconv.Atoi(after)
-		return int16(parsed)
-	}
-	return 0
-}
-
-func extractBookID(raw string) int16 {
-	if after, ok := strings.CutPrefix(strings.TrimSpace(raw), "book_"); ok {
-		parsed, _ := strconv.Atoi(after)
-		return int16(parsed)
-	}
-	return 0
 }
 
 func bookDetailsFallback(payload map[string]any) map[string]any {
 	title := "Книга не найдена"
 	desc := "Попробуй выбрать книгу из результатов поиска."
 	status := "Ошибка"
-	if toString(payload["language"]) == fsm.LangEn {
+	if common.ToString(payload["language"]) == fsm.LangEn {
 		title = "Book not found"
 		desc = "Try selecting a book from search results."
 		status = "Error"
@@ -659,142 +597,4 @@ func bookDetailsFallback(payload map[string]any) map[string]any {
 		"description_snippet": desc,
 		"is_available":        false,
 	}
-}
-
-func toInt(v any) int {
-	switch val := v.(type) {
-	case int:
-		return val
-	case int16:
-		return int(val)
-	case int32:
-		return int(val)
-	case int64:
-		return int(val)
-	case float64:
-		return int(val)
-	case string:
-		n, _ := strconv.Atoi(strings.TrimSpace(val))
-		return n
-	}
-	return 0
-}
-
-func toInt16(v any) int16 {
-	switch val := v.(type) {
-	case int:
-		return int16(val)
-	case int16:
-		return val
-	case int32:
-		return int16(val)
-	case int64:
-		return int16(val)
-	case float64:
-		return int16(val)
-	case string:
-		n, _ := strconv.Atoi(strings.TrimSpace(val))
-		return int16(n)
-	}
-	return 0
-}
-
-func toBool(v any) bool {
-	switch val := v.(type) {
-	case bool:
-		return val
-	case string:
-		s := strings.TrimSpace(strings.ToLower(val))
-		return s == "true" || s == "1" || s == "yes"
-	case int:
-		return val != 0
-	case int32:
-		return val != 0
-	case int64:
-		return val != 0
-	case float64:
-		return val != 0
-	}
-	return false
-}
-
-func toString(v any) string {
-	switch val := v.(type) {
-	case string:
-		return val
-	case fmt.Stringer:
-		return val.String()
-	case nil:
-		return ""
-	default:
-		return fmt.Sprintf("%v", val)
-	}
-}
-
-func trimRunes(s string, max int) string {
-	r := []rune(strings.TrimSpace(s))
-	if max <= 0 || len(r) <= max {
-		return strings.TrimSpace(s)
-	}
-	return string(r[:max]) + "…"
-}
-
-func getUserTimezoneForLibrary(ctx context.Context, queries db.Querier, userID int64, campusUUID pgtype.UUID) *time.Location {
-	defaultLoc := time.UTC
-	if moscow, err := time.LoadLocation("Europe/Moscow"); err == nil {
-		defaultLoc = moscow
-	}
-
-	acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
-		Platform:   db.EnumPlatformTelegram,
-		ExternalID: fmt.Sprintf("%d", userID),
-	})
-	if err == nil {
-		if user, err := queries.GetRegisteredUserByS21Login(ctx, acc.S21Login); err == nil {
-			if user.Timezone != "" {
-				if loc, err := time.LoadLocation(user.Timezone); err == nil {
-					return loc
-				}
-			}
-		}
-	}
-
-	if campusUUID.Valid {
-		if campus, err := queries.GetCampusByID(ctx, campusUUID); err == nil {
-			if campus.Timezone.Valid && campus.Timezone.String != "" {
-				if loc, err := time.LoadLocation(campus.Timezone.String); err == nil {
-					return loc
-				}
-			}
-		}
-	}
-
-	return defaultLoc
-}
-
-func robustScanUUID(v any) pgtype.UUID {
-	var uuid pgtype.UUID
-	if v == nil {
-		return uuid
-	}
-	switch val := v.(type) {
-	case string:
-		if strings.HasPrefix(val, "$context.") {
-			return uuid
-		}
-		_ = uuid.Scan(val)
-	case [16]byte:
-		uuid.Bytes = val
-		uuid.Valid = true
-	case []byte:
-		if len(val) == 16 {
-			copy(uuid.Bytes[:], val)
-			uuid.Valid = true
-		} else {
-			_ = uuid.Scan(string(val))
-		}
-	case pgtype.UUID:
-		return val
-	}
-	return uuid
 }

@@ -33,6 +33,22 @@ func (f *fakeUserSvc) GetProfileByExternalID(ctx context.Context, platform db.En
 	return &service.UserProfile{Login: "testlogin"}, nil
 }
 
+type mockRoundTripper struct {
+	handler http.Handler
+}
+
+func (m mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	rr := httptest.NewRecorder()
+	m.handler.ServeHTTP(rr, req)
+	return rr.Result(), nil
+}
+
+func newMockS21Client(handler http.Handler) *s21.Client {
+	return s21.NewClientWithHTTPClient("http://example.local", &http.Client{
+		Transport: mockRoundTripper{handler: handler},
+	})
+}
+
 func TestLoadUserProfile_LogsUpsertError(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -51,8 +67,7 @@ func TestLoadUserProfile_LogsUpsertError(t *testing.T) {
 	// Expect UpsertParticipantStatsCache to be called and fail
 	mockQ.EXPECT().UpsertParticipantStatsCache(gomock.Any(), gomock.Any()).Return(fmt.Errorf("db upsert failure"))
 
-	// Start a simple test server that serves participant and points endpoints
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case r.Method == "GET" && r.URL.Path == "/participants/testlogin":
 			w.WriteHeader(200)
@@ -63,10 +78,9 @@ func TestLoadUserProfile_LogsUpsertError(t *testing.T) {
 		default:
 			http.NotFound(w, r)
 		}
-	}))
-	defer srv.Close()
+	})
 
-	s21Client := s21.NewClientForTest(srv.URL, "", nil)
+	s21Client := newMockS21Client(handler)
 
 	// Create a crypter for credential service (key: 32 bytes hex)
 	crypter, err := crypto.NewCrypter("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")

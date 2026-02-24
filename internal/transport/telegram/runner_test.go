@@ -80,8 +80,10 @@ func TestTelegramService_GetSender(t *testing.T) {
 
 func TestUpdaterHandler_ServeHTTP(t *testing.T) {
 	t.Run("correct path", func(t *testing.T) {
+		svc := &telegramService{}
+		svc.setUpdater(ext.NewUpdater(nil, nil))
 		handler := &updaterHandler{
-			updater: ext.NewUpdater(nil, nil),
+			service: svc,
 			path:    "/webhook",
 		}
 
@@ -95,8 +97,10 @@ func TestUpdaterHandler_ServeHTTP(t *testing.T) {
 	})
 
 	t.Run("wrong path", func(t *testing.T) {
+		svc := &telegramService{}
+		svc.setUpdater(ext.NewUpdater(nil, nil))
 		handler := &updaterHandler{
-			updater: ext.NewUpdater(nil, nil),
+			service: svc,
 			path:    "/webhook",
 		}
 

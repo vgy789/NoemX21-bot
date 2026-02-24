@@ -2,6 +2,7 @@ package http
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -47,10 +48,30 @@ func (s *Server) AddHandler(path string, handler http.Handler) {
 	s.log.Info("registered http handler", "path", path)
 }
 
-func (s *Server) Start() {
+// Start runs HTTP server until context cancellation or fatal error.
+func (s *Server) Start(ctx context.Context) error {
 	s.log.Info("starting http server", "addr", s.server.Addr)
-	if err := s.server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		s.log.Error("http server failed", "error", err)
+
+	errCh := make(chan error, 1)
+	go func() {
+		err := s.server.ListenAndServe()
+		if err != nil && err != http.ErrServerClosed {
+			errCh <- err
+			return
+		}
+		errCh <- nil
+	}()
+
+	select {
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := s.server.Shutdown(shutdownCtx); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			return err
+		}
+		return nil
+	case err := <-errCh:
+		return err
 	}
 }
 

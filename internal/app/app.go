@@ -1,6 +1,7 @@
 package app
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 
@@ -14,17 +15,23 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/service/schedule_generator"
 	transportHttp "github.com/vgy789/noemx21-bot/internal/transport/http"
 	telegram "github.com/vgy789/noemx21-bot/internal/transport/telegram"
+	"golang.org/x/sync/errgroup"
 )
 
 // HTTPServer defines the interface for HTTP server operations
 type HTTPServer interface {
-	Start()
+	Start(ctx context.Context) error
 	AddHandler(path string, handler http.Handler)
 }
 
 // Starter is implemented by services that can be started (git sync, campus).
 type Starter interface {
 	Start() error
+}
+
+// Stopper is implemented by services that can be stopped (cron-based workers).
+type Stopper interface {
+	Stop()
 }
 
 // ScheduleRegenerator is implemented by the schedule generator service.
@@ -72,31 +79,48 @@ func New(cfg *config.Config, log *slog.Logger, repo *db.DBWrapper, rcClient *roc
 	}
 }
 
-// Run starts the application.
-func (a *App) Run() {
-	if err := a.gitSync.Start(); err != nil {
-		slog.Error("failed to start gitsync", "error", err)
-	}
-	if err := a.campusSvc.Start(); err != nil {
-		slog.Error("failed to start campus service", "error", err)
-	}
-	if err := a.scheduleGen.Start(); err != nil {
-		slog.Error("failed to start schedule generator", "error", err)
+// Run starts the application and blocks until the provided context is cancelled
+// or any component returns an error.
+func (a *App) Run(ctx context.Context) error {
+	a.log.Info("starting bot runtime", "production", a.cfg.Production, "log_level", a.cfg.LogLevel)
+
+	group, ctx := errgroup.WithContext(ctx)
+
+	startBackground := func(name string, svc Starter) {
+		group.Go(func() error {
+			if err := svc.Start(); err != nil {
+				a.log.Error("failed to start component", "component", name, "error", err)
+				return err
+			}
+
+			<-ctx.Done()
+			if stopper, ok := svc.(Stopper); ok {
+				stopper.Stop()
+			}
+			return nil
+		})
 	}
 
-	go a.httpServer.Start()
+	startBackground("gitsync", a.gitSync)
+	startBackground("campus", a.campusSvc)
+	startBackground("schedule_generator", a.scheduleGen)
 
-	// Check if webhook mode is enabled
+	group.Go(func() error {
+		return a.httpServer.Start(ctx)
+	})
+
 	if a.cfg.Telegram.Webhook.Enabled {
 		a.log.Info("starting bot in webhook mode", "path", a.cfg.Telegram.Webhook.ListenPath, "port", a.cfg.Telegram.Webhook.ListenPort)
-		// Register webhook handler with HTTP server
 		a.httpServer.AddHandler(a.cfg.Telegram.Webhook.ListenPath, a.tg.GetWebhookHandler())
-		// Start webhook (this will set webhook URL with Telegram and start listening)
-		if err := a.tg.RunWebhook(); err != nil {
-			a.log.Error("failed to start webhook", "error", err)
-		}
+		group.Go(func() error {
+			return a.tg.RunWebhook(ctx)
+		})
 	} else {
 		a.log.Info("starting bot in polling mode")
-		a.tg.Run()
+		group.Go(func() error {
+			return a.tg.Run(ctx)
+		})
 	}
+
+	return group.Wait()
 }

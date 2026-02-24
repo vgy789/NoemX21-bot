@@ -157,17 +157,13 @@ func TestEnsureCampusPresent_FetchAndUpsert(t *testing.T) {
 	// Expect UpsertCampus to be called when matching campus found in API
 	mockQ.EXPECT().UpsertCampus(gomock.Any(), gomock.Any()).Return(db.Campuse{}, nil)
 
-	// Prepare test server returning campuses list containing our campus ID
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := s21.CampusesResponse{
 			Campuses: []s21.CampusV1DTO{{ID: "ff19a3a7-12f5-4332-9582-624519c3eaea", ShortName: "TST", FullName: "Test Campus", Timezone: "UTC"}},
 		}
 		_ = json.NewEncoder(w).Encode(resp)
-	}))
-	defer srv.Close()
-
-	// Use real client pointing to test server
-	client := s21.NewClientWithHTTPClient(srv.URL, srv.Client())
+	})
+	client := newMockS21Client(mockHandler)
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -185,16 +181,13 @@ func TestEnsureCampusPresent_NotFoundInAPI(t *testing.T) {
 	// GetCampusByID returns not found
 	mockQ.EXPECT().GetCampusByID(gomock.Any(), gomock.Any()).Return(db.GetCampusByIDRow{}, fmt.Errorf("not found"))
 
-	// Test server returns a list without our campus id
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		resp := s21.CampusesResponse{
 			Campuses: []s21.CampusV1DTO{{ID: "11111111-1111-1111-1111-111111111111", ShortName: "X", FullName: "X", Timezone: "UTC"}},
 		}
 		_ = json.NewEncoder(w).Encode(resp)
-	}))
-	defer srv.Close()
-
-	client := s21.NewClientWithHTTPClient(srv.URL, srv.Client())
+	})
+	client := newMockS21Client(mockHandler)
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
 
@@ -240,4 +233,20 @@ func TestEnsureCampusPresent_NoToken(t *testing.T) {
 
 	err := EnsureCampusPresent(context.Background(), mockQ, &s21.Client{}, "", logger, "ff19a3a7-12f5-4332-9582-624519c3eaea")
 	assert.NoError(t, err) // Should return nil with warning log
+}
+
+type mockRoundTripper struct {
+	handler http.Handler
+}
+
+func (m mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	rr := httptest.NewRecorder()
+	m.handler.ServeHTTP(rr, req)
+	return rr.Result(), nil
+}
+
+func newMockS21Client(handler http.Handler) *s21.Client {
+	return s21.NewClientWithHTTPClient("http://example.local", &http.Client{
+		Transport: mockRoundTripper{handler: handler},
+	})
 }

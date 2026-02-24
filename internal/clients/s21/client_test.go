@@ -17,15 +17,13 @@ func TestClient_Auth(t *testing.T) {
 		ExpiresIn:   300,
 		TokenType:   "Bearer",
 	}
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	client := newMockClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "POST", r.Method)
 		assert.Contains(t, r.URL.Path, "openid-connect/token")
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(authResp)
 	}))
-	defer server.Close()
 
-	client := NewClientForTest(server.URL, server.URL, server.Client())
 	got, err := client.Auth(context.Background(), "user", "pass")
 	require.NoError(t, err)
 	require.NotNil(t, got)
@@ -34,13 +32,10 @@ func TestClient_Auth(t *testing.T) {
 }
 
 func TestClient_Auth_failStatus(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	client := newMockClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusUnauthorized)
 		_, _ = w.Write([]byte("invalid credentials"))
 	}))
-	defer server.Close()
-
-	client := NewClientForTest(server.URL, server.URL, server.Client())
 	got, err := client.Auth(context.Background(), "user", "wrong")
 	assert.Error(t, err)
 	assert.Nil(t, got)
@@ -48,7 +43,7 @@ func TestClient_Auth_failStatus(t *testing.T) {
 }
 
 func TestClient_GetParticipant(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	client := newMockClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "GET", r.Method)
 		assert.Contains(t, r.URL.Path, "participants/")
 		assert.Equal(t, "Bearer tok", r.Header.Get("Authorization"))
@@ -59,9 +54,6 @@ func TestClient_GetParticipant(t *testing.T) {
 			Status:       "ACTIVE",
 		})
 	}))
-	defer server.Close()
-
-	client := NewClientForTest(server.URL, "", server.Client())
 	got, err := client.GetParticipant(context.Background(), "tok", "testuser")
 	require.NoError(t, err)
 	require.NotNil(t, got)
@@ -71,20 +63,17 @@ func TestClient_GetParticipant(t *testing.T) {
 }
 
 func TestClient_GetParticipant_apiError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	client := newMockClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusNotFound)
 		_, _ = w.Write([]byte(`{"code":"NOT_FOUND"}`))
 	}))
-	defer server.Close()
-
-	client := NewClientForTest(server.URL, "", server.Client())
 	got, err := client.GetParticipant(context.Background(), "tok", "unknown")
 	assert.Error(t, err)
 	assert.Nil(t, got)
 	assert.Contains(t, err.Error(), "404")
 }
 func TestClient_GetParticipant_404InBody(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	client := newMockClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		// The quirk: 200 OK but body says 404
 		w.WriteHeader(http.StatusOK)
@@ -94,9 +83,6 @@ func TestClient_GetParticipant_404InBody(t *testing.T) {
 			"message": "Not found user by login maslenok"
 		}`))
 	}))
-	defer server.Close()
-
-	client := NewClientForTest(server.URL, "", server.Client())
 	got, err := client.GetParticipant(context.Background(), "tok", "maslenok")
 	assert.Error(t, err)
 	assert.Nil(t, got)
@@ -104,7 +90,7 @@ func TestClient_GetParticipant_404InBody(t *testing.T) {
 }
 
 func TestClient_GetParticipant_StatusAsString(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	client := newMockClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{
 			"login": "user",
@@ -112,9 +98,6 @@ func TestClient_GetParticipant_StatusAsString(t *testing.T) {
 			"parallelName": "Core program"
 		}`))
 	}))
-	defer server.Close()
-
-	client := NewClientForTest(server.URL, "", server.Client())
 	got, err := client.GetParticipant(context.Background(), "tok", "user")
 	require.NoError(t, err)
 	require.NotNil(t, got)
@@ -122,7 +105,7 @@ func TestClient_GetParticipant_StatusAsString(t *testing.T) {
 }
 
 func TestClient_GetCampuses(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	client := newMockClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "GET", r.Method)
 		assert.Contains(t, r.URL.Path, "campuses")
 		assert.Equal(t, "Bearer tok", r.Header.Get("Authorization"))
@@ -134,9 +117,6 @@ func TestClient_GetCampuses(t *testing.T) {
 			},
 		})
 	}))
-	defer server.Close()
-
-	client := NewClientForTest(server.URL, "", server.Client())
 	got, err := client.GetCampuses(context.Background(), "tok")
 	require.NoError(t, err)
 	require.Len(t, got, 2)
@@ -145,14 +125,28 @@ func TestClient_GetCampuses(t *testing.T) {
 }
 
 func TestClient_GetCampuses_apiError(t *testing.T) {
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	client := newMockClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
 	}))
-	defer server.Close()
-
-	client := NewClientForTest(server.URL, "", server.Client())
 	got, err := client.GetCampuses(context.Background(), "tok")
 	assert.Error(t, err)
 	assert.Nil(t, got)
 	assert.Contains(t, err.Error(), "500")
+}
+
+func newMockClient(handler http.Handler) *Client {
+	httpClient := &http.Client{
+		Transport: mockRoundTripper{handler: handler},
+	}
+	return NewClientForTest("http://example.local", "http://example.local", httpClient)
+}
+
+type mockRoundTripper struct {
+	handler http.Handler
+}
+
+func (m mockRoundTripper) RoundTrip(req *http.Request) (*http.Response, error) {
+	rr := httptest.NewRecorder()
+	m.handler.ServeHTTP(rr, req)
+	return rr.Result(), nil
 }

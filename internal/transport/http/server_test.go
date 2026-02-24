@@ -43,20 +43,24 @@ func TestServer_Start_Stop(t *testing.T) {
 	srv.server.Addr = ":0"
 
 	done := make(chan struct{})
+	startErr := make(chan error, 1)
+	ctx, cancel := context.WithCancel(context.Background())
 	go func() {
-		srv.Start()
+		startErr <- srv.Start(ctx)
 		close(done)
 	}()
 
 	// Give server time to start
 	time.Sleep(50 * time.Millisecond)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
-	err := srv.Stop(ctx)
+	stopCtx, stopCancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer stopCancel()
+	err := srv.Stop(stopCtx)
 	assert.NoError(t, err)
+	cancel()
 
 	<-done
+	assert.NoError(t, <-startErr)
 }
 
 func TestServer_Register_route(t *testing.T) {

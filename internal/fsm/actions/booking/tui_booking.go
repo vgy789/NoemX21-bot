@@ -15,6 +15,7 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
+	"github.com/vgy789/noemx21-bot/internal/fsm/actions/common"
 )
 
 const (
@@ -108,11 +109,11 @@ func registerTUIActions(
 	})
 
 	registry.Register("release_booking_early", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		bookingID := toInt64(payload["booking_id"])
+		bookingID := common.ToInt64(payload["booking_id"])
 		if bookingID == 0 {
 			input, _ := payload["last_input"].(string)
 			if after, ok := strings.CutPrefix(input, "finish_"); ok {
-				bookingID = toInt64(after)
+				bookingID = common.ToInt64(after)
 			}
 		}
 		if bookingID == 0 {
@@ -592,7 +593,7 @@ func preparePlanRoomsTUI(
 	if !ok {
 		return "BOOKING_PLAN_TIME", nil, nil
 	}
-	duration := int(toInt32(payload["duration"]))
+	duration := int(common.ToInt32(payload["duration"]))
 	if duration <= 0 {
 		return "BOOKING_PLAN_DURATION", nil, nil
 	}
@@ -689,7 +690,7 @@ func prepareDurationChoiceTUI(
 
 	selectedRoomID := parseRoomIDFromInput(payload)
 	if selectedRoomID == 0 {
-		selectedRoomID = toInt16(payload["selected_room_id"])
+		selectedRoomID = common.ToInt16(payload["selected_room_id"])
 	}
 	if selectedRoomID == 0 {
 		return "BOOKING_ROOM_SELECTION", nil, nil
@@ -769,14 +770,14 @@ func processDurationInputTUI(
 
 	selectedRoomID := parseRoomIDFromInput(payload)
 	if selectedRoomID == 0 {
-		selectedRoomID = toInt16(payload["selected_room_id"])
+		selectedRoomID = common.ToInt16(payload["selected_room_id"])
 	}
 	if selectedRoomID == 0 {
 		return "BOOKING_ROOM_SELECTION", nil, nil
 	}
 
 	raw := resolveDurationRawInput(payload)
-	requestedRaw, ok := parseRequestedMinutes(raw, toInt32(payload["max_gap"]))
+	requestedRaw, ok := parseRequestedMinutes(raw, common.ToInt32(payload["max_gap"]))
 	if !ok {
 		return "BOOKING_DURATION_CHOICE", nil, nil
 	}
@@ -828,15 +829,15 @@ func createBookingWithDurationTUI(
 		return "", nil, err
 	}
 
-	roomID := toInt16(payload["selected_room_id"])
+	roomID := common.ToInt16(payload["selected_room_id"])
 	if roomID == 0 {
-		roomID = toInt16(payload["room_id"])
+		roomID = common.ToInt16(payload["room_id"])
 	}
 	if roomID == 0 {
 		return "", map[string]any{"success": false, "error": "conflict"}, nil
 	}
 
-	duration := toInt32(payload["duration"])
+	duration := common.ToInt32(payload["duration"])
 	if duration <= 0 {
 		return "", map[string]any{"success": false, "error": "invalid_duration"}, nil
 	}
@@ -1097,9 +1098,9 @@ func manageBookingTUI(
 	switch {
 	case strings.HasPrefix(lastInput, "finish_"):
 		requestFinish = true
-		bookingID = toInt64(strings.TrimPrefix(lastInput, "finish_"))
+		bookingID = common.ToInt64(strings.TrimPrefix(lastInput, "finish_"))
 	case strings.HasPrefix(lastInput, "cancel_"):
-		bookingID = toInt64(strings.TrimPrefix(lastInput, "cancel_"))
+		bookingID = common.ToInt64(strings.TrimPrefix(lastInput, "cancel_"))
 	default:
 		return "FETCH_MY_BOOKINGS", nil, nil
 	}
@@ -1336,11 +1337,11 @@ func parseRoomIDFromInput(payload map[string]any) int16 {
 		lastInput, _ = payload["id"].(string)
 	}
 	if after, ok := strings.CutPrefix(lastInput, "room_"); ok {
-		return toInt16(after)
+		return common.ToInt16(after)
 	}
 	parts := strings.Split(lastInput, "_")
 	if len(parts) > 1 {
-		return toInt16(parts[len(parts)-1])
+		return common.ToInt16(parts[len(parts)-1])
 	}
 	return 0
 }

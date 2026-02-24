@@ -98,7 +98,7 @@ func (b *Builder) BuildApp(repo *db.DBWrapper, rcClient *rocketchat.Client, s21C
 
 }
 
-// Run runs the application.
+// Run runs the application using the builder's context.
 func (b *Builder) Run() error {
 	if b.log == nil {
 		return nil
@@ -132,7 +132,12 @@ func (b *Builder) Run() error {
 	}
 
 	app := b.BuildApp(repo, rcClient, s21Client, credService)
-	app.Run()
+	if b.ctx == nil {
+		b.ctx = context.Background()
+	}
+	if err := app.Run(b.ctx); err != nil {
+		return err
+	}
 
 	return nil
 }

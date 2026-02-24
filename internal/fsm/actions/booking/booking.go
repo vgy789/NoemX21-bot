@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-	"strconv"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -73,67 +72,6 @@ func getUserTimezone(ctx context.Context, queries db.Querier, userID int64, camp
 	}
 
 	return defaultLoc
-}
-
-func toInt16(v any) int16 {
-	switch val := v.(type) {
-	case string:
-		var i int16
-		_, _ = fmt.Sscanf(val, "%d", &i)
-		return i
-	case float64:
-		return int16(val)
-	case float32:
-		return int16(val)
-	case int:
-		return int16(val)
-	case int16:
-		return val
-	case int32:
-		return int16(val)
-	case int64:
-		return int16(val)
-	case uint:
-		return int16(val)
-	case uint16:
-		return int16(val)
-	case uint32:
-		return int16(val)
-	case uint64:
-		return int16(val)
-	}
-	return 0
-}
-
-func toInt32(v any) int32 {
-	switch val := v.(type) {
-	case string:
-		i, _ := strconv.ParseInt(val, 10, 32)
-		return int32(i)
-	case float64:
-		return int32(val)
-	case int:
-		return int32(val)
-	case int32:
-		return val
-	}
-	return 0
-}
-
-func toInt64(v any) int64 {
-	switch val := v.(type) {
-	case string:
-		var i int64
-		_, _ = fmt.Sscanf(val, "%d", &i)
-		return i
-	case float64:
-		return int64(val)
-	case int:
-		return int64(val)
-	case int64:
-		return val
-	}
-	return 0
 }
 
 // checkBookingConflict checks if a booking would conflict with existing bookings.
