@@ -168,7 +168,7 @@ func TestTelegramService_Handlers(t *testing.T) {
 		render := &fsm.RenderObject{Text: "fail"}
 		mockSender.EXPECT().SendMessage(gomock.Any(), "fail", gomock.Any()).Return(nil, assert.AnError)
 
-		err := s.sendRender(mockSender, 1, render)
+		_, err := s.sendRender(mockSender, 1, render)
 		assert.Error(t, err)
 	})
 
@@ -180,7 +180,7 @@ func TestTelegramService_Handlers(t *testing.T) {
 		mockSender.EXPECT().DeleteMessage(int64(1), int64(1)).Return(true, nil)
 		mockSender.EXPECT().SendMessage(int64(1), "fail", gomock.Any()).Return(nil, assert.AnError)
 
-		err := s.updateMessageRender(mockSender, 1, 1, render)
+		_, err := s.updateMessageRender(mockSender, 1, 1, render)
 		assert.Error(t, err)
 	})
 
@@ -189,7 +189,7 @@ func TestTelegramService_Handlers(t *testing.T) {
 		notModErr := fmt.Errorf("bad request: message is not modified")
 		mockSender.EXPECT().EditMessageText("no change", gomock.Any()).Return(nil, false, notModErr)
 
-		err := s.updateMessageRender(mockSender, 1, 1, render)
+		_, err := s.updateMessageRender(mockSender, 1, 1, render)
 		assert.NoError(t, err)
 	})
 
@@ -230,12 +230,14 @@ func TestTelegramService_Handlers(t *testing.T) {
 		// Move to state that accepts text
 		_, _ = engine.Process(context.Background(), userID, "set_ru")
 		mockSender.EXPECT().SendMessage(userID, gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockSender.EXPECT().DeleteMessage(userID, int64(10)).Return(true, nil)
 
 		update := &gotgbot.Update{
 			Message: &gotgbot.Message{
-				From: &gotgbot.User{Id: userID},
-				Chat: gotgbot.Chat{Id: userID},
-				Text: "next",
+				MessageId: 10,
+				From:      &gotgbot.User{Id: userID},
+				Chat:      gotgbot.Chat{Id: userID},
+				Text:      "next",
 			},
 		}
 		ctx := ext.NewContext(&gotgbot.Bot{}, update, nil)
@@ -248,12 +250,14 @@ func TestTelegramService_Handlers(t *testing.T) {
 		userID := int64(999)
 		// No state -> Process will fail, GetCurrentRender will fail -> fallback message
 		mockSender.EXPECT().SendMessage(userID, "Произошла ошибка. Введите /start", gomock.Any()).Return(nil, nil)
+		mockSender.EXPECT().DeleteMessage(userID, int64(20)).Return(true, nil)
 
 		update := &gotgbot.Update{
 			Message: &gotgbot.Message{
-				From: &gotgbot.User{Id: userID},
-				Chat: gotgbot.Chat{Id: userID},
-				Text: "hello",
+				MessageId: 20,
+				From:      &gotgbot.User{Id: userID},
+				Chat:      gotgbot.Chat{Id: userID},
+				Text:      "hello",
 			},
 		}
 		ctx := ext.NewContext(&gotgbot.Bot{}, update, nil)
@@ -267,7 +271,7 @@ func TestTelegramService_Handlers(t *testing.T) {
 		render := &fsm.RenderObject{Text: "with image", Image: "/nonexistent.png"}
 		mockSender.EXPECT().SendMessage(gomock.Any(), "with image", gomock.Any()).Return(nil, nil)
 
-		err := s.sendRender(mockSender, 1, render)
+		_, err := s.sendRender(mockSender, 1, render)
 		assert.NoError(t, err)
 	})
 
@@ -275,7 +279,7 @@ func TestTelegramService_Handlers(t *testing.T) {
 		render := &fsm.RenderObject{Text: "with image", Image: "/nonexistent.png"}
 		mockSender.EXPECT().SendMessage(gomock.Any(), "with image", gomock.Any()).Return(nil, assert.AnError)
 
-		err := s.sendRender(mockSender, 1, render)
+		_, err := s.sendRender(mockSender, 1, render)
 		assert.Error(t, err)
 	})
 
@@ -290,12 +294,14 @@ func TestTelegramService_Handlers(t *testing.T) {
 
 		// Process will fail due to invalid input
 		mockSender.EXPECT().SendMessage(userID, gomock.Any(), gomock.Any()).Return(nil, nil)
+		mockSender.EXPECT().DeleteMessage(userID, int64(30)).Return(true, nil)
 
 		update := &gotgbot.Update{
 			Message: &gotgbot.Message{
-				From: &gotgbot.User{Id: userID},
-				Chat: gotgbot.Chat{Id: userID},
-				Text: "invalid_input_xyz",
+				MessageId: 30,
+				From:      &gotgbot.User{Id: userID},
+				Chat:      gotgbot.Chat{Id: userID},
+				Text:      "invalid_input_xyz",
 			},
 		}
 		ctx := ext.NewContext(&gotgbot.Bot{}, update, nil)

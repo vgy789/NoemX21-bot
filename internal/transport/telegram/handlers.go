@@ -3,6 +3,7 @@ package telegram
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"os"
 	"strings"
 	"time"
@@ -119,13 +120,19 @@ func (s *telegramService) handleStart(b *gotgbot.Bot, ctx *ext.Context) error {
 		return err
 	}
 
-	return s.sendRender(s.getSender(b), ctx.EffectiveChat.Id, render)
+	msg, err := s.sendRender(s.getSender(b), ctx.EffectiveChat.Id, render)
+	if err == nil {
+		s.setLastBotMessageID(userID, msg)
+	}
+	return err
 }
 
 // handleTextMessage handles text messages (e.g., OTP code input).
 func (s *telegramService) handleTextMessage(b *gotgbot.Bot, ctx *ext.Context) error {
 	userID := ctx.EffectiveUser.Id
 	text := ctx.Message.Text
+	chatID := ctx.EffectiveChat.Id
+	messageID := int64(ctx.Message.MessageId)
 	bgCtx := context.WithValue(context.Background(), fsm.ContextKeyUserInfo, &fsm.UserInfo{
 		ID:        userID,
 		Username:  ctx.EffectiveUser.Username,
@@ -141,7 +148,8 @@ func (s *telegramService) handleTextMessage(b *gotgbot.Bot, ctx *ext.Context) er
 	if err != nil {
 		if err == fsm.ErrEngineBusy {
 			s.log.Debug("engine is busy, ignoring text message", "user_id", userID)
-			_, _ = s.getSender(b).SendMessage(ctx.EffectiveChat.Id, "⏳ Пожалуйста, подождите, идёт обновление данных...", nil)
+			_, _ = s.getSender(b).SendMessage(chatID, "⏳ Пожалуйста, подождите, идёт обновление данных...", nil)
+			s.deleteUserMessage(b, chatID, messageID)
 			return nil
 		}
 		s.log.Warn("fsm text processing failed", "error", err, "user_id", userID, "text", text)
@@ -150,12 +158,41 @@ func (s *telegramService) handleTextMessage(b *gotgbot.Bot, ctx *ext.Context) er
 		render, err = s.engine.GetCurrentRender(bgCtx, userID)
 		if err != nil {
 			s.log.Error("fallback render failed", "error", err, "user_id", userID)
-			_, _ = s.getSender(b).SendMessage(ctx.EffectiveChat.Id, "Произошла ошибка. Введите /start", nil)
+			_, _ = s.getSender(b).SendMessage(chatID, "Произошла ошибка. Введите /start", nil)
+			s.deleteUserMessage(b, chatID, messageID)
 			return nil
 		}
 	}
 
-	return s.sendRender(s.getSender(b), ctx.EffectiveChat.Id, render)
+	lastBotMessageID := s.getLastBotMessageID(userID)
+	if lastBotMessageID > 0 {
+		newMessageID, editErr := s.updateMessageRender(s.getSender(b), chatID, lastBotMessageID, render)
+		if editErr == nil {
+			if newMessageID > 0 {
+				s.setLastBotMessageID(userID, &gotgbot.Message{MessageId: newMessageID})
+			}
+			s.deleteUserMessage(b, chatID, messageID)
+			return nil
+		}
+		err = editErr
+	} else {
+		err = s.sendRenderAndStore(userID, chatID, s.getSender(b), render)
+	}
+	s.deleteUserMessage(b, chatID, messageID)
+	return err
+}
+
+func (s *telegramService) deleteUserMessage(b *gotgbot.Bot, chatID int64, messageID int64) {
+	if messageID == 0 {
+		return
+	}
+	if _, err := s.getSender(b).DeleteMessage(chatID, messageID); err != nil {
+		s.log.Debug("user message cleanup failed",
+			"chat_id", chatID,
+			"message_id", messageID,
+			"error", err,
+		)
+	}
 }
 
 // handleCallback handles callback queries (buttons).
@@ -205,10 +242,22 @@ func (s *telegramService) handleCallback(b *gotgbot.Bot, ctx *ext.Context) error
 		_, _ = s.getSender(b).AnswerCallbackQuery(cb.Id, opts)
 	}
 
-	return s.updateMessageRender(s.getSender(b), ctx.EffectiveChat.Id, cb.Message.GetMessageId(), render)
+	newMessageID, err := s.updateMessageRender(s.getSender(b), ctx.EffectiveChat.Id, cb.Message.GetMessageId(), render)
+	if err == nil && newMessageID > 0 {
+		s.setLastBotMessageID(userID, &gotgbot.Message{MessageId: newMessageID})
+	}
+	return err
 }
 
-func (s *telegramService) sendRender(sender Sender, chatID int64, render *fsm.RenderObject) error {
+func (s *telegramService) sendRenderAndStore(userID int64, chatID int64, sender Sender, render *fsm.RenderObject) error {
+	msg, err := s.sendRender(sender, chatID, render)
+	if err == nil {
+		s.setLastBotMessageID(userID, msg)
+	}
+	return err
+}
+
+func (s *telegramService) sendRender(sender Sender, chatID int64, render *fsm.RenderObject) (*gotgbot.Message, error) {
 	if render.Image != "" {
 		s.fileIDsMu.RLock()
 		fileID, cached := s.fileIDs[render.Image]
@@ -263,21 +312,21 @@ func (s *telegramService) sendRender(sender Sender, chatID int64, render *fsm.Re
 			s.log.Debug("cached file_id for image", "image_key", render.Image, "file_id", largestPhoto.FileId)
 		}
 
-		return err
+		return msg, err
 	}
 
 	return s.sendRenderText(sender, chatID, render)
 }
 
-func (s *telegramService) sendRenderText(sender Sender, chatID int64, render *fsm.RenderObject) error {
-	_, err := sender.SendMessage(chatID, render.Text, &gotgbot.SendMessageOpts{
+func (s *telegramService) sendRenderText(sender Sender, chatID int64, render *fsm.RenderObject) (*gotgbot.Message, error) {
+	msg, err := sender.SendMessage(chatID, render.Text, &gotgbot.SendMessageOpts{
 		ParseMode:   "Markdown",
 		ReplyMarkup: buildMarkup(render.Buttons),
 	})
-	return err
+	return msg, err
 }
 
-func (s *telegramService) updateMessageRender(sender Sender, chatID int64, messageID int64, render *fsm.RenderObject) error {
+func (s *telegramService) updateMessageRender(sender Sender, chatID int64, messageID int64, render *fsm.RenderObject) (int64, error) {
 	// If message has an image, we MUST use delete/send because Telegram doesn't support
 	// converting a photo message to a text message via EditMessageText, or vice versa.
 	// We use the presence of render.Image to determine the NEW type.
@@ -286,7 +335,8 @@ func (s *telegramService) updateMessageRender(sender Sender, chatID int64, messa
 	if render.Image != "" {
 		s.log.Debug("render has image, switching to photo message", "image", render.Image)
 		_, _ = sender.DeleteMessage(chatID, messageID)
-		return s.sendRender(sender, chatID, render)
+		msg, err := s.sendRender(sender, chatID, render)
+		return getMessageID(msg), err
 	}
 
 	// Try editing text. If it fails because the original was a photo, fallback to delete/send.
@@ -299,7 +349,7 @@ func (s *telegramService) updateMessageRender(sender Sender, chatID int64, messa
 	if err != nil {
 		if strings.Contains(err.Error(), "message is not modified") {
 			s.log.Debug("message not modified, ignoring error")
-			return nil
+			return messageID, nil
 		}
 
 		// Bad Request: there is no text in the message to edit (happens when editing a photo message)
@@ -307,14 +357,76 @@ func (s *telegramService) updateMessageRender(sender Sender, chatID int64, messa
 			strings.Contains(err.Error(), "message can't be edited") {
 			s.log.Debug("message type mismatch (photo/text), using delete/send fallback")
 			_, _ = sender.DeleteMessage(chatID, messageID)
-			return s.sendRender(sender, chatID, render)
+			msg, sendErr := s.sendRender(sender, chatID, render)
+			return getMessageID(msg), sendErr
 		}
 
 		s.log.Warn("edit failed, fallback to delete/send", "error", err)
 		_, _ = sender.DeleteMessage(chatID, messageID)
-		return s.sendRender(sender, chatID, render)
+		msg, sendErr := s.sendRender(sender, chatID, render)
+		return getMessageID(msg), sendErr
 	}
-	return nil
+	return messageID, nil
+}
+
+const lastBotMessageIDKey = "last_bot_message_id"
+
+func (s *telegramService) setLastBotMessageID(userID int64, msg *gotgbot.Message) {
+	if msg == nil || msg.MessageId == 0 || s.engine == nil || s.engine.Repo() == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	state, err := s.engine.Repo().GetState(ctx, userID)
+	if err != nil || state == nil {
+		return
+	}
+	if state.Context == nil {
+		state.Context = make(map[string]any)
+	}
+	state.Context[lastBotMessageIDKey] = int64(msg.MessageId)
+	_ = s.engine.Repo().SetState(ctx, state)
+}
+
+func (s *telegramService) getLastBotMessageID(userID int64) int64 {
+	if s.engine == nil || s.engine.Repo() == nil {
+		return 0
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	state, err := s.engine.Repo().GetState(ctx, userID)
+	if err != nil || state == nil || state.Context == nil {
+		return 0
+	}
+
+	return parseMessageID(state.Context[lastBotMessageIDKey])
+}
+
+func parseMessageID(v any) int64 {
+	switch t := v.(type) {
+	case int64:
+		return t
+	case int:
+		return int64(t)
+	case float64:
+		return int64(t)
+	case json.Number:
+		if i, err := t.Int64(); err == nil {
+			return i
+		}
+	}
+	return 0
+}
+
+func getMessageID(msg *gotgbot.Message) int64 {
+	if msg == nil {
+		return 0
+	}
+	return int64(msg.MessageId)
 }
 
 func buildMarkup(rows [][]fsm.ButtonRender) gotgbot.InlineKeyboardMarkup {
