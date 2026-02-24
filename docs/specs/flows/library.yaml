@@ -333,17 +333,69 @@ states:
 
           {loans_list_formatted}
           ✅ — в срок / ⚠️ — пора вернуть
+
+          {my_loans_hint_ru}
         en: |
           👤 *Your bookshelf*
 
           {loans_list_formatted}
           ✅ — on time / ⚠️ — due soon
+
+          {my_loans_hint_en}
       buttons:
+        - id: "{loan_btn_id_1}"
+          label: "{loan_btn_label_1}"
+          row: 1
+          next_state: PROCESS_MY_BOOK
+
+        - id: "{loan_btn_id_2}"
+          label: "{loan_btn_label_2}"
+          row: 2
+          next_state: PROCESS_MY_BOOK
+
+        - id: "{loan_btn_id_3}"
+          label: "{loan_btn_label_3}"
+          row: 3
+          next_state: PROCESS_MY_BOOK
+
+        - id: "{loan_btn_id_4}"
+          label: "{loan_btn_label_4}"
+          row: 4
+          next_state: PROCESS_MY_BOOK
+
+        - id: "{loan_btn_id_5}"
+          label: "{loan_btn_label_5}"
+          row: 5
+          next_state: PROCESS_MY_BOOK
+
+        - id: "{loan_btn_id_6}"
+          label: "{loan_btn_label_6}"
+          row: 6
+          next_state: PROCESS_MY_BOOK
+
+        - id: "{loan_btn_id_7}"
+          label: "{loan_btn_label_7}"
+          row: 7
+          next_state: PROCESS_MY_BOOK
+
+        - id: "{loan_btn_id_8}"
+          label: "{loan_btn_label_8}"
+          row: 8
+          next_state: PROCESS_MY_BOOK
+
         - id: home
           label:
             ru: 🔙 Назад
             en: 🔙 Back
           next_state: LIBRARY_HOME
+          row: 9
+
+  PROCESS_MY_BOOK:
+    type: system
+    logic:
+      action: return_book_loan
+    transitions:
+      - next_state: FETCH_MY_BOOKS
 
   FETCH_CATEGORIES:
     type: system

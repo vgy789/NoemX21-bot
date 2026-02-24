@@ -225,27 +225,42 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 	})
 
 	registry.Register("get_user_loans", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		vars := map[string]any{
+			"my_loans_hint_ru":       "",
+			"my_loans_hint_en":       "",
+			"active_loans_count":     0,
+			"overdue_count":          0,
+			"user_status_message_ru": "📭 Книг пока не взято.",
+			"user_status_message_en": "📭 No books have been taken yet.",
+			"overdue_line_ru":        "",
+			"overdue_line_en":        "",
+		}
+		for i := range maxLoanButtons {
+			vars[fmt.Sprintf("loan_btn_id_%d", i+1)] = ""
+			vars[fmt.Sprintf("loan_btn_label_%d", i+1)] = ""
+		}
+
 		acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
 			Platform:   db.EnumPlatformTelegram,
 			ExternalID: fmt.Sprintf("%d", userID),
 		})
 		if err != nil {
-			return "", map[string]any{
-				"loans_list_formatted": noLoansText(payload),
-			}, nil
+			vars["loans_list_formatted"] = noLoansText(payload)
+			return "", vars, nil
 		}
 
 		loans, err := queries.GetUserBookLoans(ctx, acc.ID)
 		if err != nil || len(loans) == 0 {
-			return "", map[string]any{
-				"loans_list_formatted": noLoansText(payload),
-			}, nil
+			vars["loans_list_formatted"] = noLoansText(payload)
+			return "", vars, nil
 		}
 
 		loc := getUserTimezoneForLibrary(ctx, queries, userID, loans[0].CampusID)
 		now := time.Now().In(loc)
+		overdueCount := 0
 
 		var sb strings.Builder
+		btnCount := min(len(loans), maxLoanButtons)
 		for i, loan := range loans {
 			stateIcon := "✅"
 			dueText := "—"
@@ -258,14 +273,67 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 				}
 				if daysLeft < 0 {
 					stateIcon = "❗"
+					overdueCount++
 				}
 			}
 			sb.WriteString(fmt.Sprintf("%s *%d.* *%s* (%s)\n   🗓 До: `%s`\n\n", stateIcon, i+1, fsm.EscapeMarkdown(loan.BookTitle), fsm.EscapeMarkdown(loan.BookAuthor), dueText))
+			if i < btnCount {
+				vars[fmt.Sprintf("loan_btn_id_%d", i+1)] = fmt.Sprintf("return_%d", loan.ID)
+				vars[fmt.Sprintf("loan_btn_label_%d", i+1)] = common.TrimRunes(strings.TrimSpace(loan.BookTitle), 28)
+			}
 		}
 
-		return "", map[string]any{
-			"loans_list_formatted": sb.String(),
-		}, nil
+		if btnCount > 0 {
+			vars["my_loans_hint_ru"] = "👇 Нажми на кнопку, чтобы вернуть:"
+			vars["my_loans_hint_en"] = "👇 Click a button to return:"
+		}
+		vars["loans_list_formatted"] = sb.String()
+		vars["active_loans_count"] = len(loans)
+		vars["overdue_count"] = overdueCount
+		if overdueCount > 0 {
+			vars["user_status_message_ru"] = fmt.Sprintf("⚠️ Просрочено книг: %d", overdueCount)
+			vars["user_status_message_en"] = fmt.Sprintf("⚠️ Overdue books: %d", overdueCount)
+			vars["overdue_line_ru"] = fmt.Sprintf("⚠️ Пора вернуть: %d", overdueCount)
+			vars["overdue_line_en"] = fmt.Sprintf("⚠️ Time to return: %d", overdueCount)
+		} else {
+			vars["user_status_message_ru"] = "✅ Все книги в срок."
+			vars["user_status_message_en"] = "✅ All books are on time."
+		}
+
+		return "", vars, nil
+	})
+
+	registry.Register("return_book_loan", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		lastInput := strings.TrimSpace(common.ToString(payload["last_input"]))
+		if lastInput == "" {
+			lastInput = strings.TrimSpace(common.ToString(payload["id"]))
+		}
+		if lastInput == "" {
+			return "FETCH_MY_BOOKS", nil, nil
+		}
+
+		loanID := int64(0)
+		if after, ok := strings.CutPrefix(lastInput, "return_"); ok {
+			loanID = common.ToInt64(after)
+		}
+		if loanID == 0 {
+			return "FETCH_MY_BOOKS", nil, nil
+		}
+
+		acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
+			Platform:   db.EnumPlatformTelegram,
+			ExternalID: fmt.Sprintf("%d", userID),
+		})
+		if err != nil {
+			return "FETCH_MY_BOOKS", nil, nil
+		}
+
+		_ = queries.ReturnBookLoan(ctx, db.ReturnBookLoanParams{
+			ID:     loanID,
+			UserID: acc.ID,
+		})
+
+		return "FETCH_MY_BOOKS", map[string]any{"success": true}, nil
 	})
 
 	registry.Register("get_book_categories", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {

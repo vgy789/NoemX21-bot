@@ -15,6 +15,7 @@ const (
 	searchPageLimit    = 7
 	maxResultButtons   = 7
 	maxCategoryButtons = 8
+	maxLoanButtons     = 8
 	loanPeriodDays     = 14
 )
 
