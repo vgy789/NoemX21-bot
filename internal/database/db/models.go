@@ -320,14 +320,14 @@ type Skill struct {
 }
 
 type UserAccount struct {
-	ID           int64              `json:"id"`
-	S21Login     string             `json:"s21_login"`
-	Platform     EnumPlatform       `json:"platform"`
-	ExternalID   string             `json:"external_id"`
-	Username     pgtype.Text        `json:"username"`
-	IsSearchable pgtype.Bool        `json:"is_searchable"`
-	Role         NullEnumUserRole   `json:"role"`
-	LinkedAt     pgtype.Timestamptz `json:"linked_at"`
+	ID                         int64              `json:"id"`
+	S21Login                   string             `json:"s21_login"`
+	Platform                   EnumPlatform       `json:"platform"`
+	ExternalID                 string             `json:"external_id"`
+	Username                   pgtype.Text        `json:"username"`
+	TelegramUsernameVisibility pgtype.Bool        `json:"telegram_username_visibility"`
+	Role                       NullEnumUserRole   `json:"role"`
+	LinkedAt                   pgtype.Timestamptz `json:"linked_at"`
 }
 
 type UserBotSetting struct {

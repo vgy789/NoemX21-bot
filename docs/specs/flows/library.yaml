@@ -1,10 +1,3 @@
----
-meta:
-  feature_id: LIB-001
-  name: Библиотека
-  description: Личный дашборд, поиск, фильтры и бронирование книг
-  version: 4.0.0
-
 initial_state: AUTO_SYNC_USER_STATS
 
 states:
@@ -19,18 +12,17 @@ states:
   LIBRARY_HOME:
     type: interactive
     description: Главный экран библиотеки
-    # TODO: сечас {user_status_message} меняется только при переходе их главного меню!
-    # TODO: сечас {overdure_line} меняется только при переходе их главного меню!
+    on_enter:
+      - action: get_user_summary
     interface:
       text:
         ru: |
-          📚 *Библиотека*
-          📍 Твоя локация: `{campus_name}`
+          📚 *Библиотека {campus_name}*
 
           {user_status_message_ru}
           {overdue_line_ru}
         en: |
-          📍 Your location: `{campus_name}`
+          📚 *Library {campus_name}*
 
           {user_status_message_en}
           {overdue_line_en}
@@ -48,7 +40,6 @@ states:
           next_state: SEARCH_INPUT_MODE
           row: 2
         - id: my_books
-          # TODO: сечас число книг меняется только при переходе их главного меню!
           label:
             ru: 👤 Мои книги ({active_loans_count})
             en: 👤 My books ({active_loans_count})
@@ -121,20 +112,18 @@ states:
     description: Результаты поиска с фильтрами и пагинацией
     interface:
       text:
-        # TODO: Замени page_caption_ru/page_caption_en на {page_caption}
-        # TODO: Замени results_scope_label_ru/results_scope_label_en на {results_scope_label}
         ru: |
-          🎯 Результаты: *{results_scope_label_ru}*
+          🎯 Результаты: *{results_scope_label}*
           ⚙️ Фильтр: _{filter_status_text_ru}_
-          🧭 Страница: _{page_caption_ru}_
+          🧭 Страница: _{page_caption}_
 
           {formatted_book_list_with_icons}
           🟢 — свободна / 🔴 — на руках
           {results_error_text}
         en: |
-          🎯 Results: *{results_scope_label_en}*
+          🎯 Results: *{results_scope_label}*
           ⚙️ Filter: _{filter_status_text_en}_
-          🧭 Page: _{page_caption_en}_
+          🧭 Page: _{page_caption}_
 
           {formatted_book_list_with_icons}
           🟢 — available / 🔴 — borrowed
@@ -184,9 +173,8 @@ states:
           row: 7
         - id: page
           label:
-            ru: "{page_caption_ru}"
-            en: "{page_caption_en}"
-          # TODO: добавь action, который ничего не делает
+            ru: "{page_caption}"
+            en: "{page_caption}"
           action: none
           row: 7
         - id: next_page
@@ -203,17 +191,17 @@ states:
           action: toggle_search_availability
           next_state: EXECUTE_SEARCH
           row: 8
-        - id: categories
-          label:
-            ru: 🗂 Разделы
-            en: 🗂 Categories
-          next_state: FETCH_CATEGORIES
-          row: 9
         - id: home
           label:
             ru: 📚 Главная
             en: 📚 Home
           next_state: LIBRARY_HOME
+          row: 9
+        - id: categories
+          label:
+            ru: 🔙 Разделы
+            en: 🔙 Categories
+          next_state: FETCH_CATEGORIES
           row: 9
     transitions:
       - trigger: message
@@ -234,7 +222,6 @@ states:
   BOOK_CARD:
     type: interactive
     description: Карточка выбранной книги
-    # TODO: в {status_test_ru}/{status_test_ru} если книга на руках, то нужно вывести login у кого она на руках. Пример: На руках у `jonnabin`, `morslomy`.
     interface:
       text:
         ru: |
@@ -242,7 +229,7 @@ states:
           ✍️ Автор: {author}
           🗂 Раздел: {category}
 
-          {status_emoji} *Книга {status_text_ru}*
+          {status_emoji} *{status_text_ru}*
 
           *Описание:*
           {description_snippet}
@@ -251,7 +238,7 @@ states:
           ✍️ Author: {author}
           🗂 Category: {category}
 
-          {status_emoji} *Book {status_text_en}*
+          {status_emoji} *{status_text_en}*
 
           *Description:*
           {description_snippet}
@@ -332,6 +319,7 @@ states:
           👤 *Твоя книжная полка*
 
           {loans_list_formatted}
+
           ✅ — в срок / ⚠️ — пора вернуть
 
           {my_loans_hint_ru}
@@ -339,6 +327,7 @@ states:
           👤 *Your bookshelf*
 
           {loans_list_formatted}
+
           ✅ — on time / ⚠️ — due soon
 
           {my_loans_hint_en}
@@ -525,12 +514,12 @@ states:
         ru: |
           🤷 *Ничего не нашлось*
 
-          Для *{results_scope_label_ru}* в кампусе `{campus_name}` пока нет книг.
+          Для *{results_scope_label}* в кампусе `{campus_name}` пока нет книг.
           Попробуй другой запрос или раздел.
         en: |
           🤷 *Nothing found*
 
-          We found no books for *{results_scope_label_en}* in `{campus_name}`.
+          We found no books for *{results_scope_label}* in `{campus_name}`.
           Try another query or category.
       buttons:
         - id: retry

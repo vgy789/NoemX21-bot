@@ -25,9 +25,9 @@ RETURNING *;
 SELECT * FROM user_accounts 
 WHERE platform = $1 AND external_id = $2;
 
--- name: UpdateUserAccountSearchableByExternalId :one
+-- name: UpdateUserAccountTelegramUsernameVisibilityByExternalId :one
 UPDATE user_accounts
-SET is_searchable = $3
+SET telegram_username_visibility = $3
 WHERE platform = $1 AND external_id = $2
 RETURNING *;
 
@@ -41,7 +41,7 @@ WHERE s21_login = $1;
 
 -- name: CreateUserAccount :one
 INSERT INTO user_accounts (
-    s21_login, platform, external_id, username, is_searchable, role
+    s21_login, platform, external_id, username, telegram_username_visibility, role
 ) VALUES (
     $1, $2, $3, $4, $5, $6
 )
@@ -331,7 +331,7 @@ SELECT
     c.s21_login,
     COALESCE(ua.username, '') AS telegram_username,
     COALESCE(ua.external_id, '') AS external_id,
-    ua.is_searchable,
+    ua.telegram_username_visibility,
     camp.short_name AS campus_name,
     co.name AS coalition_name,
     c.status,

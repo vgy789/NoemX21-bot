@@ -30,8 +30,9 @@ func TestLoadProfileSettings(t *testing.T) {
 		Platform:   db.EnumPlatformTelegram,
 		ExternalID: "42",
 	}).Return(db.UserAccount{
-		S21Login:     "student",
-		IsSearchable: pgtype.Bool{Bool: true, Valid: true},
+		S21Login:                   "student",
+		Username:                   pgtype.Text{String: "student", Valid: true},
+		TelegramUsernameVisibility: pgtype.Bool{Bool: true, Valid: true},
 	}, nil)
 	q.EXPECT().GetMyProfile(gomock.Any(), "student").Return(db.GetMyProfileRow{
 		AlternativeContact: pgtype.Text{String: "peer@example.com", Valid: true},
@@ -61,12 +62,13 @@ func TestToggleSearchable(t *testing.T) {
 		Platform:   db.EnumPlatformTelegram,
 		ExternalID: "42",
 	}).Return(db.UserAccount{
-		IsSearchable: pgtype.Bool{Bool: true, Valid: true},
+		Username:                   pgtype.Text{String: "student", Valid: true},
+		TelegramUsernameVisibility: pgtype.Bool{Bool: true, Valid: true},
 	}, nil)
-	q.EXPECT().UpdateUserAccountSearchableByExternalId(gomock.Any(), db.UpdateUserAccountSearchableByExternalIdParams{
-		Platform:     db.EnumPlatformTelegram,
-		ExternalID:   "42",
-		IsSearchable: pgtype.Bool{Bool: false, Valid: true},
+	q.EXPECT().UpdateUserAccountTelegramUsernameVisibilityByExternalId(gomock.Any(), db.UpdateUserAccountTelegramUsernameVisibilityByExternalIdParams{
+		Platform:                   db.EnumPlatformTelegram,
+		ExternalID:                 "42",
+		TelegramUsernameVisibility: pgtype.Bool{Bool: false, Valid: true},
 	}).Return(db.UserAccount{}, nil)
 
 	_, updates, err := action(context.Background(), 42, nil)

@@ -1,9 +1,4 @@
 ---
-meta:
-  feature_id: REG-001
-  name: Регистрация (Onboarding)
-  description: Валидация через S21 API + Rocket.Chat OTP
-  version: 2.4.0
 
 initial_state: SELECT_LANGUAGE
 states:
@@ -47,22 +42,26 @@ states:
         ru: |
           🔑 *Идентификация*
 
-          Укажи свой School21 Login:
-          _Пример:_ `verter`
+          Укажи свой School21 Login.
+
+          > Например: `verter`
         en: |
           🔑 *Identification*
 
           Specify your School21 Login:
-          _Example:_ `verter`
+
+          Example: `verter`
       error_invalid:
         ru: |
           ⚠️ *Format Error:* Неверный формат логина.
+
           👇 Попробуй ввести снова:
         en: |
           ⚠️ *Format Error:* Invalid login format.
+
           👇 Try again:
     validation:
-      regex: ^[a-z]{4,9}$
+      regex: ^[A-Za-z]{4,9}$
     transitions:
       - trigger: on_valid_input
         next_state: VALIDATE_VIA_API
@@ -95,10 +94,12 @@ states:
     interface:
       text:
         ru: |
-          ❌ Пользователь не найден в School21.
+          ❌ *Пользователь не найден в School21.*
+
           Убедись что ты вводишь свой логин правильно.
         en: |
-          ❌ User not found in School21.
+          ❌ *User not found in School21.*
+
           Make sure you are entering your login correctly.
       buttons:
         - id: retry
@@ -106,7 +107,6 @@ states:
             ru: 🔁 Попробовать снова
             en: 🔁 Try again
           next_state: INPUT_LOGIN
-
 
   FIND_ROCKET_USER:
     type: system
@@ -118,6 +118,8 @@ states:
     transitions:
       - condition: rocket_user_found == true && email_verified == true
         next_state: GENERATE_OTP
+      - condition: rocket_user_found == true && email_unavailable == true
+        next_state: ERROR_EMAIL_UNAVAILABLE
       - condition: rocket_user_found == true && email_mismatch == true
         next_state: ERROR_EMAIL_MISMATCH
       - condition: rocket_user_not_found == true
@@ -264,10 +266,33 @@ states:
       text:
         ru: |
           ❌ *Security Alert*
+
           Email в Rocket.Chat не совпадает с логином S21.
         en: |
           ❌ *Security Alert*
+
           Rocket.Chat email mismatch with S21 login.
+      buttons:
+        - id: retry
+          label:
+            ru: "🔄 Попробовать снова"
+            en: "🔄 Try again"
+          next_state: INPUT_LOGIN
+
+  ERROR_EMAIL_UNAVAILABLE:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          ❌ *Нет доступа к email в Rocket.Chat*
+
+          Похоже, у Rocket.Chat профиля нет прав на просмотр email.
+          Обратись к администратору или попробуй позже.
+        en: |
+          ❌ *Rocket.Chat email not available*
+
+          It looks like this Rocket.Chat profile has no permission to view emails.
+          Please contact an admin or try again later.
       buttons:
         - id: retry
           label:
@@ -280,10 +305,12 @@ states:
     interface:
       text:
         ru: |
-          ❌ Пользователь уже авторизован!
+          ❌ *Пользователь уже авторизован!*
+
           Выйди из другого аккаунта и попробуй снова.
         en: |
-          ❌ User is already authorized!
+          ❌ *User is already authorized!*
+
           Log out of the other account and try again.
       buttons:
         - id: retry
@@ -303,11 +330,11 @@ states:
     interface:
       text:
         ru: |
-          ℹ️ Зарегистрировать можно только 1 профиль мессенджера.
+          ℹ️ *Зарегистрировать можно только 1 профиль мессенджера.*
 
           Если у тебя уже есть профиль, отвяжи бота от предыдущего, чтобы зарегистрировать этот. (В меню `Настройки→Отвязать профиль`).
         en: |
-          ℹ️ You can register only 1 messenger profile.
+          ℹ️ *You can register only 1 messenger profile.*
 
           If you already have a profile, unlink the bot from the previous one to register this one. (In the menu `Settings → Unlink profile`).
       buttons:
@@ -343,10 +370,12 @@ states:
     interface:
       text:
         ru: |
-          ❌ Не удалось отправить код подтверждения.
+          ❌ *Не удалось отправить код подтверждения.*
+
           Возможно, временная проблема с сервисом. Попробуй через минуту.
         en: |
-          ❌ Failed to send confirmation code.
+          ❌ *Failed to send confirmation code.*
+
           There might be a temporary service issue. Try again in a minute.
       buttons:
         - id: retry
@@ -361,10 +390,12 @@ states:
     interface:
       text:
         ru: |
-          ❌ Ошибка API School21.
+          ❌ *Ошибка API School21.*
+
           Попробуй позже.
         en: |
-          ❌ School21 API error.
+          ❌ *School21 API error.*
+
           Try again later.
       buttons:
         - id: retry
@@ -379,10 +410,12 @@ states:
     interface:
       text:
         ru: |
-          ❌ Твой логин не найден в Rocket.Chat.
+          ❌ *Твой логин не найден в Rocket.Chat.*
+
           Убедись, что ты активировал свой аккаунт.
         en: |
-          ❌ Your login not found in Rocket.Chat.
+          ❌ *Your login not found in Rocket.Chat.*
+
           Make sure you have activated your account.
 
   ROCKET_API_ERROR:
@@ -391,10 +424,12 @@ states:
     interface:
       text:
         ru: |
-          ❌ Ошибка API Rocket.Chat.
+          ❌ *Ошибка API Rocket.Chat.*
+
           Попробуй позже.
         en: |
-          ❌ Rocket.Chat API error.
+          ❌ *Rocket.Chat API error.*
+
           Try again later.
 
   ERROR_EMAIL_ALREADY_REGISTERED:
@@ -403,6 +438,6 @@ states:
     interface:
       text:
         ru: |
-          ❌ Этот логин уже привязан к другому аккаунту!
+          ❌ *Этот логин уже привязан к другому аккаунту!*
         en: |
-          ❌ This login is already linked to another account!
+          ❌ *This login is already linked to another account!*

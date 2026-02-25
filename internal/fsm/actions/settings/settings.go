@@ -77,14 +77,15 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 
 	registry.Register("load_profile_settings", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		vars := map[string]any{
-			"my_searchable_status_ru":   "❌ Не виден",
-			"my_searchable_status_en":   "❌ Not visible",
-			"is_searchable_label_ru":    "❌ Не виден",
-			"is_searchable_label_en":    "❌ Not visible",
+			"my_searchable_status_ru":   "❌ Не задано",
+			"my_searchable_status_en":   "❌ Not set",
+			"is_searchable_label_ru":    "❌ Не задано",
+			"is_searchable_label_en":    "❌ Not set",
 			"my_alt_contact":            "❌ Not set",
 			"my_alt_contact_display_ru": "❌ Не задан",
 			"my_alt_contact_display_en": "❌ Not set",
 			"has_alt_contact":           false,
+			"has_telegram_username":     false,
 		}
 
 		ua, err := getTelegramAccount(ctx, userID)
@@ -93,11 +94,26 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 			return "", vars, nil
 		}
 
-		if ua.IsSearchable.Valid && ua.IsSearchable.Bool {
-			vars["my_searchable_status_ru"] = "✅ Виден"
-			vars["my_searchable_status_en"] = "✅ Visible"
-			vars["is_searchable_label_ru"] = "✅ Виден"
-			vars["is_searchable_label_en"] = "✅ Visible"
+		hasTelegramUsername := false
+		if ua.Username.Valid {
+			username := strings.TrimSpace(ua.Username.String)
+			if username != "" {
+				hasTelegramUsername = true
+			}
+		}
+		vars["has_telegram_username"] = hasTelegramUsername
+
+		if hasTelegramUsername {
+			vars["my_searchable_status_ru"] = "❌ Не виден"
+			vars["my_searchable_status_en"] = "❌ Not visible"
+			vars["is_searchable_label_ru"] = "❌ Не виден"
+			vars["is_searchable_label_en"] = "❌ Not visible"
+			if ua.TelegramUsernameVisibility.Valid && ua.TelegramUsernameVisibility.Bool {
+				vars["my_searchable_status_ru"] = "✅ Виден"
+				vars["my_searchable_status_en"] = "✅ Visible"
+				vars["is_searchable_label_ru"] = "✅ Виден"
+				vars["is_searchable_label_en"] = "✅ Visible"
+			}
 		}
 
 		profile, err := queries.GetMyProfile(ctx, ua.S21Login)
@@ -119,6 +135,23 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 		return "", vars, nil
 	})
 
+	registry.Register("check_telegram_username", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		ua, err := getTelegramAccount(ctx, userID)
+		if err != nil {
+			return "", nil, fmt.Errorf("user account not found: %w", err)
+		}
+
+		hasTelegramUsername := false
+		if ua.Username.Valid {
+			username := strings.TrimSpace(ua.Username.String)
+			if username != "" {
+				hasTelegramUsername = true
+			}
+		}
+
+		return "", map[string]any{"has_telegram_username": hasTelegramUsername}, nil
+	})
+
 	registry.Register("toggle_searchable", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		ua, err := getTelegramAccount(ctx, userID)
 		if err != nil {
@@ -126,16 +159,16 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 		}
 
 		newValue := true
-		if ua.IsSearchable.Valid {
-			newValue = !ua.IsSearchable.Bool
+		if ua.TelegramUsernameVisibility.Valid {
+			newValue = !ua.TelegramUsernameVisibility.Bool
 		}
 
-		if _, err := queries.UpdateUserAccountSearchableByExternalId(ctx, db.UpdateUserAccountSearchableByExternalIdParams{
-			Platform:     db.EnumPlatformTelegram,
-			ExternalID:   fmt.Sprintf("%d", userID),
-			IsSearchable: pgtype.Bool{Bool: newValue, Valid: true},
+		if _, err := queries.UpdateUserAccountTelegramUsernameVisibilityByExternalId(ctx, db.UpdateUserAccountTelegramUsernameVisibilityByExternalIdParams{
+			Platform:                   db.EnumPlatformTelegram,
+			ExternalID:                 fmt.Sprintf("%d", userID),
+			TelegramUsernameVisibility: pgtype.Bool{Bool: newValue, Valid: true},
 		}); err != nil {
-			return "", nil, fmt.Errorf("failed to update user searchable status: %w", err)
+			return "", nil, fmt.Errorf("failed to update telegram username visibility: %w", err)
 		}
 
 		if newValue {

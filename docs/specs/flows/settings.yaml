@@ -1,9 +1,4 @@
 ---
-meta:
-  feature_id: SET-001
-  name: Настройки пользователя
-  description: Конфигурация профиля и API
-  version: 2.3.0
 
 initial_state: SETTINGS_MENU
 states:
@@ -52,32 +47,32 @@ states:
     interface:
       text:
         ru: |
-          👤 *Мой профиль*
+          👤 *Мой профиль | Настройки*
 
-          Настрой то, как тебя видят другие пиры и укажи дополнительный способ связи.
+          Эта информация используется при отображения твоего профиля другим пирам и в статистике.
 
-          👁️ *Видимость Telegram @username:*
+          👁️ *Видимость Telegram* @username*:*
           `{my_searchable_status_ru}`
 
-          📞 *Дополнительный контакт:*
+          📞 *Дополнительный контакт:*
           `{my_alt_contact_display_ru}`
 
         en: |
-          👤 *My Profile*
+          👤 *My Profile | Settings*
 
-          Configure how peers see you and set up an alternative contact method.
+          This information is used when displaying your profile to other parties and in statistics.
 
-          👁️ *Telegram @username visibility:* `{my_searchable_status_en}`
+          👁️ *Telegram* @username *visibility:*
+          `{my_searchable_status_en}`
 
-          📞 *Alternative contact:* `{my_alt_contact_display_en}`
+          📞 *Alternative contact:*
+          `{my_alt_contact_display_en}`
       buttons:
         - id: searchable
           label:
-            # Note: по умолчанию виден
-            # TODO: изменить SEARCHABLE на более подходящий термин, например, TELEGRAM_USERNAME_VISIBILITY
             ru: "👁️ Изменить видимость"
             en: "👁️ Change visibility"
-          next_state: TOGGLE_SEARCHABLE
+          next_state: CHECK_TELEGRAM_USERNAME
           row: 1
         - id: contact
           label:
@@ -97,6 +92,42 @@ states:
             en: 🔙 Back
           next_state: SETTINGS_MENU
           row: 2
+
+  CHECK_TELEGRAM_USERNAME:
+    type: system
+    description: Проверка Telegram @username
+    logic:
+      action: check_telegram_username
+      payload:
+        user_id: $context.user_id
+    transitions:
+      - condition: has_telegram_username == true
+        next_state: TOGGLE_SEARCHABLE
+      - next_state: NO_TELEGRAM_USERNAME
+
+  NO_TELEGRAM_USERNAME:
+    type: interactive
+    description: Уведомление об отсутствии Telegram @username
+    interface:
+      text:
+        ru: |
+          👁️ *Видимость Telegram*
+
+          У тебя не задан Telegram @username.
+
+          Укажи его в настройках Telegram, затем попробуй снова.
+        en: |
+          👁️ *Telegram Visibility*
+
+          You don't have a Telegram @username set.
+
+          Please set it in Telegram settings, then try again.
+      buttons:
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: PROFILE_SETTINGS
 
   # Например используется в {peer_contact_line_ru} в статистике пиров
   TOGGLE_SEARCHABLE:
@@ -142,21 +173,23 @@ states:
         ru: |
           📞 *Дополнительный контакт*
 
-          Отправь в чат свой запасной email или другую информацию о связи с тобой.
+          Отправь в чат любую информацию о связи с тобой.
 
-          > Это будут видеть пиры, при просмотре твоего профиля.
+          > Например: email, другой Telegram, номер телефона и т.п.
         en: |
           📞 *External Contact*
 
-          Send an alternative email or other contact info to be displayed on your profile.
+          Send any contact information you'd like to be displayed.
 
-          > This will be visible to parties when they view your profile.
+          > For example: email, another Telegram, phone number, etc.
       error_invalid:
         ru: |
           ⚠️ Не похоже на корректный контакт (максимум 42 символа).
+
           Попробуй еще раз!
         en: |
           ⚠️ This does not appear to be a valid contact (maximum 42 characters).
+
           Please try again!
       buttons:
         # кнопка видна, только если контакт уже задан
@@ -301,14 +334,14 @@ states:
     interface:
       text:
         ru: |
-          👨‍💻 *Токен API*
+          👨‍💻 *Токен API | Настройки*
 
           Используй этот ключ для доступа к данным NoemX21 по API.
 
           🔑 *Твой токен:*
           `{my_botapi_token}`
         en: |
-          👨‍💻 *API Token*
+          👨‍💻 *API Token | Settings*
 
           Use this key to access NoemX21 data via API.
 
@@ -366,11 +399,11 @@ states:
         ru: |
           🌐 *Язык интерфейса*
 
-          👇 Выбери язык на котором будет отображаться интерфейс бота.
+          👇 Выбери язык на котором будет отображаться интерфейс бота:
         en: |
           🌐 *Interface Language*
 
-          👇 Select the language in which the bot interface will be displayed.
+          👇 Select the language in which the bot interface will be displayed:
       buttons:
         - id: ru
           label:

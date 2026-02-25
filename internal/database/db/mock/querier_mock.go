@@ -886,19 +886,19 @@ func (mr *MockQuerierMockRecorder) UpdateRoomBookingDuration(ctx, arg any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRoomBookingDuration", reflect.TypeOf((*MockQuerier)(nil).UpdateRoomBookingDuration), ctx, arg)
 }
 
-// UpdateUserAccountSearchableByExternalId mocks base method.
-func (m *MockQuerier) UpdateUserAccountSearchableByExternalId(ctx context.Context, arg db.UpdateUserAccountSearchableByExternalIdParams) (db.UserAccount, error) {
+// UpdateUserAccountTelegramUsernameVisibilityByExternalId mocks base method.
+func (m *MockQuerier) UpdateUserAccountTelegramUsernameVisibilityByExternalId(ctx context.Context, arg db.UpdateUserAccountTelegramUsernameVisibilityByExternalIdParams) (db.UserAccount, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUserAccountSearchableByExternalId", ctx, arg)
+	ret := m.ctrl.Call(m, "UpdateUserAccountTelegramUsernameVisibilityByExternalId", ctx, arg)
 	ret0, _ := ret[0].(db.UserAccount)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// UpdateUserAccountSearchableByExternalId indicates an expected call of UpdateUserAccountSearchableByExternalId.
-func (mr *MockQuerierMockRecorder) UpdateUserAccountSearchableByExternalId(ctx, arg any) *gomock.Call {
+// UpdateUserAccountTelegramUsernameVisibilityByExternalId indicates an expected call of UpdateUserAccountTelegramUsernameVisibilityByExternalId.
+func (mr *MockQuerierMockRecorder) UpdateUserAccountTelegramUsernameVisibilityByExternalId(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserAccountSearchableByExternalId", reflect.TypeOf((*MockQuerier)(nil).UpdateUserAccountSearchableByExternalId), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserAccountTelegramUsernameVisibilityByExternalId", reflect.TypeOf((*MockQuerier)(nil).UpdateUserAccountTelegramUsernameVisibilityByExternalId), ctx, arg)
 }
 
 // UpsertBook mocks base method.

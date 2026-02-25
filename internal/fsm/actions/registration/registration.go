@@ -34,6 +34,9 @@ func Register(
 	if aliasRegistrar != nil {
 		aliasRegistrar("START", "registration.yaml/START")
 	}
+	normalizeLogin := func(login string) string {
+		return strings.ToLower(strings.TrimSpace(login))
+	}
 	// Helper to extract user info from payload/context
 	getUserInfo := func(ctx context.Context, userID int64, payload map[string]any) fsm.UserInfo {
 		ui := fsm.UserInfo{
@@ -94,7 +97,7 @@ func Register(
 
 	// Validate School21 user
 	registry.Register("validate_school21_user", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		login := payload["login"].(string)
+		login := normalizeLogin(payload["login"].(string))
 		log.Debug("validating school21 user", "login", login)
 
 		// 1. Get bot's own token to use for verification
@@ -133,7 +136,7 @@ func Register(
 
 	// Find and verify RocketChat user and update ID in DB
 	registry.Register("find_and_verify_rocket_user", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		login := payload["login"].(string)
+		login := normalizeLogin(payload["login"].(string))
 
 		// 1. Check if account already registered/linked in our DB
 		ua, err := queries.GetUserAccountByS21Login(ctx, login)
@@ -152,19 +155,27 @@ func Register(
 			return "", map[string]any{"rocket_user_not_found": true}, nil
 		}
 
-		// 3. Verify email
-		expectedEmail := fmt.Sprintf("%s@student.21-school.ru", login)
-		emailVerified := false
-		for _, email := range rcUser.User.Emails {
-			if email.Address == expectedEmail && email.Verified {
-				emailVerified = true
-				break
+		// 3. Verify email unless TEST_MODE_NO_OTP is enabled.
+		if !cfg.TestModeNoOTP {
+			expectedEmail := fmt.Sprintf("%s@student.21-school.ru", login)
+			emailVerified := false
+			if len(rcUser.User.Emails) == 0 {
+				log.Warn("rocketchat email not available (no emails returned)", "login", login)
+				return "", map[string]any{"email_unavailable": true, "rocket_user_found": true}, nil
 			}
-		}
+			for _, email := range rcUser.User.Emails {
+				if email.Address == expectedEmail && email.Verified {
+					emailVerified = true
+					break
+				}
+			}
 
-		if !emailVerified {
-			log.Warn("rocketchat email verification failed", "login", login)
-			return "", map[string]any{"email_mismatch": true, "rocket_user_found": true}, nil
+			if !emailVerified {
+				log.Warn("rocketchat email verification failed", "login", login)
+				return "", map[string]any{"email_mismatch": true, "rocket_user_found": true}, nil
+			}
+		} else {
+			log.Info("test mode no otp: skipping email verification", "login", login)
 		}
 
 		// 4. Update the Rocket.Chat ID in the database
@@ -205,7 +216,7 @@ func Register(
 
 	// Generate and send OTP
 	registry.Register("generate_otp", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		login := payload["login"].(string)
+		login := normalizeLogin(payload["login"].(string))
 
 		// 0. Check rate limits
 		rl := service.GetRateLimiter()
@@ -257,6 +268,7 @@ func Register(
 				return "", nil, fmt.Errorf("student login not found in payload")
 			}
 		}
+		s21Login = normalizeLogin(s21Login)
 
 		ctx = context.WithValue(ctx, fsm.ContextKeyS21Login, s21Login)
 
@@ -295,12 +307,12 @@ func Register(
 			}
 
 			uaCreated, err := queries.CreateUserAccount(ctx, db.CreateUserAccountParams{
-				S21Login:     s21Login,
-				Platform:     platform,
-				ExternalID:   fmt.Sprintf("%d", ui.ID),
-				Username:     username,
-				IsSearchable: pgtype.Bool{Bool: true, Valid: true},
-				Role:         db.NullEnumUserRole{EnumUserRole: db.EnumUserRoleUser, Valid: true},
+				S21Login:                   s21Login,
+				Platform:                   platform,
+				ExternalID:                 fmt.Sprintf("%d", ui.ID),
+				Username:                   username,
+				TelegramUsernameVisibility: pgtype.Bool{Bool: true, Valid: true},
+				Role:                       db.NullEnumUserRole{EnumUserRole: db.EnumUserRoleUser, Valid: true},
 			})
 			if err != nil {
 				log.Error("failed to create user account", "error", err, "s21_login", s21Login)

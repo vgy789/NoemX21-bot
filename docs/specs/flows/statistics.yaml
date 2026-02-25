@@ -1,9 +1,4 @@
 ---
-meta:
-  feature_id: STAT-001
-  name: Статистика и поиск
-  description: 'Центр аналитики: личный прогресс, поиск пиров и сравнение скиллов'
-  version: 2.2.1
 
 initial_state: AUTO_SYNC_STATS
 
@@ -176,7 +171,7 @@ states:
             en: 🙅‍♂️ Cancel
           next_state: STATS_SEARCH_MENU
     validation:
-      regex: ^[a-z0-9_]{4,9}$
+      regex: ^[A-Za-z]{4,9}$
     transitions:
       - trigger: on_valid_input
         next_state: FETCH_PEER_DATA

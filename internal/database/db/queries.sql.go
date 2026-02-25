@@ -232,20 +232,20 @@ func (q *Queries) CreateRoomBooking(ctx context.Context, arg CreateRoomBookingPa
 
 const createUserAccount = `-- name: CreateUserAccount :one
 INSERT INTO user_accounts (
-    s21_login, platform, external_id, username, is_searchable, role
+    s21_login, platform, external_id, username, telegram_username_visibility, role
 ) VALUES (
     $1, $2, $3, $4, $5, $6
 )
-RETURNING id, s21_login, platform, external_id, username, is_searchable, role, linked_at
+RETURNING id, s21_login, platform, external_id, username, telegram_username_visibility, role, linked_at
 `
 
 type CreateUserAccountParams struct {
-	S21Login     string           `json:"s21_login"`
-	Platform     EnumPlatform     `json:"platform"`
-	ExternalID   string           `json:"external_id"`
-	Username     pgtype.Text      `json:"username"`
-	IsSearchable pgtype.Bool      `json:"is_searchable"`
-	Role         NullEnumUserRole `json:"role"`
+	S21Login                   string           `json:"s21_login"`
+	Platform                   EnumPlatform     `json:"platform"`
+	ExternalID                 string           `json:"external_id"`
+	Username                   pgtype.Text      `json:"username"`
+	TelegramUsernameVisibility pgtype.Bool      `json:"telegram_username_visibility"`
+	Role                       NullEnumUserRole `json:"role"`
 }
 
 func (q *Queries) CreateUserAccount(ctx context.Context, arg CreateUserAccountParams) (UserAccount, error) {
@@ -254,7 +254,7 @@ func (q *Queries) CreateUserAccount(ctx context.Context, arg CreateUserAccountPa
 		arg.Platform,
 		arg.ExternalID,
 		arg.Username,
-		arg.IsSearchable,
+		arg.TelegramUsernameVisibility,
 		arg.Role,
 	)
 	var i UserAccount
@@ -264,7 +264,7 @@ func (q *Queries) CreateUserAccount(ctx context.Context, arg CreateUserAccountPa
 		&i.Platform,
 		&i.ExternalID,
 		&i.Username,
-		&i.IsSearchable,
+		&i.TelegramUsernameVisibility,
 		&i.Role,
 		&i.LinkedAt,
 	)
@@ -1238,7 +1238,7 @@ SELECT
     c.s21_login,
     COALESCE(ua.username, '') AS telegram_username,
     COALESCE(ua.external_id, '') AS external_id,
-    ua.is_searchable,
+    ua.telegram_username_visibility,
     camp.short_name AS campus_name,
     co.name AS coalition_name,
     c.status,
@@ -1261,24 +1261,24 @@ WHERE c.s21_login = $1
 `
 
 type GetPeerProfileRow struct {
-	S21Login         string            `json:"s21_login"`
-	TelegramUsername string            `json:"telegram_username"`
-	ExternalID       string            `json:"external_id"`
-	IsSearchable     pgtype.Bool       `json:"is_searchable"`
-	CampusName       pgtype.Text       `json:"campus_name"`
-	CoalitionName    pgtype.Text       `json:"coalition_name"`
-	Status           EnumStudentStatus `json:"status"`
-	Level            int32             `json:"level"`
-	ExpValue         int32             `json:"exp_value"`
-	Prp              int32             `json:"prp"`
-	Crp              int32             `json:"crp"`
-	Coins            int32             `json:"coins"`
-	ParallelName     pgtype.Text       `json:"parallel_name"`
-	ClassName        pgtype.Text       `json:"class_name"`
-	Integrity        pgtype.Float4     `json:"integrity"`
-	Friendliness     pgtype.Float4     `json:"friendliness"`
-	Punctuality      pgtype.Float4     `json:"punctuality"`
-	Thoroughness     pgtype.Float4     `json:"thoroughness"`
+	S21Login                   string            `json:"s21_login"`
+	TelegramUsername           string            `json:"telegram_username"`
+	ExternalID                 string            `json:"external_id"`
+	TelegramUsernameVisibility pgtype.Bool       `json:"telegram_username_visibility"`
+	CampusName                 pgtype.Text       `json:"campus_name"`
+	CoalitionName              pgtype.Text       `json:"coalition_name"`
+	Status                     EnumStudentStatus `json:"status"`
+	Level                      int32             `json:"level"`
+	ExpValue                   int32             `json:"exp_value"`
+	Prp                        int32             `json:"prp"`
+	Crp                        int32             `json:"crp"`
+	Coins                      int32             `json:"coins"`
+	ParallelName               pgtype.Text       `json:"parallel_name"`
+	ClassName                  pgtype.Text       `json:"class_name"`
+	Integrity                  pgtype.Float4     `json:"integrity"`
+	Friendliness               pgtype.Float4     `json:"friendliness"`
+	Punctuality                pgtype.Float4     `json:"punctuality"`
+	Thoroughness               pgtype.Float4     `json:"thoroughness"`
 }
 
 // Профиль пира: из кеша статистики + telegram username если зарегистрирован.
@@ -1289,7 +1289,7 @@ func (q *Queries) GetPeerProfile(ctx context.Context, s21Login string) (GetPeerP
 		&i.S21Login,
 		&i.TelegramUsername,
 		&i.ExternalID,
-		&i.IsSearchable,
+		&i.TelegramUsernameVisibility,
 		&i.CampusName,
 		&i.CoalitionName,
 		&i.Status,
@@ -1472,7 +1472,7 @@ func (q *Queries) GetRoomByID(ctx context.Context, arg GetRoomByIDParams) (Room,
 }
 
 const getUserAccountByExternalId = `-- name: GetUserAccountByExternalId :one
-SELECT id, s21_login, platform, external_id, username, is_searchable, role, linked_at FROM user_accounts 
+SELECT id, s21_login, platform, external_id, username, telegram_username_visibility, role, linked_at FROM user_accounts 
 WHERE platform = $1 AND external_id = $2
 `
 
@@ -1490,7 +1490,7 @@ func (q *Queries) GetUserAccountByExternalId(ctx context.Context, arg GetUserAcc
 		&i.Platform,
 		&i.ExternalID,
 		&i.Username,
-		&i.IsSearchable,
+		&i.TelegramUsernameVisibility,
 		&i.Role,
 		&i.LinkedAt,
 	)
@@ -1498,7 +1498,7 @@ func (q *Queries) GetUserAccountByExternalId(ctx context.Context, arg GetUserAcc
 }
 
 const getUserAccountByS21Login = `-- name: GetUserAccountByS21Login :one
-SELECT id, s21_login, platform, external_id, username, is_searchable, role, linked_at FROM user_accounts
+SELECT id, s21_login, platform, external_id, username, telegram_username_visibility, role, linked_at FROM user_accounts
 WHERE s21_login = $1
 `
 
@@ -1511,7 +1511,7 @@ func (q *Queries) GetUserAccountByS21Login(ctx context.Context, s21Login string)
 		&i.Platform,
 		&i.ExternalID,
 		&i.Username,
-		&i.IsSearchable,
+		&i.TelegramUsernameVisibility,
 		&i.Role,
 		&i.LinkedAt,
 	)
@@ -1812,21 +1812,21 @@ func (q *Queries) UpdateRoomBookingDuration(ctx context.Context, arg UpdateRoomB
 	return err
 }
 
-const updateUserAccountSearchableByExternalId = `-- name: UpdateUserAccountSearchableByExternalId :one
+const updateUserAccountTelegramUsernameVisibilityByExternalId = `-- name: UpdateUserAccountTelegramUsernameVisibilityByExternalId :one
 UPDATE user_accounts
-SET is_searchable = $3
+SET telegram_username_visibility = $3
 WHERE platform = $1 AND external_id = $2
-RETURNING id, s21_login, platform, external_id, username, is_searchable, role, linked_at
+RETURNING id, s21_login, platform, external_id, username, telegram_username_visibility, role, linked_at
 `
 
-type UpdateUserAccountSearchableByExternalIdParams struct {
-	Platform     EnumPlatform `json:"platform"`
-	ExternalID   string       `json:"external_id"`
-	IsSearchable pgtype.Bool  `json:"is_searchable"`
+type UpdateUserAccountTelegramUsernameVisibilityByExternalIdParams struct {
+	Platform                   EnumPlatform `json:"platform"`
+	ExternalID                 string       `json:"external_id"`
+	TelegramUsernameVisibility pgtype.Bool  `json:"telegram_username_visibility"`
 }
 
-func (q *Queries) UpdateUserAccountSearchableByExternalId(ctx context.Context, arg UpdateUserAccountSearchableByExternalIdParams) (UserAccount, error) {
-	row := q.db.QueryRow(ctx, updateUserAccountSearchableByExternalId, arg.Platform, arg.ExternalID, arg.IsSearchable)
+func (q *Queries) UpdateUserAccountTelegramUsernameVisibilityByExternalId(ctx context.Context, arg UpdateUserAccountTelegramUsernameVisibilityByExternalIdParams) (UserAccount, error) {
+	row := q.db.QueryRow(ctx, updateUserAccountTelegramUsernameVisibilityByExternalId, arg.Platform, arg.ExternalID, arg.TelegramUsernameVisibility)
 	var i UserAccount
 	err := row.Scan(
 		&i.ID,
@@ -1834,7 +1834,7 @@ func (q *Queries) UpdateUserAccountSearchableByExternalId(ctx context.Context, a
 		&i.Platform,
 		&i.ExternalID,
 		&i.Username,
-		&i.IsSearchable,
+		&i.TelegramUsernameVisibility,
 		&i.Role,
 		&i.LinkedAt,
 	)
