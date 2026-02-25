@@ -1,12 +1,26 @@
 package common
 
 import (
+	"log/slog"
+
+	"github.com/vgy789/noemx21-bot/internal/clients/s21"
+	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
+	"github.com/vgy789/noemx21-bot/internal/service"
 )
 
 // RegisterReviews registers reviews-related actions.
-func RegisterReviews(registry *fsm.LogicRegistry, aliasRegistrar func(alias, target string)) {
+func RegisterReviews(
+	registry *fsm.LogicRegistry,
+	queries db.Querier,
+	s21Client *s21.Client,
+	credService *service.CredentialService,
+	log *slog.Logger,
+	aliasRegistrar func(alias, target string),
+) {
 	if aliasRegistrar != nil {
-		aliasRegistrar("REVIEWS_MENU", "reviews.yaml/REVIEW_MENU")
+		aliasRegistrar("REVIEWS_MENU", "reviews.yaml/PRR_MAIN_MENU")
 	}
+
+	registerReviewActions(registry, queries, s21Client, credService, log)
 }

@@ -23,6 +23,19 @@ type ParticipantCampusV1DTO struct {
 	ShortName string `json:"shortName"`
 }
 
+type ParticipantProjectV1DTO struct {
+	ID              int64      `json:"id"`
+	Title           string     `json:"title"`
+	Type            string     `json:"type"`
+	Status          string     `json:"status"`
+	FinalPercentage *int32     `json:"finalPercentage"`
+	CompletionDate  *time.Time `json:"completionDateTime"`
+}
+
+type ParticipantProjectsV1DTO struct {
+	Projects []ParticipantProjectV1DTO `json:"projects"`
+}
+
 type ParticipantV1DTO struct {
 	Login          string                 `json:"login"`
 	ClassName      *string                `json:"className"`
@@ -116,6 +129,26 @@ func (c *Client) GetParticipantCoalition(ctx context.Context, token string, logi
 func (c *Client) GetParticipantFeedback(ctx context.Context, token string, login string) (*ParticipantFeedbackV1DTO, error) {
 	apiUrl := fmt.Sprintf("%s/participants/%s/feedback", c.baseURL, url.PathEscape(login))
 	return getJSON[ParticipantFeedbackV1DTO](ctx, c.httpClient, apiUrl, token)
+}
+
+func (c *Client) GetParticipantProjects(ctx context.Context, token, login string, limit, offset int, status string) (*ParticipantProjectsV1DTO, error) {
+	query := url.Values{}
+	if limit > 0 {
+		query.Set("limit", fmt.Sprintf("%d", limit))
+	}
+	if offset > 0 {
+		query.Set("offset", fmt.Sprintf("%d", offset))
+	}
+	if status != "" {
+		query.Set("status", status)
+	}
+
+	apiURL := fmt.Sprintf("%s/participants/%s/projects", c.baseURL, url.PathEscape(login))
+	if encoded := query.Encode(); encoded != "" {
+		apiURL += "?" + encoded
+	}
+
+	return getJSON[ParticipantProjectsV1DTO](ctx, c.httpClient, apiURL, token)
 }
 
 func getJSON[T any](ctx context.Context, httpClient *http.Client, apiUrl string, token string) (*T, error) {

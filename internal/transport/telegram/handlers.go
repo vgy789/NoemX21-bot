@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"strings"
 	"time"
@@ -13,6 +14,21 @@ import (
 	"github.com/PaulSonOfLars/gotgbot/v2/ext/handlers"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 )
+
+type telegramNotifier struct {
+	sender Sender
+}
+
+func (n *telegramNotifier) NotifyUser(_ context.Context, userID int64, text string) error {
+	if n == nil || n.sender == nil || strings.TrimSpace(text) == "" {
+		return nil
+	}
+	_, err := n.sender.SendMessage(userID, text, nil)
+	if err != nil {
+		return fmt.Errorf("telegram notify failed: %w", err)
+	}
+	return nil
+}
 
 // registerHandlers registers handlers for the dispatcher.
 func (s *telegramService) registerHandlers(d *ext.Dispatcher) {
@@ -140,6 +156,7 @@ func (s *telegramService) handleTextMessage(b *gotgbot.Bot, ctx *ext.Context) er
 		LastName:  ctx.EffectiveUser.LastName,
 		Platform:  "Telegram",
 	})
+	bgCtx = context.WithValue(bgCtx, fsm.ContextKeyNotifier, &telegramNotifier{sender: s.getSender(b)})
 
 	s.log.Debug("text message received", "user_id", userID, "text", text)
 
@@ -206,6 +223,7 @@ func (s *telegramService) handleCallback(b *gotgbot.Bot, ctx *ext.Context) error
 		LastName:  ctx.EffectiveUser.LastName,
 		Platform:  "Telegram",
 	})
+	bgCtx = context.WithValue(bgCtx, fsm.ContextKeyNotifier, &telegramNotifier{sender: s.getSender(b)})
 
 	s.log.Debug("callback received", "user_id", userID, "data", cb.Data)
 

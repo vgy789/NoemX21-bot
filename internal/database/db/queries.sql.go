@@ -26,6 +26,20 @@ func (q *Queries) CancelRoomBooking(ctx context.Context, arg CancelRoomBookingPa
 	return err
 }
 
+const closeReviewRequestByID = `-- name: CloseReviewRequestByID :exec
+UPDATE review_requests
+SET status = 'CLOSED',
+    updated_at = CURRENT_TIMESTAMP,
+    closed_at = CURRENT_TIMESTAMP
+WHERE id = $1
+  AND status <> 'CLOSED'
+`
+
+func (q *Queries) CloseReviewRequestByID(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, closeReviewRequestByID, id)
+	return err
+}
+
 const countBooksByCampus = `-- name: CountBooksByCampus :one
 SELECT 
     count(*)::int as total_books,
@@ -59,6 +73,20 @@ type CountBooksByCategoryParams struct {
 
 func (q *Queries) CountBooksByCategory(ctx context.Context, arg CountBooksByCategoryParams) (int32, error) {
 	row := q.db.QueryRow(ctx, countBooksByCategory, arg.CampusID, arg.Category)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countOpenReviewRequestsByUser = `-- name: CountOpenReviewRequestsByUser :one
+SELECT count(*)::int
+FROM review_requests
+WHERE requester_user_id = $1
+  AND status <> 'CLOSED'
+`
+
+func (q *Queries) CountOpenReviewRequestsByUser(ctx context.Context, requesterUserID int64) (int32, error) {
+	row := q.db.QueryRow(ctx, countOpenReviewRequestsByUser, requesterUserID)
 	var column_1 int32
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -205,6 +233,74 @@ func (q *Queries) CreateBookLoan(ctx context.Context, arg CreateBookLoanParams) 
 		&i.BorrowedAt,
 		&i.DueAt,
 		&i.ReturnedAt,
+	)
+	return i, err
+}
+
+const createReviewRequest = `-- name: CreateReviewRequest :one
+INSERT INTO review_requests (
+    requester_user_id,
+    requester_s21_login,
+    requester_campus_id,
+    project_id,
+    project_name,
+    project_type,
+    availability_text,
+    requester_timezone,
+    requester_timezone_offset,
+    reviews_progress_text,
+    status
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'SEARCHING'
+)
+RETURNING id, requester_user_id, requester_s21_login, requester_campus_id, project_id, project_name, project_type, availability_text, requester_timezone, requester_timezone_offset, reviews_progress_text, status, view_count, response_count, created_at, updated_at, closed_at
+`
+
+type CreateReviewRequestParams struct {
+	RequesterUserID         int64       `json:"requester_user_id"`
+	RequesterS21Login       string      `json:"requester_s21_login"`
+	RequesterCampusID       pgtype.UUID `json:"requester_campus_id"`
+	ProjectID               int64       `json:"project_id"`
+	ProjectName             string      `json:"project_name"`
+	ProjectType             string      `json:"project_type"`
+	AvailabilityText        string      `json:"availability_text"`
+	RequesterTimezone       string      `json:"requester_timezone"`
+	RequesterTimezoneOffset string      `json:"requester_timezone_offset"`
+	ReviewsProgressText     string      `json:"reviews_progress_text"`
+}
+
+func (q *Queries) CreateReviewRequest(ctx context.Context, arg CreateReviewRequestParams) (ReviewRequest, error) {
+	row := q.db.QueryRow(ctx, createReviewRequest,
+		arg.RequesterUserID,
+		arg.RequesterS21Login,
+		arg.RequesterCampusID,
+		arg.ProjectID,
+		arg.ProjectName,
+		arg.ProjectType,
+		arg.AvailabilityText,
+		arg.RequesterTimezone,
+		arg.RequesterTimezoneOffset,
+		arg.ReviewsProgressText,
+	)
+	var i ReviewRequest
+	err := row.Scan(
+		&i.ID,
+		&i.RequesterUserID,
+		&i.RequesterS21Login,
+		&i.RequesterCampusID,
+		&i.ProjectID,
+		&i.ProjectName,
+		&i.ProjectType,
+		&i.AvailabilityText,
+		&i.RequesterTimezone,
+		&i.RequesterTimezoneOffset,
+		&i.ReviewsProgressText,
+		&i.Status,
+		&i.ViewCount,
+		&i.ResponseCount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ClosedAt,
 	)
 	return i, err
 }
@@ -393,6 +489,28 @@ WHERE user_id = $1
 func (q *Queries) DeleteUserRoomBookings(ctx context.Context, userID int64) error {
 	_, err := q.db.Exec(ctx, deleteUserRoomBookings, userID)
 	return err
+}
+
+const existsOpenReviewRequestByUserAndProject = `-- name: ExistsOpenReviewRequestByUserAndProject :one
+SELECT EXISTS (
+    SELECT 1
+    FROM review_requests
+    WHERE requester_user_id = $1
+      AND project_id = $2
+      AND status <> 'CLOSED'
+)
+`
+
+type ExistsOpenReviewRequestByUserAndProjectParams struct {
+	RequesterUserID int64 `json:"requester_user_id"`
+	ProjectID       int64 `json:"project_id"`
+}
+
+func (q *Queries) ExistsOpenReviewRequestByUserAndProject(ctx context.Context, arg ExistsOpenReviewRequestByUserAndProjectParams) (bool, error) {
+	row := q.db.QueryRow(ctx, existsOpenReviewRequestByUserAndProject, arg.RequesterUserID, arg.ProjectID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
 }
 
 const getActiveApiKey = `-- name: GetActiveApiKey :one
@@ -1010,6 +1128,50 @@ func (q *Queries) GetGlobalClubs(ctx context.Context) ([]GetGlobalClubsRow, erro
 	return items, nil
 }
 
+const getGlobalReviewProjectGroups = `-- name: GetGlobalReviewProjectGroups :many
+SELECT
+    project_id,
+    project_name,
+    project_type,
+    count(*)::int AS requests_count
+FROM review_requests
+WHERE status IN ('SEARCHING', 'NEGOTIATING')
+GROUP BY project_id, project_name, project_type
+ORDER BY requests_count DESC, project_name ASC
+`
+
+type GetGlobalReviewProjectGroupsRow struct {
+	ProjectID     int64  `json:"project_id"`
+	ProjectName   string `json:"project_name"`
+	ProjectType   string `json:"project_type"`
+	RequestsCount int32  `json:"requests_count"`
+}
+
+func (q *Queries) GetGlobalReviewProjectGroups(ctx context.Context) ([]GetGlobalReviewProjectGroupsRow, error) {
+	rows, err := q.db.Query(ctx, getGlobalReviewProjectGroups)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetGlobalReviewProjectGroupsRow
+	for rows.Next() {
+		var i GetGlobalReviewProjectGroupsRow
+		if err := rows.Scan(
+			&i.ProjectID,
+			&i.ProjectName,
+			&i.ProjectType,
+			&i.RequestsCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getLastAuthVerificationCode = `-- name: GetLastAuthVerificationCode :one
 SELECT id, s21_login, code, expires_at, created_at FROM auth_verification_codes
 WHERE s21_login = $1
@@ -1079,6 +1241,101 @@ func (q *Queries) GetLocalClubs(ctx context.Context, campusID pgtype.UUID) ([]Ge
 			&i.IsLocal,
 			&i.IsActive,
 			&i.CampusName,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getMyOpenReviewRequests = `-- name: GetMyOpenReviewRequests :many
+SELECT
+    rr.id,
+    rr.requester_user_id,
+    rr.requester_s21_login,
+    rr.requester_campus_id,
+    rr.project_id,
+    rr.project_name,
+    rr.project_type,
+    rr.availability_text,
+    rr.requester_timezone,
+    rr.requester_timezone_offset,
+    rr.reviews_progress_text,
+    rr.status,
+    rr.view_count,
+    rr.response_count,
+    rr.created_at,
+    rr.updated_at,
+    rr.closed_at,
+    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(psc.level::text, '0') AS requester_level,
+    COALESCE(ua.username, '') AS requester_telegram_username
+FROM review_requests rr
+LEFT JOIN campuses c ON rr.requester_campus_id = c.id
+LEFT JOIN participant_stats_cache psc ON rr.requester_s21_login = psc.s21_login
+LEFT JOIN user_accounts ua ON rr.requester_user_id = ua.id AND ua.platform = 'telegram'
+WHERE rr.requester_user_id = $1
+  AND rr.status <> 'CLOSED'
+ORDER BY rr.created_at DESC
+`
+
+type GetMyOpenReviewRequestsRow struct {
+	ID                        int64              `json:"id"`
+	RequesterUserID           int64              `json:"requester_user_id"`
+	RequesterS21Login         string             `json:"requester_s21_login"`
+	RequesterCampusID         pgtype.UUID        `json:"requester_campus_id"`
+	ProjectID                 int64              `json:"project_id"`
+	ProjectName               string             `json:"project_name"`
+	ProjectType               string             `json:"project_type"`
+	AvailabilityText          string             `json:"availability_text"`
+	RequesterTimezone         string             `json:"requester_timezone"`
+	RequesterTimezoneOffset   string             `json:"requester_timezone_offset"`
+	ReviewsProgressText       string             `json:"reviews_progress_text"`
+	Status                    EnumReviewStatus   `json:"status"`
+	ViewCount                 int32              `json:"view_count"`
+	ResponseCount             int32              `json:"response_count"`
+	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
+	ClosedAt                  pgtype.Timestamptz `json:"closed_at"`
+	RequesterCampusName       string             `json:"requester_campus_name"`
+	RequesterLevel            interface{}        `json:"requester_level"`
+	RequesterTelegramUsername string             `json:"requester_telegram_username"`
+}
+
+func (q *Queries) GetMyOpenReviewRequests(ctx context.Context, requesterUserID int64) ([]GetMyOpenReviewRequestsRow, error) {
+	rows, err := q.db.Query(ctx, getMyOpenReviewRequests, requesterUserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetMyOpenReviewRequestsRow
+	for rows.Next() {
+		var i GetMyOpenReviewRequestsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.RequesterUserID,
+			&i.RequesterS21Login,
+			&i.RequesterCampusID,
+			&i.ProjectID,
+			&i.ProjectName,
+			&i.ProjectType,
+			&i.AvailabilityText,
+			&i.RequesterTimezone,
+			&i.RequesterTimezoneOffset,
+			&i.ReviewsProgressText,
+			&i.Status,
+			&i.ViewCount,
+			&i.ResponseCount,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ClosedAt,
+			&i.RequesterCampusName,
+			&i.RequesterLevel,
+			&i.RequesterTelegramUsername,
 		); err != nil {
 			return nil, err
 		}
@@ -1169,6 +1426,187 @@ func (q *Queries) GetMyProfile(ctx context.Context, s21Login string) (GetMyProfi
 		&i.Thoroughness,
 	)
 	return i, err
+}
+
+const getMyReviewRequestByID = `-- name: GetMyReviewRequestByID :one
+SELECT
+    rr.id,
+    rr.requester_user_id,
+    rr.requester_s21_login,
+    rr.requester_campus_id,
+    rr.project_id,
+    rr.project_name,
+    rr.project_type,
+    rr.availability_text,
+    rr.requester_timezone,
+    rr.requester_timezone_offset,
+    rr.reviews_progress_text,
+    rr.status,
+    rr.view_count,
+    rr.response_count,
+    rr.created_at,
+    rr.updated_at,
+    rr.closed_at,
+    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(psc.level::text, '0') AS requester_level,
+    COALESCE(ua.username, '') AS requester_telegram_username
+FROM review_requests rr
+LEFT JOIN campuses c ON rr.requester_campus_id = c.id
+LEFT JOIN participant_stats_cache psc ON rr.requester_s21_login = psc.s21_login
+LEFT JOIN user_accounts ua ON rr.requester_user_id = ua.id AND ua.platform = 'telegram'
+WHERE rr.id = $1
+  AND rr.requester_user_id = $2
+`
+
+type GetMyReviewRequestByIDParams struct {
+	ID              int64 `json:"id"`
+	RequesterUserID int64 `json:"requester_user_id"`
+}
+
+type GetMyReviewRequestByIDRow struct {
+	ID                        int64              `json:"id"`
+	RequesterUserID           int64              `json:"requester_user_id"`
+	RequesterS21Login         string             `json:"requester_s21_login"`
+	RequesterCampusID         pgtype.UUID        `json:"requester_campus_id"`
+	ProjectID                 int64              `json:"project_id"`
+	ProjectName               string             `json:"project_name"`
+	ProjectType               string             `json:"project_type"`
+	AvailabilityText          string             `json:"availability_text"`
+	RequesterTimezone         string             `json:"requester_timezone"`
+	RequesterTimezoneOffset   string             `json:"requester_timezone_offset"`
+	ReviewsProgressText       string             `json:"reviews_progress_text"`
+	Status                    EnumReviewStatus   `json:"status"`
+	ViewCount                 int32              `json:"view_count"`
+	ResponseCount             int32              `json:"response_count"`
+	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
+	ClosedAt                  pgtype.Timestamptz `json:"closed_at"`
+	RequesterCampusName       string             `json:"requester_campus_name"`
+	RequesterLevel            interface{}        `json:"requester_level"`
+	RequesterTelegramUsername string             `json:"requester_telegram_username"`
+}
+
+func (q *Queries) GetMyReviewRequestByID(ctx context.Context, arg GetMyReviewRequestByIDParams) (GetMyReviewRequestByIDRow, error) {
+	row := q.db.QueryRow(ctx, getMyReviewRequestByID, arg.ID, arg.RequesterUserID)
+	var i GetMyReviewRequestByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.RequesterUserID,
+		&i.RequesterS21Login,
+		&i.RequesterCampusID,
+		&i.ProjectID,
+		&i.ProjectName,
+		&i.ProjectType,
+		&i.AvailabilityText,
+		&i.RequesterTimezone,
+		&i.RequesterTimezoneOffset,
+		&i.ReviewsProgressText,
+		&i.Status,
+		&i.ViewCount,
+		&i.ResponseCount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ClosedAt,
+		&i.RequesterCampusName,
+		&i.RequesterLevel,
+		&i.RequesterTelegramUsername,
+	)
+	return i, err
+}
+
+const getOpenReviewRequestsByProject = `-- name: GetOpenReviewRequestsByProject :many
+SELECT
+    rr.id,
+    rr.requester_user_id,
+    rr.requester_s21_login,
+    rr.requester_campus_id,
+    rr.project_id,
+    rr.project_name,
+    rr.project_type,
+    rr.availability_text,
+    rr.requester_timezone,
+    rr.requester_timezone_offset,
+    rr.reviews_progress_text,
+    rr.status,
+    rr.view_count,
+    rr.response_count,
+    rr.created_at,
+    rr.updated_at,
+    rr.closed_at,
+    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(psc.level::text, '0') AS requester_level,
+    COALESCE(ua.username, '') AS requester_telegram_username
+FROM review_requests rr
+LEFT JOIN campuses c ON rr.requester_campus_id = c.id
+LEFT JOIN participant_stats_cache psc ON rr.requester_s21_login = psc.s21_login
+LEFT JOIN user_accounts ua ON rr.requester_user_id = ua.id AND ua.platform = 'telegram'
+WHERE rr.project_id = $1
+  AND rr.status IN ('SEARCHING', 'NEGOTIATING')
+ORDER BY rr.created_at DESC
+`
+
+type GetOpenReviewRequestsByProjectRow struct {
+	ID                        int64              `json:"id"`
+	RequesterUserID           int64              `json:"requester_user_id"`
+	RequesterS21Login         string             `json:"requester_s21_login"`
+	RequesterCampusID         pgtype.UUID        `json:"requester_campus_id"`
+	ProjectID                 int64              `json:"project_id"`
+	ProjectName               string             `json:"project_name"`
+	ProjectType               string             `json:"project_type"`
+	AvailabilityText          string             `json:"availability_text"`
+	RequesterTimezone         string             `json:"requester_timezone"`
+	RequesterTimezoneOffset   string             `json:"requester_timezone_offset"`
+	ReviewsProgressText       string             `json:"reviews_progress_text"`
+	Status                    EnumReviewStatus   `json:"status"`
+	ViewCount                 int32              `json:"view_count"`
+	ResponseCount             int32              `json:"response_count"`
+	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
+	ClosedAt                  pgtype.Timestamptz `json:"closed_at"`
+	RequesterCampusName       string             `json:"requester_campus_name"`
+	RequesterLevel            interface{}        `json:"requester_level"`
+	RequesterTelegramUsername string             `json:"requester_telegram_username"`
+}
+
+func (q *Queries) GetOpenReviewRequestsByProject(ctx context.Context, projectID int64) ([]GetOpenReviewRequestsByProjectRow, error) {
+	rows, err := q.db.Query(ctx, getOpenReviewRequestsByProject, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOpenReviewRequestsByProjectRow
+	for rows.Next() {
+		var i GetOpenReviewRequestsByProjectRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.RequesterUserID,
+			&i.RequesterS21Login,
+			&i.RequesterCampusID,
+			&i.ProjectID,
+			&i.ProjectName,
+			&i.ProjectType,
+			&i.AvailabilityText,
+			&i.RequesterTimezone,
+			&i.RequesterTimezoneOffset,
+			&i.ReviewsProgressText,
+			&i.Status,
+			&i.ViewCount,
+			&i.ResponseCount,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ClosedAt,
+			&i.RequesterCampusName,
+			&i.RequesterLevel,
+			&i.RequesterTelegramUsername,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getParticipantSkills = `-- name: GetParticipantSkills :many
@@ -1411,6 +1849,129 @@ func (q *Queries) GetRegisteredUserByS21Login(ctx context.Context, s21Login stri
 	return i, err
 }
 
+const getReviewRequestByID = `-- name: GetReviewRequestByID :one
+SELECT
+    rr.id,
+    rr.requester_user_id,
+    rr.requester_s21_login,
+    rr.requester_campus_id,
+    rr.project_id,
+    rr.project_name,
+    rr.project_type,
+    rr.availability_text,
+    rr.requester_timezone,
+    rr.requester_timezone_offset,
+    rr.reviews_progress_text,
+    rr.status,
+    rr.view_count,
+    rr.response_count,
+    rr.created_at,
+    rr.updated_at,
+    rr.closed_at,
+    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(psc.level::text, '0') AS requester_level,
+    COALESCE(ua.username, '') AS requester_telegram_username
+FROM review_requests rr
+LEFT JOIN campuses c ON rr.requester_campus_id = c.id
+LEFT JOIN participant_stats_cache psc ON rr.requester_s21_login = psc.s21_login
+LEFT JOIN user_accounts ua ON rr.requester_user_id = ua.id AND ua.platform = 'telegram'
+WHERE rr.id = $1
+`
+
+type GetReviewRequestByIDRow struct {
+	ID                        int64              `json:"id"`
+	RequesterUserID           int64              `json:"requester_user_id"`
+	RequesterS21Login         string             `json:"requester_s21_login"`
+	RequesterCampusID         pgtype.UUID        `json:"requester_campus_id"`
+	ProjectID                 int64              `json:"project_id"`
+	ProjectName               string             `json:"project_name"`
+	ProjectType               string             `json:"project_type"`
+	AvailabilityText          string             `json:"availability_text"`
+	RequesterTimezone         string             `json:"requester_timezone"`
+	RequesterTimezoneOffset   string             `json:"requester_timezone_offset"`
+	ReviewsProgressText       string             `json:"reviews_progress_text"`
+	Status                    EnumReviewStatus   `json:"status"`
+	ViewCount                 int32              `json:"view_count"`
+	ResponseCount             int32              `json:"response_count"`
+	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
+	ClosedAt                  pgtype.Timestamptz `json:"closed_at"`
+	RequesterCampusName       string             `json:"requester_campus_name"`
+	RequesterLevel            interface{}        `json:"requester_level"`
+	RequesterTelegramUsername string             `json:"requester_telegram_username"`
+}
+
+func (q *Queries) GetReviewRequestByID(ctx context.Context, id int64) (GetReviewRequestByIDRow, error) {
+	row := q.db.QueryRow(ctx, getReviewRequestByID, id)
+	var i GetReviewRequestByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.RequesterUserID,
+		&i.RequesterS21Login,
+		&i.RequesterCampusID,
+		&i.ProjectID,
+		&i.ProjectName,
+		&i.ProjectType,
+		&i.AvailabilityText,
+		&i.RequesterTimezone,
+		&i.RequesterTimezoneOffset,
+		&i.ReviewsProgressText,
+		&i.Status,
+		&i.ViewCount,
+		&i.ResponseCount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ClosedAt,
+		&i.RequesterCampusName,
+		&i.RequesterLevel,
+		&i.RequesterTelegramUsername,
+	)
+	return i, err
+}
+
+const getReviewRequestsForCleanup = `-- name: GetReviewRequestsForCleanup :many
+SELECT
+    id,
+    requester_s21_login,
+    project_id
+FROM review_requests
+WHERE status <> 'CLOSED'
+  AND updated_at < $1
+ORDER BY updated_at ASC
+LIMIT $2
+`
+
+type GetReviewRequestsForCleanupParams struct {
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	Limit     int32              `json:"limit"`
+}
+
+type GetReviewRequestsForCleanupRow struct {
+	ID                int64  `json:"id"`
+	RequesterS21Login string `json:"requester_s21_login"`
+	ProjectID         int64  `json:"project_id"`
+}
+
+func (q *Queries) GetReviewRequestsForCleanup(ctx context.Context, arg GetReviewRequestsForCleanupParams) ([]GetReviewRequestsForCleanupRow, error) {
+	rows, err := q.db.Query(ctx, getReviewRequestsForCleanup, arg.UpdatedAt, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetReviewRequestsForCleanupRow
+	for rows.Next() {
+		var i GetReviewRequestsForCleanupRow
+		if err := rows.Scan(&i.ID, &i.RequesterS21Login, &i.ProjectID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getRocketChatCredentials = `-- name: GetRocketChatCredentials :one
 SELECT s21_login, rc_token_enc, rc_nonce, updated_at FROM rocketchat_credentials
 WHERE s21_login = $1
@@ -1524,6 +2085,27 @@ type GetUserAccountByExternalIdParams struct {
 
 func (q *Queries) GetUserAccountByExternalId(ctx context.Context, arg GetUserAccountByExternalIdParams) (UserAccount, error) {
 	row := q.db.QueryRow(ctx, getUserAccountByExternalId, arg.Platform, arg.ExternalID)
+	var i UserAccount
+	err := row.Scan(
+		&i.ID,
+		&i.S21Login,
+		&i.Platform,
+		&i.ExternalID,
+		&i.Username,
+		&i.TelegramUsernameVisibility,
+		&i.Role,
+		&i.LinkedAt,
+	)
+	return i, err
+}
+
+const getUserAccountByID = `-- name: GetUserAccountByID :one
+SELECT id, s21_login, platform, external_id, username, telegram_username_visibility, role, linked_at FROM user_accounts
+WHERE id = $1
+`
+
+func (q *Queries) GetUserAccountByID(ctx context.Context, id int64) (UserAccount, error) {
+	row := q.db.QueryRow(ctx, getUserAccountByID, id)
 	var i UserAccount
 	err := row.Scan(
 		&i.ID,
@@ -1742,6 +2324,43 @@ func (q *Queries) HasActiveRooms(ctx context.Context, campusID pgtype.UUID) (boo
 	return exists, err
 }
 
+const incrementReviewRequestViewCount = `-- name: IncrementReviewRequestViewCount :one
+UPDATE review_requests
+SET view_count = view_count + 1,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING view_count
+`
+
+func (q *Queries) IncrementReviewRequestViewCount(ctx context.Context, id int64) (int32, error) {
+	row := q.db.QueryRow(ctx, incrementReviewRequestViewCount, id)
+	var view_count int32
+	err := row.Scan(&view_count)
+	return view_count, err
+}
+
+const markReviewRequestNegotiatingAndIncrementResponses = `-- name: MarkReviewRequestNegotiatingAndIncrementResponses :one
+UPDATE review_requests
+SET response_count = response_count + 1,
+    status = 'NEGOTIATING',
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+  AND status IN ('SEARCHING', 'NEGOTIATING')
+RETURNING response_count, status
+`
+
+type MarkReviewRequestNegotiatingAndIncrementResponsesRow struct {
+	ResponseCount int32            `json:"response_count"`
+	Status        EnumReviewStatus `json:"status"`
+}
+
+func (q *Queries) MarkReviewRequestNegotiatingAndIncrementResponses(ctx context.Context, id int64) (MarkReviewRequestNegotiatingAndIncrementResponsesRow, error) {
+	row := q.db.QueryRow(ctx, markReviewRequestNegotiatingAndIncrementResponses, id)
+	var i MarkReviewRequestNegotiatingAndIncrementResponsesRow
+	err := row.Scan(&i.ResponseCount, &i.Status)
+	return i, err
+}
+
 const returnBookLoan = `-- name: ReturnBookLoan :exec
 UPDATE book_loans
 SET returned_at = CURRENT_TIMESTAMP
@@ -1834,6 +2453,34 @@ func (q *Queries) SearchBooks(ctx context.Context, arg SearchBooksParams) ([]Sea
 		return nil, err
 	}
 	return items, nil
+}
+
+const setReviewRequestStatus = `-- name: SetReviewRequestStatus :one
+UPDATE review_requests
+SET status = $3,
+    updated_at = CURRENT_TIMESTAMP,
+    closed_at = CASE WHEN $3 = 'CLOSED' THEN CURRENT_TIMESTAMP ELSE NULL END
+WHERE id = $1
+  AND requester_user_id = $2
+RETURNING id, status
+`
+
+type SetReviewRequestStatusParams struct {
+	ID              int64            `json:"id"`
+	RequesterUserID int64            `json:"requester_user_id"`
+	Status          EnumReviewStatus `json:"status"`
+}
+
+type SetReviewRequestStatusRow struct {
+	ID     int64            `json:"id"`
+	Status EnumReviewStatus `json:"status"`
+}
+
+func (q *Queries) SetReviewRequestStatus(ctx context.Context, arg SetReviewRequestStatusParams) (SetReviewRequestStatusRow, error) {
+	row := q.db.QueryRow(ctx, setReviewRequestStatus, arg.ID, arg.RequesterUserID, arg.Status)
+	var i SetReviewRequestStatusRow
+	err := row.Scan(&i.ID, &i.Status)
+	return i, err
 }
 
 const updateRoomBookingDuration = `-- name: UpdateRoomBookingDuration :exec

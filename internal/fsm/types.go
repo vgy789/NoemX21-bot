@@ -1,6 +1,7 @@
 package fsm
 
 import (
+	"context"
 	"errors"
 )
 
@@ -75,6 +76,8 @@ const (
 	ContextKeyS21Login ContextKey = "s21_login"
 	// ContextKeyUserInfo is used to store transport-level user info (e.g. from Telegram)
 	ContextKeyUserInfo ContextKey = "user_info"
+	// ContextKeyNotifier is used to store transport notifier implementation.
+	ContextKeyNotifier ContextKey = "notifier"
 )
 
 // UserInfo represents basic user metadata from the transport layer
@@ -84,4 +87,18 @@ type UserInfo struct {
 	FirstName string
 	LastName  string
 	Platform  string
+}
+
+// Notifier sends out-of-band notifications to users on a specific transport.
+type Notifier interface {
+	NotifyUser(ctx context.Context, userID int64, text string) error
+}
+
+// NotifierFromContext extracts a Notifier from context.
+func NotifierFromContext(ctx context.Context) (Notifier, bool) {
+	if ctx == nil {
+		return nil, false
+	}
+	n, ok := ctx.Value(ContextKeyNotifier).(Notifier)
+	return n, ok && n != nil
 }

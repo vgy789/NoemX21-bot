@@ -47,6 +47,10 @@ WHERE user_id = $1;
 SELECT * FROM user_accounts
 WHERE s21_login = $1;
 
+-- name: GetUserAccountByID :one
+SELECT * FROM user_accounts
+WHERE id = $1;
+
 -- name: CreateUserAccount :one
 INSERT INTO user_accounts (
     s21_login, platform, external_id, username, telegram_username_visibility, role
@@ -630,3 +634,208 @@ SELECT id, short_name, full_name, timezone
 FROM campuses
 WHERE is_active = true
 ORDER BY short_name;
+
+-- name: CountOpenReviewRequestsByUser :one
+SELECT count(*)::int
+FROM review_requests
+WHERE requester_user_id = $1
+  AND status <> 'CLOSED';
+
+-- name: ExistsOpenReviewRequestByUserAndProject :one
+SELECT EXISTS (
+    SELECT 1
+    FROM review_requests
+    WHERE requester_user_id = $1
+      AND project_id = $2
+      AND status <> 'CLOSED'
+);
+
+-- name: CreateReviewRequest :one
+INSERT INTO review_requests (
+    requester_user_id,
+    requester_s21_login,
+    requester_campus_id,
+    project_id,
+    project_name,
+    project_type,
+    availability_text,
+    requester_timezone,
+    requester_timezone_offset,
+    reviews_progress_text,
+    status
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'SEARCHING'
+)
+RETURNING *;
+
+-- name: GetGlobalReviewProjectGroups :many
+SELECT
+    project_id,
+    project_name,
+    project_type,
+    count(*)::int AS requests_count
+FROM review_requests
+WHERE status IN ('SEARCHING', 'NEGOTIATING')
+GROUP BY project_id, project_name, project_type
+ORDER BY requests_count DESC, project_name ASC;
+
+-- name: GetOpenReviewRequestsByProject :many
+SELECT
+    rr.id,
+    rr.requester_user_id,
+    rr.requester_s21_login,
+    rr.requester_campus_id,
+    rr.project_id,
+    rr.project_name,
+    rr.project_type,
+    rr.availability_text,
+    rr.requester_timezone,
+    rr.requester_timezone_offset,
+    rr.reviews_progress_text,
+    rr.status,
+    rr.view_count,
+    rr.response_count,
+    rr.created_at,
+    rr.updated_at,
+    rr.closed_at,
+    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(psc.level::text, '0') AS requester_level,
+    COALESCE(ua.username, '') AS requester_telegram_username
+FROM review_requests rr
+LEFT JOIN campuses c ON rr.requester_campus_id = c.id
+LEFT JOIN participant_stats_cache psc ON rr.requester_s21_login = psc.s21_login
+LEFT JOIN user_accounts ua ON rr.requester_user_id = ua.id AND ua.platform = 'telegram'
+WHERE rr.project_id = $1
+  AND rr.status IN ('SEARCHING', 'NEGOTIATING')
+ORDER BY rr.created_at DESC;
+
+-- name: GetReviewRequestsForCleanup :many
+SELECT
+    id,
+    requester_s21_login,
+    project_id
+FROM review_requests
+WHERE status <> 'CLOSED'
+  AND updated_at < $1
+ORDER BY updated_at ASC
+LIMIT $2;
+
+-- name: GetMyOpenReviewRequests :many
+SELECT
+    rr.id,
+    rr.requester_user_id,
+    rr.requester_s21_login,
+    rr.requester_campus_id,
+    rr.project_id,
+    rr.project_name,
+    rr.project_type,
+    rr.availability_text,
+    rr.requester_timezone,
+    rr.requester_timezone_offset,
+    rr.reviews_progress_text,
+    rr.status,
+    rr.view_count,
+    rr.response_count,
+    rr.created_at,
+    rr.updated_at,
+    rr.closed_at,
+    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(psc.level::text, '0') AS requester_level,
+    COALESCE(ua.username, '') AS requester_telegram_username
+FROM review_requests rr
+LEFT JOIN campuses c ON rr.requester_campus_id = c.id
+LEFT JOIN participant_stats_cache psc ON rr.requester_s21_login = psc.s21_login
+LEFT JOIN user_accounts ua ON rr.requester_user_id = ua.id AND ua.platform = 'telegram'
+WHERE rr.requester_user_id = $1
+  AND rr.status <> 'CLOSED'
+ORDER BY rr.created_at DESC;
+
+-- name: GetMyReviewRequestByID :one
+SELECT
+    rr.id,
+    rr.requester_user_id,
+    rr.requester_s21_login,
+    rr.requester_campus_id,
+    rr.project_id,
+    rr.project_name,
+    rr.project_type,
+    rr.availability_text,
+    rr.requester_timezone,
+    rr.requester_timezone_offset,
+    rr.reviews_progress_text,
+    rr.status,
+    rr.view_count,
+    rr.response_count,
+    rr.created_at,
+    rr.updated_at,
+    rr.closed_at,
+    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(psc.level::text, '0') AS requester_level,
+    COALESCE(ua.username, '') AS requester_telegram_username
+FROM review_requests rr
+LEFT JOIN campuses c ON rr.requester_campus_id = c.id
+LEFT JOIN participant_stats_cache psc ON rr.requester_s21_login = psc.s21_login
+LEFT JOIN user_accounts ua ON rr.requester_user_id = ua.id AND ua.platform = 'telegram'
+WHERE rr.id = $1
+  AND rr.requester_user_id = $2;
+
+-- name: GetReviewRequestByID :one
+SELECT
+    rr.id,
+    rr.requester_user_id,
+    rr.requester_s21_login,
+    rr.requester_campus_id,
+    rr.project_id,
+    rr.project_name,
+    rr.project_type,
+    rr.availability_text,
+    rr.requester_timezone,
+    rr.requester_timezone_offset,
+    rr.reviews_progress_text,
+    rr.status,
+    rr.view_count,
+    rr.response_count,
+    rr.created_at,
+    rr.updated_at,
+    rr.closed_at,
+    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(psc.level::text, '0') AS requester_level,
+    COALESCE(ua.username, '') AS requester_telegram_username
+FROM review_requests rr
+LEFT JOIN campuses c ON rr.requester_campus_id = c.id
+LEFT JOIN participant_stats_cache psc ON rr.requester_s21_login = psc.s21_login
+LEFT JOIN user_accounts ua ON rr.requester_user_id = ua.id AND ua.platform = 'telegram'
+WHERE rr.id = $1;
+
+-- name: IncrementReviewRequestViewCount :one
+UPDATE review_requests
+SET view_count = view_count + 1,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING view_count;
+
+-- name: MarkReviewRequestNegotiatingAndIncrementResponses :one
+UPDATE review_requests
+SET response_count = response_count + 1,
+    status = 'NEGOTIATING',
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+  AND status IN ('SEARCHING', 'NEGOTIATING')
+RETURNING response_count, status;
+
+-- name: SetReviewRequestStatus :one
+UPDATE review_requests
+SET status = $3,
+    updated_at = CURRENT_TIMESTAMP,
+    closed_at = CASE WHEN $3 = 'CLOSED' THEN CURRENT_TIMESTAMP ELSE NULL END
+WHERE id = $1
+  AND requester_user_id = $2
+RETURNING id, status;
+
+-- name: CloseReviewRequestByID :exec
+UPDATE review_requests
+SET status = 'CLOSED',
+    updated_at = CURRENT_TIMESTAMP,
+    closed_at = CURRENT_TIMESTAMP
+WHERE id = $1
+  AND status <> 'CLOSED';

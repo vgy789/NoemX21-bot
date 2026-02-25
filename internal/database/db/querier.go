@@ -12,13 +12,16 @@ import (
 
 type Querier interface {
 	CancelRoomBooking(ctx context.Context, arg CancelRoomBookingParams) error
+	CloseReviewRequestByID(ctx context.Context, id int64) error
 	CountBooksByCampus(ctx context.Context, campusID pgtype.UUID) (CountBooksByCampusRow, error)
 	CountBooksByCategory(ctx context.Context, arg CountBooksByCategoryParams) (int32, error)
+	CountOpenReviewRequestsByUser(ctx context.Context, requesterUserID int64) (int32, error)
 	CountSearchBooks(ctx context.Context, arg CountSearchBooksParams) (int32, error)
 	CountUserActiveRoomBookings(ctx context.Context, userID int64) (int32, error)
 	CreateApiKey(ctx context.Context, arg CreateApiKeyParams) (ApiKey, error)
 	CreateAuthVerificationCode(ctx context.Context, arg CreateAuthVerificationCodeParams) (AuthVerificationCode, error)
 	CreateBookLoan(ctx context.Context, arg CreateBookLoanParams) (BookLoan, error)
+	CreateReviewRequest(ctx context.Context, arg CreateReviewRequestParams) (ReviewRequest, error)
 	CreateRoomBooking(ctx context.Context, arg CreateRoomBookingParams) (RoomBooking, error)
 	CreateUserAccount(ctx context.Context, arg CreateUserAccountParams) (UserAccount, error)
 	DeactivateBooksByCampus(ctx context.Context, campusID pgtype.UUID) error
@@ -30,6 +33,7 @@ type Querier interface {
 	DeleteUserAccountByExternalId(ctx context.Context, arg DeleteUserAccountByExternalIdParams) error
 	DeleteUserBookLoans(ctx context.Context, userID int64) error
 	DeleteUserRoomBookings(ctx context.Context, userID int64) error
+	ExistsOpenReviewRequestByUserAndProject(ctx context.Context, arg ExistsOpenReviewRequestByUserAndProjectParams) (bool, error)
 	GetActiveApiKey(ctx context.Context, userAccountID int64) (ApiKey, error)
 	GetActiveRoomsByCampus(ctx context.Context, campusID pgtype.UUID) ([]Room, error)
 	GetAllActiveCampuses(ctx context.Context) ([]GetAllActiveCampusesRow, error)
@@ -46,10 +50,14 @@ type Querier interface {
 	GetDistinctUserTimezones(ctx context.Context) ([]string, error)
 	GetFSMState(ctx context.Context, userID int64) (FsmUserState, error)
 	GetGlobalClubs(ctx context.Context) ([]GetGlobalClubsRow, error)
+	GetGlobalReviewProjectGroups(ctx context.Context) ([]GetGlobalReviewProjectGroupsRow, error)
 	GetLastAuthVerificationCode(ctx context.Context, s21Login pgtype.Text) (AuthVerificationCode, error)
 	GetLocalClubs(ctx context.Context, campusID pgtype.UUID) ([]GetLocalClubsRow, error)
+	GetMyOpenReviewRequests(ctx context.Context, requesterUserID int64) ([]GetMyOpenReviewRequestsRow, error)
 	// Профиль зарегистрированного пользователя: регистрационные данные + статистика из кеша.
 	GetMyProfile(ctx context.Context, s21Login string) (GetMyProfileRow, error)
+	GetMyReviewRequestByID(ctx context.Context, arg GetMyReviewRequestByIDParams) (GetMyReviewRequestByIDRow, error)
+	GetOpenReviewRequestsByProject(ctx context.Context, projectID int64) ([]GetOpenReviewRequestsByProjectRow, error)
 	GetParticipantSkills(ctx context.Context, s21Login string) ([]GetParticipantSkillsRow, error)
 	GetParticipantStatsCache(ctx context.Context, s21Login string) (GetParticipantStatsCacheRow, error)
 	// Профиль пира: из кеша статистики + telegram username если зарегистрирован.
@@ -58,10 +66,13 @@ type Querier interface {
 	GetRegisteredUserByRocketChatId(ctx context.Context, rocketchatID string) (RegisteredUser, error)
 	// queries.sql
 	GetRegisteredUserByS21Login(ctx context.Context, s21Login string) (RegisteredUser, error)
+	GetReviewRequestByID(ctx context.Context, id int64) (GetReviewRequestByIDRow, error)
+	GetReviewRequestsForCleanup(ctx context.Context, arg GetReviewRequestsForCleanupParams) ([]GetReviewRequestsForCleanupRow, error)
 	GetRocketChatCredentials(ctx context.Context, s21Login string) (RocketchatCredential, error)
 	GetRoomBookingsByDate(ctx context.Context, arg GetRoomBookingsByDateParams) ([]GetRoomBookingsByDateRow, error)
 	GetRoomByID(ctx context.Context, arg GetRoomByIDParams) (Room, error)
 	GetUserAccountByExternalId(ctx context.Context, arg GetUserAccountByExternalIdParams) (UserAccount, error)
+	GetUserAccountByID(ctx context.Context, id int64) (UserAccount, error)
 	GetUserAccountByS21Login(ctx context.Context, s21Login string) (UserAccount, error)
 	GetUserActiveLoanCount(ctx context.Context, userID int64) (int32, error)
 	GetUserBookLoans(ctx context.Context, userID int64) ([]GetUserBookLoansRow, error)
@@ -70,9 +81,12 @@ type Querier interface {
 	GetValidAuthVerificationCode(ctx context.Context, arg GetValidAuthVerificationCodeParams) (AuthVerificationCode, error)
 	HasActiveBooks(ctx context.Context, campusID pgtype.UUID) (bool, error)
 	HasActiveRooms(ctx context.Context, campusID pgtype.UUID) (bool, error)
+	IncrementReviewRequestViewCount(ctx context.Context, id int64) (int32, error)
+	MarkReviewRequestNegotiatingAndIncrementResponses(ctx context.Context, id int64) (MarkReviewRequestNegotiatingAndIncrementResponsesRow, error)
 	ReturnBookLoan(ctx context.Context, arg ReturnBookLoanParams) error
 	RevokeOldApiKeys(ctx context.Context, userAccountID int64) error
 	SearchBooks(ctx context.Context, arg SearchBooksParams) ([]SearchBooksRow, error)
+	SetReviewRequestStatus(ctx context.Context, arg SetReviewRequestStatusParams) (SetReviewRequestStatusRow, error)
 	UpdateRoomBookingDuration(ctx context.Context, arg UpdateRoomBookingDurationParams) error
 	UpdateUserAccountTelegramUsernameVisibilityByExternalId(ctx context.Context, arg UpdateUserAccountTelegramUsernameVisibilityByExternalIdParams) (UserAccount, error)
 	UpsertBook(ctx context.Context, arg UpsertBookParams) (Book, error)

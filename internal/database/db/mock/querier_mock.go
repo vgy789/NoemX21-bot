@@ -56,6 +56,20 @@ func (mr *MockQuerierMockRecorder) CancelRoomBooking(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelRoomBooking", reflect.TypeOf((*MockQuerier)(nil).CancelRoomBooking), ctx, arg)
 }
 
+// CloseReviewRequestByID mocks base method.
+func (m *MockQuerier) CloseReviewRequestByID(ctx context.Context, id int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CloseReviewRequestByID", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CloseReviewRequestByID indicates an expected call of CloseReviewRequestByID.
+func (mr *MockQuerierMockRecorder) CloseReviewRequestByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseReviewRequestByID", reflect.TypeOf((*MockQuerier)(nil).CloseReviewRequestByID), ctx, id)
+}
+
 // CountBooksByCampus mocks base method.
 func (m *MockQuerier) CountBooksByCampus(ctx context.Context, campusID pgtype.UUID) (db.CountBooksByCampusRow, error) {
 	m.ctrl.T.Helper()
@@ -84,6 +98,21 @@ func (m *MockQuerier) CountBooksByCategory(ctx context.Context, arg db.CountBook
 func (mr *MockQuerierMockRecorder) CountBooksByCategory(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountBooksByCategory", reflect.TypeOf((*MockQuerier)(nil).CountBooksByCategory), ctx, arg)
+}
+
+// CountOpenReviewRequestsByUser mocks base method.
+func (m *MockQuerier) CountOpenReviewRequestsByUser(ctx context.Context, requesterUserID int64) (int32, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountOpenReviewRequestsByUser", ctx, requesterUserID)
+	ret0, _ := ret[0].(int32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountOpenReviewRequestsByUser indicates an expected call of CountOpenReviewRequestsByUser.
+func (mr *MockQuerierMockRecorder) CountOpenReviewRequestsByUser(ctx, requesterUserID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountOpenReviewRequestsByUser", reflect.TypeOf((*MockQuerier)(nil).CountOpenReviewRequestsByUser), ctx, requesterUserID)
 }
 
 // CountSearchBooks mocks base method.
@@ -159,6 +188,21 @@ func (m *MockQuerier) CreateBookLoan(ctx context.Context, arg db.CreateBookLoanP
 func (mr *MockQuerierMockRecorder) CreateBookLoan(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBookLoan", reflect.TypeOf((*MockQuerier)(nil).CreateBookLoan), ctx, arg)
+}
+
+// CreateReviewRequest mocks base method.
+func (m *MockQuerier) CreateReviewRequest(ctx context.Context, arg db.CreateReviewRequestParams) (db.ReviewRequest, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateReviewRequest", ctx, arg)
+	ret0, _ := ret[0].(db.ReviewRequest)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateReviewRequest indicates an expected call of CreateReviewRequest.
+func (mr *MockQuerierMockRecorder) CreateReviewRequest(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateReviewRequest", reflect.TypeOf((*MockQuerier)(nil).CreateReviewRequest), ctx, arg)
 }
 
 // CreateRoomBooking mocks base method.
@@ -315,6 +359,21 @@ func (m *MockQuerier) DeleteUserRoomBookings(ctx context.Context, userID int64) 
 func (mr *MockQuerierMockRecorder) DeleteUserRoomBookings(ctx, userID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserRoomBookings", reflect.TypeOf((*MockQuerier)(nil).DeleteUserRoomBookings), ctx, userID)
+}
+
+// ExistsOpenReviewRequestByUserAndProject mocks base method.
+func (m *MockQuerier) ExistsOpenReviewRequestByUserAndProject(ctx context.Context, arg db.ExistsOpenReviewRequestByUserAndProjectParams) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExistsOpenReviewRequestByUserAndProject", ctx, arg)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExistsOpenReviewRequestByUserAndProject indicates an expected call of ExistsOpenReviewRequestByUserAndProject.
+func (mr *MockQuerierMockRecorder) ExistsOpenReviewRequestByUserAndProject(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExistsOpenReviewRequestByUserAndProject", reflect.TypeOf((*MockQuerier)(nil).ExistsOpenReviewRequestByUserAndProject), ctx, arg)
 }
 
 // GetActiveApiKey mocks base method.
@@ -557,6 +616,21 @@ func (mr *MockQuerierMockRecorder) GetGlobalClubs(ctx any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGlobalClubs", reflect.TypeOf((*MockQuerier)(nil).GetGlobalClubs), ctx)
 }
 
+// GetGlobalReviewProjectGroups mocks base method.
+func (m *MockQuerier) GetGlobalReviewProjectGroups(ctx context.Context) ([]db.GetGlobalReviewProjectGroupsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetGlobalReviewProjectGroups", ctx)
+	ret0, _ := ret[0].([]db.GetGlobalReviewProjectGroupsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetGlobalReviewProjectGroups indicates an expected call of GetGlobalReviewProjectGroups.
+func (mr *MockQuerierMockRecorder) GetGlobalReviewProjectGroups(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetGlobalReviewProjectGroups", reflect.TypeOf((*MockQuerier)(nil).GetGlobalReviewProjectGroups), ctx)
+}
+
 // GetLastAuthVerificationCode mocks base method.
 func (m *MockQuerier) GetLastAuthVerificationCode(ctx context.Context, s21Login pgtype.Text) (db.AuthVerificationCode, error) {
 	m.ctrl.T.Helper()
@@ -587,6 +661,21 @@ func (mr *MockQuerierMockRecorder) GetLocalClubs(ctx, campusID any) *gomock.Call
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLocalClubs", reflect.TypeOf((*MockQuerier)(nil).GetLocalClubs), ctx, campusID)
 }
 
+// GetMyOpenReviewRequests mocks base method.
+func (m *MockQuerier) GetMyOpenReviewRequests(ctx context.Context, requesterUserID int64) ([]db.GetMyOpenReviewRequestsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMyOpenReviewRequests", ctx, requesterUserID)
+	ret0, _ := ret[0].([]db.GetMyOpenReviewRequestsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMyOpenReviewRequests indicates an expected call of GetMyOpenReviewRequests.
+func (mr *MockQuerierMockRecorder) GetMyOpenReviewRequests(ctx, requesterUserID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMyOpenReviewRequests", reflect.TypeOf((*MockQuerier)(nil).GetMyOpenReviewRequests), ctx, requesterUserID)
+}
+
 // GetMyProfile mocks base method.
 func (m *MockQuerier) GetMyProfile(ctx context.Context, s21Login string) (db.GetMyProfileRow, error) {
 	m.ctrl.T.Helper()
@@ -600,6 +689,36 @@ func (m *MockQuerier) GetMyProfile(ctx context.Context, s21Login string) (db.Get
 func (mr *MockQuerierMockRecorder) GetMyProfile(ctx, s21Login any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMyProfile", reflect.TypeOf((*MockQuerier)(nil).GetMyProfile), ctx, s21Login)
+}
+
+// GetMyReviewRequestByID mocks base method.
+func (m *MockQuerier) GetMyReviewRequestByID(ctx context.Context, arg db.GetMyReviewRequestByIDParams) (db.GetMyReviewRequestByIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetMyReviewRequestByID", ctx, arg)
+	ret0, _ := ret[0].(db.GetMyReviewRequestByIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetMyReviewRequestByID indicates an expected call of GetMyReviewRequestByID.
+func (mr *MockQuerierMockRecorder) GetMyReviewRequestByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetMyReviewRequestByID", reflect.TypeOf((*MockQuerier)(nil).GetMyReviewRequestByID), ctx, arg)
+}
+
+// GetOpenReviewRequestsByProject mocks base method.
+func (m *MockQuerier) GetOpenReviewRequestsByProject(ctx context.Context, projectID int64) ([]db.GetOpenReviewRequestsByProjectRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetOpenReviewRequestsByProject", ctx, projectID)
+	ret0, _ := ret[0].([]db.GetOpenReviewRequestsByProjectRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetOpenReviewRequestsByProject indicates an expected call of GetOpenReviewRequestsByProject.
+func (mr *MockQuerierMockRecorder) GetOpenReviewRequestsByProject(ctx, projectID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetOpenReviewRequestsByProject", reflect.TypeOf((*MockQuerier)(nil).GetOpenReviewRequestsByProject), ctx, projectID)
 }
 
 // GetParticipantSkills mocks base method.
@@ -692,6 +811,36 @@ func (mr *MockQuerierMockRecorder) GetRegisteredUserByS21Login(ctx, s21Login any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRegisteredUserByS21Login", reflect.TypeOf((*MockQuerier)(nil).GetRegisteredUserByS21Login), ctx, s21Login)
 }
 
+// GetReviewRequestByID mocks base method.
+func (m *MockQuerier) GetReviewRequestByID(ctx context.Context, id int64) (db.GetReviewRequestByIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetReviewRequestByID", ctx, id)
+	ret0, _ := ret[0].(db.GetReviewRequestByIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetReviewRequestByID indicates an expected call of GetReviewRequestByID.
+func (mr *MockQuerierMockRecorder) GetReviewRequestByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReviewRequestByID", reflect.TypeOf((*MockQuerier)(nil).GetReviewRequestByID), ctx, id)
+}
+
+// GetReviewRequestsForCleanup mocks base method.
+func (m *MockQuerier) GetReviewRequestsForCleanup(ctx context.Context, arg db.GetReviewRequestsForCleanupParams) ([]db.GetReviewRequestsForCleanupRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetReviewRequestsForCleanup", ctx, arg)
+	ret0, _ := ret[0].([]db.GetReviewRequestsForCleanupRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetReviewRequestsForCleanup indicates an expected call of GetReviewRequestsForCleanup.
+func (mr *MockQuerierMockRecorder) GetReviewRequestsForCleanup(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetReviewRequestsForCleanup", reflect.TypeOf((*MockQuerier)(nil).GetReviewRequestsForCleanup), ctx, arg)
+}
+
 // GetRocketChatCredentials mocks base method.
 func (m *MockQuerier) GetRocketChatCredentials(ctx context.Context, s21Login string) (db.RocketchatCredential, error) {
 	m.ctrl.T.Helper()
@@ -750,6 +899,21 @@ func (m *MockQuerier) GetUserAccountByExternalId(ctx context.Context, arg db.Get
 func (mr *MockQuerierMockRecorder) GetUserAccountByExternalId(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserAccountByExternalId", reflect.TypeOf((*MockQuerier)(nil).GetUserAccountByExternalId), ctx, arg)
+}
+
+// GetUserAccountByID mocks base method.
+func (m *MockQuerier) GetUserAccountByID(ctx context.Context, id int64) (db.UserAccount, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserAccountByID", ctx, id)
+	ret0, _ := ret[0].(db.UserAccount)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserAccountByID indicates an expected call of GetUserAccountByID.
+func (mr *MockQuerierMockRecorder) GetUserAccountByID(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserAccountByID", reflect.TypeOf((*MockQuerier)(nil).GetUserAccountByID), ctx, id)
 }
 
 // GetUserAccountByS21Login mocks base method.
@@ -872,6 +1036,36 @@ func (mr *MockQuerierMockRecorder) HasActiveRooms(ctx, campusID any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "HasActiveRooms", reflect.TypeOf((*MockQuerier)(nil).HasActiveRooms), ctx, campusID)
 }
 
+// IncrementReviewRequestViewCount mocks base method.
+func (m *MockQuerier) IncrementReviewRequestViewCount(ctx context.Context, id int64) (int32, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IncrementReviewRequestViewCount", ctx, id)
+	ret0, _ := ret[0].(int32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IncrementReviewRequestViewCount indicates an expected call of IncrementReviewRequestViewCount.
+func (mr *MockQuerierMockRecorder) IncrementReviewRequestViewCount(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementReviewRequestViewCount", reflect.TypeOf((*MockQuerier)(nil).IncrementReviewRequestViewCount), ctx, id)
+}
+
+// MarkReviewRequestNegotiatingAndIncrementResponses mocks base method.
+func (m *MockQuerier) MarkReviewRequestNegotiatingAndIncrementResponses(ctx context.Context, id int64) (db.MarkReviewRequestNegotiatingAndIncrementResponsesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkReviewRequestNegotiatingAndIncrementResponses", ctx, id)
+	ret0, _ := ret[0].(db.MarkReviewRequestNegotiatingAndIncrementResponsesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// MarkReviewRequestNegotiatingAndIncrementResponses indicates an expected call of MarkReviewRequestNegotiatingAndIncrementResponses.
+func (mr *MockQuerierMockRecorder) MarkReviewRequestNegotiatingAndIncrementResponses(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkReviewRequestNegotiatingAndIncrementResponses", reflect.TypeOf((*MockQuerier)(nil).MarkReviewRequestNegotiatingAndIncrementResponses), ctx, id)
+}
+
 // ReturnBookLoan mocks base method.
 func (m *MockQuerier) ReturnBookLoan(ctx context.Context, arg db.ReturnBookLoanParams) error {
 	m.ctrl.T.Helper()
@@ -913,6 +1107,21 @@ func (m *MockQuerier) SearchBooks(ctx context.Context, arg db.SearchBooksParams)
 func (mr *MockQuerierMockRecorder) SearchBooks(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchBooks", reflect.TypeOf((*MockQuerier)(nil).SearchBooks), ctx, arg)
+}
+
+// SetReviewRequestStatus mocks base method.
+func (m *MockQuerier) SetReviewRequestStatus(ctx context.Context, arg db.SetReviewRequestStatusParams) (db.SetReviewRequestStatusRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetReviewRequestStatus", ctx, arg)
+	ret0, _ := ret[0].(db.SetReviewRequestStatusRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SetReviewRequestStatus indicates an expected call of SetReviewRequestStatus.
+func (mr *MockQuerierMockRecorder) SetReviewRequestStatus(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReviewRequestStatus", reflect.TypeOf((*MockQuerier)(nil).SetReviewRequestStatus), ctx, arg)
 }
 
 // UpdateRoomBookingDuration mocks base method.

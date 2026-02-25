@@ -23,6 +23,12 @@ type CampusService struct {
 	credsSvc *CredentialService
 }
 
+const (
+	reviewRequestCleanupSchedule = "@every 60m"
+	reviewRequestCleanupBatch    = int32(500)
+	reviewRequestCleanupStaleFor = time.Hour
+)
+
 func NewCampusService(queries db.Querier, s21Client *s21.Client, cfg *config.Config, log *slog.Logger, credsSvc *CredentialService) *CampusService {
 	return &CampusService{
 		queries:  queries,
@@ -46,6 +52,11 @@ func (s *CampusService) Start() error {
 	if err != nil {
 		return err
 	}
+
+	if err := s.scheduleReviewCleanup(); err != nil {
+		return err
+	}
+
 	s.cron.Start()
 
 	// Initial update in background
@@ -68,10 +79,102 @@ func (s *CampusService) Stop() {
 	s.cron.Stop()
 }
 
+func (s *CampusService) scheduleReviewCleanup() error {
+	_, err := s.cron.AddFunc(reviewRequestCleanupSchedule, func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+		defer cancel()
+		if err := s.CleanupOutdatedReviewRequests(ctx); err != nil {
+			s.log.Warn("review cleanup failed", "error", err)
+		}
+	})
+	if err != nil {
+		return fmt.Errorf("failed to schedule review cleanup: %w", err)
+	}
+	return nil
+}
+
+func (s *CampusService) CleanupOutdatedReviewRequests(ctx context.Context) error {
+	if s.queries == nil || s.s21 == nil || s.credsSvc == nil || s.config == nil || strings.TrimSpace(s.config.Init.SchoolLogin) == "" {
+		return nil
+	}
+
+	token, err := s.credsSvc.GetValidToken(ctx, s.config.Init.SchoolLogin)
+	if err != nil {
+		return fmt.Errorf("failed to get token for review cleanup: %w", err)
+	}
+
+	rows, err := s.queries.GetReviewRequestsForCleanup(ctx, db.GetReviewRequestsForCleanupParams{
+		UpdatedAt: pgtype.Timestamptz{
+			Time:  time.Now().Add(-reviewRequestCleanupStaleFor),
+			Valid: true,
+		},
+		Limit: reviewRequestCleanupBatch,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to load review cleanup candidates: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+
+	projectsByLogin := make(map[string]map[int64]bool, len(rows))
+	for _, row := range rows {
+		login := strings.TrimSpace(row.RequesterS21Login)
+		if login == "" {
+			continue
+		}
+		if _, exists := projectsByLogin[login]; exists {
+			continue
+		}
+
+		resp, apiErr := s.s21.GetParticipantProjects(ctx, token, login, 1000, 0, "IN_REVIEWS")
+		if apiErr != nil {
+			s.log.Warn("review cleanup: failed to fetch IN_REVIEWS projects", "login", login, "error", apiErr)
+			continue
+		}
+
+		set := map[int64]bool{}
+		if resp != nil {
+			set = make(map[int64]bool, len(resp.Projects))
+			for _, p := range resp.Projects {
+				if strings.EqualFold(strings.TrimSpace(p.Status), "IN_REVIEWS") {
+					set[p.ID] = true
+				}
+			}
+		}
+		projectsByLogin[login] = set
+	}
+
+	closed := 0
+	for _, row := range rows {
+		login := strings.TrimSpace(row.RequesterS21Login)
+		if login == "" {
+			continue
+		}
+		currentProjects, ok := projectsByLogin[login]
+		if !ok {
+			continue
+		}
+		if currentProjects[row.ProjectID] {
+			continue
+		}
+		if err := s.queries.CloseReviewRequestByID(ctx, row.ID); err != nil {
+			s.log.Warn("review cleanup: failed to close outdated request", "request_id", row.ID, "login", login, "project_id", row.ProjectID, "error", err)
+			continue
+		}
+		closed++
+	}
+
+	if closed > 0 {
+		s.log.Info("review cleanup done", "checked", len(rows), "closed", closed)
+	}
+	return nil
+}
+
 func (s *CampusService) UpdateCampuses(ctx context.Context) error {
 	s.log.Info("updating campuses from S21 API")
 
-	if s.config.Init.SchoolLogin == "" {
+	if s.config == nil || s.config.Init.SchoolLogin == "" {
 		return fmt.Errorf("SCHOOL21_USER_LOGIN is empty, cannot update campuses")
 	}
 

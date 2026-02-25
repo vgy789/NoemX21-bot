@@ -53,6 +53,50 @@ func (ns NullEnumPlatform) Value() (driver.Value, error) {
 	return string(ns.EnumPlatform), nil
 }
 
+type EnumReviewStatus string
+
+const (
+	EnumReviewStatusSEARCHING   EnumReviewStatus = "SEARCHING"
+	EnumReviewStatusNEGOTIATING EnumReviewStatus = "NEGOTIATING"
+	EnumReviewStatusPAUSED      EnumReviewStatus = "PAUSED"
+	EnumReviewStatusCLOSED      EnumReviewStatus = "CLOSED"
+)
+
+func (e *EnumReviewStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = EnumReviewStatus(s)
+	case string:
+		*e = EnumReviewStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for EnumReviewStatus: %T", src)
+	}
+	return nil
+}
+
+type NullEnumReviewStatus struct {
+	EnumReviewStatus EnumReviewStatus `json:"enum_review_status"`
+	Valid            bool             `json:"valid"` // Valid is true if EnumReviewStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullEnumReviewStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.EnumReviewStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.EnumReviewStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullEnumReviewStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.EnumReviewStatus), nil
+}
+
 type EnumStudentStatus string
 
 const (
@@ -278,6 +322,26 @@ type RegisteredUser struct {
 	HasCoffeeBan       pgtype.Bool        `json:"has_coffee_ban"`
 	CreatedAt          pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ReviewRequest struct {
+	ID                      int64              `json:"id"`
+	RequesterUserID         int64              `json:"requester_user_id"`
+	RequesterS21Login       string             `json:"requester_s21_login"`
+	RequesterCampusID       pgtype.UUID        `json:"requester_campus_id"`
+	ProjectID               int64              `json:"project_id"`
+	ProjectName             string             `json:"project_name"`
+	ProjectType             string             `json:"project_type"`
+	AvailabilityText        string             `json:"availability_text"`
+	RequesterTimezone       string             `json:"requester_timezone"`
+	RequesterTimezoneOffset string             `json:"requester_timezone_offset"`
+	ReviewsProgressText     string             `json:"reviews_progress_text"`
+	Status                  EnumReviewStatus   `json:"status"`
+	ViewCount               int32              `json:"view_count"`
+	ResponseCount           int32              `json:"response_count"`
+	CreatedAt               pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
+	ClosedAt                pgtype.Timestamptz `json:"closed_at"`
 }
 
 type RocketchatCredential struct {

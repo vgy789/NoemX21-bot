@@ -1,336 +1,872 @@
 ---
 meta:
-  feature_id: REV-001
-  name: Проверка проектов (Review)
-  description: Система P2P проверок
-  version: 2.1.1
+  name: Peer Review Helper
 
-initial_state: REVIEW_MENU
+initial_state: PRR_MAIN_MENU
+
 states:
-  REVIEW_MENU:
+  PRR_MAIN_MENU:
     type: interactive
-    description: Главное меню P2P модуля
+    description: Главное меню Peer Review Helper
+    on_enter:
+      - action: school_api_get_participant_projects_in_reviews
+        payload:
+          participant_login: $context.my_s21login
+      - action: db_get_my_prr_summary
+        payload:
+          user_id: $context.user_id
     interface:
       text:
         ru: |
-          🤝 *P2P-Обмен слотами*
+          🤝 *Peer Review Helper*
 
-          📝 *Запросы:* Публикация заявок на проверку.
-          🔭 *Лента:* Поиск доступных слотов.
-          ⚙️ *Фильтры:* Настройка видимости.
+          {active_prr_notification}
         en: |
-          🤝 *P2P Exchange*
+          🤝 *Peer Review Helper*
 
-          📝 *Requests:* Create review tickets.
-          🔭 *Feed:* Browse available slots.
-          ⚙️ *Filters:* Visibility config.
+          {active_prr_notification}
       buttons:
-        - id: request
+        - id: list_all
           label:
-            ru: 📢 Опубликовать запрос
-            en: 📢 Publish request
-          next_state: FETCH_MY_PROJECTS_IN_REVIEW
-        - id: respond
+            ru: 📋 Доска проектов
+            en: 📋 Project board
+          next_state: GLOBAL_PRR_BOARD
+          row: 1
+        - id: create_new
           label:
-            ru: 🔭 Лента запросов
-            en: 🔭 Requests Feed
-          next_state: FETCH_ALL_REVIEW_REQUESTS
-        - id: settings
+            ru: ➕ Создать запрос
+            en: ➕ Create request
+          condition: "available_projects_count > 0"
+          next_state: SELECT_PROJECT_FOR_PRR
+          row: 1
+        - id: create_new_disabled
           label:
-            ru: ⚙️ Фильтры кампусов
-            en: ⚙️ Campus filters
-          next_state: MANAGE_NOTIFICATION_FILTERS
+            ru: ➕ Создать запрос
+            en: ➕ Create request
+          condition: "available_projects_count == 0"
+          next_state: ERROR_NO_IN_REVIEWS_PROJECTS
+          row: 1
+        - id: my_requests
+          label:
+            ru: 📂 Мои запросы ({my_prr_count})
+            en: 📂 My requests ({my_prr_count})
+          action: reset_my_prr_page
+          next_state: MY_PRR_LIST
           row: 2
         - id: back
           label:
             ru: 🏠 Главное меню
             en: 🏠 Main menu
           next_state: MAIN_MENU
-          row: 2
+          row: 3
 
-  FETCH_MY_PROJECTS_IN_REVIEW:
+  SELECT_PROJECT_FOR_PRR:
+    type: interactive
+    description: Выбор проекта для PRR из API /participants/{login}/projects?status=IN_REVIEWS
+    on_enter:
+      - action: prepare_available_projects_for_prr
+        payload:
+          page: $context.create_prr_projects_page
+    interface:
+      text:
+        ru: |
+          Выбери проект, который хочешь сдать:
+
+          {available_projects_list_hint}
+        en: |
+          Select the project you want to submit:
+
+          {available_projects_list_hint}
+      buttons:
+        - id: "{project_id_1}"
+          label: "📁 {project_name_1} ({project_type_1})"
+          condition: "project_id_1 != ''"
+          action: select_project
+          next_state: CHECK_DUPLICATE_PROJECT_PRR
+          row: 1
+        - id: "{project_id_2}"
+          label: "📁 {project_name_2} ({project_type_2})"
+          condition: "project_id_2 != ''"
+          action: select_project
+          next_state: CHECK_DUPLICATE_PROJECT_PRR
+          row: 2
+        - id: "{project_id_3}"
+          label: "📁 {project_name_3} ({project_type_3})"
+          condition: "project_id_3 != ''"
+          action: select_project
+          next_state: CHECK_DUPLICATE_PROJECT_PRR
+          row: 3
+        - id: "{project_id_4}"
+          label: "📁 {project_name_4} ({project_type_4})"
+          condition: "project_id_4 != ''"
+          action: select_project
+          next_state: CHECK_DUPLICATE_PROJECT_PRR
+          row: 4
+        - id: "{project_id_5}"
+          label: "📁 {project_name_5} ({project_type_5})"
+          condition: "project_id_5 != ''"
+          action: select_project
+          next_state: CHECK_DUPLICATE_PROJECT_PRR
+          row: 5
+        - id: prev_projects
+          label:
+            ru: ⬅️ Назад
+            en: ⬅️ Prev
+          condition: "available_projects_has_prev_page == true"
+          action: available_projects_prev_page
+          next_state: SELECT_PROJECT_FOR_PRR
+          row: 6
+        - id: projects_page
+          label:
+            ru: "{available_projects_page_caption_ru}"
+            en: "{available_projects_page_caption_en}"
+          action: none
+          row: 6
+        - id: next_projects
+          label:
+            ru: Вперёд ➡️
+            en: Next ➡️
+          condition: "available_projects_has_next_page == true"
+          action: available_projects_next_page
+          next_state: SELECT_PROJECT_FOR_PRR
+          row: 6
+        - id: back
+          label:
+            ru: 🔙 Отмена
+            en: 🔙 Cancel
+          next_state: PRR_MAIN_MENU
+          row: 7
+
+  CHECK_DUPLICATE_PROJECT_PRR:
     type: system
-    description: 'Получение списка проектов (Status: IN_REVIEWS)'
+    description: Нельзя создавать второй открытый PRR на тот же проект
     logic:
-      action: get_user_projects
+      action: db_check_open_prr_for_selected_project
       payload:
         user_id: $context.user_id
-        status: IN_REVIEWS
+        project_id: $context.selected_project_id
     transitions:
-      - condition: projects_count > 0
-        next_state: SELECT_PROJECT
-      - condition: projects_count == 0
-        next_state: ERROR_NO_PROJECTS_IN_REVIEW
+      - condition: has_open_prr_for_selected_project == true
+        next_state: ERROR_PRR_ALREADY_EXISTS_FOR_PROJECT
+      - next_state: INPUT_TIME_AVAILABILITY
 
-  SELECT_PROJECT:
-    type: interactive
-    description: Выбор проекта
-    interface:
-      text:
-        ru: |
-          📂 *Выбор проекта*
-
-          Статус на платформе: `IN_REVIEW`
-        en: |
-          📂 *Select Project*
-
-          Platform status: `IN_REVIEW`
-      buttons:
-        - id: project_{project_id}
-          label: "{project_name}"
-          next_state: INPUT_TIME_DESCRIPTION
-        - id: back
-          label:
-            ru: 🔙 Назад
-            en: 🔙 Back
-          next_state: REVIEW_MENU
-
-  INPUT_TIME_DESCRIPTION:
+  INPUT_TIME_AVAILABILITY:
     type: input
-    description: Ввод временного слота
     interface:
       text:
         ru: |
-          🕒 *Настройка слота*
+          ⏰ *Когда ты в сети?*
+          Напиши текстом, в какие дни и часы тебя искать.
 
-          Укажи время или статус доступности.
-          _Пример:_ `Сейчас`, `19:00`, `Завтра` (до 20 симв.).
+          _Пример: Сегодня до 21:00, завтра весь день с 10 утра._
         en: |
-          🕒 *Time Slot Config*
+          ⏰ *When are you available?*
+          Type your available days and hours.
 
-          Specify availability status or time slot.
-          _Example:_ `Now`, `19:00`, `Tomorrow` (max 20 chars).
-      error_invalid:
-        ru: |
-          ⚠️ *Ошибка формата*
-          Лимит: 20 символов.
-        en: |
-          ⚠️ *Format Error*
-          Limit: 20 chars.
-    validation:
-      regex: ^.{1,20}$
-    transitions:
-      - trigger: on_valid_input
-        next_state: CREATE_REVIEW_REQUEST
-        action: set_request_description
-
-  CREATE_REVIEW_REQUEST:
-    type: system
-    description: Запись запроса в БД
-    logic:
-      action: create_review_request
-      payload:
-        student_id: $context.user_id
-        project_name: $context.selected_project_name
-        description: $context.last_input
-    transitions:
-      - next_state: REQUEST_SUCCESS_SUMMARY
-
-  REQUEST_SUCCESS_SUMMARY:
-    type: interactive
-    description: Лог успешного создания
-    interface:
-      text:
-        ru: |
-          ✅ *Запрос опубликован*
-
-          📌 Проект: `{project_name}`
-          💬 Описание: `{description}`
-
-          📡 *Статус:* Рассылка уведомлений пирам...
-        en: |
-          ✅ *Request Published*
-
-          📌 Project: `{project_name}`
-          💬 Info: `{description}`
-
-          📡 *Status:* Broadcasting to peers...
-    transitions:
-      - next_state: REVIEW_MENU
-
-  FETCH_ALL_REVIEW_REQUESTS:
-    type: system
-    description: Загрузка фида запросов
-    logic:
-      action: get_review_requests
-      payload:
-        campus_filter: true
-        offset: $context.requests_offset
-        limit: 5
-    transitions:
-      - next_state: DISPLAY_REQUESTS
-
-  DISPLAY_REQUESTS:
-    type: interactive
-    description: Список ревью (Лента)
-    interface:
-      text:
-        ru: |
-          🔭 *Лента активных запросов*
-
-          Выбери номер для просмотра деталей:
-          {requests_list_numbered}
-        en: |
-          🔭 *Active Requests Feed*
-
-          Select index for details:
-          {requests_list_numbered}
+          _Example: Today until 9 PM, tomorrow all day from 10 AM._
       buttons:
-        - id: req_{request_id}
-          label: "{index} | {project_short_name}"
-        - id: prev_page
-          label: ⬅️
-          next_state: FETCH_ALL_REVIEW_REQUESTS
-          condition: current_page > 1
-        - id: next_page
-          label: ➡️
-          next_state: FETCH_ALL_REVIEW_REQUESTS
-          condition: current_page < total_pages
+        - id: cancel
+          label:
+            ru: 🔙 Отмена
+            en: 🔙 Cancel
+          next_state: PRR_MAIN_MENU
+          row: 1
+    transitions:
+      - trigger: on_input
+        action: save_time_input
+        next_state: CONFIRM_PRR_CREATION
+
+  CONFIRM_PRR_CREATION:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          📝 *Проверь данные запроса:*
+
+          📁 Проект: `{selected_project_name}`
+          🧩 Тип: `{selected_project_type}`
+          ⏰ Время: `{last_input}`
+          🌐 Твой часовой пояс: `{user_timezone_name}` (UTC{user_timezone_formatted})
+          📊 Прогресс ревью: {reviews_progress_text}
+
+          Опубликовать на доске?
+        en: |
+          📝 *Review your request:*
+
+          📁 Project: `{selected_project_name}`
+          🧩 Type: `{selected_project_type}`
+          ⏰ Time: `{last_input}`
+          🌐 Your timezone: `{user_timezone_name}` (UTC{user_timezone_formatted})
+          📊 Review progress: {reviews_progress_text}
+
+          Publish to the board?
+      buttons:
+        - id: confirm
+          label:
+            ru: ✅ Да, публикуем
+            en: ✅ Yes, publish
+          next_state: SAVE_PRR_SYSTEM
+          row: 1
+        - id: retry
+          label:
+            ru: ✍️ Изменить время
+            en: ✍️ Edit time
+          next_state: INPUT_TIME_AVAILABILITY
+          row: 1
+        - id: cancel
+          label:
+            ru: 🔙 Отмена
+            en: 🔙 Cancel
+          next_state: PRR_MAIN_MENU
+          row: 2
+
+  SAVE_PRR_SYSTEM:
+    type: system
+    logic:
+      action: db_save_prr
+    transitions:
+      - condition: save_conflict_same_project == true
+        next_state: ERROR_PRR_ALREADY_EXISTS_FOR_PROJECT
+      - next_state: PRR_SUCCESS_POSTED
+
+  PRR_SUCCESS_POSTED:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          🚀 *Готово!*
+
+          Твой запрос опубликован на доске.
+          Пока он не закрыт, второй запрос на этот же проект создать нельзя.
+        en: |
+          🚀 *Done!*
+
+          Your request is live on the board.
+          While it is open, you cannot create another request for the same project.
+      buttons:
+        - id: ok
+          label:
+            ru: 👌 Понятно
+            en: 👌 Got it
+          next_state: PRR_MAIN_MENU
+          row: 1
+
+  GLOBAL_PRR_BOARD:
+    type: interactive
+    description: Общая доска, сгруппированная по проектам
+    on_enter:
+      - action: db_get_global_prr_project_groups
+        payload:
+          project_filter_ids: $context.filter_project_ids
+          page: $context.global_prr_board_page
+    interface:
+      text:
+        ru: |
+          📋 *Доска Peer Review*
+          Фильтр проектов: `{current_project_filters_text}`
+
+          {project_groups_formatted}
+
+          _Сначала выбери проект, потом конкретный запрос._
+        en: |
+          📋 *Peer Review Board*
+          Project filters: `{current_project_filters_text}`
+
+          {project_groups_formatted}
+
+          _Pick a project first, then a specific request._
+      buttons:
+        - id: "{project_group_id_1}"
+          label: "{project_group_btn_label_1}"
+          condition: "project_group_id_1 != ''"
+          action: select_project_group
+          next_state: PROJECT_PRR_LIST
+          row: 1
+        - id: "{project_group_id_2}"
+          label: "{project_group_btn_label_2}"
+          condition: "project_group_id_2 != ''"
+          action: select_project_group
+          next_state: PROJECT_PRR_LIST
+          row: 2
+        - id: "{project_group_id_3}"
+          label: "{project_group_btn_label_3}"
+          condition: "project_group_id_3 != ''"
+          action: select_project_group
+          next_state: PROJECT_PRR_LIST
+          row: 3
+        - id: "{project_group_id_4}"
+          label: "{project_group_btn_label_4}"
+          condition: "project_group_id_4 != ''"
+          action: select_project_group
+          next_state: PROJECT_PRR_LIST
+          row: 4
+        - id: "{project_group_id_5}"
+          label: "{project_group_btn_label_5}"
+          condition: "project_group_id_5 != ''"
+          action: select_project_group
+          next_state: PROJECT_PRR_LIST
+          row: 5
+        - id: prev_board_page
+          label:
+            ru: ⬅️ Назад
+            en: ⬅️ Prev
+          condition: "global_board_has_prev_page == true"
+          action: global_prr_board_prev_page
+          next_state: GLOBAL_PRR_BOARD
+          row: 6
+        - id: board_page
+          label:
+            ru: "{global_board_page_caption_ru}"
+            en: "{global_board_page_caption_en}"
+          action: none
+          row: 6
+        - id: next_board_page
+          label:
+            ru: Вперёд ➡️
+            en: Next ➡️
+          condition: "global_board_has_next_page == true"
+          action: global_prr_board_next_page
+          next_state: GLOBAL_PRR_BOARD
+          row: 6
+        - id: set_filters
+          label:
+            ru: ⚙️ Фильтры проектов
+            en: ⚙️ Project filters
+          next_state: PRR_FILTERS_MENU
+          row: 7
+        - id: refresh
+          label:
+            ru: 🔄 Обновить
+            en: 🔄 Refresh
+          next_state: GLOBAL_PRR_BOARD
+          row: 7
+        - id: back
+          label:
+            ru: 🔙 В меню
+            en: 🔙 Menu
+          next_state: PRR_MAIN_MENU
+          row: 8
+
+  PROJECT_PRR_LIST:
+    type: interactive
+    description: Все активные запросы внутри выбранного проекта
+    on_enter:
+      - action: db_get_prr_requests_for_selected_project
+        payload:
+          project_id: $context.selected_project_id
+          include_paused: false
+          page: $context.project_prr_page
+    interface:
+      text:
+        ru: |
+          📁 *{selected_project_name}*
+          Тип: `{selected_project_type}`
+
+          {project_prr_list_formatted}
+
+          _Нажми на запрос, чтобы посмотреть карточку и откликнуться._
+        en: |
+          📁 *{selected_project_name}*
+          Type: `{selected_project_type}`
+
+          {project_prr_list_formatted}
+
+          _Tap a request to open details and propose a review._
+      buttons:
+        - id: "{project_prr_id_1}"
+          label: "{project_prr_btn_label_1}"
+          condition: "project_prr_id_1 != ''"
+          action: select_prr
+          next_state: PRR_DETAILS_VIEW
+          row: 1
+        - id: "{project_prr_id_2}"
+          label: "{project_prr_btn_label_2}"
+          condition: "project_prr_id_2 != ''"
+          action: select_prr
+          next_state: PRR_DETAILS_VIEW
+          row: 2
+        - id: "{project_prr_id_3}"
+          label: "{project_prr_btn_label_3}"
+          condition: "project_prr_id_3 != ''"
+          action: select_prr
+          next_state: PRR_DETAILS_VIEW
+          row: 3
+        - id: "{project_prr_id_4}"
+          label: "{project_prr_btn_label_4}"
+          condition: "project_prr_id_4 != ''"
+          action: select_prr
+          next_state: PRR_DETAILS_VIEW
+          row: 4
+        - id: "{project_prr_id_5}"
+          label: "{project_prr_btn_label_5}"
+          condition: "project_prr_id_5 != ''"
+          action: select_prr
+          next_state: PRR_DETAILS_VIEW
+          row: 5
+        - id: prev_project_prr_page
+          label:
+            ru: ⬅️ Назад
+            en: ⬅️ Prev
+          condition: "project_prr_has_prev_page == true"
+          action: selected_project_prr_prev_page
+          next_state: PROJECT_PRR_LIST
+          row: 6
+        - id: project_prr_page
+          label:
+            ru: "{project_prr_page_caption_ru}"
+            en: "{project_prr_page_caption_en}"
+          action: none
+          row: 6
+        - id: next_project_prr_page
+          label:
+            ru: Вперёд ➡️
+            en: Next ➡️
+          condition: "project_prr_has_next_page == true"
+          action: selected_project_prr_next_page
+          next_state: PROJECT_PRR_LIST
+          row: 6
+        - id: refresh
+          label:
+            ru: 🔄 Обновить
+            en: 🔄 Refresh
+          next_state: PROJECT_PRR_LIST
+          row: 7
+        - id: back
+          label:
+            ru: 🔙 К проектам
+            en: 🔙 Back to projects
+          next_state: GLOBAL_PRR_BOARD
+          row: 7
+
+  PRR_DETAILS_VIEW:
+    type: interactive
+    on_enter:
+      - action: db_increment_prr_view_counter
+        payload:
+          prr_id: $context.selected_prr_id
+          viewer_user_id: $context.user_id
+    interface:
+      text:
+        ru: |
+          🟢 *Запрос на ревью*
+
+          👤 Студент: {nickname} (уровень {peer_level})
+          📍 Кампус: {peer_campus}
+          📁 Проект: *{project_name}*
+          🧩 Тип проекта: `{project_type}`
+          📊 Прогресс ревью: {reviews_progress_text}
+
+          ⏰ *Когда удобно:*
+          {time_description}
+          _(UTC{requester_timezone_utc_offset}; у тебя: {viewer_local_time_hint})_
+
+          🕒 Открыт: {prr_opened_at}
+          👁 Просмотров: {view_count}
+          🙋 Предложений ревью: {response_count}
+          🔖 Статус: {prr_status_label}
+        en: |
+          🟢 *Review Request*
+
+          👤 Student: {nickname} (level {peer_level})
+          📍 Campus: {peer_campus}
+          📁 Project: *{project_name}*
+          🧩 Project type: `{project_type}`
+          📊 Review progress: {reviews_progress_text}
+
+          ⏰ *Available time:*
+          {time_description}
+          _(UTC{requester_timezone_utc_offset}; for you: {viewer_local_time_hint})_
+
+          🕒 Opened: {prr_opened_at}
+          👁 Views: {view_count}
+          🙋 Review offers: {response_count}
+          🔖 Status: {prr_status_label}
+      buttons:
+        - id: propose_review
+          label:
+            ru: 💬 Предложить ревью
+            en: 💬 Propose review
+          next_state: PRR_PROPOSE_REVIEW_SYSTEM
+          row: 1
+        - id: back
+          label:
+            ru: 🔙 К списку проекта
+            en: 🔙 Back to project list
+          next_state: PROJECT_PRR_LIST
+          row: 2
+
+  PRR_PROPOSE_REVIEW_SYSTEM:
+    type: system
+    description: Lazy-check проекта в момент отклика и запрет self-review
+    logic:
+      action: validate_and_propose_review
+      payload:
+        prr_id: $context.selected_prr_id
+        reviewer_user_id: $context.user_id
+    transitions:
+      - condition: is_own_prr == true
+        next_state: ERROR_CANNOT_REVIEW_SELF
+      - condition: project_still_in_reviews == false
+        next_state: INFO_PRR_OUTDATED_REMOVED
+      - condition: prr_closed == true
+        next_state: INFO_PRR_ALREADY_CLOSED
+      - next_state: PRR_PROPOSE_REVIEW_SENT
+
+  PRR_PROPOSE_REVIEW_SENT:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          📨 Предложение отправлено автору заявки.
+
+          Мы пометили запрос как *[🟡 В переговорах]*, чтобы снизить повторные отклики.
+          Автор может приостановить поиск в разделе «Мои запросы».
+        en: |
+          📨 Offer sent to the request owner.
+
+          Request status is now *[🟡 Negotiating]* to reduce duplicate pings.
+          The owner can pause discovery from “My requests”.
+      buttons:
+        - id: back_project
+          label:
+            ru: 🔙 К запросам проекта
+            en: 🔙 Back to project requests
+          next_state: PROJECT_PRR_LIST
+          row: 1
+        - id: board
+          label:
+            ru: 📋 К доске проектов
+            en: 📋 To project board
+          next_state: GLOBAL_PRR_BOARD
+          row: 2
+
+  MY_PRR_LIST:
+    type: interactive
+    on_enter:
+      - action: db_get_my_active_prr
+        payload:
+          user_id: $context.user_id
+          page: $context.my_prr_page
+    interface:
+      text:
+        ru: |
+          📂 *Текущие запросы*
+          Здесь можно приостановить поиск, возобновить или закрыть заявку.
+
+          {my_prr_list_formatted}
+        en: |
+          📂 *Current requests*
+          Pause, resume, or close your requests here.
+
+          {my_prr_list_formatted}
+      buttons:
+        - id: "{my_prr_id_1}"
+          label: "{my_prr_btn_label_1}"
+          condition: "my_prr_id_1 != ''"
+          action: select_my_prr
+          next_state: MY_PRR_DETAILS
+          row: 1
+        - id: "{my_prr_id_2}"
+          label: "{my_prr_btn_label_2}"
+          condition: "my_prr_id_2 != ''"
+          action: select_my_prr
+          next_state: MY_PRR_DETAILS
+          row: 2
+        - id: "{my_prr_id_3}"
+          label: "{my_prr_btn_label_3}"
+          condition: "my_prr_id_3 != ''"
+          action: select_my_prr
+          next_state: MY_PRR_DETAILS
+          row: 3
+        - id: "{my_prr_id_4}"
+          label: "{my_prr_btn_label_4}"
+          condition: "my_prr_id_4 != ''"
+          action: select_my_prr
+          next_state: MY_PRR_DETAILS
+          row: 4
+        - id: "{my_prr_id_5}"
+          label: "{my_prr_btn_label_5}"
+          condition: "my_prr_id_5 != ''"
+          action: select_my_prr
+          next_state: MY_PRR_DETAILS
+          row: 5
+        - id: prev_my_prr_page
+          label:
+            ru: ⬅️ Назад
+            en: ⬅️ Prev
+          condition: "my_prr_has_prev_page == true"
+          action: my_prr_prev_page
+          next_state: MY_PRR_LIST
+          row: 6
+        - id: my_prr_page
+          label:
+            ru: "{my_prr_page_caption_ru}"
+            en: "{my_prr_page_caption_en}"
+          action: none
+          row: 6
+        - id: next_my_prr_page
+          label:
+            ru: Вперёд ➡️
+            en: Next ➡️
+          condition: "my_prr_has_next_page == true"
+          action: my_prr_next_page
+          next_state: MY_PRR_LIST
+          row: 6
+        - id: refresh
+          label:
+            ru: 🔄 Обновить
+            en: 🔄 Refresh
+          next_state: MY_PRR_LIST
+          row: 7
         - id: back
           label:
             ru: 🔙 Назад
             en: 🔙 Back
-          next_state: REVIEW_MENU
+          next_state: PRR_MAIN_MENU
+          row: 7
+
+  MY_PRR_DETAILS:
+    type: interactive
+    on_enter:
+      - action: db_get_selected_my_prr
+        payload:
+          user_id: $context.user_id
+          prr_id: $context.selected_my_prr_id
+    interface:
+      text:
+        ru: |
+          📌 *Мой запрос*
+
+          📁 Проект: {my_selected_project_name}
+          🧩 Тип: {my_selected_project_type}
+          ⏰ Время: {my_selected_time_description}
+          👁 Просмотров: {my_selected_view_count}
+          🙋 Откликов: {my_selected_response_count}
+          🔖 Статус: {my_selected_status_label}
+        en: |
+          📌 *My request*
+
+          📁 Project: {my_selected_project_name}
+          🧩 Type: {my_selected_project_type}
+          ⏰ Time: {my_selected_time_description}
+          👁 Views: {my_selected_view_count}
+          🙋 Offers: {my_selected_response_count}
+          🔖 Status: {my_selected_status_label}
+      buttons:
+        - id: pause_search
+          label:
+            ru: ⏸ Приостановить поиск
+            en: ⏸ Pause search
+          condition: "my_selected_status == 'SEARCHING'"
+          action: pause_my_prr
+          next_state: MY_PRR_DETAILS
+          row: 1
+        - id: resume_search
+          label:
+            ru: ▶️ Возобновить поиск
+            en: ▶️ Resume search
+          condition: "my_selected_status == 'PAUSED'"
+          action: resume_my_prr
+          next_state: MY_PRR_DETAILS
+          row: 1
+        - id: close_prr
+          label:
+            ru: ❌ Закрыть запрос
+            en: ❌ Close request
+          condition: "my_selected_status != 'CLOSED'"
+          action: close_my_prr
+          next_state: MY_PRR_LIST
           row: 2
-    transitions:
-      - trigger: button_click
-        condition: id.startswith('req_')
-        next_state: VIEW_PEER_PROFILE
-
-  VIEW_PEER_PROFILE:
-    type: interactive
-    description: Просмотр слота
-    interface:
-      text:
-        ru: |
-          📂 *Детали запроса*
-
-          👤 *Пир:* `{peer_login}`
-          📍 {peer_campus} | {peer_coalition}
-          🏆 Lvl: `{peer_level}`
-
-          🧪 *Проект:* `{project_name}`
-          🕒 *Время:* `{request_description}`
-        en: |
-          📂 *Review Slot Details*
-
-          👤 *Peer:* `{peer_login}`
-          📍 {peer_campus} | {peer_coalition}
-          🏆 Lvl: `{peer_level}`
-
-          🧪 *Target:* `{project_name}`
-          🕒 *Time:* `{request_description}`
-      buttons:
-        - id: confirm_respond
-          label:
-            ru: 🤝 Записаться на проверку
-            en: 🤝 Confirm Booking
-          next_state: COMPLETE_RESPOND
         - id: back
           label:
-            ru: ⬅️ К списку
-            en: ⬅️ To list
-          next_state: DISPLAY_REQUESTS
+            ru: 🔙 К моим запросам
+            en: 🔙 Back to my requests
+          next_state: MY_PRR_LIST
+          row: 3
 
-  COMPLETE_RESPOND:
-    type: system
-    description: Транзакция бронирования
-    logic:
-      action: respond_to_review
-      payload:
-        request_id: $context.selected_request_id
-        responder_id: $context.user_id
-    transitions:
-      - condition: success == true
-        next_state: RESPOND_SUCCESS
-      - condition: success == false
-        next_state: ERROR_REQUEST_TAKEN
-
-  RESPOND_SUCCESS:
+  PRR_FILTERS_MENU:
     type: interactive
-    description: Успешное бронирование
+    on_enter:
+      - action: prepare_prr_project_filters
+        payload:
+          page: $context.project_filter_page
     interface:
       text:
         ru: |
-          🔒 *Слот забронирован*
+          Выбери, какие проекты показывать на доске:
 
-          Проверяющий: *Вы* ➡️ Пир: `{peer_login}`
-
-          📬 *Связь в Telegram:* @{peer_telegram}
+          Текущий фильтр: `{current_project_filters_text}`
+          {project_filter_list_formatted}
         en: |
-          🔒 *Slot Reserved*
+          Choose which projects to show on the board:
 
-          Reviewer: *You* ➡️ Peer: `{peer_login}`
-
-          📬 *Telegram Contact:* @{peer_telegram}
-    transitions:
-      - next_state: REVIEW_MENU
-
-  MANAGE_NOTIFICATION_FILTERS:
-    type: interactive
-    description: Конфигурация фильтров
-    interface:
-      text:
-        ru: |
-          ⚙️ *Настройка фильтров*
-
-          Выбери кампусы для поиска и уведомлений:
-        en: |
-          ⚙️ *Filter Config*
-
-          Select campuses for search and notifications:
+          Current filter: `{current_project_filters_text}`
+          {project_filter_list_formatted}
       buttons:
-        - id: toggle_{campus_id}
-          label: "{status_emoji} {my_campus}"
+        - id: "{project_filter_id_1}"
+          label: "{project_filter_btn_label_1}"
+          condition: "project_filter_id_1 != ''"
+          action: toggle_project_filter
+          next_state: PRR_FILTERS_MENU
+          row: 1
+        - id: "{project_filter_id_2}"
+          label: "{project_filter_btn_label_2}"
+          condition: "project_filter_id_2 != ''"
+          action: toggle_project_filter
+          next_state: PRR_FILTERS_MENU
+          row: 2
+        - id: "{project_filter_id_3}"
+          label: "{project_filter_btn_label_3}"
+          condition: "project_filter_id_3 != ''"
+          action: toggle_project_filter
+          next_state: PRR_FILTERS_MENU
+          row: 3
+        - id: "{project_filter_id_4}"
+          label: "{project_filter_btn_label_4}"
+          condition: "project_filter_id_4 != ''"
+          action: toggle_project_filter
+          next_state: PRR_FILTERS_MENU
+          row: 4
+        - id: "{project_filter_id_5}"
+          label: "{project_filter_btn_label_5}"
+          condition: "project_filter_id_5 != ''"
+          action: toggle_project_filter
+          next_state: PRR_FILTERS_MENU
+          row: 5
+        - id: prev_filter_page
+          label:
+            ru: ⬅️ Назад
+            en: ⬅️ Prev
+          condition: "project_filter_has_prev_page == true"
+          action: prr_project_filter_prev_page
+          next_state: PRR_FILTERS_MENU
+          row: 6
+        - id: filter_page
+          label:
+            ru: "{project_filter_page_caption_ru}"
+            en: "{project_filter_page_caption_en}"
+          action: none
+          row: 6
+        - id: next_filter_page
+          label:
+            ru: Вперёд ➡️
+            en: Next ➡️
+          condition: "project_filter_has_next_page == true"
+          action: prr_project_filter_next_page
+          next_state: PRR_FILTERS_MENU
+          row: 6
+        - id: reset
+          label:
+            ru: ♻️ Сбросить фильтры
+            en: ♻️ Reset filters
+          action: reset_project_filters
+          next_state: PRR_FILTERS_MENU
+          row: 7
+        - id: apply
+          label:
+            ru: ✅ Применить
+            en: ✅ Apply
+          next_state: GLOBAL_PRR_BOARD
+          row: 7
         - id: back
           label:
-            ru: 💾 Готово / Назад
-            en: 💾 Done / Back
-          next_state: REVIEW_MENU
-    transitions:
-      - trigger: button_click
-        condition: id.startswith('toggle_')
-        action: toggle_campus_filter
-        next_state: MANAGE_NOTIFICATION_FILTERS
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: GLOBAL_PRR_BOARD
+          row: 8
 
-  ERROR_NO_PROJECTS_IN_REVIEW:
+  ERROR_NO_IN_REVIEWS_PROJECTS:
     type: interactive
-    description: Ошибка - нет проектов
     interface:
       text:
         ru: |
-          ⚠️ *Нет данных*
+          ❌ У тебя нет проектов в статусе `IN_REVIEWS`.
 
-          Не найдено активных проектов в статусе `Review`.
-          _Сначала сдай проект на платформе._
+          Бот предлагает только проекты из:
+          `/participants/{login}/projects?status=IN_REVIEWS`
         en: |
-          ⚠️ *Null Result*
+          ❌ You have no projects in `IN_REVIEWS` status.
 
-          No active projects with status `Review` found.
-          _Submit project on the intranet first._
+          The bot only offers projects from:
+          `/participants/{login}/projects?status=IN_REVIEWS`
       buttons:
-        - id: back
+        - id: ok
           label:
-            ru: Понятно
-            en: OK
-          next_state: REVIEW_MENU
+            ru: 👌 ОК
+            en: 👌 OK
+          next_state: PRR_MAIN_MENU
+          row: 1
 
-  ERROR_REQUEST_TAKEN:
+  ERROR_PRR_ALREADY_EXISTS_FOR_PROJECT:
     type: interactive
-    description: Ошибка - Race condition
     interface:
       text:
         ru: |
-          ❌ *Ошибка бронирования*
+          ⚠️ На этот проект уже есть открытый запрос.
 
-          Слот уже занят другим пиром.
+          Закрой старый запрос в разделе «Мои запросы», и затем создай новый.
         en: |
-          ❌ *Race Condition*
+          ⚠️ You already have an open request for this project.
 
-          Slot already reserved by another peer.
+          Close the previous request in “My requests”, then create a new one.
+      buttons:
+        - id: my_requests
+          label:
+            ru: 📂 Мои запросы
+            en: 📂 My requests
+          next_state: MY_PRR_LIST
+          row: 1
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: PRR_MAIN_MENU
+          row: 2
+
+  ERROR_CANNOT_REVIEW_SELF:
+    type: interactive
+    interface:
+      text:
+        ru: "❌ Нельзя откликнуться на собственный запрос."
+        en: "❌ You cannot respond to your own request."
       buttons:
         - id: back
           label:
-            ru: 🔄 Обновить ленту
-            en: 🔄 Refresh Feed
-          next_state: FETCH_ALL_REVIEW_REQUESTS
+            ru: 🔙 Назад к запросу
+            en: 🔙 Back to request
+          next_state: PRR_DETAILS_VIEW
+          row: 1
+
+  INFO_PRR_OUTDATED_REMOVED:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          ℹ️ Этот запрос больше неактуален.
+
+          Проект уже не в статусе `IN_REVIEWS`, поэтому мы скрыли запрос с доски.
+        en: |
+          ℹ️ This request is outdated.
+
+          The project is no longer in `IN_REVIEWS`, so the request was hidden from the board.
+      buttons:
+        - id: board
+          label:
+            ru: 📋 К доске проектов
+            en: 📋 To project board
+          next_state: GLOBAL_PRR_BOARD
+          row: 1
+
+  INFO_PRR_ALREADY_CLOSED:
+    type: interactive
+    interface:
+      text:
+        ru: "ℹ️ Запрос уже закрыт или приостановлен владельцем."
+        en: "ℹ️ The request is already closed or paused by the owner."
+      buttons:
+        - id: back
+          label:
+            ru: 🔙 К проекту
+            en: 🔙 Back to project
+          next_state: PROJECT_PRR_LIST
+          row: 1
