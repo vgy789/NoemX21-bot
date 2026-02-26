@@ -133,37 +133,37 @@ states:
           label: "{book_btn_label_1}"
           condition: "book_id_1 != ''"
           action: select_book_from_callback
-          next_state: FETCH_BOOK_DETAILS
+          next_state: REFRESH_RESULTS_AFTER_SELECTION
         - id: "{book_id_2}"
           label: "{book_btn_label_2}"
           condition: "book_id_2 != ''"
           action: select_book_from_callback
-          next_state: FETCH_BOOK_DETAILS
+          next_state: REFRESH_RESULTS_AFTER_SELECTION
         - id: "{book_id_3}"
           label: "{book_btn_label_3}"
           condition: "book_id_3 != ''"
           action: select_book_from_callback
-          next_state: FETCH_BOOK_DETAILS
+          next_state: REFRESH_RESULTS_AFTER_SELECTION
         - id: "{book_id_4}"
           label: "{book_btn_label_4}"
           condition: "book_id_4 != ''"
           action: select_book_from_callback
-          next_state: FETCH_BOOK_DETAILS
+          next_state: REFRESH_RESULTS_AFTER_SELECTION
         - id: "{book_id_5}"
           label: "{book_btn_label_5}"
           condition: "book_id_5 != ''"
           action: select_book_from_callback
-          next_state: FETCH_BOOK_DETAILS
+          next_state: REFRESH_RESULTS_AFTER_SELECTION
         - id: "{book_id_6}"
           label: "{book_btn_label_6}"
           condition: "book_id_6 != ''"
           action: select_book_from_callback
-          next_state: FETCH_BOOK_DETAILS
+          next_state: REFRESH_RESULTS_AFTER_SELECTION
         - id: "{book_id_7}"
           label: "{book_btn_label_7}"
           condition: "book_id_7 != ''"
           action: select_book_from_callback
-          next_state: FETCH_BOOK_DETAILS
+          next_state: REFRESH_RESULTS_AFTER_SELECTION
         - id: prev_page
           label:
             ru: ⬅️ Назад
@@ -207,7 +207,21 @@ states:
       - trigger: message
         condition: "is_numeric(id)"
         action: select_book_by_number
-        next_state: FETCH_BOOK_DETAILS
+        next_state: REFRESH_RESULTS_AFTER_SELECTION
+
+  REFRESH_RESULTS_AFTER_SELECTION:
+    type: system
+    description: Перечитываем результаты перед открытием карточки книги
+    logic:
+      action: search_books
+      payload:
+        query: $context.search_query
+        category_id: $context.selected_category_id
+        only_available: $context.only_available
+        page: $context.page
+        limit: 7
+    transitions:
+      - next_state: FETCH_BOOK_DETAILS
 
   FETCH_BOOK_DETAILS:
     type: system
@@ -500,7 +514,7 @@ states:
           label:
             ru: 🔄 К результатам
             en: 🔄 Back to results
-          next_state: DISPLAY_RESULTS
+          next_state: EXECUTE_SEARCH
         - id: home
           label:
             ru: 🏠 Домой

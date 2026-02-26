@@ -276,10 +276,10 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 	}
 
 	// 2. Find transition based on input (button ID)
-	nextStateRaw, buttonAction := e.findNextState(currentStateSpec, input, state)
+	nextStateRaw, buttonAction, buttonMatched := e.findNextState(currentStateSpec, input, state)
 
-	// If a button was pressed (we found a next state), record it as last_input
-	if nextStateRaw != "" {
+	// If a button was pressed, record it as last_input.
+	if buttonMatched {
 		if state.Context == nil {
 			state.Context = make(map[string]any)
 		}
@@ -289,6 +289,14 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 			_, updates, _ := e.runAction(ctx, Logic{Action: buttonAction}, state, map[string]any{"id": input})
 			e.updateStateContext(state, updates)
 		}
+	}
+
+	// Action-only button: keep current state and re-render without transition.
+	if buttonMatched && nextStateRaw == "" {
+		if err := e.repo.SetState(ctx, state); err != nil {
+			return nil, err
+		}
+		return e.GetCurrentRender(ctx, userID)
 	}
 
 	// If it's an input state and no button was pressed, validate the raw input
@@ -404,22 +412,22 @@ func (e *Engine) handleSpecialInputs(state *UserState, input string, userID int6
 	}
 }
 
-func (e *Engine) findNextState(stateSpec State, input string, userState *UserState) (string, string) {
+func (e *Engine) findNextState(stateSpec State, input string, userState *UserState) (string, string, bool) {
 	for _, btn := range stateSpec.Interface.Buttons {
 		// Direct match against static ID
 		if btn.ID == input {
-			return btn.NextState, btn.Action
+			return btn.NextState, btn.Action, true
 		}
 		// Try matching after replacing variables in the ID (allows IDs like "{category_1}")
 		// This handles dynamic button IDs that contain template variables
 		if userState != nil {
 			replacedID := e.replaceVariablesOpts(btn.ID, userState, false)
 			if replacedID == input {
-				return btn.NextState, btn.Action
+				return btn.NextState, btn.Action, true
 			}
 		}
 	}
-	return "", ""
+	return "", "", false
 }
 
 // transitionTo updates the user state and automatically processes subsequent system states.
