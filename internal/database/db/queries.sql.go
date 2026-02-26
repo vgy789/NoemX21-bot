@@ -82,6 +82,27 @@ func (q *Queries) CountSearchBooks(ctx context.Context, arg CountSearchBooksPara
 	return column_1, err
 }
 
+const countUserActiveRoomBookings = `-- name: CountUserActiveRoomBookings :one
+SELECT count(*)::int
+FROM room_bookings rb
+JOIN campuses c ON rb.campus_id = c.id
+WHERE rb.user_id = $1
+  AND (
+    rb.booking_date > (CURRENT_TIMESTAMP AT TIME ZONE COALESCE(c.timezone, 'UTC'))::date
+    OR (
+      rb.booking_date = (CURRENT_TIMESTAMP AT TIME ZONE COALESCE(c.timezone, 'UTC'))::date
+      AND (rb.start_time + make_interval(mins => rb.duration_minutes)) > (CURRENT_TIMESTAMP AT TIME ZONE COALESCE(c.timezone, 'UTC'))::time
+    )
+  )
+`
+
+func (q *Queries) CountUserActiveRoomBookings(ctx context.Context, userID int64) (int32, error) {
+	row := q.db.QueryRow(ctx, countUserActiveRoomBookings, userID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createApiKey = `-- name: CreateApiKey :one
 INSERT INTO api_keys (
     user_account_id, key_hash, prefix, expires_at
@@ -351,6 +372,26 @@ type DeleteUserAccountByExternalIdParams struct {
 
 func (q *Queries) DeleteUserAccountByExternalId(ctx context.Context, arg DeleteUserAccountByExternalIdParams) error {
 	_, err := q.db.Exec(ctx, deleteUserAccountByExternalId, arg.Platform, arg.ExternalID)
+	return err
+}
+
+const deleteUserBookLoans = `-- name: DeleteUserBookLoans :exec
+DELETE FROM book_loans
+WHERE user_id = $1
+`
+
+func (q *Queries) DeleteUserBookLoans(ctx context.Context, userID int64) error {
+	_, err := q.db.Exec(ctx, deleteUserBookLoans, userID)
+	return err
+}
+
+const deleteUserRoomBookings = `-- name: DeleteUserRoomBookings :exec
+DELETE FROM room_bookings
+WHERE user_id = $1
+`
+
+func (q *Queries) DeleteUserRoomBookings(ctx context.Context, userID int64) error {
+	_, err := q.db.Exec(ctx, deleteUserRoomBookings, userID)
 	return err
 }
 

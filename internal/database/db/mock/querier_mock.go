@@ -101,6 +101,21 @@ func (mr *MockQuerierMockRecorder) CountSearchBooks(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountSearchBooks", reflect.TypeOf((*MockQuerier)(nil).CountSearchBooks), ctx, arg)
 }
 
+// CountUserActiveRoomBookings mocks base method.
+func (m *MockQuerier) CountUserActiveRoomBookings(ctx context.Context, userID int64) (int32, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountUserActiveRoomBookings", ctx, userID)
+	ret0, _ := ret[0].(int32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountUserActiveRoomBookings indicates an expected call of CountUserActiveRoomBookings.
+func (mr *MockQuerierMockRecorder) CountUserActiveRoomBookings(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountUserActiveRoomBookings", reflect.TypeOf((*MockQuerier)(nil).CountUserActiveRoomBookings), ctx, userID)
+}
+
 // CreateApiKey mocks base method.
 func (m *MockQuerier) CreateApiKey(ctx context.Context, arg db.CreateApiKeyParams) (db.ApiKey, error) {
 	m.ctrl.T.Helper()
@@ -272,6 +287,34 @@ func (m *MockQuerier) DeleteUserAccountByExternalId(ctx context.Context, arg db.
 func (mr *MockQuerierMockRecorder) DeleteUserAccountByExternalId(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserAccountByExternalId", reflect.TypeOf((*MockQuerier)(nil).DeleteUserAccountByExternalId), ctx, arg)
+}
+
+// DeleteUserBookLoans mocks base method.
+func (m *MockQuerier) DeleteUserBookLoans(ctx context.Context, userID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteUserBookLoans", ctx, userID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteUserBookLoans indicates an expected call of DeleteUserBookLoans.
+func (mr *MockQuerierMockRecorder) DeleteUserBookLoans(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserBookLoans", reflect.TypeOf((*MockQuerier)(nil).DeleteUserBookLoans), ctx, userID)
+}
+
+// DeleteUserRoomBookings mocks base method.
+func (m *MockQuerier) DeleteUserRoomBookings(ctx context.Context, userID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteUserRoomBookings", ctx, userID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteUserRoomBookings indicates an expected call of DeleteUserRoomBookings.
+func (mr *MockQuerierMockRecorder) DeleteUserRoomBookings(ctx, userID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserRoomBookings", reflect.TypeOf((*MockQuerier)(nil).DeleteUserRoomBookings), ctx, userID)
 }
 
 // GetActiveApiKey mocks base method.

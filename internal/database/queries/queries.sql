@@ -35,6 +35,14 @@ RETURNING *;
 DELETE FROM user_accounts
 WHERE platform = $1 AND external_id = $2;
 
+-- name: DeleteUserBookLoans :exec
+DELETE FROM book_loans
+WHERE user_id = $1;
+
+-- name: DeleteUserRoomBookings :exec
+DELETE FROM room_bookings
+WHERE user_id = $1;
+
 -- name: GetUserAccountByS21Login :one
 SELECT * FROM user_accounts
 WHERE s21_login = $1;
@@ -478,6 +486,19 @@ JOIN rooms r ON rb.campus_id = r.campus_id AND rb.room_id = r.id
 JOIN campuses c ON rb.campus_id = c.id
 WHERE rb.user_id = $1 AND rb.booking_date >= CURRENT_DATE
 ORDER BY rb.booking_date, rb.start_time;
+
+-- name: CountUserActiveRoomBookings :one
+SELECT count(*)::int
+FROM room_bookings rb
+JOIN campuses c ON rb.campus_id = c.id
+WHERE rb.user_id = $1
+  AND (
+    rb.booking_date > (CURRENT_TIMESTAMP AT TIME ZONE COALESCE(c.timezone, 'UTC'))::date
+    OR (
+      rb.booking_date = (CURRENT_TIMESTAMP AT TIME ZONE COALESCE(c.timezone, 'UTC'))::date
+      AND (rb.start_time + make_interval(mins => rb.duration_minutes)) > (CURRENT_TIMESTAMP AT TIME ZONE COALESCE(c.timezone, 'UTC'))::time
+    )
+  );
 
 -- name: CancelRoomBooking :exec
 DELETE FROM room_bookings

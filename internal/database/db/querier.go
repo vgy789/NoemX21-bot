@@ -15,6 +15,7 @@ type Querier interface {
 	CountBooksByCampus(ctx context.Context, campusID pgtype.UUID) (CountBooksByCampusRow, error)
 	CountBooksByCategory(ctx context.Context, arg CountBooksByCategoryParams) (int32, error)
 	CountSearchBooks(ctx context.Context, arg CountSearchBooksParams) (int32, error)
+	CountUserActiveRoomBookings(ctx context.Context, userID int64) (int32, error)
 	CreateApiKey(ctx context.Context, arg CreateApiKeyParams) (ApiKey, error)
 	CreateAuthVerificationCode(ctx context.Context, arg CreateAuthVerificationCodeParams) (AuthVerificationCode, error)
 	CreateBookLoan(ctx context.Context, arg CreateBookLoanParams) (BookLoan, error)
@@ -27,6 +28,8 @@ type Querier interface {
 	DeleteAuthVerificationCode(ctx context.Context, arg DeleteAuthVerificationCodeParams) error
 	DeleteExpiredAuthVerificationCodes(ctx context.Context) error
 	DeleteUserAccountByExternalId(ctx context.Context, arg DeleteUserAccountByExternalIdParams) error
+	DeleteUserBookLoans(ctx context.Context, userID int64) error
+	DeleteUserRoomBookings(ctx context.Context, userID int64) error
 	GetActiveApiKey(ctx context.Context, userAccountID int64) (ApiKey, error)
 	GetActiveRoomsByCampus(ctx context.Context, campusID pgtype.UUID) ([]Room, error)
 	GetAllActiveCampuses(ctx context.Context) ([]GetAllActiveCampusesRow, error)

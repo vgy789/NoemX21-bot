@@ -282,22 +282,40 @@ states:
   DELETE_PROFILE:
     type: system
     description: Удаление профиля
-    interface:
-      text:
-        ru: |
-          🗑️ *Профиль удален*
-
-          Если захочешь вернуться, просто отправь команду /start.
-        en: |
-          🗑️ *Profile Deletion*
-
-          If you want to come back, just send the /start command.
     logic:
       action: delete_profile
       payload:
         user_id: $context.user_id
     transitions:
-      - next_state: START
+      - condition: success == true
+        next_state: START
+      - next_state: DELETE_PROFILE_BLOCKED
+
+  DELETE_PROFILE_BLOCKED:
+    type: interactive
+    description: Нельзя удалить профиль при активных книгах/переговорках
+    interface:
+      text:
+        ru: |
+          ⚠️ *Профиль пока нельзя удалить*
+
+          {delete_profile_block_reason_ru}
+
+          📚 Книг на руках: `{delete_profile_active_loans}`
+          🗓 Переговорок забронировано: `{delete_profile_active_room_bookings}`
+        en: |
+          ⚠️ *Profile cannot be deleted yet*
+
+          {delete_profile_block_reason_en}
+
+          📚 Borrowed books: `{delete_profile_active_loans}`
+          🗓 Active room bookings: `{delete_profile_active_room_bookings}`
+      buttons:
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: PROFILE_SETTINGS
 
   # API_SETTINGS:
   #   type: interactive
