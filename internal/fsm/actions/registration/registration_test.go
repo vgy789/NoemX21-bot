@@ -14,6 +14,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"go.uber.org/mock/gomock"
 
+	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
 	"github.com/vgy789/noemx21-bot/internal/clients/s21"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/crypto"
@@ -47,6 +48,11 @@ func newMockS21Client(handler http.Handler) *s21.Client {
 	return s21.NewClientWithHTTPClient("http://example.local", &http.Client{
 		Transport: mockRoundTripper{handler: handler},
 	})
+}
+
+func newMockRocketChatClient(handler http.Handler) (*rocketchat.Client, func()) {
+	server := httptest.NewServer(handler)
+	return rocketchat.NewClientWithHTTPClient(server.URL, "token", "bot-user", server.Client()), server.Close
 }
 
 func TestLoadUserProfile_LogsUpsertError(t *testing.T) {
@@ -122,5 +128,108 @@ func TestLoadUserProfile_LogsUpsertError(t *testing.T) {
 	out := buf.String()
 	if !bytes.Contains([]byte(out), []byte("failed to upsert participant stats cache in registration")) {
 		t.Fatalf("expected log to contain upsert error message, got logs:\n%s", out)
+	}
+}
+
+func TestFindAndVerifyRocketUser_TestModeNoOTP_BypassesEmailVerification(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockQ := dbmock.NewMockQuerier(ctrl)
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	cfg := &config.Config{TestModeNoOTP: true}
+	registry := fsm.NewLogicRegistry()
+
+	rcClient, cleanup := newMockRocketChatClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/users.info" {
+			http.NotFound(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"success":true,"user":{"_id":"rc123","username":"testlogin"}}`))
+	}))
+	defer cleanup()
+
+	mockQ.EXPECT().GetUserAccountByS21Login(gomock.Any(), "testlogin").Return(db.UserAccount{}, fmt.Errorf("not found"))
+	mockQ.EXPECT().GetRegisteredUserByS21Login(gomock.Any(), "testlogin").Return(db.RegisteredUser{
+		S21Login:     "testlogin",
+		RocketchatID: "rc123",
+		Timezone:     "UTC",
+	}, nil)
+
+	Register(
+		registry,
+		cfg,
+		logger,
+		mockQ,
+		&fakeUserSvc{},
+		rcClient,
+		nil,
+		nil,
+		service.NewMockOTPProvider(logger),
+		nil,
+	)
+
+	act, ok := registry.Get("find_and_verify_rocket_user")
+	if !ok {
+		t.Fatalf("find_and_verify_rocket_user action not registered")
+	}
+
+	_, updates, err := act(context.Background(), 42, map[string]any{"login": "testlogin"})
+	if err != nil {
+		t.Fatalf("action returned error: %v", err)
+	}
+
+	if updates["email_verified"] != true || updates["rocket_user_found"] != true {
+		t.Fatalf("expected email_verified=true and rocket_user_found=true, got %#v", updates)
+	}
+}
+
+func TestFindAndVerifyRocketUser_ProdMode_RequiresVerifiedEmail(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockQ := dbmock.NewMockQuerier(ctrl)
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	cfg := &config.Config{TestModeNoOTP: false}
+	registry := fsm.NewLogicRegistry()
+
+	rcClient, cleanup := newMockRocketChatClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/users.info" {
+			http.NotFound(w, r)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"success":true,"user":{"_id":"rc123","username":"testlogin"}}`))
+	}))
+	defer cleanup()
+
+	mockQ.EXPECT().GetUserAccountByS21Login(gomock.Any(), "testlogin").Return(db.UserAccount{}, fmt.Errorf("not found"))
+
+	Register(
+		registry,
+		cfg,
+		logger,
+		mockQ,
+		&fakeUserSvc{},
+		rcClient,
+		nil,
+		nil,
+		service.NewMockOTPProvider(logger),
+		nil,
+	)
+
+	act, ok := registry.Get("find_and_verify_rocket_user")
+	if !ok {
+		t.Fatalf("find_and_verify_rocket_user action not registered")
+	}
+
+	_, updates, err := act(context.Background(), 42, map[string]any{"login": "testlogin"})
+	if err != nil {
+		t.Fatalf("action returned error: %v", err)
+	}
+
+	if updates["email_mismatch"] != true || updates["rocket_user_found"] != true {
+		t.Fatalf("expected email_mismatch=true and rocket_user_found=true, got %#v", updates)
 	}
 }

@@ -155,27 +155,24 @@ func Register(
 			return "", map[string]any{"rocket_user_not_found": true}, nil
 		}
 
-		// 3. Verify email unless TEST_MODE_NO_OTP is enabled.
-		if !cfg.TestModeNoOTP {
+		// 3. Verify email, except in TEST_MODE_NO_OTP where verification is intentionally bypassed.
+		emailVerified := false
+		if cfg != nil && cfg.TestModeNoOTP {
+			log.Info("test mode enabled: skipping rocketchat email verification", "login", login)
+			emailVerified = true
+		} else {
 			expectedEmail := fmt.Sprintf("%s@student.21-school.ru", login)
-			emailVerified := false
-			if len(rcUser.User.Emails) == 0 {
-				log.Warn("rocketchat email not available (no emails returned)", "login", login)
-				return "", map[string]any{"email_unavailable": true, "rocket_user_found": true}, nil
-			}
 			for _, email := range rcUser.User.Emails {
 				if email.Address == expectedEmail && email.Verified {
 					emailVerified = true
 					break
 				}
 			}
+		}
 
-			if !emailVerified {
-				log.Warn("rocketchat email verification failed", "login", login)
-				return "", map[string]any{"email_mismatch": true, "rocket_user_found": true}, nil
-			}
-		} else {
-			log.Info("test mode no otp: skipping email verification", "login", login)
+		if !emailVerified {
+			log.Warn("rocketchat email verification failed", "login", login)
+			return "", map[string]any{"email_mismatch": true, "rocket_user_found": true}, nil
 		}
 
 		// 4. Update the Rocket.Chat ID in the database
