@@ -34,7 +34,6 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 			"selected_book_id":       0,
 			"shown_results_count":    0,
 			"formatted_book_list":    "",
-			"results_scope_label":    "",
 			"results_scope_label_ru": "",
 			"results_scope_label_en": "",
 		}, nil
@@ -384,14 +383,14 @@ func getUserSummary(ctx context.Context, queries db.Querier, userID int64, paylo
 		"selected_book_id":       0,
 		"shown_results_count":    0,
 		"formatted_book_list":    "",
-		"results_scope_label":    "",
 		"results_scope_label_ru": "",
 		"results_scope_label_en": "",
 		"filter_status_text_ru":  "Все книги",
 		"filter_status_text_en":  "All books",
 		"toggle_btn_label_ru":    "Только доступные",
 		"toggle_btn_label_en":    "Available only",
-		"page_caption":           "1/1",
+		"page_caption_ru":        "Страница 1/1",
+		"page_caption_en":        "Page 1/1",
 		"has_prev_page":          false,
 		"has_next_page":          false,
 	}
@@ -571,7 +570,8 @@ func fillSearchView(
 	vars["has_prev_page"] = page > 1
 	vars["has_next_page"] = page < totalPages
 	vars["shown_results_count"] = len(pageBooks)
-	vars["page_caption"] = fmt.Sprintf("%d/%d", page, totalPages)
+	vars["page_caption_ru"] = fmt.Sprintf("%d/%d", page, totalPages)
+	vars["page_caption_en"] = fmt.Sprintf("%d/%d", page, totalPages)
 
 	scopeRU := "весь каталог"
 	scopeEN := "full catalog"
@@ -585,11 +585,6 @@ func fillSearchView(
 	}
 	vars["results_scope_label_ru"] = fsm.EscapeMarkdown(scopeRU)
 	vars["results_scope_label_en"] = fsm.EscapeMarkdown(scopeEN)
-	if common.ToString(vars["language"]) == fsm.LangEn {
-		vars["results_scope_label"] = vars["results_scope_label_en"]
-	} else {
-		vars["results_scope_label"] = vars["results_scope_label_ru"]
-	}
 
 	if onlyAvailable {
 		vars["filter_status_text_ru"] = "Только доступные"

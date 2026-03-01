@@ -130,19 +130,19 @@ func (mr *MockQuerierMockRecorder) CountSearchBooks(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountSearchBooks", reflect.TypeOf((*MockQuerier)(nil).CountSearchBooks), ctx, arg)
 }
 
-// CountUserActiveRoomBookings mocks base method.
-func (m *MockQuerier) CountUserActiveRoomBookings(ctx context.Context, userID int64) (int32, error) {
+// CountSearchCatalogProjects mocks base method.
+func (m *MockQuerier) CountSearchCatalogProjects(ctx context.Context, dollar_1 any) (int32, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CountUserActiveRoomBookings", ctx, userID)
+	ret := m.ctrl.Call(m, "CountSearchCatalogProjects", ctx, dollar_1)
 	ret0, _ := ret[0].(int32)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// CountUserActiveRoomBookings indicates an expected call of CountUserActiveRoomBookings.
-func (mr *MockQuerierMockRecorder) CountUserActiveRoomBookings(ctx, userID any) *gomock.Call {
+// CountSearchCatalogProjects indicates an expected call of CountSearchCatalogProjects.
+func (mr *MockQuerierMockRecorder) CountSearchCatalogProjects(ctx, dollar_1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountUserActiveRoomBookings", reflect.TypeOf((*MockQuerier)(nil).CountUserActiveRoomBookings), ctx, userID)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountSearchCatalogProjects", reflect.TypeOf((*MockQuerier)(nil).CountSearchCatalogProjects), ctx, dollar_1)
 }
 
 // CreateApiKey mocks base method.
@@ -319,6 +319,76 @@ func (mr *MockQuerierMockRecorder) DeleteExpiredAuthVerificationCodes(ctx any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredAuthVerificationCodes", reflect.TypeOf((*MockQuerier)(nil).DeleteExpiredAuthVerificationCodes), ctx)
 }
 
+// DeleteStaleCoursesCatalog mocks base method.
+func (m *MockQuerier) DeleteStaleCoursesCatalog(ctx context.Context, syncBatchID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteStaleCoursesCatalog", ctx, syncBatchID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteStaleCoursesCatalog indicates an expected call of DeleteStaleCoursesCatalog.
+func (mr *MockQuerierMockRecorder) DeleteStaleCoursesCatalog(ctx, syncBatchID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStaleCoursesCatalog", reflect.TypeOf((*MockQuerier)(nil).DeleteStaleCoursesCatalog), ctx, syncBatchID)
+}
+
+// DeleteStaleNodesCatalog mocks base method.
+func (m *MockQuerier) DeleteStaleNodesCatalog(ctx context.Context, syncBatchID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteStaleNodesCatalog", ctx, syncBatchID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteStaleNodesCatalog indicates an expected call of DeleteStaleNodesCatalog.
+func (mr *MockQuerierMockRecorder) DeleteStaleNodesCatalog(ctx, syncBatchID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStaleNodesCatalog", reflect.TypeOf((*MockQuerier)(nil).DeleteStaleNodesCatalog), ctx, syncBatchID)
+}
+
+// DeleteStaleProjectNodesCatalog mocks base method.
+func (m *MockQuerier) DeleteStaleProjectNodesCatalog(ctx context.Context, syncBatchID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteStaleProjectNodesCatalog", ctx, syncBatchID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteStaleProjectNodesCatalog indicates an expected call of DeleteStaleProjectNodesCatalog.
+func (mr *MockQuerierMockRecorder) DeleteStaleProjectNodesCatalog(ctx, syncBatchID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStaleProjectNodesCatalog", reflect.TypeOf((*MockQuerier)(nil).DeleteStaleProjectNodesCatalog), ctx, syncBatchID)
+}
+
+// DeleteStaleProjectSearchCatalog mocks base method.
+func (m *MockQuerier) DeleteStaleProjectSearchCatalog(ctx context.Context, syncBatchID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteStaleProjectSearchCatalog", ctx, syncBatchID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteStaleProjectSearchCatalog indicates an expected call of DeleteStaleProjectSearchCatalog.
+func (mr *MockQuerierMockRecorder) DeleteStaleProjectSearchCatalog(ctx, syncBatchID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStaleProjectSearchCatalog", reflect.TypeOf((*MockQuerier)(nil).DeleteStaleProjectSearchCatalog), ctx, syncBatchID)
+}
+
+// DeleteStaleProjectsCatalog mocks base method.
+func (m *MockQuerier) DeleteStaleProjectsCatalog(ctx context.Context, syncBatchID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteStaleProjectsCatalog", ctx, syncBatchID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteStaleProjectsCatalog indicates an expected call of DeleteStaleProjectsCatalog.
+func (mr *MockQuerierMockRecorder) DeleteStaleProjectsCatalog(ctx, syncBatchID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStaleProjectsCatalog", reflect.TypeOf((*MockQuerier)(nil).DeleteStaleProjectsCatalog), ctx, syncBatchID)
+}
+
 // DeleteUserAccountByExternalId mocks base method.
 func (m *MockQuerier) DeleteUserAccountByExternalId(ctx context.Context, arg db.DeleteUserAccountByExternalIdParams) error {
 	m.ctrl.T.Helper()
@@ -331,34 +401,6 @@ func (m *MockQuerier) DeleteUserAccountByExternalId(ctx context.Context, arg db.
 func (mr *MockQuerierMockRecorder) DeleteUserAccountByExternalId(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserAccountByExternalId", reflect.TypeOf((*MockQuerier)(nil).DeleteUserAccountByExternalId), ctx, arg)
-}
-
-// DeleteUserBookLoans mocks base method.
-func (m *MockQuerier) DeleteUserBookLoans(ctx context.Context, userID int64) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteUserBookLoans", ctx, userID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteUserBookLoans indicates an expected call of DeleteUserBookLoans.
-func (mr *MockQuerierMockRecorder) DeleteUserBookLoans(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserBookLoans", reflect.TypeOf((*MockQuerier)(nil).DeleteUserBookLoans), ctx, userID)
-}
-
-// DeleteUserRoomBookings mocks base method.
-func (m *MockQuerier) DeleteUserRoomBookings(ctx context.Context, userID int64) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DeleteUserRoomBookings", ctx, userID)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// DeleteUserRoomBookings indicates an expected call of DeleteUserRoomBookings.
-func (mr *MockQuerierMockRecorder) DeleteUserRoomBookings(ctx, userID any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserRoomBookings", reflect.TypeOf((*MockQuerier)(nil).DeleteUserRoomBookings), ctx, userID)
 }
 
 // ExistsOpenReviewRequestByUserAndProject mocks base method.
@@ -569,6 +611,51 @@ func (m *MockQuerier) GetCampusesWithBookingsForTimezone(ctx context.Context, ti
 func (mr *MockQuerierMockRecorder) GetCampusesWithBookingsForTimezone(ctx, timezone any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCampusesWithBookingsForTimezone", reflect.TypeOf((*MockQuerier)(nil).GetCampusesWithBookingsForTimezone), ctx, timezone)
+}
+
+// GetCatalogProjectIDsByCourse mocks base method.
+func (m *MockQuerier) GetCatalogProjectIDsByCourse(ctx context.Context, courseID pgtype.Int8) ([]int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCatalogProjectIDsByCourse", ctx, courseID)
+	ret0, _ := ret[0].([]int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCatalogProjectIDsByCourse indicates an expected call of GetCatalogProjectIDsByCourse.
+func (mr *MockQuerierMockRecorder) GetCatalogProjectIDsByCourse(ctx, courseID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCatalogProjectIDsByCourse", reflect.TypeOf((*MockQuerier)(nil).GetCatalogProjectIDsByCourse), ctx, courseID)
+}
+
+// GetCatalogProjectIDsByNodeRecursive mocks base method.
+func (m *MockQuerier) GetCatalogProjectIDsByNodeRecursive(ctx context.Context, id int64) ([]int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCatalogProjectIDsByNodeRecursive", ctx, id)
+	ret0, _ := ret[0].([]int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCatalogProjectIDsByNodeRecursive indicates an expected call of GetCatalogProjectIDsByNodeRecursive.
+func (mr *MockQuerierMockRecorder) GetCatalogProjectIDsByNodeRecursive(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCatalogProjectIDsByNodeRecursive", reflect.TypeOf((*MockQuerier)(nil).GetCatalogProjectIDsByNodeRecursive), ctx, id)
+}
+
+// GetCatalogProjectTitlesByIDs mocks base method.
+func (m *MockQuerier) GetCatalogProjectTitlesByIDs(ctx context.Context, dollar_1 []int64) ([]db.GetCatalogProjectTitlesByIDsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCatalogProjectTitlesByIDs", ctx, dollar_1)
+	ret0, _ := ret[0].([]db.GetCatalogProjectTitlesByIDsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCatalogProjectTitlesByIDs indicates an expected call of GetCatalogProjectTitlesByIDs.
+func (mr *MockQuerierMockRecorder) GetCatalogProjectTitlesByIDs(ctx, dollar_1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCatalogProjectTitlesByIDs", reflect.TypeOf((*MockQuerier)(nil).GetCatalogProjectTitlesByIDs), ctx, dollar_1)
 }
 
 // GetDistinctUserTimezones mocks base method.
@@ -1052,18 +1139,18 @@ func (mr *MockQuerierMockRecorder) IncrementReviewRequestViewCount(ctx, id any) 
 }
 
 // MarkReviewRequestNegotiatingAndIncrementResponses mocks base method.
-func (m *MockQuerier) MarkReviewRequestNegotiatingAndIncrementResponses(ctx context.Context, id int64) (db.MarkReviewRequestNegotiatingAndIncrementResponsesRow, error) {
+func (m *MockQuerier) MarkReviewRequestNegotiatingAndIncrementResponses(ctx context.Context, arg db.MarkReviewRequestNegotiatingAndIncrementResponsesParams) (db.MarkReviewRequestNegotiatingAndIncrementResponsesRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "MarkReviewRequestNegotiatingAndIncrementResponses", ctx, id)
+	ret := m.ctrl.Call(m, "MarkReviewRequestNegotiatingAndIncrementResponses", ctx, arg)
 	ret0, _ := ret[0].(db.MarkReviewRequestNegotiatingAndIncrementResponsesRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // MarkReviewRequestNegotiatingAndIncrementResponses indicates an expected call of MarkReviewRequestNegotiatingAndIncrementResponses.
-func (mr *MockQuerierMockRecorder) MarkReviewRequestNegotiatingAndIncrementResponses(ctx, id any) *gomock.Call {
+func (mr *MockQuerierMockRecorder) MarkReviewRequestNegotiatingAndIncrementResponses(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkReviewRequestNegotiatingAndIncrementResponses", reflect.TypeOf((*MockQuerier)(nil).MarkReviewRequestNegotiatingAndIncrementResponses), ctx, id)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkReviewRequestNegotiatingAndIncrementResponses", reflect.TypeOf((*MockQuerier)(nil).MarkReviewRequestNegotiatingAndIncrementResponses), ctx, arg)
 }
 
 // ReturnBookLoan mocks base method.
@@ -1109,6 +1196,66 @@ func (mr *MockQuerierMockRecorder) SearchBooks(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchBooks", reflect.TypeOf((*MockQuerier)(nil).SearchBooks), ctx, arg)
 }
 
+// SearchCatalogCourses mocks base method.
+func (m *MockQuerier) SearchCatalogCourses(ctx context.Context, dollar_1 any) ([]db.SearchCatalogCoursesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchCatalogCourses", ctx, dollar_1)
+	ret0, _ := ret[0].([]db.SearchCatalogCoursesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SearchCatalogCourses indicates an expected call of SearchCatalogCourses.
+func (mr *MockQuerierMockRecorder) SearchCatalogCourses(ctx, dollar_1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchCatalogCourses", reflect.TypeOf((*MockQuerier)(nil).SearchCatalogCourses), ctx, dollar_1)
+}
+
+// SearchCatalogNodes mocks base method.
+func (m *MockQuerier) SearchCatalogNodes(ctx context.Context, dollar_1 any) ([]db.SearchCatalogNodesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchCatalogNodes", ctx, dollar_1)
+	ret0, _ := ret[0].([]db.SearchCatalogNodesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SearchCatalogNodes indicates an expected call of SearchCatalogNodes.
+func (mr *MockQuerierMockRecorder) SearchCatalogNodes(ctx, dollar_1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchCatalogNodes", reflect.TypeOf((*MockQuerier)(nil).SearchCatalogNodes), ctx, dollar_1)
+}
+
+// SearchCatalogProjects mocks base method.
+func (m *MockQuerier) SearchCatalogProjects(ctx context.Context, arg db.SearchCatalogProjectsParams) ([]db.SearchCatalogProjectsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchCatalogProjects", ctx, arg)
+	ret0, _ := ret[0].([]db.SearchCatalogProjectsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SearchCatalogProjects indicates an expected call of SearchCatalogProjects.
+func (mr *MockQuerierMockRecorder) SearchCatalogProjects(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchCatalogProjects", reflect.TypeOf((*MockQuerier)(nil).SearchCatalogProjects), ctx, arg)
+}
+
+// SearchCatalogProjectsAll mocks base method.
+func (m *MockQuerier) SearchCatalogProjectsAll(ctx context.Context, dollar_1 any) ([]db.SearchCatalogProjectsAllRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SearchCatalogProjectsAll", ctx, dollar_1)
+	ret0, _ := ret[0].([]db.SearchCatalogProjectsAllRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SearchCatalogProjectsAll indicates an expected call of SearchCatalogProjectsAll.
+func (mr *MockQuerierMockRecorder) SearchCatalogProjectsAll(ctx, dollar_1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchCatalogProjectsAll", reflect.TypeOf((*MockQuerier)(nil).SearchCatalogProjectsAll), ctx, dollar_1)
+}
+
 // SetReviewRequestStatus mocks base method.
 func (m *MockQuerier) SetReviewRequestStatus(ctx context.Context, arg db.SetReviewRequestStatusParams) (db.SetReviewRequestStatusRow, error) {
 	m.ctrl.T.Helper()
@@ -1138,19 +1285,19 @@ func (mr *MockQuerierMockRecorder) UpdateRoomBookingDuration(ctx, arg any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRoomBookingDuration", reflect.TypeOf((*MockQuerier)(nil).UpdateRoomBookingDuration), ctx, arg)
 }
 
-// UpdateUserAccountTelegramUsernameVisibilityByExternalId mocks base method.
-func (m *MockQuerier) UpdateUserAccountTelegramUsernameVisibilityByExternalId(ctx context.Context, arg db.UpdateUserAccountTelegramUsernameVisibilityByExternalIdParams) (db.UserAccount, error) {
+// UpdateUserAccountSearchableByExternalId mocks base method.
+func (m *MockQuerier) UpdateUserAccountSearchableByExternalId(ctx context.Context, arg db.UpdateUserAccountSearchableByExternalIdParams) (db.UserAccount, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateUserAccountTelegramUsernameVisibilityByExternalId", ctx, arg)
+	ret := m.ctrl.Call(m, "UpdateUserAccountSearchableByExternalId", ctx, arg)
 	ret0, _ := ret[0].(db.UserAccount)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// UpdateUserAccountTelegramUsernameVisibilityByExternalId indicates an expected call of UpdateUserAccountTelegramUsernameVisibilityByExternalId.
-func (mr *MockQuerierMockRecorder) UpdateUserAccountTelegramUsernameVisibilityByExternalId(ctx, arg any) *gomock.Call {
+// UpdateUserAccountSearchableByExternalId indicates an expected call of UpdateUserAccountSearchableByExternalId.
+func (mr *MockQuerierMockRecorder) UpdateUserAccountSearchableByExternalId(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserAccountTelegramUsernameVisibilityByExternalId", reflect.TypeOf((*MockQuerier)(nil).UpdateUserAccountTelegramUsernameVisibilityByExternalId), ctx, arg)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserAccountSearchableByExternalId", reflect.TypeOf((*MockQuerier)(nil).UpdateUserAccountSearchableByExternalId), ctx, arg)
 }
 
 // UpsertBook mocks base method.
@@ -1227,6 +1374,20 @@ func (mr *MockQuerierMockRecorder) UpsertCoalition(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertCoalition", reflect.TypeOf((*MockQuerier)(nil).UpsertCoalition), ctx, arg)
 }
 
+// UpsertCourseCatalog mocks base method.
+func (m *MockQuerier) UpsertCourseCatalog(ctx context.Context, arg db.UpsertCourseCatalogParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertCourseCatalog", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertCourseCatalog indicates an expected call of UpsertCourseCatalog.
+func (mr *MockQuerierMockRecorder) UpsertCourseCatalog(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertCourseCatalog", reflect.TypeOf((*MockQuerier)(nil).UpsertCourseCatalog), ctx, arg)
+}
+
 // UpsertFSMState mocks base method.
 func (m *MockQuerier) UpsertFSMState(ctx context.Context, arg db.UpsertFSMStateParams) error {
 	m.ctrl.T.Helper()
@@ -1239,6 +1400,21 @@ func (m *MockQuerier) UpsertFSMState(ctx context.Context, arg db.UpsertFSMStateP
 func (mr *MockQuerierMockRecorder) UpsertFSMState(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertFSMState", reflect.TypeOf((*MockQuerier)(nil).UpsertFSMState), ctx, arg)
+}
+
+// UpsertNodeCatalog mocks base method.
+func (m *MockQuerier) UpsertNodeCatalog(ctx context.Context, arg db.UpsertNodeCatalogParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertNodeCatalog", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertNodeCatalog indicates an expected call of UpsertNodeCatalog.
+func (mr *MockQuerierMockRecorder) UpsertNodeCatalog(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertNodeCatalog", reflect.TypeOf((*MockQuerier)(nil).UpsertNodeCatalog), ctx, arg)
 }
 
 // UpsertParticipantSkill mocks base method.
@@ -1281,6 +1457,34 @@ func (m *MockQuerier) UpsertPlatformCredentials(ctx context.Context, arg db.Upse
 func (mr *MockQuerierMockRecorder) UpsertPlatformCredentials(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertPlatformCredentials", reflect.TypeOf((*MockQuerier)(nil).UpsertPlatformCredentials), ctx, arg)
+}
+
+// UpsertProjectCatalog mocks base method.
+func (m *MockQuerier) UpsertProjectCatalog(ctx context.Context, arg db.UpsertProjectCatalogParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertProjectCatalog", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertProjectCatalog indicates an expected call of UpsertProjectCatalog.
+func (mr *MockQuerierMockRecorder) UpsertProjectCatalog(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertProjectCatalog", reflect.TypeOf((*MockQuerier)(nil).UpsertProjectCatalog), ctx, arg)
+}
+
+// UpsertProjectNodeCatalog mocks base method.
+func (m *MockQuerier) UpsertProjectNodeCatalog(ctx context.Context, arg db.UpsertProjectNodeCatalogParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertProjectNodeCatalog", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertProjectNodeCatalog indicates an expected call of UpsertProjectNodeCatalog.
+func (mr *MockQuerierMockRecorder) UpsertProjectNodeCatalog(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertProjectNodeCatalog", reflect.TypeOf((*MockQuerier)(nil).UpsertProjectNodeCatalog), ctx, arg)
 }
 
 // UpsertRegisteredUser mocks base method.

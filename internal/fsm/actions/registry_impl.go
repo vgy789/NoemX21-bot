@@ -61,7 +61,7 @@ func NewRegistrar(
 func (r *registrar) RegisterAll(registry *fsm.LogicRegistry, aliasRegistrar func(alias, target string)) {
 	common.RegisterBase(registry)
 	common.RegisterMainMenu(registry, aliasRegistrar)
-	common.RegisterReviews(registry, r.queries, r.s21Client, r.credService, r.log, aliasRegistrar)
+	common.RegisterReviews(registry, r.cfg, r.queries, r.s21Client, r.credService, r.log, aliasRegistrar)
 
 	booking.Register(registry, r.queries, r.cfg, aliasRegistrar, r.scheduleGen)
 

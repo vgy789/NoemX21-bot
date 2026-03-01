@@ -566,20 +566,17 @@ func TestEngine_FindNextState(t *testing.T) {
 		},
 	}
 
-	st, act, matched := e.findNextState(spec, "btn1", nil)
+	st, act := e.findNextState(spec, "btn1", nil)
 	assert.Equal(t, "STATE1", st)
 	assert.Equal(t, "", act)
-	assert.True(t, matched)
 
-	st, act, matched = e.findNextState(spec, "btn2", nil)
+	st, act = e.findNextState(spec, "btn2", nil)
 	assert.Equal(t, "STATE2", st)
 	assert.Equal(t, "action2", act)
-	assert.True(t, matched)
 
-	st, act, matched = e.findNextState(spec, "unknown", nil)
+	st, act = e.findNextState(spec, "unknown", nil)
 	assert.Equal(t, "", st)
 	assert.Equal(t, "", act)
-	assert.False(t, matched)
 }
 
 func TestEngine_MoreEdgeCases(t *testing.T) {

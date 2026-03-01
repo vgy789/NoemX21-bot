@@ -41,3 +41,16 @@ type CampusFileYAML struct {
 	IsActive bool   `yaml:"is_active"`
 	Timezone string `yaml:"timezone"`
 }
+
+type CatalogProjectYAML struct {
+	ID          int64    `yaml:"id"`
+	Code        *string  `yaml:"code"`
+	Title       string   `yaml:"title"`
+	CourseID    *int64   `yaml:"courseId"`
+	CourseTitle *string  `yaml:"courseTitle"`
+	Nodes       []string `yaml:"nodes"`
+}
+
+type ProjectsFileYAML struct {
+	Projects []CatalogProjectYAML `yaml:"projects"`
+}

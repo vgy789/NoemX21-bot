@@ -17,7 +17,7 @@ type Querier interface {
 	CountBooksByCategory(ctx context.Context, arg CountBooksByCategoryParams) (int32, error)
 	CountOpenReviewRequestsByUser(ctx context.Context, requesterUserID int64) (int32, error)
 	CountSearchBooks(ctx context.Context, arg CountSearchBooksParams) (int32, error)
-	CountUserActiveRoomBookings(ctx context.Context, userID int64) (int32, error)
+	CountSearchCatalogProjects(ctx context.Context, dollar_1 interface{}) (int32, error)
 	CreateApiKey(ctx context.Context, arg CreateApiKeyParams) (ApiKey, error)
 	CreateAuthVerificationCode(ctx context.Context, arg CreateAuthVerificationCodeParams) (AuthVerificationCode, error)
 	CreateBookLoan(ctx context.Context, arg CreateBookLoanParams) (BookLoan, error)
@@ -30,9 +30,12 @@ type Querier interface {
 	DeleteAllAuthVerificationCodes(ctx context.Context, s21Login pgtype.Text) error
 	DeleteAuthVerificationCode(ctx context.Context, arg DeleteAuthVerificationCodeParams) error
 	DeleteExpiredAuthVerificationCodes(ctx context.Context) error
+	DeleteStaleCoursesCatalog(ctx context.Context, syncBatchID int64) error
+	DeleteStaleNodesCatalog(ctx context.Context, syncBatchID int64) error
+	DeleteStaleProjectNodesCatalog(ctx context.Context, syncBatchID int64) error
+	DeleteStaleProjectSearchCatalog(ctx context.Context, syncBatchID int64) error
+	DeleteStaleProjectsCatalog(ctx context.Context, syncBatchID int64) error
 	DeleteUserAccountByExternalId(ctx context.Context, arg DeleteUserAccountByExternalIdParams) error
-	DeleteUserBookLoans(ctx context.Context, userID int64) error
-	DeleteUserRoomBookings(ctx context.Context, userID int64) error
 	ExistsOpenReviewRequestByUserAndProject(ctx context.Context, arg ExistsOpenReviewRequestByUserAndProjectParams) (bool, error)
 	GetActiveApiKey(ctx context.Context, userAccountID int64) (ApiKey, error)
 	GetActiveRoomsByCampus(ctx context.Context, campusID pgtype.UUID) ([]Room, error)
@@ -47,6 +50,9 @@ type Querier interface {
 	GetCampusByID(ctx context.Context, id pgtype.UUID) (GetCampusByIDRow, error)
 	GetCampusByShortName(ctx context.Context, shortName string) (Campuse, error)
 	GetCampusesWithBookingsForTimezone(ctx context.Context, timezone pgtype.Text) ([]GetCampusesWithBookingsForTimezoneRow, error)
+	GetCatalogProjectIDsByCourse(ctx context.Context, courseID pgtype.Int8) ([]int64, error)
+	GetCatalogProjectIDsByNodeRecursive(ctx context.Context, id int64) ([]int64, error)
+	GetCatalogProjectTitlesByIDs(ctx context.Context, dollar_1 []int64) ([]GetCatalogProjectTitlesByIDsRow, error)
 	GetDistinctUserTimezones(ctx context.Context) ([]string, error)
 	GetFSMState(ctx context.Context, userID int64) (FsmUserState, error)
 	GetGlobalClubs(ctx context.Context) ([]GetGlobalClubsRow, error)
@@ -82,22 +88,30 @@ type Querier interface {
 	HasActiveBooks(ctx context.Context, campusID pgtype.UUID) (bool, error)
 	HasActiveRooms(ctx context.Context, campusID pgtype.UUID) (bool, error)
 	IncrementReviewRequestViewCount(ctx context.Context, id int64) (int32, error)
-	MarkReviewRequestNegotiatingAndIncrementResponses(ctx context.Context, id int64) (MarkReviewRequestNegotiatingAndIncrementResponsesRow, error)
+	MarkReviewRequestNegotiatingAndIncrementResponses(ctx context.Context, arg MarkReviewRequestNegotiatingAndIncrementResponsesParams) (MarkReviewRequestNegotiatingAndIncrementResponsesRow, error)
 	ReturnBookLoan(ctx context.Context, arg ReturnBookLoanParams) error
 	RevokeOldApiKeys(ctx context.Context, userAccountID int64) error
 	SearchBooks(ctx context.Context, arg SearchBooksParams) ([]SearchBooksRow, error)
+	SearchCatalogCourses(ctx context.Context, dollar_1 interface{}) ([]SearchCatalogCoursesRow, error)
+	SearchCatalogNodes(ctx context.Context, dollar_1 interface{}) ([]SearchCatalogNodesRow, error)
+	SearchCatalogProjects(ctx context.Context, arg SearchCatalogProjectsParams) ([]SearchCatalogProjectsRow, error)
+	SearchCatalogProjectsAll(ctx context.Context, dollar_1 interface{}) ([]SearchCatalogProjectsAllRow, error)
 	SetReviewRequestStatus(ctx context.Context, arg SetReviewRequestStatusParams) (SetReviewRequestStatusRow, error)
 	UpdateRoomBookingDuration(ctx context.Context, arg UpdateRoomBookingDurationParams) error
-	UpdateUserAccountTelegramUsernameVisibilityByExternalId(ctx context.Context, arg UpdateUserAccountTelegramUsernameVisibilityByExternalIdParams) (UserAccount, error)
+	UpdateUserAccountSearchableByExternalId(ctx context.Context, arg UpdateUserAccountSearchableByExternalIdParams) (UserAccount, error)
 	UpsertBook(ctx context.Context, arg UpsertBookParams) (Book, error)
 	UpsertCampus(ctx context.Context, arg UpsertCampusParams) (Campuse, error)
 	UpsertClub(ctx context.Context, arg UpsertClubParams) (Club, error)
 	UpsertClubCategory(ctx context.Context, name string) (ClubCategory, error)
 	UpsertCoalition(ctx context.Context, arg UpsertCoalitionParams) error
+	UpsertCourseCatalog(ctx context.Context, arg UpsertCourseCatalogParams) error
 	UpsertFSMState(ctx context.Context, arg UpsertFSMStateParams) error
+	UpsertNodeCatalog(ctx context.Context, arg UpsertNodeCatalogParams) (int64, error)
 	UpsertParticipantSkill(ctx context.Context, arg UpsertParticipantSkillParams) error
 	UpsertParticipantStatsCache(ctx context.Context, arg UpsertParticipantStatsCacheParams) error
 	UpsertPlatformCredentials(ctx context.Context, arg UpsertPlatformCredentialsParams) error
+	UpsertProjectCatalog(ctx context.Context, arg UpsertProjectCatalogParams) error
+	UpsertProjectNodeCatalog(ctx context.Context, arg UpsertProjectNodeCatalogParams) error
 	UpsertRegisteredUser(ctx context.Context, arg UpsertRegisteredUserParams) (RegisteredUser, error)
 	UpsertRocketChatCredentials(ctx context.Context, arg UpsertRocketChatCredentialsParams) error
 	UpsertRoom(ctx context.Context, arg UpsertRoomParams) (Room, error)

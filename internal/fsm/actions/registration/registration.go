@@ -34,9 +34,6 @@ func Register(
 	if aliasRegistrar != nil {
 		aliasRegistrar("START", "registration.yaml/START")
 	}
-	normalizeLogin := func(login string) string {
-		return strings.ToLower(strings.TrimSpace(login))
-	}
 	// Helper to extract user info from payload/context
 	getUserInfo := func(ctx context.Context, userID int64, payload map[string]any) fsm.UserInfo {
 		ui := fsm.UserInfo{
@@ -97,7 +94,7 @@ func Register(
 
 	// Validate School21 user
 	registry.Register("validate_school21_user", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		login := normalizeLogin(payload["login"].(string))
+		login := payload["login"].(string)
 		log.Debug("validating school21 user", "login", login)
 
 		// 1. Get bot's own token to use for verification
@@ -136,7 +133,7 @@ func Register(
 
 	// Find and verify RocketChat user and update ID in DB
 	registry.Register("find_and_verify_rocket_user", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		login := normalizeLogin(payload["login"].(string))
+		login := payload["login"].(string)
 
 		// 1. Check if account already registered/linked in our DB
 		ua, err := queries.GetUserAccountByS21Login(ctx, login)
@@ -155,18 +152,13 @@ func Register(
 			return "", map[string]any{"rocket_user_not_found": true}, nil
 		}
 
-		// 3. Verify email, except in TEST_MODE_NO_OTP where verification is intentionally bypassed.
+		// 3. Verify email
+		expectedEmail := fmt.Sprintf("%s@student.21-school.ru", login)
 		emailVerified := false
-		if cfg != nil && cfg.TestModeNoOTP {
-			log.Info("test mode enabled: skipping rocketchat email verification", "login", login)
-			emailVerified = true
-		} else {
-			expectedEmail := fmt.Sprintf("%s@student.21-school.ru", login)
-			for _, email := range rcUser.User.Emails {
-				if email.Address == expectedEmail && email.Verified {
-					emailVerified = true
-					break
-				}
+		for _, email := range rcUser.User.Emails {
+			if email.Address == expectedEmail && email.Verified {
+				emailVerified = true
+				break
 			}
 		}
 
@@ -213,7 +205,7 @@ func Register(
 
 	// Generate and send OTP
 	registry.Register("generate_otp", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		login := normalizeLogin(payload["login"].(string))
+		login := payload["login"].(string)
 
 		// 0. Check rate limits
 		rl := service.GetRateLimiter()
@@ -265,7 +257,6 @@ func Register(
 				return "", nil, fmt.Errorf("student login not found in payload")
 			}
 		}
-		s21Login = normalizeLogin(s21Login)
 
 		ctx = context.WithValue(ctx, fsm.ContextKeyS21Login, s21Login)
 
@@ -304,12 +295,12 @@ func Register(
 			}
 
 			uaCreated, err := queries.CreateUserAccount(ctx, db.CreateUserAccountParams{
-				S21Login:                   s21Login,
-				Platform:                   platform,
-				ExternalID:                 fmt.Sprintf("%d", ui.ID),
-				Username:                   username,
-				TelegramUsernameVisibility: pgtype.Bool{Bool: true, Valid: true},
-				Role:                       db.NullEnumUserRole{EnumUserRole: db.EnumUserRoleUser, Valid: true},
+				S21Login:     s21Login,
+				Platform:     platform,
+				ExternalID:   fmt.Sprintf("%d", ui.ID),
+				Username:     username,
+				IsSearchable: pgtype.Bool{Bool: true, Valid: true},
+				Role:         db.NullEnumUserRole{EnumUserRole: db.EnumUserRoleUser, Valid: true},
 			})
 			if err != nil {
 				log.Error("failed to create user account", "error", err, "s21_login", s21Login)
@@ -386,6 +377,7 @@ func Register(
 				log.Warn("failed to sync profile data from API", "login", studentLogin, "error", err)
 				// Continue anyway - will use cached data
 			} else {
+				campusTimezone := ""
 				// Save stats to participant_stats_cache
 				cacheParams := db.UpsertParticipantStatsCacheParams{
 					S21Login:     studentLogin,
@@ -408,6 +400,10 @@ func Register(
 						// Ensure campus exists in DB: fetch & upsert if missing
 						if err := service.EnsureCampusPresent(ctx, queries, s21Client, token, log, participant.Campus.ID); err != nil {
 							log.Error("failed to ensure campus present in registration", "login", studentLogin, "campus_id", participant.Campus.ID, "error", err)
+						} else if campus, cErr := queries.GetCampusByID(ctx, campusUUID); cErr == nil {
+							if campus.Timezone.Valid {
+								campusTimezone = strings.TrimSpace(campus.Timezone.String)
+							}
 						}
 					}
 				}
@@ -447,6 +443,25 @@ func Register(
 				// Save to database (логируем ошибку вместо её подавления)
 				if err := queries.UpsertParticipantStatsCache(ctx, cacheParams); err != nil {
 					log.Error("failed to upsert participant stats cache in registration", "login", studentLogin, "error", err)
+				}
+
+				// Default registered_users.timezone to campus timezone, but never override user custom choice.
+				if campusTimezone != "" {
+					if regUser, rErr := queries.GetRegisteredUserByS21Login(ctx, studentLogin); rErr == nil {
+						currentTZ := strings.TrimSpace(regUser.Timezone)
+						if currentTZ == "" || strings.EqualFold(currentTZ, "UTC") {
+							_, uErr := queries.UpsertRegisteredUser(ctx, db.UpsertRegisteredUserParams{
+								S21Login:           regUser.S21Login,
+								RocketchatID:       regUser.RocketchatID,
+								Timezone:           campusTimezone,
+								AlternativeContact: regUser.AlternativeContact,
+								HasCoffeeBan:       regUser.HasCoffeeBan,
+							})
+							if uErr != nil {
+								log.Warn("failed to set default timezone from campus", "login", studentLogin, "timezone", campusTimezone, "error", uErr)
+							}
+						}
+					}
 				}
 
 				// Also fetch participant skills and upsert them, then generate radar chart

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/vgy789/noemx21-bot/internal/clients/s21"
+	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 	"github.com/vgy789/noemx21-bot/internal/service"
@@ -19,7 +21,13 @@ import (
 
 const (
 	reviewsPageSize = 5
+
+	projectFilterModeProject = "project"
+	projectFilterModeCourse  = "course"
+	projectFilterModeNode    = "node"
 )
+
+var telegramUsernamePattern = regexp.MustCompile(`^[A-Za-z][A-Za-z0-9_]{4,31}$`)
 
 type reviewProject struct {
 	ID   string
@@ -34,8 +42,15 @@ type reviewProjectGroup struct {
 	Count int
 }
 
+type projectFilterCandidate struct {
+	ButtonID   string
+	Label      string
+	ProjectIDs []int64
+}
+
 func registerReviewActions(
 	registry *fsm.LogicRegistry,
+	cfg *config.Config,
 	queries db.Querier,
 	s21Client *s21.Client,
 	credService *service.CredentialService,
@@ -53,7 +68,7 @@ func registerReviewActions(
 
 		projects := make([]reviewProject, 0, 8)
 		if s21Client != nil && credService != nil {
-			token, tokenErr := credService.GetValidToken(ctx, acc.S21Login)
+			token, tokenErr := getReviewsToken(ctx, credService, acc.S21Login, fallbackSchoolLogin(cfg))
 			if tokenErr != nil {
 				log.Warn("reviews: failed to get valid token", "user_id", userID, "login", acc.S21Login, "error", tokenErr)
 			} else {
@@ -65,7 +80,7 @@ func registerReviewActions(
 						if strings.EqualFold(strings.TrimSpace(p.Status), "IN_REVIEWS") {
 							projects = append(projects, reviewProject{
 								ID:   strconv.FormatInt(p.ID, 10),
-								Name: strings.TrimSpace(p.Title),
+								Name: normalizeMarkdownEscapes(strings.TrimSpace(p.Title)),
 								Type: nonEmpty(strings.TrimSpace(p.Type), "INDIVIDUAL"),
 							})
 						}
@@ -85,9 +100,7 @@ func registerReviewActions(
 		level := defaultString(payload["my_level"], "0")
 
 		if profileErr == nil {
-			if strings.TrimSpace(profile.Timezone) != "" {
-				timezoneName = strings.TrimSpace(profile.Timezone)
-			}
+			timezoneName = resolveCampusAwareTimezone(ctx, queries, strings.TrimSpace(profile.Timezone), profile.CampusID)
 			timezoneOffset = zoneOffsetString(timezoneName)
 			if profile.CampusName.Valid && strings.TrimSpace(profile.CampusName.String) != "" {
 				campusName = strings.TrimSpace(profile.CampusName.String)
@@ -216,7 +229,7 @@ func registerReviewActions(
 
 		return "", map[string]any{
 			"selected_project_id":   selected.ID,
-			"selected_project_name": selected.Name,
+			"selected_project_name": normalizeMarkdownEscapes(selected.Name),
 			"selected_project_type": selected.Type,
 		}, nil
 	})
@@ -251,8 +264,8 @@ func registerReviewActions(
 		}
 		value = TrimRunes(value, 250)
 		return "", map[string]any{
-			"time_description": value,
-			"last_input":       value,
+			"time_description":            value,
+			"create_prr_time_description": value,
 		}, nil
 	})
 
@@ -282,15 +295,19 @@ func registerReviewActions(
 			if profile.CampusID.Valid {
 				campusID = profile.CampusID
 			}
-			if strings.TrimSpace(profile.Timezone) != "" {
-				timezoneName = strings.TrimSpace(profile.Timezone)
-			}
+			timezoneName = resolveCampusAwareTimezone(ctx, queries, strings.TrimSpace(profile.Timezone), profile.CampusID)
 		}
 		timezoneOffset := defaultString(payload["user_timezone_formatted"], zoneOffsetString(timezoneName))
 
-		availability := strings.TrimSpace(ToString(payload["last_input"]))
+		availability := strings.TrimSpace(ToString(payload["create_prr_time_description"]))
 		if availability == "" {
 			availability = strings.TrimSpace(ToString(payload["time_description"]))
+		}
+		if availability == "" {
+			candidate := strings.TrimSpace(ToString(payload["last_input"]))
+			if !isPRRControlInput(candidate) {
+				availability = candidate
+			}
 		}
 		availability = nonEmpty(TrimRunes(availability, 250), "Flexible")
 
@@ -299,7 +316,7 @@ func registerReviewActions(
 			RequesterS21Login:       acc.S21Login,
 			RequesterCampusID:       campusID,
 			ProjectID:               projectID,
-			ProjectName:             defaultString(payload["selected_project_name"], "Unknown project"),
+			ProjectName:             normalizeMarkdownEscapes(defaultString(payload["selected_project_name"], "Unknown project")),
 			ProjectType:             defaultString(payload["selected_project_type"], "INDIVIDUAL"),
 			AvailabilityText:        availability,
 			RequesterTimezone:       timezoneName,
@@ -354,7 +371,7 @@ func registerReviewActions(
 			"global_board_page_caption_ru": fmt.Sprintf("%d/%d", page, totalPages),
 			"global_board_page_caption_en": fmt.Sprintf("%d/%d", page, totalPages),
 			"project_groups_formatted":     formatProjectGroups(pageItems),
-			"current_project_filters_text": projectFilterText(filters, collectKnownProjects(payload, rows), ToString(payload["language"])),
+			"current_project_filters_text": projectFilterTextWithCatalog(ctx, queries, filters, collectKnownProjects(payload, rows), ToString(payload["language"])),
 		}
 		clearProjectGroupVars(updates)
 		for i, g := range pageItems {
@@ -393,11 +410,12 @@ func registerReviewActions(
 		for i := 1; i <= reviewsPageSize; i++ {
 			if strings.TrimSpace(ToString(payload[fmt.Sprintf("project_group_id_%d", i)])) == id {
 				updates["selected_project_name"] = defaultString(payload[fmt.Sprintf("project_group_name_%d", i)], "Unknown project")
+				updates["selected_project_name"] = normalizeMarkdownEscapes(ToString(updates["selected_project_name"]))
 				updates["selected_project_type"] = defaultString(payload[fmt.Sprintf("project_group_type_%d", i)], "INDIVIDUAL")
 				return "", updates, nil
 			}
 		}
-		updates["selected_project_name"] = defaultString(payload["selected_project_name"], "Unknown project")
+		updates["selected_project_name"] = normalizeMarkdownEscapes(defaultString(payload["selected_project_name"], "Unknown project"))
 		updates["selected_project_type"] = defaultString(payload["selected_project_type"], "INDIVIDUAL")
 		return "", updates, nil
 	})
@@ -438,7 +456,7 @@ func registerReviewActions(
 			updates[fmt.Sprintf("project_prr_btn_label_%d", n)] = fmt.Sprintf("%s %s · %s", statusEmoji(row.Status), row.RequesterS21Login, nonEmpty(row.RequesterCampusName, "Unknown campus"))
 		}
 		if len(rows) > 0 {
-			updates["selected_project_name"] = rows[0].ProjectName
+			updates["selected_project_name"] = normalizeMarkdownEscapes(rows[0].ProjectName)
 			updates["selected_project_type"] = rows[0].ProjectType
 		}
 		return "", updates, nil
@@ -483,12 +501,13 @@ func registerReviewActions(
 		viewerOffset := strings.TrimSpace(ToString(payload["user_timezone_formatted"]))
 		if viewerOffset == "" {
 			if acc, accErr := getTelegramAccount(ctx, queries, userID); accErr == nil {
-				if profile, profileErr := queries.GetMyProfile(ctx, acc.S21Login); profileErr == nil && strings.TrimSpace(profile.Timezone) != "" {
-					viewerOffset = zoneOffsetString(strings.TrimSpace(profile.Timezone))
+				if profile, profileErr := queries.GetMyProfile(ctx, acc.S21Login); profileErr == nil {
+					viewerTZ := resolveCampusAwareTimezone(ctx, queries, strings.TrimSpace(profile.Timezone), profile.CampusID)
+					viewerOffset = zoneOffsetString(viewerTZ)
 				}
 			}
 		}
-		return "", detailUpdatesFromReviewRow(row, ToString(payload["language"]), viewerOffset), nil
+		return "", detailUpdatesFromReviewRow(ctx, queries, row, ToString(payload["language"]), viewerOffset), nil
 	})
 
 	registry.Register("db_increment_prr_view_counter", func(ctx context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
@@ -528,11 +547,42 @@ func registerReviewActions(
 
 		isOwn := row.RequesterUserID == acc.ID
 		status := strings.TrimSpace(string(row.Status))
-		prrClosed := status == string(db.EnumReviewStatusCLOSED) || status == string(db.EnumReviewStatusPAUSED)
+		prrClosed := status == string(db.EnumReviewStatusCLOSED) || status == string(db.EnumReviewStatusPAUSED) || status == string(db.EnumReviewStatusNEGOTIATING)
 		projectStillInReviews := true
+		reviewerUsername := ""
+		reviewerLevel := strings.TrimSpace(ToString(payload["my_level"]))
+		if reviewerLevel == "" {
+			if profile, profileErr := queries.GetMyProfile(ctx, acc.S21Login); profileErr == nil && profile.Level.Valid {
+				reviewerLevel = strconv.FormatInt(int64(profile.Level.Int32), 10)
+			}
+		}
+		if reviewerLevel == "" {
+			reviewerLevel = "0"
+		}
+		reviewerTelegramUsername := ""
+		if !acc.IsSearchable.Valid || acc.IsSearchable.Bool {
+			reviewerTelegramUsername = sanitizeTelegramUsername(acc.Username.String)
+		}
+		reviewerUsername = reviewerTelegramUsername
+		reviewerRocketchatID := ""
+		reviewerAlternativeContact := ""
+		if regUser, regErr := queries.GetRegisteredUserByS21Login(ctx, acc.S21Login); regErr == nil {
+			reviewerRocketchatID = strings.TrimSpace(regUser.RocketchatID)
+			if regUser.AlternativeContact.Valid {
+				reviewerAlternativeContact = strings.TrimSpace(regUser.AlternativeContact.String)
+			}
+		}
+		reviewerTelegramLink := ""
+		if reviewerTelegramUsername != "" {
+			reviewerTelegramLink = fmt.Sprintf("[@%s](https://t.me/%s)", reviewerTelegramUsername, reviewerTelegramUsername)
+		}
+		reviewerRocketchatLink := ""
+		if reviewerRocketchatID != "" {
+			reviewerRocketchatLink = fmt.Sprintf("[открыть диалог](https://rocketchat-student.21-school.ru/direct/%s)", reviewerRocketchatID)
+		}
 
 		if !isOwn && !prrClosed && s21Client != nil && credService != nil {
-			token, tokenErr := credService.GetValidToken(ctx, acc.S21Login)
+			token, tokenErr := getReviewsToken(ctx, credService, acc.S21Login, fallbackSchoolLogin(cfg))
 			if tokenErr != nil {
 				log.Warn("reviews: lazy-check token unavailable", "user_id", userID, "login", acc.S21Login, "error", tokenErr)
 			} else {
@@ -546,11 +596,23 @@ func registerReviewActions(
 		}
 
 		updates := map[string]any{
-			"is_own_prr":               isOwn,
-			"prr_closed":               prrClosed,
-			"project_still_in_reviews": projectStillInReviews,
-			"selected_prr_id":          strconv.FormatInt(id, 10),
+			"is_own_prr":                         isOwn,
+			"prr_closed":                         prrClosed,
+			"project_still_in_reviews":           projectStillInReviews,
+			"selected_prr_id":                    strconv.FormatInt(id, 10),
+			"requester_username":                 sanitizeTelegramUsername(row.RequesterTelegramUsername),
+			"reviewer_username":                  reviewerTelegramUsername,
+			"reviewer_rocketchat_id":             reviewerRocketchatID,
+			"reviewer_alternative_contact":       reviewerAlternativeContact,
+			"reviewer_alternative_contact_line":  buildReviewerAlternativeContactLine(ToString(payload["language"]), reviewerAlternativeContact),
+			"reviewer_telegram_link":             reviewerTelegramLink,
+			"reviewer_rocketchat_link":           reviewerRocketchatLink,
+			"requester_rocketchat_id":            "",
+			"requester_alternative_contact":      "",
+			"requester_alternative_contact_line": "",
+			"my_selected_error_line":             "",
 		}
+		attachRequesterContacts(ctx, queries, row.RequesterUserID, row.RequesterS21Login, ToString(payload["language"]), updates)
 
 		if !isOwn && !prrClosed && !projectStillInReviews {
 			_ = queries.CloseReviewRequestByID(ctx, id)
@@ -558,12 +620,47 @@ func registerReviewActions(
 		}
 
 		if !isOwn && !prrClosed && projectStillInReviews {
-			resp, incErr := queries.MarkReviewRequestNegotiatingAndIncrementResponses(ctx, id)
+			resp, incErr := queries.MarkReviewRequestNegotiatingAndIncrementResponses(ctx, db.MarkReviewRequestNegotiatingAndIncrementResponsesParams{
+				ID:                        id,
+				NegotiatingReviewerUserID: pgtype.Int8{Int64: acc.ID, Valid: true},
+				NegotiatingReviewerS21Login: pgtype.Text{
+					String: acc.S21Login,
+					Valid:  strings.TrimSpace(acc.S21Login) != "",
+				},
+				NegotiatingReviewerTelegramUsername: pgtype.Text{
+					String: reviewerTelegramUsername,
+					Valid:  strings.TrimSpace(reviewerTelegramUsername) != "",
+				},
+				NegotiatingReviewerRocketchatID: pgtype.Text{
+					String: reviewerRocketchatID,
+					Valid:  strings.TrimSpace(reviewerRocketchatID) != "",
+				},
+				NegotiatingReviewerAlternativeContact: pgtype.Text{
+					String: reviewerAlternativeContact,
+					Valid:  strings.TrimSpace(reviewerAlternativeContact) != "",
+				},
+			})
 			if incErr == nil {
 				updates["response_count"] = int(resp.ResponseCount)
 				updates["selected_prr_status"] = string(resp.Status)
 				updates["prr_status_label"] = statusLabel(string(resp.Status), ToString(payload["language"]))
-				notifyReviewRequestOwner(ctx, queries, log, row.RequesterUserID, acc.S21Login, row.ProjectName)
+				notifyReviewRequestOwner(
+					ctx,
+					queries,
+					log,
+					row.RequesterUserID,
+					id,
+					acc.S21Login,
+					reviewerUsername,
+					reviewerRocketchatID,
+					reviewerAlternativeContact,
+					reviewerLevel,
+					row.ProjectName,
+				)
+			} else if incErr == pgx.ErrNoRows {
+				updates["prr_closed"] = true
+			} else {
+				log.Warn("reviews: failed to mark request negotiating", "prr_id", id, "error", incErr)
 			}
 		}
 
@@ -635,8 +732,9 @@ func registerReviewActions(
 		acc, err := getTelegramAccount(ctx, queries, userID)
 		if err != nil {
 			return "", map[string]any{
-				"my_selected_status":       "CLOSED",
-				"my_selected_status_label": statusLabel("CLOSED", ToString(payload["language"])),
+				"my_selected_status":                    "CLOSED",
+				"my_selected_status_label":              statusLabel("CLOSED", ToString(payload["language"])),
+				"my_selected_negotiating_contact_block": "",
 			}, nil
 		}
 
@@ -653,21 +751,52 @@ func registerReviewActions(
 			RequesterUserID: acc.ID,
 		})
 		if err != nil {
+			if err != pgx.ErrNoRows {
+				legacyRow, legacyErr := queries.GetReviewRequestByID(ctx, id)
+				if legacyErr == nil && legacyRow.RequesterUserID == acc.ID {
+					return "", map[string]any{
+						"selected_my_prr_id":                    strconv.FormatInt(legacyRow.ID, 10),
+						"my_selected_project_name":              normalizeMarkdownEscapes(legacyRow.ProjectName),
+						"my_selected_project_type":              legacyRow.ProjectType,
+						"my_selected_time_description":          legacyRow.AvailabilityText,
+						"my_selected_view_count":                int(legacyRow.ViewCount),
+						"my_selected_response_count":            int(legacyRow.ResponseCount),
+						"my_selected_status":                    string(legacyRow.Status),
+						"my_selected_status_label":              statusLabel(string(legacyRow.Status), ToString(payload["language"])),
+						"my_selected_negotiating_contact_block": "",
+						"my_selected_error_line":                detailsLoadErrorLine(ToString(payload["language"])),
+					}, nil
+				}
+				log.Warn("reviews: failed to load my selected prr", "user_id", userID, "account_id", acc.ID, "prr_id", id, "error", err)
+				return "", map[string]any{
+					"my_selected_error_line": detailsLoadErrorLine(ToString(payload["language"])),
+				}, nil
+			}
 			return "", map[string]any{
-				"my_selected_status":       "CLOSED",
-				"my_selected_status_label": statusLabel("CLOSED", ToString(payload["language"])),
+				"my_selected_status":                    "CLOSED",
+				"my_selected_status_label":              statusLabel("CLOSED", ToString(payload["language"])),
+				"my_selected_negotiating_contact_block": "",
+				"my_selected_error_line":                "",
 			}, nil
 		}
 
 		return "", map[string]any{
 			"selected_my_prr_id":           strconv.FormatInt(row.ID, 10),
-			"my_selected_project_name":     row.ProjectName,
+			"my_selected_project_name":     normalizeMarkdownEscapes(row.ProjectName),
 			"my_selected_project_type":     row.ProjectType,
 			"my_selected_time_description": row.AvailabilityText,
 			"my_selected_view_count":       int(row.ViewCount),
 			"my_selected_response_count":   int(row.ResponseCount),
 			"my_selected_status":           string(row.Status),
 			"my_selected_status_label":     statusLabel(string(row.Status), ToString(payload["language"])),
+			"my_selected_negotiating_contact_block": buildNegotiatingContactBlock(
+				ToString(payload["language"]),
+				strings.TrimSpace(row.NegotiatingReviewerS21Login),
+				sanitizeTelegramUsername(row.NegotiatingReviewerTelegramUsername),
+				strings.TrimSpace(row.NegotiatingReviewerRocketchatID),
+				strings.TrimSpace(row.NegotiatingReviewerAlternativeContact),
+			),
+			"my_selected_error_line": "",
 		}, nil
 	})
 
@@ -684,17 +813,32 @@ func registerReviewActions(
 	})
 
 	registry.Register("prepare_prr_project_filters", func(ctx context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
-		rows, err := queries.GetGlobalReviewProjectGroups(ctx)
-		if err != nil {
-			log.Warn("reviews: failed to load filter project groups", "error", err)
-			rows = nil
-		}
-
-		projects := collectKnownProjects(payload, rows)
+		knownProjects := parseAvailableProjects(payload["available_projects"])
 		selected := parseStringSet(payload["filter_project_ids"])
-
+		lang := ToString(payload["language"])
+		mode := normalizeProjectFilterMode(ToString(payload["project_filter_mode"]))
+		searchQuery := strings.TrimSpace(ToString(payload["project_filter_query"]))
 		page := max(ToInt(payload["page"]), 1)
-		pageItems, page, totalPages, hasPrev, hasNext := paginateProjects(projects, page, reviewsPageSize)
+
+		var (
+			candidates []projectFilterCandidate
+			totalPages int
+			hasPrev    bool
+			hasNext    bool
+			loadErr    error
+		)
+
+		switch mode {
+		case projectFilterModeCourse:
+			candidates, page, totalPages, hasPrev, hasNext, loadErr = loadCourseFilterCandidates(ctx, queries, searchQuery, selected, page)
+		case projectFilterModeNode:
+			candidates, page, totalPages, hasPrev, hasNext, loadErr = loadNodeFilterCandidates(ctx, queries, searchQuery, selected, page)
+		default:
+			candidates, page, totalPages, hasPrev, hasNext, loadErr = loadProjectFilterCandidates(ctx, queries, searchQuery, selected, page)
+		}
+		if loadErr != nil {
+			log.Warn("reviews: failed to load catalog filter candidates", "mode", mode, "query", searchQuery, "error", loadErr)
+		}
 
 		updates := map[string]any{
 			"project_filter_page":            page,
@@ -703,34 +847,66 @@ func registerReviewActions(
 			"project_filter_has_next_page":   hasNext,
 			"project_filter_page_caption_ru": fmt.Sprintf("%d/%d", page, totalPages),
 			"project_filter_page_caption_en": fmt.Sprintf("%d/%d", page, totalPages),
-			"project_filter_list_formatted":  formatProjectFilterList(pageItems, selected),
-			"current_project_filters_text":   projectFilterText(selected, projects, ToString(payload["language"])),
+			"project_filter_list_formatted":  formatProjectFilterCandidates(candidates, selected, lang),
+			"current_project_filters_text":   projectFilterTextWithCatalog(ctx, queries, selected, knownProjects, lang),
+			"project_filter_mode":            mode,
+			"project_filter_mode_text":       modeTitle(mode, lang),
+			"project_filter_query":           searchQuery,
+			"project_filter_query_text":      nonEmpty(searchQuery, "—"),
+			"project_filter_mode_projects":   modeButtonLabel(projectFilterModeProject, mode, lang),
+			"project_filter_mode_courses":    modeButtonLabel(projectFilterModeCourse, mode, lang),
+			"project_filter_mode_nodes":      modeButtonLabel(projectFilterModeNode, mode, lang),
 		}
 		clearProjectFilterVars(updates)
-		for i, project := range pageItems {
+		for i, candidate := range candidates {
 			n := i + 1
 			check := "⬜"
-			if selected[project.ID] {
+			if isFilterCandidateSelected(selected, candidate.ProjectIDs) {
 				check = "✅"
 			}
-			updates[fmt.Sprintf("project_filter_id_%d", n)] = project.ID
-			updates[fmt.Sprintf("project_filter_btn_label_%d", n)] = fmt.Sprintf("%s %s", check, project.Name)
+			updates[fmt.Sprintf("project_filter_id_%d", n)] = candidate.ButtonID
+			updates[fmt.Sprintf("project_filter_btn_label_%d", n)] = fmt.Sprintf("%s %s", check, candidate.Label)
 		}
 		return "", updates, nil
 	})
 
-	registry.Register("toggle_project_filter", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
+	registry.Register("toggle_project_filter", func(ctx context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
 		id := strings.TrimSpace(ToString(payload["id"]))
 		if id == "" {
 			return "", nil, nil
 		}
-		set := parseStringSet(payload["filter_project_ids"])
-		if set[id] {
-			delete(set, id)
-		} else {
-			set[id] = true
+
+		projectIDs, err := resolveFilterSelectionProjectIDs(ctx, queries, id)
+		if err != nil {
+			log.Warn("reviews: failed to resolve filter candidate", "id", id, "error", err)
+			return "", nil, nil
 		}
-		return "", map[string]any{"filter_project_ids": encodeStringSet(set)}, nil
+		if len(projectIDs) == 0 {
+			return "", nil, nil
+		}
+
+		set := parseStringSet(payload["filter_project_ids"])
+		allSelected := true
+		for _, projectID := range projectIDs {
+			key := strconv.FormatInt(projectID, 10)
+			if !set[key] {
+				allSelected = false
+				break
+			}
+		}
+
+		if allSelected {
+			for _, projectID := range projectIDs {
+				delete(set, strconv.FormatInt(projectID, 10))
+			}
+		} else {
+			for _, projectID := range projectIDs {
+				set[strconv.FormatInt(projectID, 10)] = true
+			}
+		}
+		return "", map[string]any{
+			"filter_project_ids": encodeStringSet(set),
+		}, nil
 	})
 
 	registry.Register("prr_project_filter_prev_page", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
@@ -750,8 +926,50 @@ func registerReviewActions(
 		return "", map[string]any{"project_filter_page": page}, nil
 	})
 
+	registry.Register("set_project_filter_mode_projects", func(_ context.Context, _ int64, _ map[string]any) (string, map[string]any, error) {
+		return "", map[string]any{
+			"project_filter_mode": projectFilterModeProject,
+			"project_filter_page": 1,
+		}, nil
+	})
+
+	registry.Register("set_project_filter_mode_courses", func(_ context.Context, _ int64, _ map[string]any) (string, map[string]any, error) {
+		return "", map[string]any{
+			"project_filter_mode": projectFilterModeCourse,
+			"project_filter_page": 1,
+		}, nil
+	})
+
+	registry.Register("set_project_filter_mode_nodes", func(_ context.Context, _ int64, _ map[string]any) (string, map[string]any, error) {
+		return "", map[string]any{
+			"project_filter_mode": projectFilterModeNode,
+			"project_filter_page": 1,
+		}, nil
+	})
+
+	registry.Register("save_project_filter_query", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
+		query := strings.TrimSpace(ToString(payload["last_input"]))
+		query = TrimRunes(query, 120)
+		return "", map[string]any{
+			"project_filter_query": query,
+			"project_filter_page":  1,
+		}, nil
+	})
+
+	registry.Register("clear_project_filter_query", func(_ context.Context, _ int64, _ map[string]any) (string, map[string]any, error) {
+		return "", map[string]any{
+			"project_filter_query": "",
+			"project_filter_page":  1,
+		}, nil
+	})
+
 	registry.Register("reset_project_filters", func(_ context.Context, _ int64, _ map[string]any) (string, map[string]any, error) {
-		return "", map[string]any{"filter_project_ids": []any{}}, nil
+		return "", map[string]any{
+			"filter_project_ids":   []any{},
+			"project_filter_page":  1,
+			"project_filter_query": "",
+			"project_filter_mode":  projectFilterModeProject,
+		}, nil
 	})
 }
 
@@ -849,6 +1067,17 @@ func paginateMyRequests(items []db.GetMyOpenReviewRequestsRow, page, size int) (
 	end := min(start+size, len(items))
 	if start >= len(items) {
 		return []db.GetMyOpenReviewRequestsRow{}, page, totalPages, page > 1, false
+	}
+	return items[start:end], page, totalPages, page > 1, page < totalPages
+}
+
+func paginateSlice[T any](items []T, page, size int) ([]T, int, int, bool, bool) {
+	totalPages := pagesCount(len(items), size)
+	page = clampPage(page, totalPages)
+	start := (page - 1) * size
+	end := min(start+size, len(items))
+	if start >= len(items) {
+		return []T{}, page, totalPages, page > 1, false
 	}
 	return items[start:end], page, totalPages, page > 1, page < totalPages
 }
@@ -966,7 +1195,7 @@ func toInt64(v any) (int64, bool) {
 
 func formatProjectGroups(groups []reviewProjectGroup) string {
 	if len(groups) == 0 {
-		return "Пока нет активных запросов."
+		return "Заявок по проектам пока не поступало."
 	}
 	var b strings.Builder
 	for i, g := range groups {
@@ -981,7 +1210,7 @@ func formatProjectRequestRows(rows []db.GetOpenReviewRequestsByProjectRow) strin
 	}
 	var b strings.Builder
 	for i, r := range rows {
-		b.WriteString(fmt.Sprintf("%d. %s @%s, %s, %s\n", i+1, statusEmoji(r.Status), r.RequesterS21Login, nonEmpty(r.RequesterCampusName, "Unknown campus"), nonEmpty(r.AvailabilityText, "Flexible")))
+		b.WriteString(fmt.Sprintf("%s %d. %s, %s, %s\n", statusEmoji(r.Status), i+1, r.RequesterS21Login, nonEmpty(r.RequesterCampusName, "Unknown campus"), nonEmpty(r.AvailabilityText, "Flexible")))
 	}
 	return strings.TrimSpace(b.String())
 }
@@ -992,34 +1221,139 @@ func formatMyRequestRows(rows []db.GetMyOpenReviewRequestsRow) string {
 	}
 	var b strings.Builder
 	for i, r := range rows {
-		b.WriteString(fmt.Sprintf("%d. %s %s (%s)\n", i+1, statusEmoji(r.Status), r.ProjectName, nonEmpty(r.AvailabilityText, "Flexible")))
+		b.WriteString(fmt.Sprintf("%s %d. %s (%s)\n", statusEmoji(r.Status), i+1, r.ProjectName, nonEmpty(r.AvailabilityText, "Flexible")))
 	}
 	return strings.TrimSpace(b.String())
 }
 
-func detailUpdatesFromReviewRow(row db.GetReviewRequestByIDRow, lang, viewerOffset string) map[string]any {
+func detailUpdatesFromReviewRow(ctx context.Context, queries db.Querier, row db.GetReviewRequestByIDRow, lang, viewerOffset string) map[string]any {
 	requesterOffset := normalizeUTCOffset(row.RequesterTimezoneOffset)
-	return map[string]any{
-		"selected_prr_id":               strconv.FormatInt(row.ID, 10),
-		"selected_prr_owner_user_id":    row.RequesterUserID,
-		"selected_prr_status":           string(row.Status),
-		"selected_project_id":           strconv.FormatInt(row.ProjectID, 10),
-		"selected_project_name":         row.ProjectName,
-		"selected_project_type":         row.ProjectType,
-		"project_name":                  row.ProjectName,
-		"project_type":                  row.ProjectType,
-		"nickname":                      row.RequesterS21Login,
-		"peer_campus":                   nonEmpty(row.RequesterCampusName, "Unknown campus"),
-		"peer_level":                    nonEmpty(strings.TrimSpace(ToString(row.RequesterLevel)), "0"),
-		"time_description":              nonEmpty(row.AvailabilityText, "Flexible"),
-		"requester_timezone_utc_offset": requesterOffset,
-		"viewer_local_time_hint":        viewerTimezoneHint(requesterOffset, viewerOffset, lang),
-		"prr_opened_at":                 formatTS(row.CreatedAt),
-		"view_count":                    int(row.ViewCount),
-		"response_count":                int(row.ResponseCount),
-		"prr_status_label":              statusLabel(string(row.Status), lang),
-		"reviews_progress_text":         nonEmpty(row.ReviewsProgressText, "n/a (school API does not provide this)"),
+	updates := map[string]any{
+		"selected_prr_id":                    strconv.FormatInt(row.ID, 10),
+		"selected_prr_owner_user_id":         row.RequesterUserID,
+		"selected_prr_status":                string(row.Status),
+		"selected_project_id":                strconv.FormatInt(row.ProjectID, 10),
+		"selected_project_name":              normalizeMarkdownEscapes(row.ProjectName),
+		"selected_project_type":              row.ProjectType,
+		"project_name":                       normalizeMarkdownEscapes(row.ProjectName),
+		"project_type":                       row.ProjectType,
+		"nickname":                           row.RequesterS21Login,
+		"requester_username":                 sanitizeTelegramUsername(row.RequesterTelegramUsername),
+		"requester_rocketchat_id":            "",
+		"requester_alternative_contact":      "",
+		"requester_alternative_contact_line": "",
+		"peer_campus":                        nonEmpty(row.RequesterCampusName, "Unknown campus"),
+		"peer_level":                         nonEmpty(strings.TrimSpace(ToString(row.RequesterLevel)), "0"),
+		"time_description":                   nonEmpty(row.AvailabilityText, "Flexible"),
+		"requester_timezone_utc_offset":      requesterOffset,
+		"viewer_local_time_hint":             viewerTimezoneHint(requesterOffset, viewerOffset, lang),
+		"prr_opened_at":                      formatTS(row.CreatedAt),
+		"view_count":                         int(row.ViewCount),
+		"response_count":                     int(row.ResponseCount),
+		"prr_status_label":                   statusLabel(string(row.Status), lang),
+		"reviews_progress_text":              nonEmpty(row.ReviewsProgressText, "n/a (school API does not provide this)"),
 	}
+	attachRequesterContacts(ctx, queries, row.RequesterUserID, row.RequesterS21Login, lang, updates)
+	return updates
+}
+
+func attachRequesterContacts(ctx context.Context, queries db.Querier, requesterUserID int64, requesterLogin, lang string, updates map[string]any) {
+	if updates == nil {
+		return
+	}
+	if requesterUserID > 0 {
+		if account, accErr := queries.GetUserAccountByID(ctx, requesterUserID); accErr == nil {
+			isSearchable := !account.IsSearchable.Valid || account.IsSearchable.Bool
+			if account.Platform == db.EnumPlatformTelegram && isSearchable {
+				updates["requester_username"] = sanitizeTelegramUsername(account.Username.String)
+			}
+		}
+	}
+	if strings.TrimSpace(requesterLogin) == "" {
+		return
+	}
+	regUser, err := queries.GetRegisteredUserByS21Login(ctx, requesterLogin)
+	if err != nil {
+		return
+	}
+	updates["requester_rocketchat_id"] = strings.TrimSpace(regUser.RocketchatID)
+	if regUser.AlternativeContact.Valid {
+		contact := strings.TrimSpace(regUser.AlternativeContact.String)
+		updates["requester_alternative_contact"] = contact
+		updates["requester_alternative_contact_line"] = buildRequesterAlternativeContactLine(lang, contact)
+	}
+}
+
+func buildRequesterAlternativeContactLine(lang, contact string) string {
+	contact = strings.TrimSpace(contact)
+	if contact == "" {
+		return ""
+	}
+	if lang == fsm.LangEn {
+		return "Additional contact: " + normalizeMarkdownEscapes(contact)
+	}
+	return "Дополнительный контакт: " + normalizeMarkdownEscapes(contact)
+}
+
+func buildReviewerAlternativeContactLine(lang, contact string) string {
+	contact = strings.TrimSpace(contact)
+	if contact == "" {
+		return ""
+	}
+	if lang == fsm.LangEn {
+		return "Additional contact: " + normalizeMarkdownEscapes(contact)
+	}
+	return "Дополнительный контакт: " + normalizeMarkdownEscapes(contact)
+}
+
+func detailsLoadErrorLine(lang string) string {
+	if lang == fsm.LangEn {
+		return "⚠️ Failed to load full request details. Please try refresh or reopen."
+	}
+	return "⚠️ Не удалось загрузить полные детали заявки. Попробуй обновить или открыть снова."
+}
+
+func buildNegotiatingContactBlock(lang, reviewerLogin, tgUsername, rcID, altContact string) string {
+	reviewerLogin = strings.TrimSpace(reviewerLogin)
+	tgUsername = sanitizeTelegramUsername(tgUsername)
+	rcID = strings.TrimSpace(rcID)
+	altContact = strings.TrimSpace(altContact)
+	if reviewerLogin == "" && tgUsername == "" && rcID == "" && altContact == "" {
+		return ""
+	}
+
+	lines := []string{}
+	if lang == fsm.LangEn {
+		lines = append(lines, "🤝 *In negotiation now*")
+		if reviewerLogin != "" {
+			lines = append(lines, "Peer: `"+normalizeMarkdownEscapes(reviewerLogin)+"`")
+		}
+		if tgUsername != "" {
+			lines = append(lines, fmt.Sprintf("Telegram: [@%s](https://t.me/%s)", tgUsername, tgUsername))
+		}
+		if rcID != "" {
+			lines = append(lines, fmt.Sprintf("Rocket.Chat: [open dialog](https://rocketchat-student.21-school.ru/direct/%s)", normalizeMarkdownEscapes(rcID)))
+		}
+		if altContact != "" {
+			lines = append(lines, "Additional contact: "+normalizeMarkdownEscapes(altContact))
+		}
+		return "\n\n" + strings.Join(lines, "\n")
+	}
+
+	lines = append(lines, "🤝 *Сейчас в переговорах*")
+	if reviewerLogin != "" {
+		lines = append(lines, "Пир: `"+normalizeMarkdownEscapes(reviewerLogin)+"`")
+	}
+	if tgUsername != "" {
+		lines = append(lines, fmt.Sprintf("Telegram: [@%s](https://t.me/%s)", tgUsername, tgUsername))
+	}
+	if rcID != "" {
+		lines = append(lines, fmt.Sprintf("Rocket.Chat: [открыть диалог](https://rocketchat-student.21-school.ru/direct/%s)", normalizeMarkdownEscapes(rcID)))
+	}
+	if altContact != "" {
+		lines = append(lines, "Доп. контакт: "+normalizeMarkdownEscapes(altContact))
+	}
+	return "\n\n" + strings.Join(lines, "\n")
 }
 
 func viewerTimezoneHint(requesterOffset, viewerOffset, lang string) string {
@@ -1065,7 +1399,12 @@ func notifyReviewRequestOwner(
 	queries db.Querier,
 	log *slog.Logger,
 	requesterUserID int64,
+	prrID int64,
 	reviewerLogin string,
+	reviewerUsername string,
+	reviewerRocketchatID string,
+	reviewerAlternativeContact string,
+	reviewerLevel string,
 	projectName string,
 ) {
 	notifier, ok := fsm.NotifierFromContext(ctx)
@@ -1089,11 +1428,114 @@ func notifyReviewRequestOwner(
 	}
 
 	reviewer := nonEmpty(strings.TrimSpace(reviewerLogin), "reviewer")
+	reviewerUsername = normalizeTelegramUsername(reviewerUsername)
+	reviewerRocketchatID = strings.TrimSpace(reviewerRocketchatID)
+	reviewerAlternativeContact = strings.TrimSpace(reviewerAlternativeContact)
 	project := nonEmpty(strings.TrimSpace(projectName), "project")
-	text := fmt.Sprintf("💬 Новый отклик на запрос PRR.\nПроверяющий: @%s\nПроект: %s", reviewer, project)
+	displayReviewer := reviewer
+	contactLabel := "💬 Написать в Telegram"
+	contactURL := ""
+	rcContactLabel := "💬 Написать в Rocket.Chat"
+	rcContactURL := ""
+	if reviewerUsername != "" {
+		displayReviewer = "@" + reviewerUsername
+		contactLabel = fmt.Sprintf("💬 Написать @%s", reviewerUsername)
+		contactURL = "https://t.me/" + reviewerUsername
+	}
+	if reviewerRocketchatID != "" {
+		rcContactURL = "https://rocketchat-student.21-school.ru/direct/" + reviewerRocketchatID
+	}
+	if strings.TrimSpace(reviewerLevel) == "" {
+		reviewerLevel = "0"
+	}
+	safeReviewer := normalizeMarkdownEscapes(displayReviewer)
+	safeReviewerLevel := normalizeMarkdownEscapes(reviewerLevel)
+	contactLines := []string{}
+	if reviewerUsername != "" {
+		contactLines = append(contactLines, fmt.Sprintf("Telegram: [@%s](https://t.me/%s)", reviewerUsername, reviewerUsername))
+	}
+	if reviewerRocketchatID != "" {
+		contactLines = append(contactLines, fmt.Sprintf("Rocket.Chat: [открыть диалог](https://rocketchat-student.21-school.ru/direct/%s)", normalizeMarkdownEscapes(reviewerRocketchatID)))
+	}
+	if reviewerAlternativeContact != "" {
+		contactLines = append(contactLines, "Доп. контакт: "+normalizeMarkdownEscapes(reviewerAlternativeContact))
+	}
+	contactsBlock := ""
+	if len(contactLines) > 0 {
+		contactsBlock = "\n\n" + strings.Join(contactLines, "\n")
+	}
+
+	text := fmt.Sprintf(
+		"🔔 *Твой запрос взял в работу пир!*\n\nПользователь %s (уровень %s) откликнулся на твою заявку по проекту *%s*.\n\nТвоя заявка временно *скрыта с доски* (статус: `🟡 В переговорах`), чтобы тебе не писали другие.%s\nЕсли не договоритесь, нажми «🔄 Вернуть на доску».",
+		safeReviewer,
+		safeReviewerLevel,
+		normalizeMarkdownEscapes(project),
+		contactsBlock,
+	)
+
+	buttons := [][]fsm.ButtonRender{}
+	if contactURL != "" {
+		buttons = append(buttons, []fsm.ButtonRender{{
+			Text: contactLabel,
+			URL:  contactURL,
+		}})
+	}
+	if rcContactURL != "" {
+		buttons = append(buttons, []fsm.ButtonRender{{
+			Text: rcContactLabel,
+			URL:  rcContactURL,
+		}})
+	}
+	buttons = append(buttons, []fsm.ButtonRender{{
+		Text: "🔄 Вернуть на доску",
+		Data: fsm.BuildPRRNotifyResumeCallback(prrID),
+	}})
+	buttons = append(buttons, []fsm.ButtonRender{{
+		Text: "❌ Закрыть заявку",
+		Data: fsm.BuildPRRNotifyCloseCallback(prrID),
+	}})
+	buttons = append(buttons, []fsm.ButtonRender{{
+		Text: "🏠 Главное меню",
+		Data: fsm.BuildPRRNotifyMenuCallback(),
+	}})
+
+	if renderNotifier, richOK := fsm.RenderNotifierFromContext(ctx); richOK {
+		render := &fsm.RenderObject{
+			Text:    text,
+			Buttons: buttons,
+		}
+		if err := renderNotifier.NotifyUserRender(ctx, chatID, render); err != nil {
+			log.Warn("reviews: failed to send rich proposal notification", "requester_user_id", requesterUserID, "chat_id", chatID, "error", err)
+		} else {
+			return
+		}
+	}
+
 	if err := notifier.NotifyUser(ctx, chatID, text); err != nil {
 		log.Warn("reviews: failed to send proposal notification", "requester_user_id", requesterUserID, "chat_id", chatID, "error", err)
 	}
+}
+
+func normalizeTelegramUsername(raw string) string {
+	return sanitizeTelegramUsername(raw)
+}
+
+func sanitizeTelegramUsername(raw any) string {
+	username := strings.TrimSpace(ToString(raw))
+	username = strings.TrimPrefix(username, "@")
+	if username == "" {
+		return ""
+	}
+
+	switch strings.ToLower(username) {
+	case "none", "null", "n/a", "na", "-", "_":
+		return ""
+	}
+
+	if !telegramUsernamePattern.MatchString(username) {
+		return ""
+	}
+	return username
 }
 
 func setMyRequestStatus(
@@ -1336,32 +1778,428 @@ func collectKnownProjects(payload map[string]any, groups []db.GetGlobalReviewPro
 	return out
 }
 
-func formatProjectFilterList(items []reviewProject, selected map[string]bool) string {
-	if len(items) == 0 {
-		return "Нет доступных проектов."
+func loadProjectFilterCandidates(
+	ctx context.Context,
+	queries db.Querier,
+	searchQuery string,
+	selected map[string]bool,
+	page int,
+) ([]projectFilterCandidate, int, int, bool, bool, error) {
+	rows, err := queries.SearchCatalogProjectsAll(ctx, searchQuery)
+	if err != nil {
+		return nil, 1, 1, false, false, err
 	}
+	if strings.TrimSpace(searchQuery) != "" && len(rows) == 0 {
+		allRows, allErr := queries.SearchCatalogProjectsAll(ctx, "")
+		if allErr == nil {
+			filtered := make([]db.SearchCatalogProjectsAllRow, 0, len(allRows))
+			for _, row := range allRows {
+				if projectSearchRowMatches(row, searchQuery) {
+					filtered = append(filtered, row)
+				}
+			}
+			rows = filtered
+		}
+	}
+
+	out := make([]projectFilterCandidate, 0, len(rows))
+	for _, row := range rows {
+		title := nonEmpty(strings.TrimSpace(row.ProjectTitle), fmt.Sprintf("Project %d", row.ProjectID))
+		details := make([]string, 0, 3)
+		if strings.TrimSpace(row.ProjectCode) != "" {
+			details = append(details, row.ProjectCode)
+		}
+		if strings.TrimSpace(row.CourseTitle) != "" {
+			details = append(details, row.CourseTitle)
+		}
+		if strings.TrimSpace(ToString(row.NodeNames)) != "" {
+			details = append(details, ToString(row.NodeNames))
+		}
+		label := title
+		if len(details) > 0 {
+			label = fmt.Sprintf("%s · %s", title, strings.Join(details, " | "))
+		}
+
+		out = append(out, projectFilterCandidate{
+			ButtonID:   fmt.Sprintf("project:%d", row.ProjectID),
+			Label:      label,
+			ProjectIDs: []int64{row.ProjectID},
+		})
+	}
+
+	sortProjectCandidatesSelectedFirst(out, selected)
+	pageItems, page, totalPages, hasPrev, hasNext := paginateSlice(out, page, reviewsPageSize)
+	return pageItems, page, totalPages, hasPrev, hasNext, nil
+}
+
+func loadCourseFilterCandidates(
+	ctx context.Context,
+	queries db.Querier,
+	searchQuery string,
+	selected map[string]bool,
+	page int,
+) ([]projectFilterCandidate, int, int, bool, bool, error) {
+	rows, err := queries.SearchCatalogCourses(ctx, searchQuery)
+	if err != nil {
+		return nil, 1, 1, false, false, err
+	}
+	if strings.TrimSpace(searchQuery) != "" && len(rows) == 0 {
+		allRows, allErr := queries.SearchCatalogCourses(ctx, "")
+		if allErr == nil {
+			filtered := make([]db.SearchCatalogCoursesRow, 0, len(allRows))
+			for _, row := range allRows {
+				if courseSearchRowMatches(row, searchQuery) {
+					filtered = append(filtered, row)
+				}
+			}
+			rows = filtered
+		}
+	}
+
+	out := make([]projectFilterCandidate, 0, len(rows))
+	for _, row := range rows {
+		projectIDs, idsErr := queries.GetCatalogProjectIDsByCourse(ctx, pgtype.Int8{
+			Int64: row.ID,
+			Valid: true,
+		})
+		if idsErr != nil {
+			return nil, 1, 1, false, false, idsErr
+		}
+
+		title := nonEmpty(strings.TrimSpace(row.Title), fmt.Sprintf("Course %d", row.ID))
+		label := fmt.Sprintf("%s (%d)", title, row.ProjectCount)
+		if strings.TrimSpace(row.Code) != "" {
+			label = fmt.Sprintf("%s · %s", title, row.Code)
+		}
+
+		out = append(out, projectFilterCandidate{
+			ButtonID:   fmt.Sprintf("course:%d", row.ID),
+			Label:      label,
+			ProjectIDs: projectIDs,
+		})
+	}
+
+	sortProjectCandidatesSelectedFirst(out, selected)
+	pageItems, page, totalPages, hasPrev, hasNext := paginateSlice(out, page, reviewsPageSize)
+	return pageItems, page, totalPages, hasPrev, hasNext, nil
+}
+
+func loadNodeFilterCandidates(
+	ctx context.Context,
+	queries db.Querier,
+	searchQuery string,
+	selected map[string]bool,
+	page int,
+) ([]projectFilterCandidate, int, int, bool, bool, error) {
+	rows, err := queries.SearchCatalogNodes(ctx, searchQuery)
+	if err != nil {
+		return nil, 1, 1, false, false, err
+	}
+	if strings.TrimSpace(searchQuery) != "" && len(rows) == 0 {
+		allRows, allErr := queries.SearchCatalogNodes(ctx, "")
+		if allErr == nil {
+			filtered := make([]db.SearchCatalogNodesRow, 0, len(allRows))
+			for _, row := range allRows {
+				if nodeSearchRowMatches(row, searchQuery) {
+					filtered = append(filtered, row)
+				}
+			}
+			rows = filtered
+		}
+	}
+
+	out := make([]projectFilterCandidate, 0, len(rows))
+	for _, row := range rows {
+		projectIDs, idsErr := queries.GetCatalogProjectIDsByNodeRecursive(ctx, row.ID)
+		if idsErr != nil {
+			return nil, 1, 1, false, false, idsErr
+		}
+
+		label := nonEmpty(strings.TrimSpace(row.Path), strings.TrimSpace(row.Name))
+		if row.ProjectCount > 0 {
+			label = fmt.Sprintf("%s (%d)", label, row.ProjectCount)
+		}
+
+		out = append(out, projectFilterCandidate{
+			ButtonID:   fmt.Sprintf("node:%d", row.ID),
+			Label:      label,
+			ProjectIDs: projectIDs,
+		})
+	}
+
+	sortProjectCandidatesSelectedFirst(out, selected)
+	pageItems, page, totalPages, hasPrev, hasNext := paginateSlice(out, page, reviewsPageSize)
+	return pageItems, page, totalPages, hasPrev, hasNext, nil
+}
+
+func sortProjectCandidatesSelectedFirst(items []projectFilterCandidate, selected map[string]bool) {
+	sort.SliceStable(items, func(i, j int) bool {
+		iSelected := isFilterCandidateSelected(selected, items[i].ProjectIDs)
+		jSelected := isFilterCandidateSelected(selected, items[j].ProjectIDs)
+		if iSelected != jSelected {
+			return iSelected
+		}
+		return strings.ToLower(items[i].Label) < strings.ToLower(items[j].Label)
+	})
+}
+
+func projectSearchRowMatches(row db.SearchCatalogProjectsAllRow, query string) bool {
+	q := strings.ToLower(strings.TrimSpace(query))
+	if q == "" {
+		return true
+	}
+	parts := []string{
+		row.ProjectTitle,
+		row.ProjectCode,
+		row.CourseTitle,
+		row.CourseCode,
+		ToString(row.NodeNames),
+	}
+	for _, part := range parts {
+		if strings.Contains(strings.ToLower(strings.TrimSpace(part)), q) {
+			return true
+		}
+	}
+	return false
+}
+
+func courseSearchRowMatches(row db.SearchCatalogCoursesRow, query string) bool {
+	q := strings.ToLower(strings.TrimSpace(query))
+	if q == "" {
+		return true
+	}
+	parts := []string{
+		row.Title,
+		row.Code,
+		strconv.FormatInt(row.ID, 10),
+	}
+	for _, part := range parts {
+		if strings.Contains(strings.ToLower(strings.TrimSpace(part)), q) {
+			return true
+		}
+	}
+	return false
+}
+
+func nodeSearchRowMatches(row db.SearchCatalogNodesRow, query string) bool {
+	q := strings.ToLower(strings.TrimSpace(query))
+	if q == "" {
+		return true
+	}
+	parts := []string{
+		row.Name,
+		row.Path,
+		strconv.FormatInt(row.ID, 10),
+	}
+	for _, part := range parts {
+		if strings.Contains(strings.ToLower(strings.TrimSpace(part)), q) {
+			return true
+		}
+	}
+	return false
+}
+
+func isPRRControlInput(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "confirm", "retry", "cancel":
+		return true
+	default:
+		return false
+	}
+}
+
+func resolveCampusAwareTimezone(ctx context.Context, queries db.Querier, timezone string, campusID pgtype.UUID) string {
+	tz := strings.TrimSpace(timezone)
+	// Keep user-selected non-UTC timezone; use campus timezone only for default/empty values.
+	if tz != "" && !strings.EqualFold(tz, "UTC") {
+		return tz
+	}
+	if !campusID.Valid {
+		if tz == "" {
+			return "UTC"
+		}
+		return tz
+	}
+
+	campus, err := queries.GetCampusByID(ctx, campusID)
+	if err == nil {
+		campusTZ := strings.TrimSpace(campus.Timezone.String)
+		if campus.Timezone.Valid && campusTZ != "" {
+			return campusTZ
+		}
+	}
+
+	if tz == "" {
+		return "UTC"
+	}
+	return tz
+}
+
+func normalizeProjectFilterMode(raw string) string {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case projectFilterModeCourse:
+		return projectFilterModeCourse
+	case projectFilterModeNode:
+		return projectFilterModeNode
+	default:
+		return projectFilterModeProject
+	}
+}
+
+func resolveFilterSelectionProjectIDs(ctx context.Context, queries db.Querier, id string) ([]int64, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil, nil
+	}
+
+	switch {
+	case strings.HasPrefix(id, "project:"):
+		projectID, err := strconv.ParseInt(strings.TrimPrefix(id, "project:"), 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		return []int64{projectID}, nil
+	case strings.HasPrefix(id, "course:"):
+		courseID, err := strconv.ParseInt(strings.TrimPrefix(id, "course:"), 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		return queries.GetCatalogProjectIDsByCourse(ctx, pgtype.Int8{
+			Int64: courseID,
+			Valid: true,
+		})
+	case strings.HasPrefix(id, "node:"):
+		nodeID, err := strconv.ParseInt(strings.TrimPrefix(id, "node:"), 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		return queries.GetCatalogProjectIDsByNodeRecursive(ctx, nodeID)
+	default:
+		projectID, err := strconv.ParseInt(id, 10, 64)
+		if err != nil {
+			return nil, err
+		}
+		return []int64{projectID}, nil
+	}
+}
+
+func isFilterCandidateSelected(selected map[string]bool, projectIDs []int64) bool {
+	if len(projectIDs) == 0 {
+		return false
+	}
+	for _, projectID := range projectIDs {
+		if !selected[strconv.FormatInt(projectID, 10)] {
+			return false
+		}
+	}
+	return true
+}
+
+func formatProjectFilterCandidates(items []projectFilterCandidate, selected map[string]bool, lang string) string {
+	if len(items) == 0 {
+		if lang == fsm.LangEn {
+			return "No matches."
+		}
+		return "Ничего не найдено."
+	}
+
 	var b strings.Builder
-	for i, p := range items {
+	for i, item := range items {
 		mark := "⬜"
-		if selected[p.ID] {
+		if isFilterCandidateSelected(selected, item.ProjectIDs) {
 			mark = "✅"
 		}
-		b.WriteString(fmt.Sprintf("%d. %s %s (%s)\n", i+1, mark, p.Name, p.Type))
+		b.WriteString(fmt.Sprintf("%d. %s %s\n", i+1, mark, item.Label))
 	}
 	return strings.TrimSpace(b.String())
 }
 
-func projectFilterText(selected map[string]bool, projects []reviewProject, lang string) string {
+func modeButtonLabel(mode, current, lang string) string {
+	check := "⬜"
+	if mode == current {
+		check = "✅"
+	}
+
+	label := "Projects"
+	switch mode {
+	case projectFilterModeCourse:
+		label = "Courses"
+	case projectFilterModeNode:
+		label = "Nodes"
+	}
+
+	if lang != fsm.LangEn {
+		switch mode {
+		case projectFilterModeCourse:
+			label = "Курсы"
+		case projectFilterModeNode:
+			label = "Узлы"
+		default:
+			label = "Проекты"
+		}
+	}
+
+	return fmt.Sprintf("%s %s", check, label)
+}
+
+func modeTitle(mode, lang string) string {
+	switch mode {
+	case projectFilterModeCourse:
+		if lang == fsm.LangEn {
+			return "Courses"
+		}
+		return "Курсы"
+	case projectFilterModeNode:
+		if lang == fsm.LangEn {
+			return "Nodes"
+		}
+		return "Узлы"
+	default:
+		if lang == fsm.LangEn {
+			return "Projects"
+		}
+		return "Проекты"
+	}
+}
+
+func projectFilterTextWithCatalog(
+	ctx context.Context,
+	queries db.Querier,
+	selected map[string]bool,
+	projects []reviewProject,
+	lang string,
+) string {
 	if len(selected) == 0 {
 		if lang == fsm.LangEn {
 			return "All projects"
 		}
 		return "Все проекты"
 	}
+
 	lookup := map[string]string{}
 	for _, p := range projects {
 		lookup[p.ID] = p.Name
 	}
+
+	missingIDs := make([]int64, 0)
+	for id := range selected {
+		if lookup[id] != "" {
+			continue
+		}
+		if parsed, err := strconv.ParseInt(id, 10, 64); err == nil {
+			missingIDs = append(missingIDs, parsed)
+		}
+	}
+
+	if len(missingIDs) > 0 {
+		rows, err := queries.GetCatalogProjectTitlesByIDs(ctx, missingIDs)
+		if err == nil {
+			for _, row := range rows {
+				lookup[strconv.FormatInt(row.ID, 10)] = row.Title
+			}
+		}
+	}
+
 	names := make([]string, 0, len(selected))
 	for id := range selected {
 		name := lookup[id]
@@ -1372,9 +2210,15 @@ func projectFilterText(selected map[string]bool, projects []reviewProject, lang 
 	}
 	sort.Strings(names)
 	if len(names) > 3 {
-		return fmt.Sprintf("%s +%d", strings.Join(names[:3], ", "), len(names)-3)
+		return safeInlineCodeText(fmt.Sprintf("%s +%d", strings.Join(names[:3], ", "), len(names)-3))
 	}
-	return strings.Join(names, ", ")
+	return safeInlineCodeText(strings.Join(names, ", "))
+}
+
+func safeInlineCodeText(s string) string {
+	s = strings.ReplaceAll(s, "`", "'")
+	s = strings.ReplaceAll(s, "\n", " ")
+	return strings.TrimSpace(s)
 }
 
 func defaultString(v any, fallback string) string {
@@ -1391,4 +2235,49 @@ func nonEmpty(v, fallback string) string {
 		return fallback
 	}
 	return s
+}
+
+func normalizeMarkdownEscapes(s string) string {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return s
+	}
+	replacer := strings.NewReplacer(
+		`\\_`, "_",
+		`\\*`, "*",
+		`\\[`, "[",
+		"\\_", "_",
+		"\\*", "*",
+		"\\[", "[",
+		"\\`", "`",
+	)
+	return replacer.Replace(s)
+}
+
+func fallbackSchoolLogin(cfg *config.Config) string {
+	if cfg == nil {
+		return ""
+	}
+	return strings.TrimSpace(cfg.Init.SchoolLogin)
+}
+
+func getReviewsToken(ctx context.Context, credService *service.CredentialService, preferredLogin, fallbackLogin string) (string, error) {
+	preferredLogin = strings.TrimSpace(preferredLogin)
+	fallbackLogin = strings.TrimSpace(fallbackLogin)
+
+	if preferredLogin != "" {
+		token, err := credService.GetValidToken(ctx, preferredLogin)
+		if err == nil {
+			return token, nil
+		}
+		if fallbackLogin == "" || fallbackLogin == preferredLogin {
+			return "", err
+		}
+	}
+
+	if fallbackLogin != "" {
+		return credService.GetValidToken(ctx, fallbackLogin)
+	}
+
+	return "", fmt.Errorf("no login provided for token retrieval")
 }

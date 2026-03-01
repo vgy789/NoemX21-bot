@@ -4,6 +4,7 @@ import (
 	"log/slog"
 
 	"github.com/vgy789/noemx21-bot/internal/clients/s21"
+	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 	"github.com/vgy789/noemx21-bot/internal/service"
@@ -12,6 +13,7 @@ import (
 // RegisterReviews registers reviews-related actions.
 func RegisterReviews(
 	registry *fsm.LogicRegistry,
+	cfg *config.Config,
 	queries db.Querier,
 	s21Client *s21.Client,
 	credService *service.CredentialService,
@@ -22,5 +24,5 @@ func RegisterReviews(
 		aliasRegistrar("REVIEWS_MENU", "reviews.yaml/PRR_MAIN_MENU")
 	}
 
-	registerReviewActions(registry, queries, s21Client, credService, log)
+	registerReviewActions(registry, cfg, queries, s21Client, credService, log)
 }

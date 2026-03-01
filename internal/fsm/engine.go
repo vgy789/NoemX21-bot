@@ -15,18 +15,20 @@ import (
 // safe Markdown (built with intentional */_ and user content escaped). They
 // must not be sanitized on substitution so that *Лидер:* etc. render as bold.
 var preformattedContextKeys = map[string]bool{
-	"club_card":                      true,
-	"clubs_list":                     true,
-	"books_list_numbered":            true,
-	"my_books_list_formatted":        true,
-	"formatted_book_list_with_icons": true,
-	"loans_list_formatted":           true,
-	"free_slots_list":                true,
-	"my_bookings_list":               true,
-	"my_bookings_formatted":          true,
-	"hot_slots_list":                 true,
-	"peer_contact_line":              true,
-	"alternative_contact_line":       true,
+	"club_card":                             true,
+	"clubs_list":                            true,
+	"books_list_numbered":                   true,
+	"my_books_list_formatted":               true,
+	"formatted_book_list_with_icons":        true,
+	"loans_list_formatted":                  true,
+	"free_slots_list":                       true,
+	"my_bookings_list":                      true,
+	"my_bookings_formatted":                 true,
+	"hot_slots_list":                        true,
+	"peer_contact_line":                     true,
+	"alternative_contact_line":              true,
+	"my_selected_negotiating_contact_block": true,
+	"current_project_filters_text":          true,
 }
 
 // Engine handles the core FSM logic.
@@ -108,16 +110,22 @@ func (e *Engine) Sanitizer() func(string) string {
 }
 
 func (e *Engine) InitState(ctx context.Context, userID int64, flowName, stateName string, initialContext map[string]any) error {
+	return e.InitStateWithLanguage(ctx, userID, flowName, stateName, initialContext, LangRu)
+}
 
+func (e *Engine) InitStateWithLanguage(ctx context.Context, userID int64, flowName, stateName string, initialContext map[string]any, language string) error {
 	e.log.Info("initializing state", "user_id", userID, "flow", flowName, "state", stateName)
 	if initialContext == nil {
 		initialContext = make(map[string]any)
+	}
+	if strings.TrimSpace(language) == "" {
+		language = LangRu
 	}
 	newState := &UserState{
 		UserID:       userID,
 		CurrentFlow:  flowName,
 		CurrentState: stateName,
-		Language:     LangRu,
+		Language:     language,
 		Context:      initialContext,
 	}
 
@@ -276,10 +284,10 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 	}
 
 	// 2. Find transition based on input (button ID)
-	nextStateRaw, buttonAction, buttonMatched := e.findNextState(currentStateSpec, input, state)
+	nextStateRaw, buttonAction := e.findNextState(currentStateSpec, input, state)
 
-	// If a button was pressed, record it as last_input.
-	if buttonMatched {
+	// If a button was pressed (we found a next state), record it as last_input
+	if nextStateRaw != "" {
 		if state.Context == nil {
 			state.Context = make(map[string]any)
 		}
@@ -289,14 +297,6 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 			_, updates, _ := e.runAction(ctx, Logic{Action: buttonAction}, state, map[string]any{"id": input})
 			e.updateStateContext(state, updates)
 		}
-	}
-
-	// Action-only button: keep current state and re-render without transition.
-	if buttonMatched && nextStateRaw == "" {
-		if err := e.repo.SetState(ctx, state); err != nil {
-			return nil, err
-		}
-		return e.GetCurrentRender(ctx, userID)
 	}
 
 	// If it's an input state and no button was pressed, validate the raw input
@@ -323,11 +323,27 @@ func (e *Engine) Process(ctx context.Context, userID int64, input string) (*Rend
 		state.Context["last_input_invalid"] = false
 
 		// For input states, we look for a transition with trigger "on_valid_input" or "on_input"
+		var inputTransitionAction string
 		for _, t := range currentStateSpec.Transitions {
 			if t.Trigger == "on_valid_input" || t.Trigger == "on_input" {
+				if t.Condition != "" && !e.evaluateCondition(t.Condition, state.Context) {
+					continue
+				}
 				nextStateRaw = t.NextState
+				inputTransitionAction = t.Action
 				break
 			}
+		}
+		if nextStateRaw != "" && inputTransitionAction != "" {
+			evalCtx := make(map[string]any)
+			maps.Copy(evalCtx, state.Context)
+			evalCtx["id"] = input
+			evalCtx["message"] = map[string]any{"text": input}
+			actionNext, updates, _ := e.runAction(ctx, Logic{Action: inputTransitionAction}, state, evalCtx)
+			if actionNext != "" {
+				nextStateRaw = actionNext
+			}
+			e.updateStateContext(state, updates)
 		}
 	}
 
@@ -412,22 +428,22 @@ func (e *Engine) handleSpecialInputs(state *UserState, input string, userID int6
 	}
 }
 
-func (e *Engine) findNextState(stateSpec State, input string, userState *UserState) (string, string, bool) {
+func (e *Engine) findNextState(stateSpec State, input string, userState *UserState) (string, string) {
 	for _, btn := range stateSpec.Interface.Buttons {
 		// Direct match against static ID
 		if btn.ID == input {
-			return btn.NextState, btn.Action, true
+			return btn.NextState, btn.Action
 		}
 		// Try matching after replacing variables in the ID (allows IDs like "{category_1}")
 		// This handles dynamic button IDs that contain template variables
 		if userState != nil {
 			replacedID := e.replaceVariablesOpts(btn.ID, userState, false)
 			if replacedID == input {
-				return btn.NextState, btn.Action, true
+				return btn.NextState, btn.Action
 			}
 		}
 	}
-	return "", "", false
+	return "", ""
 }
 
 // transitionTo updates the user state and automatically processes subsequent system states.

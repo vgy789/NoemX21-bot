@@ -60,7 +60,7 @@ package "Identity_Auth" {
         external_id : string
         username : string
         role : ENUM_USER_ROLE
-        telegram_username_visibility : boolean
+        is_searchable : boolean
         linked_at : timestamp
         --
         UNIQUE(student_id, platform)

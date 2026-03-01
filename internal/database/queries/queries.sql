@@ -25,23 +25,15 @@ RETURNING *;
 SELECT * FROM user_accounts 
 WHERE platform = $1 AND external_id = $2;
 
--- name: UpdateUserAccountTelegramUsernameVisibilityByExternalId :one
+-- name: UpdateUserAccountSearchableByExternalId :one
 UPDATE user_accounts
-SET telegram_username_visibility = $3
+SET is_searchable = $3
 WHERE platform = $1 AND external_id = $2
 RETURNING *;
 
 -- name: DeleteUserAccountByExternalId :exec
 DELETE FROM user_accounts
 WHERE platform = $1 AND external_id = $2;
-
--- name: DeleteUserBookLoans :exec
-DELETE FROM book_loans
-WHERE user_id = $1;
-
--- name: DeleteUserRoomBookings :exec
-DELETE FROM room_bookings
-WHERE user_id = $1;
 
 -- name: GetUserAccountByS21Login :one
 SELECT * FROM user_accounts
@@ -53,7 +45,7 @@ WHERE id = $1;
 
 -- name: CreateUserAccount :one
 INSERT INTO user_accounts (
-    s21_login, platform, external_id, username, telegram_username_visibility, role
+    s21_login, platform, external_id, username, is_searchable, role
 ) VALUES (
     $1, $2, $3, $4, $5, $6
 )
@@ -343,7 +335,7 @@ SELECT
     c.s21_login,
     COALESCE(ua.username, '') AS telegram_username,
     COALESCE(ua.external_id, '') AS external_id,
-    ua.telegram_username_visibility,
+    ua.is_searchable,
     camp.short_name AS campus_name,
     co.name AS coalition_name,
     c.status,
@@ -490,19 +482,6 @@ JOIN rooms r ON rb.campus_id = r.campus_id AND rb.room_id = r.id
 JOIN campuses c ON rb.campus_id = c.id
 WHERE rb.user_id = $1 AND rb.booking_date >= CURRENT_DATE
 ORDER BY rb.booking_date, rb.start_time;
-
--- name: CountUserActiveRoomBookings :one
-SELECT count(*)::int
-FROM room_bookings rb
-JOIN campuses c ON rb.campus_id = c.id
-WHERE rb.user_id = $1
-  AND (
-    rb.booking_date > (CURRENT_TIMESTAMP AT TIME ZONE COALESCE(c.timezone, 'UTC'))::date
-    OR (
-      rb.booking_date = (CURRENT_TIMESTAMP AT TIME ZONE COALESCE(c.timezone, 'UTC'))::date
-      AND (rb.start_time + make_interval(mins => rb.duration_minutes)) > (CURRENT_TIMESTAMP AT TIME ZONE COALESCE(c.timezone, 'UTC'))::time
-    )
-  );
 
 -- name: CancelRoomBooking :exec
 DELETE FROM room_bookings
@@ -675,7 +654,7 @@ SELECT
     project_type,
     count(*)::int AS requests_count
 FROM review_requests
-WHERE status IN ('SEARCHING', 'NEGOTIATING')
+WHERE status = 'SEARCHING'
 GROUP BY project_id, project_name, project_type
 ORDER BY requests_count DESC, project_name ASC;
 
@@ -700,13 +679,19 @@ SELECT
     rr.closed_at,
     COALESCE(c.short_name, '') AS requester_campus_name,
     COALESCE(psc.level::text, '0') AS requester_level,
-    COALESCE(ua.username, '') AS requester_telegram_username
+    COALESCE(
+        CASE
+            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            ELSE ''::text
+        END,
+        ''
+    ) AS requester_telegram_username
 FROM review_requests rr
 LEFT JOIN campuses c ON rr.requester_campus_id = c.id
 LEFT JOIN participant_stats_cache psc ON rr.requester_s21_login = psc.s21_login
 LEFT JOIN user_accounts ua ON rr.requester_user_id = ua.id AND ua.platform = 'telegram'
 WHERE rr.project_id = $1
-  AND rr.status IN ('SEARCHING', 'NEGOTIATING')
+  AND rr.status = 'SEARCHING'
 ORDER BY rr.created_at DESC;
 
 -- name: GetReviewRequestsForCleanup :many
@@ -741,7 +726,13 @@ SELECT
     rr.closed_at,
     COALESCE(c.short_name, '') AS requester_campus_name,
     COALESCE(psc.level::text, '0') AS requester_level,
-    COALESCE(ua.username, '') AS requester_telegram_username
+    COALESCE(
+        CASE
+            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            ELSE ''::text
+        END,
+        ''
+    ) AS requester_telegram_username
 FROM review_requests rr
 LEFT JOIN campuses c ON rr.requester_campus_id = c.id
 LEFT JOIN participant_stats_cache psc ON rr.requester_s21_login = psc.s21_login
@@ -766,12 +757,24 @@ SELECT
     rr.status,
     rr.view_count,
     rr.response_count,
+    rr.negotiating_reviewer_user_id,
+    COALESCE(rr.negotiating_reviewer_s21_login, '') AS negotiating_reviewer_s21_login,
+    COALESCE(rr.negotiating_reviewer_telegram_username, '') AS negotiating_reviewer_telegram_username,
+    COALESCE(rr.negotiating_reviewer_rocketchat_id, '') AS negotiating_reviewer_rocketchat_id,
+    COALESCE(rr.negotiating_reviewer_alternative_contact, '') AS negotiating_reviewer_alternative_contact,
+    rr.negotiating_started_at,
     rr.created_at,
     rr.updated_at,
     rr.closed_at,
     COALESCE(c.short_name, '') AS requester_campus_name,
     COALESCE(psc.level::text, '0') AS requester_level,
-    COALESCE(ua.username, '') AS requester_telegram_username
+    COALESCE(
+        CASE
+            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            ELSE ''::text
+        END,
+        ''
+    ) AS requester_telegram_username
 FROM review_requests rr
 LEFT JOIN campuses c ON rr.requester_campus_id = c.id
 LEFT JOIN participant_stats_cache psc ON rr.requester_s21_login = psc.s21_login
@@ -800,7 +803,13 @@ SELECT
     rr.closed_at,
     COALESCE(c.short_name, '') AS requester_campus_name,
     COALESCE(psc.level::text, '0') AS requester_level,
-    COALESCE(ua.username, '') AS requester_telegram_username
+    COALESCE(
+        CASE
+            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            ELSE ''::text
+        END,
+        ''
+    ) AS requester_telegram_username
 FROM review_requests rr
 LEFT JOIN campuses c ON rr.requester_campus_id = c.id
 LEFT JOIN participant_stats_cache psc ON rr.requester_s21_login = psc.s21_login
@@ -818,16 +827,28 @@ RETURNING view_count;
 UPDATE review_requests
 SET response_count = response_count + 1,
     status = 'NEGOTIATING',
-    updated_at = CURRENT_TIMESTAMP
+    updated_at = CURRENT_TIMESTAMP,
+    negotiating_reviewer_user_id = $2,
+    negotiating_reviewer_s21_login = $3,
+    negotiating_reviewer_telegram_username = $4,
+    negotiating_reviewer_rocketchat_id = $5,
+    negotiating_reviewer_alternative_contact = $6,
+    negotiating_started_at = CURRENT_TIMESTAMP
 WHERE id = $1
-  AND status IN ('SEARCHING', 'NEGOTIATING')
+  AND status = 'SEARCHING'
 RETURNING response_count, status;
 
 -- name: SetReviewRequestStatus :one
 UPDATE review_requests
-SET status = $3,
+SET status = sqlc.arg(status)::enum_review_status,
     updated_at = CURRENT_TIMESTAMP,
-    closed_at = CASE WHEN $3 = 'CLOSED' THEN CURRENT_TIMESTAMP ELSE NULL END
+    closed_at = CASE WHEN sqlc.arg(status)::enum_review_status = 'CLOSED' THEN CURRENT_TIMESTAMP ELSE NULL END,
+    negotiating_reviewer_user_id = CASE WHEN sqlc.arg(status)::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_reviewer_user_id END,
+    negotiating_reviewer_s21_login = CASE WHEN sqlc.arg(status)::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_reviewer_s21_login END,
+    negotiating_reviewer_telegram_username = CASE WHEN sqlc.arg(status)::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_reviewer_telegram_username END,
+    negotiating_reviewer_rocketchat_id = CASE WHEN sqlc.arg(status)::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_reviewer_rocketchat_id END,
+    negotiating_reviewer_alternative_contact = CASE WHEN sqlc.arg(status)::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_reviewer_alternative_contact END,
+    negotiating_started_at = CASE WHEN sqlc.arg(status)::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_started_at END
 WHERE id = $1
   AND requester_user_id = $2
 RETURNING id, status;
@@ -839,3 +860,244 @@ SET status = 'CLOSED',
     closed_at = CURRENT_TIMESTAMP
 WHERE id = $1
   AND status <> 'CLOSED';
+
+-- name: UpsertCourseCatalog :exec
+INSERT INTO courses (
+    id,
+    title,
+    code,
+    sync_batch_id,
+    updated_at
+) VALUES (
+    $1, $2, $3, $4, CURRENT_TIMESTAMP
+)
+ON CONFLICT (id) DO UPDATE SET
+    title = EXCLUDED.title,
+    code = EXCLUDED.code,
+    sync_batch_id = EXCLUDED.sync_batch_id,
+    updated_at = CURRENT_TIMESTAMP;
+
+-- name: UpsertProjectCatalog :exec
+INSERT INTO projects (
+    id,
+    course_id,
+    title,
+    code,
+    sync_batch_id,
+    updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, CURRENT_TIMESTAMP
+)
+ON CONFLICT (id) DO UPDATE SET
+    course_id = EXCLUDED.course_id,
+    title = EXCLUDED.title,
+    code = EXCLUDED.code,
+    sync_batch_id = EXCLUDED.sync_batch_id,
+    updated_at = CURRENT_TIMESTAMP;
+
+-- name: UpsertNodeCatalog :one
+INSERT INTO nodes (
+    name,
+    parent_id,
+    sync_batch_id,
+    updated_at
+) VALUES (
+    $1, $2, $3, CURRENT_TIMESTAMP
+)
+ON CONFLICT ((COALESCE(parent_id, 0)), lower(name)) DO UPDATE SET
+    sync_batch_id = EXCLUDED.sync_batch_id,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING id;
+
+-- name: UpsertProjectNodeCatalog :exec
+INSERT INTO project_nodes (
+    project_id,
+    node_id,
+    sync_batch_id
+) VALUES (
+    $1, $2, $3
+)
+ON CONFLICT (project_id, node_id) DO UPDATE SET
+    sync_batch_id = EXCLUDED.sync_batch_id;
+
+-- name: DeleteStaleProjectNodesCatalog :exec
+DELETE FROM project_nodes
+WHERE sync_batch_id <> $1;
+
+-- name: DeleteStaleProjectsCatalog :exec
+DELETE FROM projects
+WHERE sync_batch_id <> $1;
+
+-- name: DeleteStaleCoursesCatalog :exec
+DELETE FROM courses
+WHERE sync_batch_id <> $1;
+
+-- name: DeleteStaleNodesCatalog :exec
+DELETE FROM nodes
+WHERE sync_batch_id <> $1;
+
+-- name: DeleteStaleProjectSearchCatalog :exec
+DELETE FROM project_search
+WHERE sync_batch_id <> $1;
+
+-- name: CountSearchCatalogProjects :one
+SELECT count(*)::int
+FROM projects p
+LEFT JOIN project_search ps ON ps.project_id = p.id
+WHERE (
+    $1 = ''
+    OR ps.document @@ websearch_to_tsquery('simple', $1)
+    OR lower(COALESCE(ps.search_text, '')) LIKE '%' || lower($1) || '%'
+    OR lower(p.title) LIKE '%' || lower($1) || '%'
+    OR lower(COALESCE(p.code, '')) LIKE '%' || lower($1) || '%'
+    OR lower(COALESCE(c.title, '')) LIKE '%' || lower($1) || '%'
+    OR lower(COALESCE(c.code, '')) LIKE '%' || lower($1) || '%'
+);
+
+-- name: SearchCatalogProjects :many
+SELECT
+    p.id AS project_id,
+    p.title AS project_title,
+    COALESCE(p.code, '') AS project_code,
+    p.course_id,
+    COALESCE(c.title, '') AS course_title,
+    COALESCE(c.code, '') AS course_code,
+    COALESCE(string_agg(DISTINCT n.name, ', ' ORDER BY n.name), '') AS node_names
+FROM projects p
+LEFT JOIN courses c ON c.id = p.course_id
+LEFT JOIN project_nodes pn ON pn.project_id = p.id
+LEFT JOIN nodes n ON n.id = pn.node_id
+LEFT JOIN project_search ps ON ps.project_id = p.id
+WHERE (
+    $1 = ''
+    OR ps.document @@ websearch_to_tsquery('simple', $1)
+    OR lower(COALESCE(ps.search_text, '')) LIKE '%' || lower($1) || '%'
+    OR lower(p.title) LIKE '%' || lower($1) || '%'
+    OR lower(COALESCE(p.code, '')) LIKE '%' || lower($1) || '%'
+    OR lower(COALESCE(c.title, '')) LIKE '%' || lower($1) || '%'
+    OR lower(COALESCE(c.code, '')) LIKE '%' || lower($1) || '%'
+)
+GROUP BY p.id, c.id
+ORDER BY
+    CASE WHEN p.id = ANY($4::BIGINT[]) THEN 0 ELSE 1 END,
+    p.title ASC
+LIMIT $2 OFFSET $3;
+
+-- name: SearchCatalogProjectsAll :many
+SELECT
+    p.id AS project_id,
+    p.title AS project_title,
+    COALESCE(p.code, '') AS project_code,
+    p.course_id,
+    COALESCE(c.title, '') AS course_title,
+    COALESCE(c.code, '') AS course_code,
+    COALESCE(string_agg(DISTINCT n.name, ', ' ORDER BY n.name), '') AS node_names
+FROM projects p
+LEFT JOIN courses c ON c.id = p.course_id
+LEFT JOIN project_nodes pn ON pn.project_id = p.id
+LEFT JOIN nodes n ON n.id = pn.node_id
+LEFT JOIN project_search ps ON ps.project_id = p.id
+WHERE (
+    $1 = ''
+    OR ps.document @@ websearch_to_tsquery('simple', $1)
+)
+GROUP BY p.id, c.id
+ORDER BY p.title ASC;
+
+-- name: SearchCatalogCourses :many
+SELECT
+    c.id,
+    c.title,
+    COALESCE(c.code, '') AS code,
+    count(p.id)::int AS project_count
+FROM courses c
+LEFT JOIN projects p ON p.course_id = c.id
+WHERE (
+    $1 = ''
+    OR to_tsvector('simple', concat_ws(' ', c.id::text, c.title, COALESCE(c.code, ''))) @@ websearch_to_tsquery('simple', $1)
+    OR lower(c.title) LIKE '%' || lower($1) || '%'
+    OR lower(COALESCE(c.code, '')) LIKE '%' || lower($1) || '%'
+    OR EXISTS (
+        SELECT 1
+        FROM projects p2
+        JOIN project_search ps ON ps.project_id = p2.id
+        WHERE p2.course_id = c.id
+          AND (
+              ps.document @@ websearch_to_tsquery('simple', $1)
+              OR lower(COALESCE(ps.search_text, '')) LIKE '%' || lower($1) || '%'
+              OR lower(p2.title) LIKE '%' || lower($1) || '%'
+              OR lower(COALESCE(p2.code, '')) LIKE '%' || lower($1) || '%'
+          )
+    )
+)
+GROUP BY c.id
+ORDER BY c.title ASC;
+
+-- name: SearchCatalogNodes :many
+WITH RECURSIVE node_paths AS (
+    SELECT
+        n.id,
+        n.name,
+        n.parent_id,
+        n.name::text AS path
+    FROM nodes n
+    WHERE n.parent_id IS NULL
+
+    UNION ALL
+
+    SELECT
+        child.id,
+        child.name,
+        child.parent_id,
+        (np.path || ' / ' || child.name)::text AS path
+    FROM nodes child
+    JOIN node_paths np ON np.id = child.parent_id
+)
+SELECT
+    np.id,
+    np.name,
+    np.parent_id,
+    np.path,
+    COALESCE(cnt.project_count, 0)::int AS project_count
+FROM node_paths np
+LEFT JOIN (
+    SELECT node_id, count(DISTINCT project_id)::int AS project_count
+    FROM project_nodes
+    GROUP BY node_id
+) cnt ON cnt.node_id = np.id
+WHERE (
+    $1 = ''
+    OR to_tsvector('simple', concat_ws(' ', np.id::text, np.path, np.name)) @@ websearch_to_tsquery('simple', $1)
+    OR lower(np.path) LIKE '%' || lower($1) || '%'
+    OR lower(np.name) LIKE '%' || lower($1) || '%'
+)
+ORDER BY np.path ASC;
+
+-- name: GetCatalogProjectIDsByCourse :many
+SELECT id
+FROM projects
+WHERE course_id = $1
+ORDER BY id;
+
+-- name: GetCatalogProjectIDsByNodeRecursive :many
+WITH RECURSIVE subtree(node_id) AS (
+    SELECT n.id
+    FROM nodes n
+    WHERE n.id = $1
+
+    UNION ALL
+
+    SELECT n.id
+    FROM nodes n
+    JOIN subtree s ON n.parent_id = s.node_id
+)
+SELECT DISTINCT pn.project_id AS project_id
+FROM project_nodes pn
+JOIN subtree s ON s.node_id = pn.node_id
+ORDER BY project_id;
+
+-- name: GetCatalogProjectTitlesByIDs :many
+SELECT id, title
+FROM projects
+WHERE id = ANY($1::BIGINT[])
+ORDER BY title ASC;

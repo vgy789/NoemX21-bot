@@ -9,8 +9,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
-	"github.com/vgy789/noemx21-bot/internal/config"
 )
 
 // Client for Rocket.Chat API
@@ -134,11 +132,7 @@ func (c *Client) GetUserInfo(ctx context.Context, username string) (*UserInfoRes
 	// DEBUG LOGGING
 	fmt.Printf("DEBUG REQUEST: %s %s|\n", req.Method, req.URL.String())
 	for k, v := range req.Header {
-		headerValue := strings.Join(v, ",")
-		if strings.EqualFold(k, "X-Auth-Token") {
-			headerValue = config.Secret(headerValue).String()
-		}
-		fmt.Printf("HEADER %s: %s|\n", k, headerValue)
+		fmt.Printf("HEADER %s: %s|\n", k, strings.Join(v, ","))
 	}
 	// END DEBUG LOGGING
 

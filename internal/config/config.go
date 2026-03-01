@@ -71,6 +71,7 @@ type GitSync struct {
 	Interval     string `env:"GIT_SYNC_INTERVAL" envDefault:"5m"`
 	LocalPath    string `env:"GIT_LOCAL_PATH" envDefault:"data"`
 	CampusesPath string `env:"GIT_CAMPUSES_PATH" envDefault:"campuses"`
+	ProjectsPath string `env:"GIT_PROJECTS_PATH" envDefault:"bot_content/various/projects.yaml"`
 	SSHKeyBase64 Secret `env:"SSH_KEY_BASE64"`
 }
 

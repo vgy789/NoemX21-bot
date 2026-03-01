@@ -266,6 +266,15 @@ type Coalition struct {
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
+type Course struct {
+	ID          int64              `json:"id"`
+	Title       string             `json:"title"`
+	Code        pgtype.Text        `json:"code"`
+	SyncBatchID int64              `json:"sync_batch_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 type FsmUserState struct {
 	UserID       int64              `json:"user_id"`
 	CurrentFlow  string             `json:"current_flow"`
@@ -273,6 +282,15 @@ type FsmUserState struct {
 	Context      []byte             `json:"context"`
 	Language     string             `json:"language"`
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
+type Node struct {
+	ID          int64              `json:"id"`
+	Name        string             `json:"name"`
+	ParentID    pgtype.Int8        `json:"parent_id"`
+	SyncBatchID int64              `json:"sync_batch_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
 }
 
 type ParticipantSkill struct {
@@ -314,6 +332,31 @@ type PlatformCredential struct {
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
 }
 
+type Project struct {
+	ID          int64              `json:"id"`
+	CourseID    pgtype.Int8        `json:"course_id"`
+	Title       string             `json:"title"`
+	Code        pgtype.Text        `json:"code"`
+	SyncBatchID int64              `json:"sync_batch_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ProjectNode struct {
+	ProjectID   int64              `json:"project_id"`
+	NodeID      int64              `json:"node_id"`
+	SyncBatchID int64              `json:"sync_batch_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
+type ProjectSearch struct {
+	ProjectID   int64              `json:"project_id"`
+	SearchText  string             `json:"search_text"`
+	Document    interface{}        `json:"document"`
+	SyncBatchID int64              `json:"sync_batch_id"`
+	UpdatedAt   pgtype.Timestamptz `json:"updated_at"`
+}
+
 type RegisteredUser struct {
 	S21Login           string             `json:"s21_login"`
 	RocketchatID       string             `json:"rocketchat_id"`
@@ -325,23 +368,29 @@ type RegisteredUser struct {
 }
 
 type ReviewRequest struct {
-	ID                      int64              `json:"id"`
-	RequesterUserID         int64              `json:"requester_user_id"`
-	RequesterS21Login       string             `json:"requester_s21_login"`
-	RequesterCampusID       pgtype.UUID        `json:"requester_campus_id"`
-	ProjectID               int64              `json:"project_id"`
-	ProjectName             string             `json:"project_name"`
-	ProjectType             string             `json:"project_type"`
-	AvailabilityText        string             `json:"availability_text"`
-	RequesterTimezone       string             `json:"requester_timezone"`
-	RequesterTimezoneOffset string             `json:"requester_timezone_offset"`
-	ReviewsProgressText     string             `json:"reviews_progress_text"`
-	Status                  EnumReviewStatus   `json:"status"`
-	ViewCount               int32              `json:"view_count"`
-	ResponseCount           int32              `json:"response_count"`
-	CreatedAt               pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt               pgtype.Timestamptz `json:"updated_at"`
-	ClosedAt                pgtype.Timestamptz `json:"closed_at"`
+	ID                                    int64              `json:"id"`
+	RequesterUserID                       int64              `json:"requester_user_id"`
+	RequesterS21Login                     string             `json:"requester_s21_login"`
+	RequesterCampusID                     pgtype.UUID        `json:"requester_campus_id"`
+	ProjectID                             int64              `json:"project_id"`
+	ProjectName                           string             `json:"project_name"`
+	ProjectType                           string             `json:"project_type"`
+	AvailabilityText                      string             `json:"availability_text"`
+	RequesterTimezone                     string             `json:"requester_timezone"`
+	RequesterTimezoneOffset               string             `json:"requester_timezone_offset"`
+	ReviewsProgressText                   string             `json:"reviews_progress_text"`
+	Status                                EnumReviewStatus   `json:"status"`
+	ViewCount                             int32              `json:"view_count"`
+	ResponseCount                         int32              `json:"response_count"`
+	CreatedAt                             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                             pgtype.Timestamptz `json:"updated_at"`
+	ClosedAt                              pgtype.Timestamptz `json:"closed_at"`
+	NegotiatingReviewerUserID             pgtype.Int8        `json:"negotiating_reviewer_user_id"`
+	NegotiatingReviewerS21Login           pgtype.Text        `json:"negotiating_reviewer_s21_login"`
+	NegotiatingReviewerTelegramUsername   pgtype.Text        `json:"negotiating_reviewer_telegram_username"`
+	NegotiatingReviewerRocketchatID       pgtype.Text        `json:"negotiating_reviewer_rocketchat_id"`
+	NegotiatingReviewerAlternativeContact pgtype.Text        `json:"negotiating_reviewer_alternative_contact"`
+	NegotiatingStartedAt                  pgtype.Timestamptz `json:"negotiating_started_at"`
 }
 
 type RocketchatCredential struct {
@@ -384,14 +433,14 @@ type Skill struct {
 }
 
 type UserAccount struct {
-	ID                         int64              `json:"id"`
-	S21Login                   string             `json:"s21_login"`
-	Platform                   EnumPlatform       `json:"platform"`
-	ExternalID                 string             `json:"external_id"`
-	Username                   pgtype.Text        `json:"username"`
-	TelegramUsernameVisibility pgtype.Bool        `json:"telegram_username_visibility"`
-	Role                       NullEnumUserRole   `json:"role"`
-	LinkedAt                   pgtype.Timestamptz `json:"linked_at"`
+	ID           int64              `json:"id"`
+	S21Login     string             `json:"s21_login"`
+	Platform     EnumPlatform       `json:"platform"`
+	ExternalID   string             `json:"external_id"`
+	Username     pgtype.Text        `json:"username"`
+	IsSearchable pgtype.Bool        `json:"is_searchable"`
+	Role         NullEnumUserRole   `json:"role"`
+	LinkedAt     pgtype.Timestamptz `json:"linked_at"`
 }
 
 type UserBotSetting struct {

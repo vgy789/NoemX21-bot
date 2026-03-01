@@ -1,7 +1,3 @@
----
-meta:
-  name: Peer Review Helper
-
 initial_state: PRR_MAIN_MENU
 
 states:
@@ -28,8 +24,8 @@ states:
       buttons:
         - id: list_all
           label:
-            ru: 📋 Доска проектов
-            en: 📋 Project board
+            ru: 📋 Текущие запросы пиров
+            en: 📋 Current peer requests
           next_state: GLOBAL_PRR_BOARD
           row: 1
         - id: create_new
@@ -79,31 +75,31 @@ states:
           {available_projects_list_hint}
       buttons:
         - id: "{project_id_1}"
-          label: "📁 {project_name_1} ({project_type_1})"
+          label: "{project_name_1} ({project_type_1})"
           condition: "project_id_1 != ''"
           action: select_project
           next_state: CHECK_DUPLICATE_PROJECT_PRR
           row: 1
         - id: "{project_id_2}"
-          label: "📁 {project_name_2} ({project_type_2})"
+          label: "{project_name_2} ({project_type_2})"
           condition: "project_id_2 != ''"
           action: select_project
           next_state: CHECK_DUPLICATE_PROJECT_PRR
           row: 2
         - id: "{project_id_3}"
-          label: "📁 {project_name_3} ({project_type_3})"
+          label: "{project_name_3} ({project_type_3})"
           condition: "project_id_3 != ''"
           action: select_project
           next_state: CHECK_DUPLICATE_PROJECT_PRR
           row: 3
         - id: "{project_id_4}"
-          label: "📁 {project_name_4} ({project_type_4})"
+          label: "{project_name_4} ({project_type_4})"
           condition: "project_id_4 != ''"
           action: select_project
           next_state: CHECK_DUPLICATE_PROJECT_PRR
           row: 4
         - id: "{project_id_5}"
-          label: "📁 {project_name_5} ({project_type_5})"
+          label: "{project_name_5} ({project_type_5})"
           condition: "project_id_5 != ''"
           action: select_project
           next_state: CHECK_DUPLICATE_PROJECT_PRR
@@ -183,9 +179,9 @@ states:
         ru: |
           📝 *Проверь данные запроса:*
 
-          📁 Проект: `{selected_project_name}`
+          📁 Проект: *{selected_project_name}*
           🧩 Тип: `{selected_project_type}`
-          ⏰ Время: `{last_input}`
+          ⏰ Время: `{create_prr_time_description}`
           🌐 Твой часовой пояс: `{user_timezone_name}` (UTC{user_timezone_formatted})
           📊 Прогресс ревью: {reviews_progress_text}
 
@@ -193,9 +189,9 @@ states:
         en: |
           📝 *Review your request:*
 
-          📁 Project: `{selected_project_name}`
+          📁 Project: *{selected_project_name}*
           🧩 Type: `{selected_project_type}`
-          ⏰ Time: `{last_input}`
+          ⏰ Time: `{create_prr_time_description}`
           🌐 Your timezone: `{user_timezone_name}` (UTC{user_timezone_formatted})
           📊 Review progress: {reviews_progress_text}
 
@@ -262,19 +258,17 @@ states:
     interface:
       text:
         ru: |
-          📋 *Доска Peer Review*
-          Фильтр проектов: `{current_project_filters_text}`
+          📋 *Текущие запросы Peer Review*
+
+          Отображать заявки по: `{current_project_filters_text}`
 
           {project_groups_formatted}
-
-          _Сначала выбери проект, потом конкретный запрос._
         en: |
-          📋 *Peer Review Board*
-          Project filters: `{current_project_filters_text}`
+          📋 *Current Peer Review Requests*
+
+          View requsts for: `{current_project_filters_text}`
 
           {project_groups_formatted}
-
-          _Pick a project first, then a specific request._
       buttons:
         - id: "{project_group_id_1}"
           label: "{project_group_btn_label_1}"
@@ -318,6 +312,7 @@ states:
           label:
             ru: "{global_board_page_caption_ru}"
             en: "{global_board_page_caption_en}"
+          condition: "project_group_id_1 != ''"
           action: none
           row: 6
         - id: next_board_page
@@ -330,8 +325,8 @@ states:
           row: 6
         - id: set_filters
           label:
-            ru: ⚙️ Фильтры проектов
-            en: ⚙️ Project filters
+            ru: ⚙️ Фильтры заявок
+            en: ⚙️ Request filters
           next_state: PRR_FILTERS_MENU
           row: 7
         - id: refresh
@@ -517,28 +512,46 @@ states:
     interface:
       text:
         ru: |
-          📨 Предложение отправлено автору заявки.
+          📨 *Контакт передан!*
 
-          Мы пометили запрос как *[🟡 В переговорах]*, чтобы снизить повторные отклики.
-          Автор может приостановить поиск в разделе «Мои запросы».
+          Мы скрыли эту заявку с доски, чтобы автору не спамили другие пиры.
+          Напиши автору в личные сообщения.
+          {requester_alternative_contact_line}
         en: |
-          📨 Offer sent to the request owner.
+          📨 *Contact shared!*
 
-          Request status is now *[🟡 Negotiating]* to reduce duplicate pings.
-          The owner can pause discovery from “My requests”.
+          We've hidden this request from the board so the author doesn't get spammed.
+          Message the author directly.
+          {requester_alternative_contact_line}
       buttons:
+        - id: message_author
+          label:
+            ru: 💬 Написать в Telegram
+            en: 💬 Message in Telegram
+          condition: "requester_username != ''"
+          action: open_url
+          url: "https://t.me/{requester_username}"
+          row: 1
+        - id: message_author_rc
+          label:
+            ru: 💬 Написать в Rocket.Chat
+            en: 💬 Message in Rocket.Chat
+          condition: "requester_rocketchat_id != ''"
+          action: open_url
+          url: "https://rocketchat-student.21-school.ru/direct/{requester_rocketchat_id}"
+          row: 1
         - id: back_project
           label:
             ru: 🔙 К запросам проекта
             en: 🔙 Back to project requests
           next_state: PROJECT_PRR_LIST
-          row: 1
+          row: 2
         - id: board
           label:
             ru: 📋 К доске проектов
             en: 📋 To project board
           next_state: GLOBAL_PRR_BOARD
-          row: 2
+          row: 3
 
   MY_PRR_LIST:
     type: interactive
@@ -551,15 +564,18 @@ states:
       text:
         ru: |
           📂 *Текущие запросы*
+
           Здесь можно приостановить поиск, возобновить или закрыть заявку.
 
           {my_prr_list_formatted}
         en: |
           📂 *Current requests*
+
           Pause, resume, or close your requests here.
 
           {my_prr_list_formatted}
       buttons:
+        # TODO: возможно в коде осталось от пагинации, которой мы отказались, удалить тогда .go код
         - id: "{my_prr_id_1}"
           label: "{my_prr_btn_label_1}"
           condition: "my_prr_id_1 != ''"
@@ -602,6 +618,7 @@ states:
           label:
             ru: "{my_prr_page_caption_ru}"
             en: "{my_prr_page_caption_en}"
+          condition: "my_prr_id_1 != ''"
           action: none
           row: 6
         - id: next_my_prr_page
@@ -612,6 +629,12 @@ states:
           action: my_prr_next_page
           next_state: MY_PRR_LIST
           row: 6
+        - id: "{my_prr_id_7}"
+          label: "{my_prr_btn_label_7}"
+          condition: "my_prr_id_7 != ''"
+          action: select_my_prr
+          next_state: MY_PRR_DETAILS
+          row: 7
         - id: refresh
           label:
             ru: 🔄 Обновить
@@ -643,6 +666,8 @@ states:
           👁 Просмотров: {my_selected_view_count}
           🙋 Откликов: {my_selected_response_count}
           🔖 Статус: {my_selected_status_label}
+          {my_selected_error_line}
+          {my_selected_negotiating_contact_block}
         en: |
           📌 *My request*
 
@@ -652,6 +677,8 @@ states:
           👁 Views: {my_selected_view_count}
           🙋 Offers: {my_selected_response_count}
           🔖 Status: {my_selected_status_label}
+          {my_selected_error_line}
+          {my_selected_negotiating_contact_block}
       buttons:
         - id: pause_search
           label:
@@ -666,6 +693,14 @@ states:
             ru: ▶️ Возобновить поиск
             en: ▶️ Resume search
           condition: "my_selected_status == 'PAUSED'"
+          action: resume_my_prr
+          next_state: MY_PRR_DETAILS
+          row: 1
+        - id: resume_from_negotiating
+          label:
+            ru: 🔄 Вернуть на доску
+            en: 🔄 Return to board
+          condition: "my_selected_status == 'NEGOTIATING'"
           action: resume_my_prr
           next_state: MY_PRR_DETAILS
           row: 1
@@ -693,87 +728,149 @@ states:
     interface:
       text:
         ru: |
-          Выбери, какие проекты показывать на доске:
+          Выбери, какие проекты ты хочешь проверять. Я буду показывать их на доске.
 
+          Раздел: `{project_filter_mode_text}`
+          Поиск по: `{project_filter_query_text}`
           Текущий фильтр: `{current_project_filters_text}`
+
           {project_filter_list_formatted}
         en: |
-          Choose which projects to show on the board:
+          Choose which projects to show on the board.
 
+          Mode: `{project_filter_mode_text}`
+          Search: `{project_filter_query_text}`
           Current filter: `{current_project_filters_text}`
           {project_filter_list_formatted}
       buttons:
+        - id: mode_projects
+          label: "{project_filter_mode_projects}"
+          action: set_project_filter_mode_projects
+          next_state: PRR_FILTERS_MENU
+          row: 1
+        - id: mode_courses
+          label: "{project_filter_mode_courses}"
+          action: set_project_filter_mode_courses
+          next_state: PRR_FILTERS_MENU
+          row: 1
+        - id: mode_nodes
+          label: "{project_filter_mode_nodes}"
+          action: set_project_filter_mode_nodes
+          next_state: PRR_FILTERS_MENU
+          row: 1
         - id: "{project_filter_id_1}"
           label: "{project_filter_btn_label_1}"
           condition: "project_filter_id_1 != ''"
           action: toggle_project_filter
           next_state: PRR_FILTERS_MENU
-          row: 1
+          row: 2
         - id: "{project_filter_id_2}"
           label: "{project_filter_btn_label_2}"
           condition: "project_filter_id_2 != ''"
           action: toggle_project_filter
           next_state: PRR_FILTERS_MENU
-          row: 2
+          row: 3
         - id: "{project_filter_id_3}"
           label: "{project_filter_btn_label_3}"
           condition: "project_filter_id_3 != ''"
           action: toggle_project_filter
           next_state: PRR_FILTERS_MENU
-          row: 3
+          row: 4
         - id: "{project_filter_id_4}"
           label: "{project_filter_btn_label_4}"
           condition: "project_filter_id_4 != ''"
           action: toggle_project_filter
           next_state: PRR_FILTERS_MENU
-          row: 4
+          row: 5
         - id: "{project_filter_id_5}"
           label: "{project_filter_btn_label_5}"
           condition: "project_filter_id_5 != ''"
           action: toggle_project_filter
           next_state: PRR_FILTERS_MENU
-          row: 5
+          row: 6
+        - id: search_query
+          label:
+            ru: 🔎 Ввести поиск
+            en: 🔎 Enter search
+          next_state: PRR_FILTERS_SEARCH_INPUT
+          row: 8
+        - id: clear_query
+          label:
+            ru: 🧹 Очистить поиск
+            en: 🧹 Clear search
+          condition: "project_filter_query != ''"
+          action: clear_project_filter_query
+          next_state: PRR_FILTERS_MENU
+          row: 8
         - id: prev_filter_page
           label:
             ru: ⬅️ Назад
             en: ⬅️ Prev
-          condition: "project_filter_has_prev_page == true"
           action: prr_project_filter_prev_page
           next_state: PRR_FILTERS_MENU
-          row: 6
+          row: 7
         - id: filter_page
           label:
             ru: "{project_filter_page_caption_ru}"
             en: "{project_filter_page_caption_en}"
           action: none
-          row: 6
+          row: 7
         - id: next_filter_page
           label:
             ru: Вперёд ➡️
             en: Next ➡️
-          condition: "project_filter_has_next_page == true"
           action: prr_project_filter_next_page
           next_state: PRR_FILTERS_MENU
-          row: 6
+          row: 7
         - id: reset
           label:
             ru: ♻️ Сбросить фильтры
             en: ♻️ Reset filters
           action: reset_project_filters
           next_state: PRR_FILTERS_MENU
-          row: 7
+          row: 9
         - id: apply
           label:
             ru: ✅ Применить
             en: ✅ Apply
           next_state: GLOBAL_PRR_BOARD
-          row: 7
+          row: 9
         - id: back
           label:
             ru: 🔙 Назад
             en: 🔙 Back
           next_state: GLOBAL_PRR_BOARD
-          row: 8
+          row: 10
+
+  PRR_FILTERS_SEARCH_INPUT:
+    type: input
+    interface:
+      text:
+        ru: |
+          Введи поисковый запрос фильтра.
+
+          Ищется по вхождениям в: `id проекта`, `название проекта`, `код проекта`, `id курса`, `название курса`, `nodes`.
+        en: |
+          Enter a search query for the filter.
+
+          Search fields: `project name`, `project id`, `project code`, `course id`, `course name`, `nodes`.
+      buttons:
+        - id: cancel
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: PRR_FILTERS_MENU
+          row: 1
+    transitions:
+      - trigger: on_input
+        next_state: PRR_FILTERS_APPLY_QUERY
+
+  PRR_FILTERS_APPLY_QUERY:
+    type: system
+    logic:
+      action: save_project_filter_query
+    transitions:
+      - next_state: PRR_FILTERS_MENU
 
   ERROR_NO_IN_REVIEWS_PROJECTS:
     type: interactive
@@ -782,18 +879,16 @@ states:
         ru: |
           ❌ У тебя нет проектов в статусе `IN_REVIEWS`.
 
-          Бот предлагает только проекты из:
-          `/participants/{login}/projects?status=IN_REVIEWS`
+          Бот предлагает только завершённые проекты в статусе `IN_REVIEWS`.
         en: |
           ❌ You have no projects in `IN_REVIEWS` status.
 
-          The bot only offers projects from:
-          `/participants/{login}/projects?status=IN_REVIEWS`
+          The bot only offers projects from `IN_REVIEWS` status.
       buttons:
         - id: ok
           label:
-            ru: 👌 ОК
-            en: 👌 OK
+            ru: 👌 Ок
+            en: 👌 Ok
           next_state: PRR_MAIN_MENU
           row: 1
 
@@ -870,3 +965,77 @@ states:
             en: 🔙 Back to project
           next_state: PROJECT_PRR_LIST
           row: 1
+
+# ==============================================================================
+# АСИНХРОННЫЕ УВЕДОМЛЕНИЯ (PUSH NOTIFICATIONS)
+# Данные интерфейсы отправляются пользователям вне основного FSM flow,
+# как результат действий других пользователей или системных событий.
+# При нажатии на кнопки в этих уведомлениях, пользователь входит в нужный стейт FSM.
+# ==============================================================================
+notifications:
+  NOTIFY_AUTHOR_PRR_TAKEN:
+    description: "Уведомление автору заявки о том, что пир откликнулся (Вариант 2, Способ 1)"
+    trigger: "action: validate_and_propose_review"
+    interface:
+      text:
+        ru: |
+          🔔 *Твой запрос взял в работу пир!*
+
+          Пользователь @{reviewer_username} (уровень {reviewer_level}) откликнулся на твою заявку по проекту *{project_name}*.
+
+          Твоя заявка временно **скрыта с доски** (статус: `🟡 В переговорах`), чтобы тебе не писали другие.
+          Telegram: {reviewer_telegram_link}
+          Rocket.Chat: {reviewer_rocketchat_link}
+          {reviewer_alternative_contact_line}
+          Пир скоро напишет тебе в личные сообщения для согласования времени.
+        en: |
+          🔔 *A peer has taken your request!*
+
+          User @{reviewer_username} (level {reviewer_level}) responded to your request for *{project_name}*.
+
+          Your request is temporarily **hidden from the board** (status: `🟡 Negotiating`) so others won't spam you.
+          Telegram: {reviewer_telegram_link}
+          Rocket.Chat: {reviewer_rocketchat_link}
+          {reviewer_alternative_contact_line}
+          The peer will message you shortly to agree on the time.
+      buttons:
+        - id: contact_reviewer
+          label:
+            ru: 💬 Написать @{reviewer_username}
+            en: 💬 Message @{reviewer_username}
+          condition: "reviewer_username != ''"
+          action: open_url
+          url: "https://t.me/{reviewer_username}"
+          row: 1
+        - id: contact_reviewer_rc
+          label:
+            ru: 💬 Написать в Rocket.Chat
+            en: 💬 Message in Rocket.Chat
+          condition: "reviewer_rocketchat_id != ''"
+          action: open_url
+          url: "https://rocketchat-student.21-school.ru/direct/{reviewer_rocketchat_id}"
+          row: 1
+        - id: resume_search
+          label:
+            ru: 🔄 Вернуть на доску
+            en: 🔄 Return to board
+          action: resume_my_prr
+          payload:
+            prr_id: $context.prr_id
+          next_state: MY_PRR_DETAILS
+          row: 2
+        - id: close_prr
+          label:
+            ru: ❌ Закрыть заявку (Договорились)
+            en: ❌ Close request (Agreed)
+          action: close_my_prr
+          payload:
+            prr_id: $context.prr_id
+          next_state: MY_PRR_LIST
+          row: 3
+        - id: go_main_menu
+          label:
+            ru: 🏠 Главное меню
+            en: 🏠 Main menu
+          next_state: PRR_MAIN_MENU
+          row: 4

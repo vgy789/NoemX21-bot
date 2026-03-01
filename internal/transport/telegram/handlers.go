@@ -30,6 +30,20 @@ func (n *telegramNotifier) NotifyUser(_ context.Context, userID int64, text stri
 	return nil
 }
 
+func (n *telegramNotifier) NotifyUserRender(_ context.Context, userID int64, render *fsm.RenderObject) error {
+	if n == nil || n.sender == nil || render == nil || strings.TrimSpace(render.Text) == "" {
+		return nil
+	}
+	_, err := n.sender.SendMessage(userID, render.Text, &gotgbot.SendMessageOpts{
+		ParseMode:   "Markdown",
+		ReplyMarkup: buildMarkup(render.Buttons),
+	})
+	if err != nil {
+		return fmt.Errorf("telegram notify render failed: %w", err)
+	}
+	return nil
+}
+
 // registerHandlers registers handlers for the dispatcher.
 func (s *telegramService) registerHandlers(d *ext.Dispatcher) {
 	d.AddHandler(handlers.NewCommand("start", s.handleStart))
@@ -227,6 +241,27 @@ func (s *telegramService) handleCallback(b *gotgbot.Bot, ctx *ext.Context) error
 
 	s.log.Debug("callback received", "user_id", userID, "data", cb.Data)
 
+	if action, prrID, ok := fsm.ParsePRRNotifyCallback(cb.Data); ok {
+		render, err := s.handlePRRNotificationCallback(bgCtx, userID, action, prrID)
+		if err != nil {
+			s.log.Warn("failed to process PRR notification callback", "user_id", userID, "data", cb.Data, "error", err)
+			_, _ = s.getSender(b).AnswerCallbackQuery(cb.Id, &gotgbot.AnswerCallbackQueryOpts{Text: "Кнопка устарела, обновляю меню..."})
+			render, err = s.engine.GetCurrentRender(bgCtx, userID)
+			if err != nil {
+				_, _ = s.getSender(b).AnswerCallbackQuery(cb.Id, &gotgbot.AnswerCallbackQueryOpts{Text: "Сессия истекла, введите /start"})
+				return nil
+			}
+		} else {
+			_, _ = s.getSender(b).AnswerCallbackQuery(cb.Id, &gotgbot.AnswerCallbackQueryOpts{})
+		}
+
+		newMessageID, renderErr := s.updateMessageRender(s.getSender(b), ctx.EffectiveChat.Id, cb.Message.GetMessageId(), render)
+		if renderErr == nil && newMessageID > 0 {
+			s.setLastBotMessageID(userID, &gotgbot.Message{MessageId: newMessageID})
+		}
+		return renderErr
+	}
+
 	render, err := s.engine.Process(bgCtx, userID, cb.Data)
 	if err != nil {
 		if err == fsm.ErrEngineBusy {
@@ -265,6 +300,45 @@ func (s *telegramService) handleCallback(b *gotgbot.Bot, ctx *ext.Context) error
 		s.setLastBotMessageID(userID, &gotgbot.Message{MessageId: newMessageID})
 	}
 	return err
+}
+
+func (s *telegramService) handlePRRNotificationCallback(ctx context.Context, userID int64, action fsm.PRRNotifyAction, prrID int64) (*fsm.RenderObject, error) {
+	lang := fsm.LangRu
+	if s.engine != nil && s.engine.Repo() != nil {
+		state, err := s.engine.Repo().GetState(ctx, userID)
+		if err == nil && state != nil && strings.TrimSpace(state.Language) != "" {
+			lang = state.Language
+		}
+	}
+
+	prrIDStr := ""
+	if prrID > 0 {
+		prrIDStr = fmt.Sprintf("%d", prrID)
+	}
+	initialContext := map[string]any{
+		"selected_my_prr_id": prrIDStr,
+		"prr_id":             prrIDStr,
+	}
+
+	switch action {
+	case fsm.PRRNotifyActionResume:
+		if err := s.engine.InitStateWithLanguage(ctx, userID, "reviews.yaml", "MY_PRR_DETAILS", initialContext, lang); err != nil {
+			return nil, err
+		}
+		return s.engine.Process(ctx, userID, "resume_from_negotiating")
+	case fsm.PRRNotifyActionClose:
+		if err := s.engine.InitStateWithLanguage(ctx, userID, "reviews.yaml", "MY_PRR_DETAILS", initialContext, lang); err != nil {
+			return nil, err
+		}
+		return s.engine.Process(ctx, userID, "close_prr")
+	case fsm.PRRNotifyActionMenu:
+		if err := s.engine.InitStateWithLanguage(ctx, userID, "reviews.yaml", "PRR_MAIN_MENU", map[string]any{}, lang); err != nil {
+			return nil, err
+		}
+		return s.engine.GetCurrentRender(ctx, userID)
+	default:
+		return nil, fmt.Errorf("unsupported PRR notification callback action: %s", action)
+	}
 }
 
 func (s *telegramService) sendRenderAndStore(userID int64, chatID int64, sender Sender, render *fsm.RenderObject) error {

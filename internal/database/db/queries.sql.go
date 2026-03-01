@@ -110,22 +110,23 @@ func (q *Queries) CountSearchBooks(ctx context.Context, arg CountSearchBooksPara
 	return column_1, err
 }
 
-const countUserActiveRoomBookings = `-- name: CountUserActiveRoomBookings :one
+const countSearchCatalogProjects = `-- name: CountSearchCatalogProjects :one
 SELECT count(*)::int
-FROM room_bookings rb
-JOIN campuses c ON rb.campus_id = c.id
-WHERE rb.user_id = $1
-  AND (
-    rb.booking_date > (CURRENT_TIMESTAMP AT TIME ZONE COALESCE(c.timezone, 'UTC'))::date
-    OR (
-      rb.booking_date = (CURRENT_TIMESTAMP AT TIME ZONE COALESCE(c.timezone, 'UTC'))::date
-      AND (rb.start_time + make_interval(mins => rb.duration_minutes)) > (CURRENT_TIMESTAMP AT TIME ZONE COALESCE(c.timezone, 'UTC'))::time
-    )
-  )
+FROM projects p
+LEFT JOIN project_search ps ON ps.project_id = p.id
+WHERE (
+    $1 = ''
+    OR ps.document @@ websearch_to_tsquery('simple', $1)
+    OR lower(COALESCE(ps.search_text, '')) LIKE '%' || lower($1) || '%'
+    OR lower(p.title) LIKE '%' || lower($1) || '%'
+    OR lower(COALESCE(p.code, '')) LIKE '%' || lower($1) || '%'
+    OR lower(COALESCE(c.title, '')) LIKE '%' || lower($1) || '%'
+    OR lower(COALESCE(c.code, '')) LIKE '%' || lower($1) || '%'
+)
 `
 
-func (q *Queries) CountUserActiveRoomBookings(ctx context.Context, userID int64) (int32, error) {
-	row := q.db.QueryRow(ctx, countUserActiveRoomBookings, userID)
+func (q *Queries) CountSearchCatalogProjects(ctx context.Context, dollar_1 interface{}) (int32, error) {
+	row := q.db.QueryRow(ctx, countSearchCatalogProjects, dollar_1)
 	var column_1 int32
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -253,7 +254,7 @@ INSERT INTO review_requests (
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'SEARCHING'
 )
-RETURNING id, requester_user_id, requester_s21_login, requester_campus_id, project_id, project_name, project_type, availability_text, requester_timezone, requester_timezone_offset, reviews_progress_text, status, view_count, response_count, created_at, updated_at, closed_at
+RETURNING id, requester_user_id, requester_s21_login, requester_campus_id, project_id, project_name, project_type, availability_text, requester_timezone, requester_timezone_offset, reviews_progress_text, status, view_count, response_count, created_at, updated_at, closed_at, negotiating_reviewer_user_id, negotiating_reviewer_s21_login, negotiating_reviewer_telegram_username, negotiating_reviewer_rocketchat_id, negotiating_reviewer_alternative_contact, negotiating_started_at
 `
 
 type CreateReviewRequestParams struct {
@@ -301,6 +302,12 @@ func (q *Queries) CreateReviewRequest(ctx context.Context, arg CreateReviewReque
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ClosedAt,
+		&i.NegotiatingReviewerUserID,
+		&i.NegotiatingReviewerS21Login,
+		&i.NegotiatingReviewerTelegramUsername,
+		&i.NegotiatingReviewerRocketchatID,
+		&i.NegotiatingReviewerAlternativeContact,
+		&i.NegotiatingStartedAt,
 	)
 	return i, err
 }
@@ -349,20 +356,20 @@ func (q *Queries) CreateRoomBooking(ctx context.Context, arg CreateRoomBookingPa
 
 const createUserAccount = `-- name: CreateUserAccount :one
 INSERT INTO user_accounts (
-    s21_login, platform, external_id, username, telegram_username_visibility, role
+    s21_login, platform, external_id, username, is_searchable, role
 ) VALUES (
     $1, $2, $3, $4, $5, $6
 )
-RETURNING id, s21_login, platform, external_id, username, telegram_username_visibility, role, linked_at
+RETURNING id, s21_login, platform, external_id, username, is_searchable, role, linked_at
 `
 
 type CreateUserAccountParams struct {
-	S21Login                   string           `json:"s21_login"`
-	Platform                   EnumPlatform     `json:"platform"`
-	ExternalID                 string           `json:"external_id"`
-	Username                   pgtype.Text      `json:"username"`
-	TelegramUsernameVisibility pgtype.Bool      `json:"telegram_username_visibility"`
-	Role                       NullEnumUserRole `json:"role"`
+	S21Login     string           `json:"s21_login"`
+	Platform     EnumPlatform     `json:"platform"`
+	ExternalID   string           `json:"external_id"`
+	Username     pgtype.Text      `json:"username"`
+	IsSearchable pgtype.Bool      `json:"is_searchable"`
+	Role         NullEnumUserRole `json:"role"`
 }
 
 func (q *Queries) CreateUserAccount(ctx context.Context, arg CreateUserAccountParams) (UserAccount, error) {
@@ -371,7 +378,7 @@ func (q *Queries) CreateUserAccount(ctx context.Context, arg CreateUserAccountPa
 		arg.Platform,
 		arg.ExternalID,
 		arg.Username,
-		arg.TelegramUsernameVisibility,
+		arg.IsSearchable,
 		arg.Role,
 	)
 	var i UserAccount
@@ -381,7 +388,7 @@ func (q *Queries) CreateUserAccount(ctx context.Context, arg CreateUserAccountPa
 		&i.Platform,
 		&i.ExternalID,
 		&i.Username,
-		&i.TelegramUsernameVisibility,
+		&i.IsSearchable,
 		&i.Role,
 		&i.LinkedAt,
 	)
@@ -456,6 +463,56 @@ func (q *Queries) DeleteExpiredAuthVerificationCodes(ctx context.Context) error 
 	return err
 }
 
+const deleteStaleCoursesCatalog = `-- name: DeleteStaleCoursesCatalog :exec
+DELETE FROM courses
+WHERE sync_batch_id <> $1
+`
+
+func (q *Queries) DeleteStaleCoursesCatalog(ctx context.Context, syncBatchID int64) error {
+	_, err := q.db.Exec(ctx, deleteStaleCoursesCatalog, syncBatchID)
+	return err
+}
+
+const deleteStaleNodesCatalog = `-- name: DeleteStaleNodesCatalog :exec
+DELETE FROM nodes
+WHERE sync_batch_id <> $1
+`
+
+func (q *Queries) DeleteStaleNodesCatalog(ctx context.Context, syncBatchID int64) error {
+	_, err := q.db.Exec(ctx, deleteStaleNodesCatalog, syncBatchID)
+	return err
+}
+
+const deleteStaleProjectNodesCatalog = `-- name: DeleteStaleProjectNodesCatalog :exec
+DELETE FROM project_nodes
+WHERE sync_batch_id <> $1
+`
+
+func (q *Queries) DeleteStaleProjectNodesCatalog(ctx context.Context, syncBatchID int64) error {
+	_, err := q.db.Exec(ctx, deleteStaleProjectNodesCatalog, syncBatchID)
+	return err
+}
+
+const deleteStaleProjectSearchCatalog = `-- name: DeleteStaleProjectSearchCatalog :exec
+DELETE FROM project_search
+WHERE sync_batch_id <> $1
+`
+
+func (q *Queries) DeleteStaleProjectSearchCatalog(ctx context.Context, syncBatchID int64) error {
+	_, err := q.db.Exec(ctx, deleteStaleProjectSearchCatalog, syncBatchID)
+	return err
+}
+
+const deleteStaleProjectsCatalog = `-- name: DeleteStaleProjectsCatalog :exec
+DELETE FROM projects
+WHERE sync_batch_id <> $1
+`
+
+func (q *Queries) DeleteStaleProjectsCatalog(ctx context.Context, syncBatchID int64) error {
+	_, err := q.db.Exec(ctx, deleteStaleProjectsCatalog, syncBatchID)
+	return err
+}
+
 const deleteUserAccountByExternalId = `-- name: DeleteUserAccountByExternalId :exec
 DELETE FROM user_accounts
 WHERE platform = $1 AND external_id = $2
@@ -468,26 +525,6 @@ type DeleteUserAccountByExternalIdParams struct {
 
 func (q *Queries) DeleteUserAccountByExternalId(ctx context.Context, arg DeleteUserAccountByExternalIdParams) error {
 	_, err := q.db.Exec(ctx, deleteUserAccountByExternalId, arg.Platform, arg.ExternalID)
-	return err
-}
-
-const deleteUserBookLoans = `-- name: DeleteUserBookLoans :exec
-DELETE FROM book_loans
-WHERE user_id = $1
-`
-
-func (q *Queries) DeleteUserBookLoans(ctx context.Context, userID int64) error {
-	_, err := q.db.Exec(ctx, deleteUserBookLoans, userID)
-	return err
-}
-
-const deleteUserRoomBookings = `-- name: DeleteUserRoomBookings :exec
-DELETE FROM room_bookings
-WHERE user_id = $1
-`
-
-func (q *Queries) DeleteUserRoomBookings(ctx context.Context, userID int64) error {
-	_, err := q.db.Exec(ctx, deleteUserRoomBookings, userID)
 	return err
 }
 
@@ -1023,6 +1060,103 @@ func (q *Queries) GetCampusesWithBookingsForTimezone(ctx context.Context, timezo
 	return items, nil
 }
 
+const getCatalogProjectIDsByCourse = `-- name: GetCatalogProjectIDsByCourse :many
+SELECT id
+FROM projects
+WHERE course_id = $1
+ORDER BY id
+`
+
+func (q *Queries) GetCatalogProjectIDsByCourse(ctx context.Context, courseID pgtype.Int8) ([]int64, error) {
+	rows, err := q.db.Query(ctx, getCatalogProjectIDsByCourse, courseID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var id int64
+		if err := rows.Scan(&id); err != nil {
+			return nil, err
+		}
+		items = append(items, id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getCatalogProjectIDsByNodeRecursive = `-- name: GetCatalogProjectIDsByNodeRecursive :many
+WITH RECURSIVE subtree(node_id) AS (
+    SELECT n.id
+    FROM nodes n
+    WHERE n.id = $1
+
+    UNION ALL
+
+    SELECT n.id
+    FROM nodes n
+    JOIN subtree s ON n.parent_id = s.node_id
+)
+SELECT DISTINCT pn.project_id AS project_id
+FROM project_nodes pn
+JOIN subtree s ON s.node_id = pn.node_id
+ORDER BY project_id
+`
+
+func (q *Queries) GetCatalogProjectIDsByNodeRecursive(ctx context.Context, id int64) ([]int64, error) {
+	rows, err := q.db.Query(ctx, getCatalogProjectIDsByNodeRecursive, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var project_id int64
+		if err := rows.Scan(&project_id); err != nil {
+			return nil, err
+		}
+		items = append(items, project_id)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getCatalogProjectTitlesByIDs = `-- name: GetCatalogProjectTitlesByIDs :many
+SELECT id, title
+FROM projects
+WHERE id = ANY($1::BIGINT[])
+ORDER BY title ASC
+`
+
+type GetCatalogProjectTitlesByIDsRow struct {
+	ID    int64  `json:"id"`
+	Title string `json:"title"`
+}
+
+func (q *Queries) GetCatalogProjectTitlesByIDs(ctx context.Context, dollar_1 []int64) ([]GetCatalogProjectTitlesByIDsRow, error) {
+	rows, err := q.db.Query(ctx, getCatalogProjectTitlesByIDs, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetCatalogProjectTitlesByIDsRow
+	for rows.Next() {
+		var i GetCatalogProjectTitlesByIDsRow
+		if err := rows.Scan(&i.ID, &i.Title); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getDistinctUserTimezones = `-- name: GetDistinctUserTimezones :many
 SELECT DISTINCT timezone 
 FROM registered_users 
@@ -1135,7 +1269,7 @@ SELECT
     project_type,
     count(*)::int AS requests_count
 FROM review_requests
-WHERE status IN ('SEARCHING', 'NEGOTIATING')
+WHERE status = 'SEARCHING'
 GROUP BY project_id, project_name, project_type
 ORDER BY requests_count DESC, project_name ASC
 `
@@ -1273,7 +1407,13 @@ SELECT
     rr.closed_at,
     COALESCE(c.short_name, '') AS requester_campus_name,
     COALESCE(psc.level::text, '0') AS requester_level,
-    COALESCE(ua.username, '') AS requester_telegram_username
+    COALESCE(
+        CASE
+            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            ELSE ''::text
+        END,
+        ''
+    ) AS requester_telegram_username
 FROM review_requests rr
 LEFT JOIN campuses c ON rr.requester_campus_id = c.id
 LEFT JOIN participant_stats_cache psc ON rr.requester_s21_login = psc.s21_login
@@ -1303,7 +1443,7 @@ type GetMyOpenReviewRequestsRow struct {
 	ClosedAt                  pgtype.Timestamptz `json:"closed_at"`
 	RequesterCampusName       string             `json:"requester_campus_name"`
 	RequesterLevel            interface{}        `json:"requester_level"`
-	RequesterTelegramUsername string             `json:"requester_telegram_username"`
+	RequesterTelegramUsername interface{}        `json:"requester_telegram_username"`
 }
 
 func (q *Queries) GetMyOpenReviewRequests(ctx context.Context, requesterUserID int64) ([]GetMyOpenReviewRequestsRow, error) {
@@ -1444,12 +1584,24 @@ SELECT
     rr.status,
     rr.view_count,
     rr.response_count,
+    rr.negotiating_reviewer_user_id,
+    COALESCE(rr.negotiating_reviewer_s21_login, '') AS negotiating_reviewer_s21_login,
+    COALESCE(rr.negotiating_reviewer_telegram_username, '') AS negotiating_reviewer_telegram_username,
+    COALESCE(rr.negotiating_reviewer_rocketchat_id, '') AS negotiating_reviewer_rocketchat_id,
+    COALESCE(rr.negotiating_reviewer_alternative_contact, '') AS negotiating_reviewer_alternative_contact,
+    rr.negotiating_started_at,
     rr.created_at,
     rr.updated_at,
     rr.closed_at,
     COALESCE(c.short_name, '') AS requester_campus_name,
     COALESCE(psc.level::text, '0') AS requester_level,
-    COALESCE(ua.username, '') AS requester_telegram_username
+    COALESCE(
+        CASE
+            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            ELSE ''::text
+        END,
+        ''
+    ) AS requester_telegram_username
 FROM review_requests rr
 LEFT JOIN campuses c ON rr.requester_campus_id = c.id
 LEFT JOIN participant_stats_cache psc ON rr.requester_s21_login = psc.s21_login
@@ -1464,26 +1616,32 @@ type GetMyReviewRequestByIDParams struct {
 }
 
 type GetMyReviewRequestByIDRow struct {
-	ID                        int64              `json:"id"`
-	RequesterUserID           int64              `json:"requester_user_id"`
-	RequesterS21Login         string             `json:"requester_s21_login"`
-	RequesterCampusID         pgtype.UUID        `json:"requester_campus_id"`
-	ProjectID                 int64              `json:"project_id"`
-	ProjectName               string             `json:"project_name"`
-	ProjectType               string             `json:"project_type"`
-	AvailabilityText          string             `json:"availability_text"`
-	RequesterTimezone         string             `json:"requester_timezone"`
-	RequesterTimezoneOffset   string             `json:"requester_timezone_offset"`
-	ReviewsProgressText       string             `json:"reviews_progress_text"`
-	Status                    EnumReviewStatus   `json:"status"`
-	ViewCount                 int32              `json:"view_count"`
-	ResponseCount             int32              `json:"response_count"`
-	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
-	ClosedAt                  pgtype.Timestamptz `json:"closed_at"`
-	RequesterCampusName       string             `json:"requester_campus_name"`
-	RequesterLevel            interface{}        `json:"requester_level"`
-	RequesterTelegramUsername string             `json:"requester_telegram_username"`
+	ID                                    int64              `json:"id"`
+	RequesterUserID                       int64              `json:"requester_user_id"`
+	RequesterS21Login                     string             `json:"requester_s21_login"`
+	RequesterCampusID                     pgtype.UUID        `json:"requester_campus_id"`
+	ProjectID                             int64              `json:"project_id"`
+	ProjectName                           string             `json:"project_name"`
+	ProjectType                           string             `json:"project_type"`
+	AvailabilityText                      string             `json:"availability_text"`
+	RequesterTimezone                     string             `json:"requester_timezone"`
+	RequesterTimezoneOffset               string             `json:"requester_timezone_offset"`
+	ReviewsProgressText                   string             `json:"reviews_progress_text"`
+	Status                                EnumReviewStatus   `json:"status"`
+	ViewCount                             int32              `json:"view_count"`
+	ResponseCount                         int32              `json:"response_count"`
+	NegotiatingReviewerUserID             pgtype.Int8        `json:"negotiating_reviewer_user_id"`
+	NegotiatingReviewerS21Login           string             `json:"negotiating_reviewer_s21_login"`
+	NegotiatingReviewerTelegramUsername   string             `json:"negotiating_reviewer_telegram_username"`
+	NegotiatingReviewerRocketchatID       string             `json:"negotiating_reviewer_rocketchat_id"`
+	NegotiatingReviewerAlternativeContact string             `json:"negotiating_reviewer_alternative_contact"`
+	NegotiatingStartedAt                  pgtype.Timestamptz `json:"negotiating_started_at"`
+	CreatedAt                             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                             pgtype.Timestamptz `json:"updated_at"`
+	ClosedAt                              pgtype.Timestamptz `json:"closed_at"`
+	RequesterCampusName                   string             `json:"requester_campus_name"`
+	RequesterLevel                        interface{}        `json:"requester_level"`
+	RequesterTelegramUsername             interface{}        `json:"requester_telegram_username"`
 }
 
 func (q *Queries) GetMyReviewRequestByID(ctx context.Context, arg GetMyReviewRequestByIDParams) (GetMyReviewRequestByIDRow, error) {
@@ -1504,6 +1662,12 @@ func (q *Queries) GetMyReviewRequestByID(ctx context.Context, arg GetMyReviewReq
 		&i.Status,
 		&i.ViewCount,
 		&i.ResponseCount,
+		&i.NegotiatingReviewerUserID,
+		&i.NegotiatingReviewerS21Login,
+		&i.NegotiatingReviewerTelegramUsername,
+		&i.NegotiatingReviewerRocketchatID,
+		&i.NegotiatingReviewerAlternativeContact,
+		&i.NegotiatingStartedAt,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.ClosedAt,
@@ -1535,13 +1699,19 @@ SELECT
     rr.closed_at,
     COALESCE(c.short_name, '') AS requester_campus_name,
     COALESCE(psc.level::text, '0') AS requester_level,
-    COALESCE(ua.username, '') AS requester_telegram_username
+    COALESCE(
+        CASE
+            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            ELSE ''::text
+        END,
+        ''
+    ) AS requester_telegram_username
 FROM review_requests rr
 LEFT JOIN campuses c ON rr.requester_campus_id = c.id
 LEFT JOIN participant_stats_cache psc ON rr.requester_s21_login = psc.s21_login
 LEFT JOIN user_accounts ua ON rr.requester_user_id = ua.id AND ua.platform = 'telegram'
 WHERE rr.project_id = $1
-  AND rr.status IN ('SEARCHING', 'NEGOTIATING')
+  AND rr.status = 'SEARCHING'
 ORDER BY rr.created_at DESC
 `
 
@@ -1565,7 +1735,7 @@ type GetOpenReviewRequestsByProjectRow struct {
 	ClosedAt                  pgtype.Timestamptz `json:"closed_at"`
 	RequesterCampusName       string             `json:"requester_campus_name"`
 	RequesterLevel            interface{}        `json:"requester_level"`
-	RequesterTelegramUsername string             `json:"requester_telegram_username"`
+	RequesterTelegramUsername interface{}        `json:"requester_telegram_username"`
 }
 
 func (q *Queries) GetOpenReviewRequestsByProject(ctx context.Context, projectID int64) ([]GetOpenReviewRequestsByProjectRow, error) {
@@ -1717,7 +1887,7 @@ SELECT
     c.s21_login,
     COALESCE(ua.username, '') AS telegram_username,
     COALESCE(ua.external_id, '') AS external_id,
-    ua.telegram_username_visibility,
+    ua.is_searchable,
     camp.short_name AS campus_name,
     co.name AS coalition_name,
     c.status,
@@ -1740,24 +1910,24 @@ WHERE c.s21_login = $1
 `
 
 type GetPeerProfileRow struct {
-	S21Login                   string            `json:"s21_login"`
-	TelegramUsername           string            `json:"telegram_username"`
-	ExternalID                 string            `json:"external_id"`
-	TelegramUsernameVisibility pgtype.Bool       `json:"telegram_username_visibility"`
-	CampusName                 pgtype.Text       `json:"campus_name"`
-	CoalitionName              pgtype.Text       `json:"coalition_name"`
-	Status                     EnumStudentStatus `json:"status"`
-	Level                      int32             `json:"level"`
-	ExpValue                   int32             `json:"exp_value"`
-	Prp                        int32             `json:"prp"`
-	Crp                        int32             `json:"crp"`
-	Coins                      int32             `json:"coins"`
-	ParallelName               pgtype.Text       `json:"parallel_name"`
-	ClassName                  pgtype.Text       `json:"class_name"`
-	Integrity                  pgtype.Float4     `json:"integrity"`
-	Friendliness               pgtype.Float4     `json:"friendliness"`
-	Punctuality                pgtype.Float4     `json:"punctuality"`
-	Thoroughness               pgtype.Float4     `json:"thoroughness"`
+	S21Login         string            `json:"s21_login"`
+	TelegramUsername string            `json:"telegram_username"`
+	ExternalID       string            `json:"external_id"`
+	IsSearchable     pgtype.Bool       `json:"is_searchable"`
+	CampusName       pgtype.Text       `json:"campus_name"`
+	CoalitionName    pgtype.Text       `json:"coalition_name"`
+	Status           EnumStudentStatus `json:"status"`
+	Level            int32             `json:"level"`
+	ExpValue         int32             `json:"exp_value"`
+	Prp              int32             `json:"prp"`
+	Crp              int32             `json:"crp"`
+	Coins            int32             `json:"coins"`
+	ParallelName     pgtype.Text       `json:"parallel_name"`
+	ClassName        pgtype.Text       `json:"class_name"`
+	Integrity        pgtype.Float4     `json:"integrity"`
+	Friendliness     pgtype.Float4     `json:"friendliness"`
+	Punctuality      pgtype.Float4     `json:"punctuality"`
+	Thoroughness     pgtype.Float4     `json:"thoroughness"`
 }
 
 // Профиль пира: из кеша статистики + telegram username если зарегистрирован.
@@ -1768,7 +1938,7 @@ func (q *Queries) GetPeerProfile(ctx context.Context, s21Login string) (GetPeerP
 		&i.S21Login,
 		&i.TelegramUsername,
 		&i.ExternalID,
-		&i.TelegramUsernameVisibility,
+		&i.IsSearchable,
 		&i.CampusName,
 		&i.CoalitionName,
 		&i.Status,
@@ -1870,7 +2040,13 @@ SELECT
     rr.closed_at,
     COALESCE(c.short_name, '') AS requester_campus_name,
     COALESCE(psc.level::text, '0') AS requester_level,
-    COALESCE(ua.username, '') AS requester_telegram_username
+    COALESCE(
+        CASE
+            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            ELSE ''::text
+        END,
+        ''
+    ) AS requester_telegram_username
 FROM review_requests rr
 LEFT JOIN campuses c ON rr.requester_campus_id = c.id
 LEFT JOIN participant_stats_cache psc ON rr.requester_s21_login = psc.s21_login
@@ -1898,7 +2074,7 @@ type GetReviewRequestByIDRow struct {
 	ClosedAt                  pgtype.Timestamptz `json:"closed_at"`
 	RequesterCampusName       string             `json:"requester_campus_name"`
 	RequesterLevel            interface{}        `json:"requester_level"`
-	RequesterTelegramUsername string             `json:"requester_telegram_username"`
+	RequesterTelegramUsername interface{}        `json:"requester_telegram_username"`
 }
 
 func (q *Queries) GetReviewRequestByID(ctx context.Context, id int64) (GetReviewRequestByIDRow, error) {
@@ -2074,7 +2250,7 @@ func (q *Queries) GetRoomByID(ctx context.Context, arg GetRoomByIDParams) (Room,
 }
 
 const getUserAccountByExternalId = `-- name: GetUserAccountByExternalId :one
-SELECT id, s21_login, platform, external_id, username, telegram_username_visibility, role, linked_at FROM user_accounts 
+SELECT id, s21_login, platform, external_id, username, is_searchable, role, linked_at FROM user_accounts 
 WHERE platform = $1 AND external_id = $2
 `
 
@@ -2092,7 +2268,7 @@ func (q *Queries) GetUserAccountByExternalId(ctx context.Context, arg GetUserAcc
 		&i.Platform,
 		&i.ExternalID,
 		&i.Username,
-		&i.TelegramUsernameVisibility,
+		&i.IsSearchable,
 		&i.Role,
 		&i.LinkedAt,
 	)
@@ -2100,7 +2276,7 @@ func (q *Queries) GetUserAccountByExternalId(ctx context.Context, arg GetUserAcc
 }
 
 const getUserAccountByID = `-- name: GetUserAccountByID :one
-SELECT id, s21_login, platform, external_id, username, telegram_username_visibility, role, linked_at FROM user_accounts
+SELECT id, s21_login, platform, external_id, username, is_searchable, role, linked_at FROM user_accounts
 WHERE id = $1
 `
 
@@ -2113,7 +2289,7 @@ func (q *Queries) GetUserAccountByID(ctx context.Context, id int64) (UserAccount
 		&i.Platform,
 		&i.ExternalID,
 		&i.Username,
-		&i.TelegramUsernameVisibility,
+		&i.IsSearchable,
 		&i.Role,
 		&i.LinkedAt,
 	)
@@ -2121,7 +2297,7 @@ func (q *Queries) GetUserAccountByID(ctx context.Context, id int64) (UserAccount
 }
 
 const getUserAccountByS21Login = `-- name: GetUserAccountByS21Login :one
-SELECT id, s21_login, platform, external_id, username, telegram_username_visibility, role, linked_at FROM user_accounts
+SELECT id, s21_login, platform, external_id, username, is_searchable, role, linked_at FROM user_accounts
 WHERE s21_login = $1
 `
 
@@ -2134,7 +2310,7 @@ func (q *Queries) GetUserAccountByS21Login(ctx context.Context, s21Login string)
 		&i.Platform,
 		&i.ExternalID,
 		&i.Username,
-		&i.TelegramUsernameVisibility,
+		&i.IsSearchable,
 		&i.Role,
 		&i.LinkedAt,
 	)
@@ -2343,19 +2519,41 @@ const markReviewRequestNegotiatingAndIncrementResponses = `-- name: MarkReviewRe
 UPDATE review_requests
 SET response_count = response_count + 1,
     status = 'NEGOTIATING',
-    updated_at = CURRENT_TIMESTAMP
+    updated_at = CURRENT_TIMESTAMP,
+    negotiating_reviewer_user_id = $2,
+    negotiating_reviewer_s21_login = $3,
+    negotiating_reviewer_telegram_username = $4,
+    negotiating_reviewer_rocketchat_id = $5,
+    negotiating_reviewer_alternative_contact = $6,
+    negotiating_started_at = CURRENT_TIMESTAMP
 WHERE id = $1
-  AND status IN ('SEARCHING', 'NEGOTIATING')
+  AND status = 'SEARCHING'
 RETURNING response_count, status
 `
+
+type MarkReviewRequestNegotiatingAndIncrementResponsesParams struct {
+	ID                                    int64       `json:"id"`
+	NegotiatingReviewerUserID             pgtype.Int8 `json:"negotiating_reviewer_user_id"`
+	NegotiatingReviewerS21Login           pgtype.Text `json:"negotiating_reviewer_s21_login"`
+	NegotiatingReviewerTelegramUsername   pgtype.Text `json:"negotiating_reviewer_telegram_username"`
+	NegotiatingReviewerRocketchatID       pgtype.Text `json:"negotiating_reviewer_rocketchat_id"`
+	NegotiatingReviewerAlternativeContact pgtype.Text `json:"negotiating_reviewer_alternative_contact"`
+}
 
 type MarkReviewRequestNegotiatingAndIncrementResponsesRow struct {
 	ResponseCount int32            `json:"response_count"`
 	Status        EnumReviewStatus `json:"status"`
 }
 
-func (q *Queries) MarkReviewRequestNegotiatingAndIncrementResponses(ctx context.Context, id int64) (MarkReviewRequestNegotiatingAndIncrementResponsesRow, error) {
-	row := q.db.QueryRow(ctx, markReviewRequestNegotiatingAndIncrementResponses, id)
+func (q *Queries) MarkReviewRequestNegotiatingAndIncrementResponses(ctx context.Context, arg MarkReviewRequestNegotiatingAndIncrementResponsesParams) (MarkReviewRequestNegotiatingAndIncrementResponsesRow, error) {
+	row := q.db.QueryRow(ctx, markReviewRequestNegotiatingAndIncrementResponses,
+		arg.ID,
+		arg.NegotiatingReviewerUserID,
+		arg.NegotiatingReviewerS21Login,
+		arg.NegotiatingReviewerTelegramUsername,
+		arg.NegotiatingReviewerRocketchatID,
+		arg.NegotiatingReviewerAlternativeContact,
+	)
 	var i MarkReviewRequestNegotiatingAndIncrementResponsesRow
 	err := row.Scan(&i.ResponseCount, &i.Status)
 	return i, err
@@ -2455,11 +2653,294 @@ func (q *Queries) SearchBooks(ctx context.Context, arg SearchBooksParams) ([]Sea
 	return items, nil
 }
 
+const searchCatalogCourses = `-- name: SearchCatalogCourses :many
+SELECT
+    c.id,
+    c.title,
+    COALESCE(c.code, '') AS code,
+    count(p.id)::int AS project_count
+FROM courses c
+LEFT JOIN projects p ON p.course_id = c.id
+WHERE (
+    $1 = ''
+    OR to_tsvector('simple', concat_ws(' ', c.id::text, c.title, COALESCE(c.code, ''))) @@ websearch_to_tsquery('simple', $1)
+    OR lower(c.title) LIKE '%' || lower($1) || '%'
+    OR lower(COALESCE(c.code, '')) LIKE '%' || lower($1) || '%'
+    OR EXISTS (
+        SELECT 1
+        FROM projects p2
+        JOIN project_search ps ON ps.project_id = p2.id
+        WHERE p2.course_id = c.id
+          AND (
+              ps.document @@ websearch_to_tsquery('simple', $1)
+              OR lower(COALESCE(ps.search_text, '')) LIKE '%' || lower($1) || '%'
+              OR lower(p2.title) LIKE '%' || lower($1) || '%'
+              OR lower(COALESCE(p2.code, '')) LIKE '%' || lower($1) || '%'
+          )
+    )
+)
+GROUP BY c.id
+ORDER BY c.title ASC
+`
+
+type SearchCatalogCoursesRow struct {
+	ID           int64  `json:"id"`
+	Title        string `json:"title"`
+	Code         string `json:"code"`
+	ProjectCount int32  `json:"project_count"`
+}
+
+func (q *Queries) SearchCatalogCourses(ctx context.Context, dollar_1 interface{}) ([]SearchCatalogCoursesRow, error) {
+	rows, err := q.db.Query(ctx, searchCatalogCourses, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchCatalogCoursesRow
+	for rows.Next() {
+		var i SearchCatalogCoursesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Title,
+			&i.Code,
+			&i.ProjectCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchCatalogNodes = `-- name: SearchCatalogNodes :many
+WITH RECURSIVE node_paths AS (
+    SELECT
+        n.id,
+        n.name,
+        n.parent_id,
+        n.name::text AS path
+    FROM nodes n
+    WHERE n.parent_id IS NULL
+
+    UNION ALL
+
+    SELECT
+        child.id,
+        child.name,
+        child.parent_id,
+        (np.path || ' / ' || child.name)::text AS path
+    FROM nodes child
+    JOIN node_paths np ON np.id = child.parent_id
+)
+SELECT
+    np.id,
+    np.name,
+    np.parent_id,
+    np.path,
+    COALESCE(cnt.project_count, 0)::int AS project_count
+FROM node_paths np
+LEFT JOIN (
+    SELECT node_id, count(DISTINCT project_id)::int AS project_count
+    FROM project_nodes
+    GROUP BY node_id
+) cnt ON cnt.node_id = np.id
+WHERE (
+    $1 = ''
+    OR to_tsvector('simple', concat_ws(' ', np.id::text, np.path, np.name)) @@ websearch_to_tsquery('simple', $1)
+    OR lower(np.path) LIKE '%' || lower($1) || '%'
+    OR lower(np.name) LIKE '%' || lower($1) || '%'
+)
+ORDER BY np.path ASC
+`
+
+type SearchCatalogNodesRow struct {
+	ID           int64       `json:"id"`
+	Name         string      `json:"name"`
+	ParentID     pgtype.Int8 `json:"parent_id"`
+	Path         string      `json:"path"`
+	ProjectCount int32       `json:"project_count"`
+}
+
+func (q *Queries) SearchCatalogNodes(ctx context.Context, dollar_1 interface{}) ([]SearchCatalogNodesRow, error) {
+	rows, err := q.db.Query(ctx, searchCatalogNodes, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchCatalogNodesRow
+	for rows.Next() {
+		var i SearchCatalogNodesRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.ParentID,
+			&i.Path,
+			&i.ProjectCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchCatalogProjects = `-- name: SearchCatalogProjects :many
+SELECT
+    p.id AS project_id,
+    p.title AS project_title,
+    COALESCE(p.code, '') AS project_code,
+    p.course_id,
+    COALESCE(c.title, '') AS course_title,
+    COALESCE(c.code, '') AS course_code,
+    COALESCE(string_agg(DISTINCT n.name, ', ' ORDER BY n.name), '') AS node_names
+FROM projects p
+LEFT JOIN courses c ON c.id = p.course_id
+LEFT JOIN project_nodes pn ON pn.project_id = p.id
+LEFT JOIN nodes n ON n.id = pn.node_id
+LEFT JOIN project_search ps ON ps.project_id = p.id
+WHERE (
+    $1 = ''
+    OR ps.document @@ websearch_to_tsquery('simple', $1)
+    OR lower(COALESCE(ps.search_text, '')) LIKE '%' || lower($1) || '%'
+    OR lower(p.title) LIKE '%' || lower($1) || '%'
+    OR lower(COALESCE(p.code, '')) LIKE '%' || lower($1) || '%'
+    OR lower(COALESCE(c.title, '')) LIKE '%' || lower($1) || '%'
+    OR lower(COALESCE(c.code, '')) LIKE '%' || lower($1) || '%'
+)
+GROUP BY p.id, c.id
+ORDER BY
+    CASE WHEN p.id = ANY($4::BIGINT[]) THEN 0 ELSE 1 END,
+    p.title ASC
+LIMIT $2 OFFSET $3
+`
+
+type SearchCatalogProjectsParams struct {
+	Column1 interface{} `json:"column_1"`
+	Limit   int32       `json:"limit"`
+	Offset  int32       `json:"offset"`
+	Column4 []int64     `json:"column_4"`
+}
+
+type SearchCatalogProjectsRow struct {
+	ProjectID    int64       `json:"project_id"`
+	ProjectTitle string      `json:"project_title"`
+	ProjectCode  string      `json:"project_code"`
+	CourseID     pgtype.Int8 `json:"course_id"`
+	CourseTitle  string      `json:"course_title"`
+	CourseCode   string      `json:"course_code"`
+	NodeNames    interface{} `json:"node_names"`
+}
+
+func (q *Queries) SearchCatalogProjects(ctx context.Context, arg SearchCatalogProjectsParams) ([]SearchCatalogProjectsRow, error) {
+	rows, err := q.db.Query(ctx, searchCatalogProjects,
+		arg.Column1,
+		arg.Limit,
+		arg.Offset,
+		arg.Column4,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchCatalogProjectsRow
+	for rows.Next() {
+		var i SearchCatalogProjectsRow
+		if err := rows.Scan(
+			&i.ProjectID,
+			&i.ProjectTitle,
+			&i.ProjectCode,
+			&i.CourseID,
+			&i.CourseTitle,
+			&i.CourseCode,
+			&i.NodeNames,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const searchCatalogProjectsAll = `-- name: SearchCatalogProjectsAll :many
+SELECT
+    p.id AS project_id,
+    p.title AS project_title,
+    COALESCE(p.code, '') AS project_code,
+    p.course_id,
+    COALESCE(c.title, '') AS course_title,
+    COALESCE(c.code, '') AS course_code,
+    COALESCE(string_agg(DISTINCT n.name, ', ' ORDER BY n.name), '') AS node_names
+FROM projects p
+LEFT JOIN courses c ON c.id = p.course_id
+LEFT JOIN project_nodes pn ON pn.project_id = p.id
+LEFT JOIN nodes n ON n.id = pn.node_id
+LEFT JOIN project_search ps ON ps.project_id = p.id
+WHERE (
+    $1 = ''
+    OR ps.document @@ websearch_to_tsquery('simple', $1)
+)
+GROUP BY p.id, c.id
+ORDER BY p.title ASC
+`
+
+type SearchCatalogProjectsAllRow struct {
+	ProjectID    int64       `json:"project_id"`
+	ProjectTitle string      `json:"project_title"`
+	ProjectCode  string      `json:"project_code"`
+	CourseID     pgtype.Int8 `json:"course_id"`
+	CourseTitle  string      `json:"course_title"`
+	CourseCode   string      `json:"course_code"`
+	NodeNames    interface{} `json:"node_names"`
+}
+
+func (q *Queries) SearchCatalogProjectsAll(ctx context.Context, dollar_1 interface{}) ([]SearchCatalogProjectsAllRow, error) {
+	rows, err := q.db.Query(ctx, searchCatalogProjectsAll, dollar_1)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SearchCatalogProjectsAllRow
+	for rows.Next() {
+		var i SearchCatalogProjectsAllRow
+		if err := rows.Scan(
+			&i.ProjectID,
+			&i.ProjectTitle,
+			&i.ProjectCode,
+			&i.CourseID,
+			&i.CourseTitle,
+			&i.CourseCode,
+			&i.NodeNames,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const setReviewRequestStatus = `-- name: SetReviewRequestStatus :one
 UPDATE review_requests
-SET status = $3,
+SET status = $3::enum_review_status,
     updated_at = CURRENT_TIMESTAMP,
-    closed_at = CASE WHEN $3 = 'CLOSED' THEN CURRENT_TIMESTAMP ELSE NULL END
+    closed_at = CASE WHEN $3::enum_review_status = 'CLOSED' THEN CURRENT_TIMESTAMP ELSE NULL END,
+    negotiating_reviewer_user_id = CASE WHEN $3::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_reviewer_user_id END,
+    negotiating_reviewer_s21_login = CASE WHEN $3::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_reviewer_s21_login END,
+    negotiating_reviewer_telegram_username = CASE WHEN $3::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_reviewer_telegram_username END,
+    negotiating_reviewer_rocketchat_id = CASE WHEN $3::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_reviewer_rocketchat_id END,
+    negotiating_reviewer_alternative_contact = CASE WHEN $3::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_reviewer_alternative_contact END,
+    negotiating_started_at = CASE WHEN $3::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_started_at END
 WHERE id = $1
   AND requester_user_id = $2
 RETURNING id, status
@@ -2500,21 +2981,21 @@ func (q *Queries) UpdateRoomBookingDuration(ctx context.Context, arg UpdateRoomB
 	return err
 }
 
-const updateUserAccountTelegramUsernameVisibilityByExternalId = `-- name: UpdateUserAccountTelegramUsernameVisibilityByExternalId :one
+const updateUserAccountSearchableByExternalId = `-- name: UpdateUserAccountSearchableByExternalId :one
 UPDATE user_accounts
-SET telegram_username_visibility = $3
+SET is_searchable = $3
 WHERE platform = $1 AND external_id = $2
-RETURNING id, s21_login, platform, external_id, username, telegram_username_visibility, role, linked_at
+RETURNING id, s21_login, platform, external_id, username, is_searchable, role, linked_at
 `
 
-type UpdateUserAccountTelegramUsernameVisibilityByExternalIdParams struct {
-	Platform                   EnumPlatform `json:"platform"`
-	ExternalID                 string       `json:"external_id"`
-	TelegramUsernameVisibility pgtype.Bool  `json:"telegram_username_visibility"`
+type UpdateUserAccountSearchableByExternalIdParams struct {
+	Platform     EnumPlatform `json:"platform"`
+	ExternalID   string       `json:"external_id"`
+	IsSearchable pgtype.Bool  `json:"is_searchable"`
 }
 
-func (q *Queries) UpdateUserAccountTelegramUsernameVisibilityByExternalId(ctx context.Context, arg UpdateUserAccountTelegramUsernameVisibilityByExternalIdParams) (UserAccount, error) {
-	row := q.db.QueryRow(ctx, updateUserAccountTelegramUsernameVisibilityByExternalId, arg.Platform, arg.ExternalID, arg.TelegramUsernameVisibility)
+func (q *Queries) UpdateUserAccountSearchableByExternalId(ctx context.Context, arg UpdateUserAccountSearchableByExternalIdParams) (UserAccount, error) {
+	row := q.db.QueryRow(ctx, updateUserAccountSearchableByExternalId, arg.Platform, arg.ExternalID, arg.IsSearchable)
 	var i UserAccount
 	err := row.Scan(
 		&i.ID,
@@ -2522,7 +3003,7 @@ func (q *Queries) UpdateUserAccountTelegramUsernameVisibilityByExternalId(ctx co
 		&i.Platform,
 		&i.ExternalID,
 		&i.Username,
-		&i.TelegramUsernameVisibility,
+		&i.IsSearchable,
 		&i.Role,
 		&i.LinkedAt,
 	)
@@ -2724,6 +3205,40 @@ func (q *Queries) UpsertCoalition(ctx context.Context, arg UpsertCoalitionParams
 	return err
 }
 
+const upsertCourseCatalog = `-- name: UpsertCourseCatalog :exec
+INSERT INTO courses (
+    id,
+    title,
+    code,
+    sync_batch_id,
+    updated_at
+) VALUES (
+    $1, $2, $3, $4, CURRENT_TIMESTAMP
+)
+ON CONFLICT (id) DO UPDATE SET
+    title = EXCLUDED.title,
+    code = EXCLUDED.code,
+    sync_batch_id = EXCLUDED.sync_batch_id,
+    updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertCourseCatalogParams struct {
+	ID          int64       `json:"id"`
+	Title       string      `json:"title"`
+	Code        pgtype.Text `json:"code"`
+	SyncBatchID int64       `json:"sync_batch_id"`
+}
+
+func (q *Queries) UpsertCourseCatalog(ctx context.Context, arg UpsertCourseCatalogParams) error {
+	_, err := q.db.Exec(ctx, upsertCourseCatalog,
+		arg.ID,
+		arg.Title,
+		arg.Code,
+		arg.SyncBatchID,
+	)
+	return err
+}
+
 const upsertFSMState = `-- name: UpsertFSMState :exec
 INSERT INTO fsm_user_states (
     user_id, current_flow, current_state, context, language
@@ -2755,6 +3270,34 @@ func (q *Queries) UpsertFSMState(ctx context.Context, arg UpsertFSMStateParams) 
 		arg.Language,
 	)
 	return err
+}
+
+const upsertNodeCatalog = `-- name: UpsertNodeCatalog :one
+INSERT INTO nodes (
+    name,
+    parent_id,
+    sync_batch_id,
+    updated_at
+) VALUES (
+    $1, $2, $3, CURRENT_TIMESTAMP
+)
+ON CONFLICT ((COALESCE(parent_id, 0)), lower(name)) DO UPDATE SET
+    sync_batch_id = EXCLUDED.sync_batch_id,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING id
+`
+
+type UpsertNodeCatalogParams struct {
+	Name        string      `json:"name"`
+	ParentID    pgtype.Int8 `json:"parent_id"`
+	SyncBatchID int64       `json:"sync_batch_id"`
+}
+
+func (q *Queries) UpsertNodeCatalog(ctx context.Context, arg UpsertNodeCatalogParams) (int64, error) {
+	row := q.db.QueryRow(ctx, upsertNodeCatalog, arg.Name, arg.ParentID, arg.SyncBatchID)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }
 
 const upsertParticipantSkill = `-- name: UpsertParticipantSkill :exec
@@ -2885,6 +3428,67 @@ func (q *Queries) UpsertPlatformCredentials(ctx context.Context, arg UpsertPlatf
 		arg.RefreshNonce,
 		arg.RefreshExpiresAt,
 	)
+	return err
+}
+
+const upsertProjectCatalog = `-- name: UpsertProjectCatalog :exec
+INSERT INTO projects (
+    id,
+    course_id,
+    title,
+    code,
+    sync_batch_id,
+    updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, CURRENT_TIMESTAMP
+)
+ON CONFLICT (id) DO UPDATE SET
+    course_id = EXCLUDED.course_id,
+    title = EXCLUDED.title,
+    code = EXCLUDED.code,
+    sync_batch_id = EXCLUDED.sync_batch_id,
+    updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertProjectCatalogParams struct {
+	ID          int64       `json:"id"`
+	CourseID    pgtype.Int8 `json:"course_id"`
+	Title       string      `json:"title"`
+	Code        pgtype.Text `json:"code"`
+	SyncBatchID int64       `json:"sync_batch_id"`
+}
+
+func (q *Queries) UpsertProjectCatalog(ctx context.Context, arg UpsertProjectCatalogParams) error {
+	_, err := q.db.Exec(ctx, upsertProjectCatalog,
+		arg.ID,
+		arg.CourseID,
+		arg.Title,
+		arg.Code,
+		arg.SyncBatchID,
+	)
+	return err
+}
+
+const upsertProjectNodeCatalog = `-- name: UpsertProjectNodeCatalog :exec
+INSERT INTO project_nodes (
+    project_id,
+    node_id,
+    sync_batch_id
+) VALUES (
+    $1, $2, $3
+)
+ON CONFLICT (project_id, node_id) DO UPDATE SET
+    sync_batch_id = EXCLUDED.sync_batch_id
+`
+
+type UpsertProjectNodeCatalogParams struct {
+	ProjectID   int64 `json:"project_id"`
+	NodeID      int64 `json:"node_id"`
+	SyncBatchID int64 `json:"sync_batch_id"`
+}
+
+func (q *Queries) UpsertProjectNodeCatalog(ctx context.Context, arg UpsertProjectNodeCatalogParams) error {
+	_, err := q.db.Exec(ctx, upsertProjectNodeCatalog, arg.ProjectID, arg.NodeID, arg.SyncBatchID)
 	return err
 }
 

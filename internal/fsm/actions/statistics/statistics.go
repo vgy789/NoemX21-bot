@@ -6,7 +6,6 @@ import (
 	"hash/fnv"
 	"log/slog"
 	"maps"
-	"strings"
 
 	// "os"
 	"strconv"
@@ -347,7 +346,6 @@ func Register(
 		if !ok {
 			return "", nil, fmt.Errorf("login not found in payload")
 		}
-		login = strings.ToLower(strings.TrimSpace(login))
 
 		// 0. Cache check: используем таблицу participant_stats_cache.
 		if cacheRow, err := queries.GetParticipantStatsCache(ctx, login); err == nil {
@@ -355,7 +353,7 @@ func Register(
 			isFresh := cacheRow.LatSyncedAt.Valid && time.Since(cacheRow.LatSyncedAt.Time) < peerDataCacheFreshnessDuration
 			if isExpelled || isFresh {
 				log.Info("using cached peer data", "login", login, "is_expelled", isExpelled, "is_fresh", isFresh)
-				return getPeerStatsFromCache(ctx, lang, login, cacheRow, queries)
+				return getPeerStatsFromCache(ctx, lang, login, cacheRow, queries, log)
 			}
 		}
 
@@ -364,7 +362,7 @@ func Register(
 		if err != nil {
 			log.Warn("failed to get valid token, falling back to cache/DB", "error", err)
 			if cacheRow, cErr := queries.GetParticipantStatsCache(ctx, login); cErr == nil {
-				return getPeerStatsFromCache(ctx, lang, login, cacheRow, queries)
+				return getPeerStatsFromCache(ctx, lang, login, cacheRow, queries, log)
 			}
 			return getPeerStatsFromDB(ctx, lang, login, queries, log)
 		}
@@ -374,7 +372,7 @@ func Register(
 		if err != nil {
 			log.Error("failed to get peer from API", "peer", login, "error", err)
 			if cacheRow, cErr := queries.GetParticipantStatsCache(ctx, login); cErr == nil {
-				return getPeerStatsFromCache(ctx, lang, login, cacheRow, queries)
+				return getPeerStatsFromCache(ctx, lang, login, cacheRow, queries, log)
 			}
 			return getPeerStatsFromDB(ctx, lang, login, queries, log)
 		}
@@ -495,13 +493,11 @@ func Register(
 		if err == nil {
 			vars["peer_id"] = peerAcc.ExternalID
 			if regUser, rErr := queries.GetRegisteredUserByS21Login(ctx, login); rErr == nil && regUser.AlternativeContact.Valid {
-				contact := regUser.AlternativeContact.String
-				vars["alternative_contact"] = contact
-				vars["alternative_contact_line"] = buildAlternativeContactLine(lang, contact)
+				vars["alternative_contact"] = regUser.AlternativeContact.String
 			}
 			// Get telegram username from peer profile (via participant_stats_cache + user_accounts)
 			peerProfile, err := queries.GetPeerProfile(ctx, login)
-			if err == nil && peerProfile.TelegramUsername != "" && peerProfile.TelegramUsernameVisibility.Valid && peerProfile.TelegramUsernameVisibility.Bool {
+			if err == nil && peerProfile.TelegramUsername != "" && peerProfile.IsSearchable.Valid && peerProfile.IsSearchable.Bool {
 				peerTelegram = peerProfile.TelegramUsername
 			}
 		}
@@ -698,7 +694,7 @@ func getStatsFromDB(ctx context.Context, s21Login string, queries db.Querier, lo
 }
 
 // getPeerStatsFromCache строит vars для FSM из строки participant_stats_cache (и при необходимости — telegram из user_accounts).
-func getPeerStatsFromCache(ctx context.Context, lang string, login string, row db.GetParticipantStatsCacheRow, queries db.Querier) (string, map[string]any, error) {
+func getPeerStatsFromCache(ctx context.Context, lang string, login string, row db.GetParticipantStatsCacheRow, queries db.Querier, log *slog.Logger) (string, map[string]any, error) {
 	vars := map[string]any{
 		"peer_found":               true,
 		"peer_login":               row.S21Login,
@@ -754,7 +750,7 @@ func getPeerStatsFromCache(ctx context.Context, lang string, login string, row d
 			vars["alternative_contact"] = contact
 			vars["alternative_contact_line"] = buildAlternativeContactLine(lang, contact)
 		}
-		if acc.Username.Valid && acc.TelegramUsernameVisibility.Valid && acc.TelegramUsernameVisibility.Bool {
+		if acc.Username.Valid && acc.IsSearchable.Valid && acc.IsSearchable.Bool {
 			peerTelegram = acc.Username.String
 		}
 	}
@@ -821,7 +817,7 @@ func getPeerStatsFromDB(ctx context.Context, lang string, login string, queries 
 	}
 
 	peerTelegram := ""
-	if profile.TelegramUsername != "" && profile.TelegramUsernameVisibility.Valid && profile.TelegramUsernameVisibility.Bool {
+	if profile.TelegramUsername != "" && profile.IsSearchable.Valid && profile.IsSearchable.Bool {
 		peerTelegram = profile.TelegramUsername
 	}
 	vars["peer_telegram"] = peerTelegram
@@ -851,9 +847,9 @@ func buildAlternativeContactLine(lang, contact string) string {
 		return ""
 	}
 	if lang == fsm.LangEn {
-		return fmt.Sprintf("*Alt. connection:* %s", contact)
+		return fmt.Sprintf("*Alt:* %s", contact)
 	}
-	return fmt.Sprintf("✉️ *Доп. связь:* %s", contact)
+	return fmt.Sprintf("*Доп:* %s", contact)
 }
 
 func hashSkillName(name string) int32 {

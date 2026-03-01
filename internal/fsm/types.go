@@ -94,11 +94,25 @@ type Notifier interface {
 	NotifyUser(ctx context.Context, userID int64, text string) error
 }
 
+// RenderNotifier sends out-of-band notifications with buttons.
+type RenderNotifier interface {
+	NotifyUserRender(ctx context.Context, userID int64, render *RenderObject) error
+}
+
 // NotifierFromContext extracts a Notifier from context.
 func NotifierFromContext(ctx context.Context) (Notifier, bool) {
 	if ctx == nil {
 		return nil, false
 	}
 	n, ok := ctx.Value(ContextKeyNotifier).(Notifier)
+	return n, ok && n != nil
+}
+
+// RenderNotifierFromContext extracts a RenderNotifier from context.
+func RenderNotifierFromContext(ctx context.Context) (RenderNotifier, bool) {
+	if ctx == nil {
+		return nil, false
+	}
+	n, ok := ctx.Value(ContextKeyNotifier).(RenderNotifier)
 	return n, ok && n != nil
 }

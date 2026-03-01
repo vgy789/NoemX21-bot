@@ -77,15 +77,14 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 
 	registry.Register("load_profile_settings", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		vars := map[string]any{
-			"my_searchable_status_ru":   "❌ Не задано",
-			"my_searchable_status_en":   "❌ Not set",
-			"is_searchable_label_ru":    "❌ Не задано",
-			"is_searchable_label_en":    "❌ Not set",
+			"my_searchable_status_ru":   "❌ Не виден",
+			"my_searchable_status_en":   "❌ Not visible",
+			"is_searchable_label_ru":    "❌ Не виден",
+			"is_searchable_label_en":    "❌ Not visible",
 			"my_alt_contact":            "❌ Not set",
 			"my_alt_contact_display_ru": "❌ Не задан",
 			"my_alt_contact_display_en": "❌ Not set",
 			"has_alt_contact":           false,
-			"has_telegram_username":     false,
 		}
 
 		ua, err := getTelegramAccount(ctx, userID)
@@ -94,26 +93,11 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 			return "", vars, nil
 		}
 
-		hasTelegramUsername := false
-		if ua.Username.Valid {
-			username := strings.TrimSpace(ua.Username.String)
-			if username != "" {
-				hasTelegramUsername = true
-			}
-		}
-		vars["has_telegram_username"] = hasTelegramUsername
-
-		if hasTelegramUsername {
-			vars["my_searchable_status_ru"] = "❌ Не виден"
-			vars["my_searchable_status_en"] = "❌ Not visible"
-			vars["is_searchable_label_ru"] = "❌ Не виден"
-			vars["is_searchable_label_en"] = "❌ Not visible"
-			if ua.TelegramUsernameVisibility.Valid && ua.TelegramUsernameVisibility.Bool {
-				vars["my_searchable_status_ru"] = "✅ Виден"
-				vars["my_searchable_status_en"] = "✅ Visible"
-				vars["is_searchable_label_ru"] = "✅ Виден"
-				vars["is_searchable_label_en"] = "✅ Visible"
-			}
+		if ua.IsSearchable.Valid && ua.IsSearchable.Bool {
+			vars["my_searchable_status_ru"] = "✅ Виден"
+			vars["my_searchable_status_en"] = "✅ Visible"
+			vars["is_searchable_label_ru"] = "✅ Виден"
+			vars["is_searchable_label_en"] = "✅ Visible"
 		}
 
 		profile, err := queries.GetMyProfile(ctx, ua.S21Login)
@@ -135,23 +119,6 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 		return "", vars, nil
 	})
 
-	registry.Register("check_telegram_username", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		ua, err := getTelegramAccount(ctx, userID)
-		if err != nil {
-			return "", nil, fmt.Errorf("user account not found: %w", err)
-		}
-
-		hasTelegramUsername := false
-		if ua.Username.Valid {
-			username := strings.TrimSpace(ua.Username.String)
-			if username != "" {
-				hasTelegramUsername = true
-			}
-		}
-
-		return "", map[string]any{"has_telegram_username": hasTelegramUsername}, nil
-	})
-
 	registry.Register("toggle_searchable", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		ua, err := getTelegramAccount(ctx, userID)
 		if err != nil {
@@ -159,16 +126,16 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 		}
 
 		newValue := true
-		if ua.TelegramUsernameVisibility.Valid {
-			newValue = !ua.TelegramUsernameVisibility.Bool
+		if ua.IsSearchable.Valid {
+			newValue = !ua.IsSearchable.Bool
 		}
 
-		if _, err := queries.UpdateUserAccountTelegramUsernameVisibilityByExternalId(ctx, db.UpdateUserAccountTelegramUsernameVisibilityByExternalIdParams{
-			Platform:                   db.EnumPlatformTelegram,
-			ExternalID:                 fmt.Sprintf("%d", userID),
-			TelegramUsernameVisibility: pgtype.Bool{Bool: newValue, Valid: true},
+		if _, err := queries.UpdateUserAccountSearchableByExternalId(ctx, db.UpdateUserAccountSearchableByExternalIdParams{
+			Platform:     db.EnumPlatformTelegram,
+			ExternalID:   fmt.Sprintf("%d", userID),
+			IsSearchable: pgtype.Bool{Bool: newValue, Valid: true},
 		}); err != nil {
-			return "", nil, fmt.Errorf("failed to update telegram username visibility: %w", err)
+			return "", nil, fmt.Errorf("failed to update user searchable status: %w", err)
 		}
 
 		if newValue {
@@ -304,94 +271,19 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 		})
 		if err != nil {
 			log.Warn("user account not found for deletion", "user_id", userID)
-			return "", map[string]any{
-				"success":                             true,
-				"delete_profile_active_loans":         0,
-				"delete_profile_active_room_bookings": 0,
-				"delete_profile_block_reason_ru":      "",
-				"delete_profile_block_reason_en":      "",
-			}, nil
+			return "", nil, nil
 		}
 
-		activeLoans, err := queries.GetUserActiveLoanCount(ctx, ua.ID)
-		if err != nil {
-			log.Error("failed to check active book loans before profile deletion", "error", err, "user_account_id", ua.ID, "user_id", userID)
-			return "", map[string]any{
-				"success":                             false,
-				"delete_profile_active_loans":         0,
-				"delete_profile_active_room_bookings": 0,
-				"delete_profile_block_reason_ru":      "Сейчас не удалось проверить книги и переговорки. Попробуй еще раз позже.",
-				"delete_profile_block_reason_en":      "Could not verify books and room bookings right now. Please try again later.",
-			}, nil
-		}
-
-		activeRoomBookingsCount, err := queries.CountUserActiveRoomBookings(ctx, ua.ID)
-		if err != nil {
-			log.Error("failed to check active room bookings before profile deletion", "error", err, "user_account_id", ua.ID, "user_id", userID)
-			return "", map[string]any{
-				"success":                             false,
-				"delete_profile_active_loans":         int(activeLoans),
-				"delete_profile_active_room_bookings": 0,
-				"delete_profile_block_reason_ru":      "Сейчас не удалось проверить книги и переговорки. Попробуй еще раз позже.",
-				"delete_profile_block_reason_en":      "Could not verify books and room bookings right now. Please try again later.",
-			}, nil
-		}
-
-		if activeLoans > 0 || activeRoomBookingsCount > 0 {
-			log.Info("profile deletion blocked: user has active loans/bookings", "user_account_id", ua.ID, "user_id", userID, "active_loans", activeLoans, "active_room_bookings", activeRoomBookingsCount)
-			return "", map[string]any{
-				"success":                             false,
-				"delete_profile_active_loans":         int(activeLoans),
-				"delete_profile_active_room_bookings": int(activeRoomBookingsCount),
-				"delete_profile_block_reason_ru":      "Сначала сдай все книги и освободи все переговорки.",
-				"delete_profile_block_reason_en":      "Please return all borrowed books and release all room bookings first.",
-			}, nil
-		}
-
-		// Delete the user account record.
-		if err := queries.DeleteUserBookLoans(ctx, ua.ID); err != nil {
-			log.Error("failed to delete user book loans", "error", err, "user_account_id", ua.ID, "user_id", userID)
-			return "", map[string]any{
-				"success":                             false,
-				"delete_profile_active_loans":         0,
-				"delete_profile_active_room_bookings": 0,
-				"delete_profile_block_reason_ru":      "Не удалось удалить профиль. Попробуй еще раз позже.",
-				"delete_profile_block_reason_en":      "Failed to delete profile. Please try again later.",
-			}, nil
-		}
-
-		if err := queries.DeleteUserRoomBookings(ctx, ua.ID); err != nil {
-			log.Error("failed to delete user room bookings", "error", err, "user_account_id", ua.ID, "user_id", userID)
-			return "", map[string]any{
-				"success":                             false,
-				"delete_profile_active_loans":         0,
-				"delete_profile_active_room_bookings": 0,
-				"delete_profile_block_reason_ru":      "Не удалось удалить профиль. Попробуй еще раз позже.",
-				"delete_profile_block_reason_en":      "Failed to delete profile. Please try again later.",
-			}, nil
-		}
-
+		// Delete the user account record
 		if err := queries.DeleteUserAccountByExternalId(ctx, db.DeleteUserAccountByExternalIdParams{
 			Platform:   db.EnumPlatformTelegram,
 			ExternalID: fmt.Sprintf("%d", userID),
 		}); err != nil {
 			log.Error("failed to delete user account", "error", err, "user_id", userID)
-			return "", map[string]any{
-				"success":                             false,
-				"delete_profile_active_loans":         0,
-				"delete_profile_active_room_bookings": 0,
-				"delete_profile_block_reason_ru":      "Не удалось удалить профиль. Попробуй еще раз позже.",
-				"delete_profile_block_reason_en":      "Failed to delete profile. Please try again later.",
-			}, nil
+			return "", nil, err
 		}
 
 		log.Info("deleted user account", "user_account_id", ua.ID, "user_id", userID)
-		return "", map[string]any{
-			"success":                             true,
-			"delete_profile_active_loans":         0,
-			"delete_profile_active_room_bookings": 0,
-			"delete_profile_block_reason_ru":      "",
-			"delete_profile_block_reason_en":      "",
-		}, nil
+		return "", nil, nil
 	})
 }

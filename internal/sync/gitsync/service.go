@@ -41,8 +41,7 @@ func New(cfg config.GitSync, queries db.Querier, log *slog.Logger) *Service {
 
 func (s *Service) Start() error {
 	if s.cfg.SSHRepoURL == "" {
-		s.log.Warn("git repo url not configured, gitsync disabled")
-		return nil
+		s.log.Warn("git repo url not configured, running local-file sync only")
 	}
 
 	_, err := s.cron.AddFunc("@every "+s.cfg.Interval, func() {
@@ -79,17 +78,31 @@ func (s *Service) Sync(ctx context.Context) error {
 	s.log.Info("starting git sync")
 
 	// 1. Update repo
-	updateErr := s.updateRepo()
-	if updateErr != nil {
-		return fmt.Errorf("failed to update repo: %w", updateErr)
+	if s.cfg.SSHRepoURL != "" {
+		updateErr := s.updateRepo()
+		if updateErr != nil {
+			return fmt.Errorf("failed to update repo: %w", updateErr)
+		}
+	} else {
+		s.log.Debug("skipping git pull: repo url is empty")
 	}
 
-	// 2. Scan directories
+	// 2. Sync projects catalog (used by review filters/search).
+	if err := s.syncProjectsCatalog(ctx); err != nil {
+		s.log.Error("failed to sync projects catalog", "error", err)
+	}
+
+	// 3. Scan directories
 	// The campuses are stored in a configurable subdirectory within the local path
 	campusesPath := filepath.Join(s.cfg.LocalPath, s.cfg.CampusesPath)
 
 	entries, err := os.ReadDir(campusesPath)
 	if err != nil {
+		if os.IsNotExist(err) && s.cfg.SSHRepoURL == "" {
+			s.log.Debug("campuses path is missing in local-only mode, skipping campus sync", "path", campusesPath)
+			s.log.Info("git sync completed")
+			return nil
+		}
 		return fmt.Errorf("failed to read campuses directory: %w", err)
 	}
 
