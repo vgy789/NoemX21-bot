@@ -1,10 +1,3 @@
----
-meta:
-  feature_id: MAIN-001
-  name: Главное меню
-  description: Центральное меню бота для навигации между функциями
-  version: 2.1.0
-
 initial_state: MAIN_MENU
 states:
   MAIN_MENU:
@@ -15,12 +8,12 @@ states:
     interface:
       text:
         ru: |-
-          🏠 *Личный кабинет*
+          🏠 *Главное меню*
 
           🆔 `{my_s21login}` 🎖️ Уровень `{my_level}`
           🛡 `{my_coalition}`
         en: |-
-          🏠 *Personal Cabinet*
+          🏠 *Main Menu*
 
           `{my_s21login}` 🎖️ Level `{my_level}`
           🛡 `{my_coalition}`

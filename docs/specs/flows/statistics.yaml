@@ -1,5 +1,3 @@
----
-
 initial_state: AUTO_SYNC_STATS
 
 states:
@@ -17,11 +15,10 @@ states:
     interface:
       text:
         ru: |
-          👤 *Твой профиль: {my_s21login}*
+          🎓 *{my_s21login}*
 
-          📍 {my_campus}
-          🎓 {my_class} | {my_coalition}
-          ⚙️ {my_status} | {my_parallel}
+          📍 {my_campus} | {my_class}
+          ⚔️ {my_coalition}
 
           🏆 *Уровень:* `{my_level}`
           ⭐️ *Опыт:* `{my_exp} XP`
@@ -32,14 +29,13 @@ states:
           🧐 ИНТ: `{my_interest}` | 🙂 ДОБ: `{my_friendliness}`
           🕑 ПНК: `{my_punctuality}` | ⚖️ СТР: `{my_thoroughness}`
         en: |
-          👤 *Profile: {my_s21login}*
+          🎓 *{my_s21login}*
 
-          📍 {my_campus}
-          🎓 {my_class} | {my_coalition}
-          ⚙️ {my_status} | {my_parallel}
+          📍 {my_campus} | {my_class}
+          ⚔️ {my_coalition}
 
           🏆 *Level:* `{my_level}`
-          ⭐️ *XP:* `{my_exp}`
+          ⭐️ *XP:* `{my_exp} XP`
           💰 *Coins:* `{my_coins} ₡`
           🤝 PRP: `{my_prps}` | CRP: `{my_crps}`
 
@@ -52,6 +48,7 @@ states:
           label:
             ru: 🔎 Найти пира
             en: 🔎 Find peer
+          row: 1
           next_state: SEARCH_INPUT
         - id: skills
           label:
@@ -63,12 +60,13 @@ states:
           label:
             ru: 🔄 Обновить данные
             en: 🔄 Refresh data
-          row: 1
+          row: 2
           next_state: FETCH_MY_STATS
         - id: back
           label:
-            ru: 🏠 В главное меню
+            ru: 🏠 На главную
             en: 🏠 Main menu
+          row: 2
           next_state: MAIN_MENU
 
   FETCH_MY_STATS:
@@ -107,8 +105,8 @@ states:
       buttons:
         - id: back
           label:
-            ru: "⬅️ Назад"
-            en: "⬅️ Back"
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: STATS_SEARCH_MENU
 
   FETCH_MY_SKILLS:
@@ -138,13 +136,19 @@ states:
     interface:
       image: "$context.radar_chart_path"
       text:
-        ru: "📊 *Ваш профиль навыков*\n\nЭтот график показывает владение различными доменами разработки на основе ваших достижений в Школе 21."
-        en: "📊 *Your Skills Profile*\n\nThis chart shows your proficiency in various development domains based on your achievements in School 21."
+        ru: |
+          📊 *Твой профиль навыков*
+
+          Этот график показывает владение различными доменами на основе твоих решённых проектов.
+        en: |
+          📊 *Your Skills Profile*
+
+          This chart shows your proficiency in various domains based on your solved projects.
       buttons:
         - id: back
           label:
-            ru: "⬅️ Назад"
-            en: "⬅️ Back"
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: STATS_SEARCH_MENU
 
   SEARCH_INPUT:
@@ -155,20 +159,20 @@ states:
         ru: |
           🕵️ *Поиск пира*
 
-          Введи логин студента.
+          Введи логин студента для просмотра его статистики и сравнения навыков.
 
-          > Например: `verter`
+          _Например:_ `verter`
         en: |
           🕵️ *Find a Peer*
 
-          Enter the student's login.
+          Enter the student's login for viewing their stats and comparing skills.
 
-          > Example: `verter`
+          _Example:_ `verter`
       buttons:
         - id: back
           label:
-            ru: 🙅‍♂️ Отмена
-            en: 🙅‍♂️ Cancel
+            ru: 🔙 Отмена
+            en: 🔙 Cancel
           next_state: STATS_SEARCH_MENU
     validation:
       regex: ^[A-Za-z]{4,9}$
@@ -198,42 +202,38 @@ states:
     interface:
       text:
         ru: |
-          📂 *Пир: {peer_login}*
-          📍 {peer_campus}
-          🎓 {peer_class} | {peer_coalition}
+          🎓 *Пользователь {peer_login}*
+
+          📍 {peer_campus} | {peer_class}
+          ⚔️ {peer_coalition}
           ⚙️ {peer_status} | {peer_parallel}
 
-          📊 *Показатели:*
-          • Уровень: `{peer_level}`
-          • Опыт: `{peer_exp} XP`
-          • Коины: `{peer_coins} ₡`
-          • PRP: `{peer_prps}` | CRP: `{peer_crps}`
+          🏆 *Уровень*: `{peer_level}`
+          ⭐️ *Опыт*: `{peer_exp} XP`
+          💰 *Коины*: `{peer_coins} ₡`
+          🤝 PRP: `{peer_prps}` | CRP: `{peer_crps}`
 
           *Social:*
-          • ИНТ: `{peer_interest}` | ДОБ: `{peer_friendliness}`
-          • ПНК: `{peer_punctuality}` | СТР: `{peer_thoroughness}`
+          🧐 ИНТ: `{peer_interest}` | 🙂 ДОБ: `{peer_friendliness}`
+          🕑 ПНК: `{peer_punctuality}` | ⚖️ СТР: `{peer_thoroughness}`
 
           {peer_contact_line}
           {alternative_contact_line}
         en: |
-          📂 *Peer: {peer_login}*
+          🎓 *User {peer_login}*
 
-          📍 {peer_campus}
-          🎓 {peer_class} | {peer_coalition}
+          📍 {peer_campus} | {peer_class}
+          ⚔️ {peer_coalition}
           ⚙️ {peer_status} | {peer_parallel}
 
-          📊 *Stats:*
-          • Level: `{peer_level}`
-          • XP: `{peer_exp}`
-          • Coins: `{peer_coins} ₡`
-          • PRP: `{peer_prps}` | CRP: `{peer_crps}`
+          🏆 *Level*: `{peer_level}`
+          ⭐️ *XP*: `{peer_exp} XP`
+          💰 *Coins*: `{peer_coins} ₡`
+          🤝 PRP: `{peer_prps}` | CRP: `{peer_crps}
 
           *Social:*
-          • INT: `{peer_interest}` | FRD: `{peer_friendliness}`
-          • PNC: `{peer_punctuality}` | THO: `{peer_thoroughness}`
-
-          📬 *Contact:* {peer_contact_line}
-          *Alt:* {alternative_contact_line}
+          🧐 INT: `{peer_interest}` | 🙂 FRD: `{peer_friendliness}`
+          🕑 PNC: `{peer_punctuality}` | ⚖️ THO: `{peer_thoroughness}`
       buttons:
         - id: compare_skills
           label:
@@ -259,26 +259,23 @@ states:
     interface:
       text:
         ru: |
-          📂 *Пир: {peer_login}*
-          📍 {peer_campus}
-          ⚙️ {peer_status}
+          🎓 *Пользователь {peer_login} отчислен*
 
-          📊 *Показатели:*
-          • Уровень: `{peer_level}`
-          • Опыт: `{peer_exp} XP`
-          • Коины: `{peer_coins} ₡`
-          • PRP: `{peer_prps}` | CRP: `{peer_crps}`
+          📍 {peer_campus} | {peer_class}
+
+          🏆 *Уровень*: `{peer_level}`
+          ⭐️ *Опыт*: `{peer_exp} XP`
+          💰 *Коины*: `{peer_coins} ₡`
+          🤝 PRP: `{peer_prps}` | CRP: `{peer_crps}`
         en: |
-          📂 *Peer: {peer_login}*
+          🎓 *User {peer_login} отчислен*
 
-          📍 {peer_campus}
-          ⚙️ {peer_status}
+          📍 {peer_campus} | {peer_class}
 
-          📊 *Stats:*
-          • Level: `{peer_level}`
-          • XP: `{peer_exp}`
-          • Coins: `{peer_coins} ₡`
-          • PRP: `{peer_prps}` | CRP: `{peer_crps}`
+          🏆 *Уровень*: `{peer_level}`
+          ⭐️ *Опыт*: `{peer_exp} XP`
+          💰 *Коины*: `{peer_coins} ₡`
+          🤝 PRP: `{peer_prps}` | CRP: `{peer_crps}`
       buttons:
         - id: compare_skills
           label:
@@ -317,7 +314,7 @@ states:
       image: "{radar_comparison_path}"
       text:
         ru: |
-          🕸 *Наложение графов*
+          🕸 *Битва навыков: Наложение графов*
 
           🔵 Ты vs 🔴 {peer_login}
         en: |
@@ -337,15 +334,15 @@ states:
     interface:
       text:
         ru: |
-          👻 *Пир не найден*
+          🦆 *Кря… Кажется, этот пир нырнул слишком глубоко.*
 
-          Мы не нашли `{last_input}` в базе.
-          Проверь, правильно ли написан логин (нужен именно S21 login, не Telegram).
+          Мы не нашли `{last_input}` в базе Школы.
+          Убедись, что в логине нет ошибок.
         en: |
-          👻 *Peer not found*
+          🦆 *Quack… It seems this peer has dived too deep.*
 
-          We couldn't find `{last_input}`.
-          Check the spelling (we need the S21 login, not Telegram username).
+          We couldn't find `{last_input}` in the School's database.
+          Make sure there are no typos in the login.
       buttons:
         - id: retry
           label:

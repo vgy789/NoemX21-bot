@@ -1,10 +1,3 @@
----
-meta:
-  feature_id: CLB-001
-  name: Клубы и группы
-  description: 'Каталог клубов: локальные и глобальные сообщества с drill-down по категориям'
-  version: 2.1.0
-
 initial_state: INIT_CLUBS
 states:
   INIT_CLUBS:
@@ -25,33 +18,33 @@ states:
         ru: |
           🎲 *Клубы и сообщества*
 
-          📍 *Локация:* `{my_campus}`
+          Ищешь единомышленников, чтобы вайбкодить 24/7 или играть в настолки до утра? Ты по адресу.
         en: |
           🎲 *Clubs & Communities*
 
-          📍 *Location:* `{my_campus}`
+          Looking for peers to vibecode 24/7 or play board games until dawn? You're in the right place.
       buttons:
         - id: local
           label:
-            ru: 🏫 Клубы кампуса
-            en: 🏫 Campus clubs
+            ru: 🏫 В моём кампусе
+            en: 🏫 In my campus
           next_state: FETCH_LOCAL_CATEGORIES
           row: 1
         - id: global
           label:
-            ru: 🌍 Глобальные сообщества
+            ru: 🌍 Межкампусные
             en: 🌍 Global communities
           next_state: FETCH_GLOBAL_CATEGORIES
           row: 1
         - id: create_club
           label:
-            ru: 🧩 Создать клуб
-            en: 🧩 Create club
+            ru: 🧩 Собрать свой клуб
+            en: 🧩 Assemble a club
           next_state: CREATE_CLUB_INFO
           row: 2
         - id: back
           label:
-            ru: 🏠 Главное меню
+            ru: 🏠 На главную
             en: 🏠 Main menu
           next_state: MAIN_MENU
 
@@ -82,15 +75,14 @@ states:
     interface:
       text:
         ru: |
-          🗂️ *Категории*
+          🗂️ *Клубы / Категории*
 
-          👇 Нажми для выбора категории:
+          В каком направлении будем искать? Выбери категорию:
         en: |
-          🗂️ *Categories*
+          🗂️ *Clubs / Categories*
 
-          👇 Click to select a category:
+          Which direction? Select a category:
       buttons:
-        # Максимум 15 категорий, реальные значения подставляются из контекста
         - id: "{category_1}"
           label: "{category_1}"
           next_state: FETCH_CLUBS_BY_CATEGORY
@@ -160,15 +152,14 @@ states:
     interface:
       text:
         ru: |
-          *{category_name}*
+          *Клубы / Категория: {category_name}*
 
-          Выбери клуб для подробной информации:
+          Вот что удалось отыскать. Тыкай на любой, чтобы узнать подробности:
         en: |
-          *{category_name}*
+          *Clubs / Category: {category_name}*
 
-          Choose a club for more details:
+          Here's the list. Click any club to see the details:
       buttons:
-        # Максимум 20 клубов, реальные значения подставляются из контекста
         - id: "{club_id_1}"
           label: "{club_name_1}"
           next_state: GET_CLUB_DETAIL
@@ -246,8 +237,9 @@ states:
           next_state: GET_CLUB_DETAIL
         - id: back
           label:
-            ru: 🔙 К категориям
-            en: 🔙 To categories
+            ru: 🔙 Назад
+            en: 🔙 Back
+          row: 99
           next_state: SELECT_CATEGORY
 
   GET_CLUB_DETAIL:
@@ -273,13 +265,13 @@ states:
       buttons:
         - id: join_club
           label:
-            ru: 🔗 Вступить в канал
-            en: 🔗 Join channel
+            ru: 🔗 Занырнуть в канал
+            en: 🔗 Dive into channel
           url: "{club_link}"
         - id: back_to_list
           label:
-            ru: 🔙 К списку клубов
-            en: 🔙 Back to clubs
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: CLUBS_LIST
 
   CREATE_CLUB_INFO:
@@ -288,26 +280,26 @@ states:
     interface:
       text:
         ru: |
-          🧩 *Новый клуб*
+          🧩 *Хочешь стать вожаком стаи?*
 
           📍 Кампус: `{my_campus}`
-          👤 Лидер комьюнити: *{leader_name}*
+          👤 Твой проводник (Lead): *{leader_name}*
 
-          📝 *Регистрация:*
-          Заполни официальную форму заявки на создание.
+          Чтобы создать свой клуб, нужно заполнить серьёзную форму. Опиши свою идею так, чтобы все крякнули от восторга!
+
           🔗 {leader_form_link}
         en: |
-          🧩 *New Club*
+          🧩 *Want to lead the flock?*
 
           📍 Campus: `{my_campus}`
-          👤 Community Lead: *{leader_name}*
+          👤 Your Community Lead: *{leader_name}*
 
-          📝 *Registration:*
-          Fill out the official application form.
+          To start your own club, you need to fill out a serious form. Describe your idea so well that everyone quacks with joy!
+
           🔗 {leader_form_link}
       buttons:
         - id: back
           label:
-            ru: 🔙 К меню клубов
-            en: 🔙 To Clubs menu
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: INIT_CLUBS

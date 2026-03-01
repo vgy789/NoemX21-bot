@@ -321,7 +321,6 @@ func registerReviewActions(
 			AvailabilityText:        availability,
 			RequesterTimezone:       timezoneName,
 			RequesterTimezoneOffset: timezoneOffset,
-			ReviewsProgressText:     defaultString(payload["reviews_progress_text"], "n/a (school API does not provide this)"),
 		})
 		if err != nil {
 			if strings.Contains(strings.ToLower(err.Error()), "uq_review_requests_open_per_project") {
@@ -983,7 +982,6 @@ func getTelegramAccount(ctx context.Context, queries db.Querier, userID int64) (
 func defaultReviewContext(payload map[string]any) map[string]any {
 	return map[string]any{
 		"available_projects_count": len(parseAvailableProjects(payload["available_projects"])),
-		"reviews_progress_text":    defaultString(payload["reviews_progress_text"], "n/a (school API does not provide this)"),
 	}
 }
 
@@ -1251,7 +1249,6 @@ func detailUpdatesFromReviewRow(ctx context.Context, queries db.Querier, row db.
 		"view_count":                         int(row.ViewCount),
 		"response_count":                     int(row.ResponseCount),
 		"prr_status_label":                   statusLabel(string(row.Status), lang),
-		"reviews_progress_text":              nonEmpty(row.ReviewsProgressText, "n/a (school API does not provide this)"),
 	}
 	attachRequesterContacts(ctx, queries, row.RequesterUserID, row.RequesterS21Login, lang, updates)
 	return updates

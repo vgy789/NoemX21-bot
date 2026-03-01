@@ -378,7 +378,6 @@ type ReviewRequest struct {
 	AvailabilityText                      string             `json:"availability_text"`
 	RequesterTimezone                     string             `json:"requester_timezone"`
 	RequesterTimezoneOffset               string             `json:"requester_timezone_offset"`
-	ReviewsProgressText                   string             `json:"reviews_progress_text"`
 	Status                                EnumReviewStatus   `json:"status"`
 	ViewCount                             int32              `json:"view_count"`
 	ResponseCount                         int32              `json:"response_count"`

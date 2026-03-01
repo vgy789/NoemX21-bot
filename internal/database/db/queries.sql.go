@@ -249,12 +249,11 @@ INSERT INTO review_requests (
     availability_text,
     requester_timezone,
     requester_timezone_offset,
-    reviews_progress_text,
     status
 ) VALUES (
     $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'SEARCHING'
 )
-RETURNING id, requester_user_id, requester_s21_login, requester_campus_id, project_id, project_name, project_type, availability_text, requester_timezone, requester_timezone_offset, reviews_progress_text, status, view_count, response_count, created_at, updated_at, closed_at, negotiating_reviewer_user_id, negotiating_reviewer_s21_login, negotiating_reviewer_telegram_username, negotiating_reviewer_rocketchat_id, negotiating_reviewer_alternative_contact, negotiating_started_at
+
 `
 
 type CreateReviewRequestParams struct {
@@ -267,7 +266,6 @@ type CreateReviewRequestParams struct {
 	AvailabilityText        string      `json:"availability_text"`
 	RequesterTimezone       string      `json:"requester_timezone"`
 	RequesterTimezoneOffset string      `json:"requester_timezone_offset"`
-	ReviewsProgressText     string      `json:"reviews_progress_text"`
 }
 
 func (q *Queries) CreateReviewRequest(ctx context.Context, arg CreateReviewRequestParams) (ReviewRequest, error) {
@@ -281,7 +279,6 @@ func (q *Queries) CreateReviewRequest(ctx context.Context, arg CreateReviewReque
 		arg.AvailabilityText,
 		arg.RequesterTimezone,
 		arg.RequesterTimezoneOffset,
-		arg.ReviewsProgressText,
 	)
 	var i ReviewRequest
 	err := row.Scan(
@@ -295,7 +292,6 @@ func (q *Queries) CreateReviewRequest(ctx context.Context, arg CreateReviewReque
 		&i.AvailabilityText,
 		&i.RequesterTimezone,
 		&i.RequesterTimezoneOffset,
-		&i.ReviewsProgressText,
 		&i.Status,
 		&i.ViewCount,
 		&i.ResponseCount,
@@ -1398,7 +1394,6 @@ SELECT
     rr.availability_text,
     rr.requester_timezone,
     rr.requester_timezone_offset,
-    rr.reviews_progress_text,
     rr.status,
     rr.view_count,
     rr.response_count,
@@ -1434,7 +1429,6 @@ type GetMyOpenReviewRequestsRow struct {
 	AvailabilityText          string             `json:"availability_text"`
 	RequesterTimezone         string             `json:"requester_timezone"`
 	RequesterTimezoneOffset   string             `json:"requester_timezone_offset"`
-	ReviewsProgressText       string             `json:"reviews_progress_text"`
 	Status                    EnumReviewStatus   `json:"status"`
 	ViewCount                 int32              `json:"view_count"`
 	ResponseCount             int32              `json:"response_count"`
@@ -1466,7 +1460,6 @@ func (q *Queries) GetMyOpenReviewRequests(ctx context.Context, requesterUserID i
 			&i.AvailabilityText,
 			&i.RequesterTimezone,
 			&i.RequesterTimezoneOffset,
-			&i.ReviewsProgressText,
 			&i.Status,
 			&i.ViewCount,
 			&i.ResponseCount,
@@ -1580,7 +1573,6 @@ SELECT
     rr.availability_text,
     rr.requester_timezone,
     rr.requester_timezone_offset,
-    rr.reviews_progress_text,
     rr.status,
     rr.view_count,
     rr.response_count,
@@ -1626,7 +1618,6 @@ type GetMyReviewRequestByIDRow struct {
 	AvailabilityText                      string             `json:"availability_text"`
 	RequesterTimezone                     string             `json:"requester_timezone"`
 	RequesterTimezoneOffset               string             `json:"requester_timezone_offset"`
-	ReviewsProgressText                   string             `json:"reviews_progress_text"`
 	Status                                EnumReviewStatus   `json:"status"`
 	ViewCount                             int32              `json:"view_count"`
 	ResponseCount                         int32              `json:"response_count"`
@@ -1658,7 +1649,6 @@ func (q *Queries) GetMyReviewRequestByID(ctx context.Context, arg GetMyReviewReq
 		&i.AvailabilityText,
 		&i.RequesterTimezone,
 		&i.RequesterTimezoneOffset,
-		&i.ReviewsProgressText,
 		&i.Status,
 		&i.ViewCount,
 		&i.ResponseCount,
@@ -1690,7 +1680,6 @@ SELECT
     rr.availability_text,
     rr.requester_timezone,
     rr.requester_timezone_offset,
-    rr.reviews_progress_text,
     rr.status,
     rr.view_count,
     rr.response_count,
@@ -1726,7 +1715,6 @@ type GetOpenReviewRequestsByProjectRow struct {
 	AvailabilityText          string             `json:"availability_text"`
 	RequesterTimezone         string             `json:"requester_timezone"`
 	RequesterTimezoneOffset   string             `json:"requester_timezone_offset"`
-	ReviewsProgressText       string             `json:"reviews_progress_text"`
 	Status                    EnumReviewStatus   `json:"status"`
 	ViewCount                 int32              `json:"view_count"`
 	ResponseCount             int32              `json:"response_count"`
@@ -1758,7 +1746,6 @@ func (q *Queries) GetOpenReviewRequestsByProject(ctx context.Context, projectID 
 			&i.AvailabilityText,
 			&i.RequesterTimezone,
 			&i.RequesterTimezoneOffset,
-			&i.ReviewsProgressText,
 			&i.Status,
 			&i.ViewCount,
 			&i.ResponseCount,
@@ -2031,7 +2018,6 @@ SELECT
     rr.availability_text,
     rr.requester_timezone,
     rr.requester_timezone_offset,
-    rr.reviews_progress_text,
     rr.status,
     rr.view_count,
     rr.response_count,
@@ -2065,7 +2051,6 @@ type GetReviewRequestByIDRow struct {
 	AvailabilityText          string             `json:"availability_text"`
 	RequesterTimezone         string             `json:"requester_timezone"`
 	RequesterTimezoneOffset   string             `json:"requester_timezone_offset"`
-	ReviewsProgressText       string             `json:"reviews_progress_text"`
 	Status                    EnumReviewStatus   `json:"status"`
 	ViewCount                 int32              `json:"view_count"`
 	ResponseCount             int32              `json:"response_count"`
@@ -2091,7 +2076,6 @@ func (q *Queries) GetReviewRequestByID(ctx context.Context, id int64) (GetReview
 		&i.AvailabilityText,
 		&i.RequesterTimezone,
 		&i.RequesterTimezoneOffset,
-		&i.ReviewsProgressText,
 		&i.Status,
 		&i.ViewCount,
 		&i.ResponseCount,

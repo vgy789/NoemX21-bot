@@ -14,34 +14,38 @@ states:
     interface:
       text:
         ru: |
-          🤝 *Peer Review Helper*
+          🤝 *Ревью проектов*
+
+          _«Если дедлайн горит — значит, время крякать!»_
 
           {active_prr_notification}
         en: |
-          🤝 *Peer Review Helper*
+          🤝 *Project Reviews*
+
+          _"If the deadline is burning — it's time to quack!"_
 
           {active_prr_notification}
       buttons:
         - id: list_all
           label:
-            ru: 📋 Текущие запросы пиров
-            en: 📋 Current peer requests
+            ru: 🔎 Найти кого поревьюить
+            en: 🔎 Find someone to review
           next_state: GLOBAL_PRR_BOARD
           row: 1
         - id: create_new
           label:
-            ru: ➕ Создать запрос
-            en: ➕ Create request
+            ru: ➕ Выставить свой проект
+            en: ➕ Submit my project
           condition: "available_projects_count > 0"
           next_state: SELECT_PROJECT_FOR_PRR
-          row: 1
+          row: 2
         - id: create_new_disabled
           label:
-            ru: ➕ Создать запрос
-            en: ➕ Create request
+            ru: ➕ Выставить свой проект
+            en: ➕ Submit my project
           condition: "available_projects_count == 0"
           next_state: ERROR_NO_IN_REVIEWS_PROJECTS
-          row: 1
+          row: 2
         - id: my_requests
           label:
             ru: 📂 Мои запросы ({my_prr_count})
@@ -51,7 +55,7 @@ states:
           row: 2
         - id: back
           label:
-            ru: 🏠 Главное меню
+            ru: 🏠 На главную
             en: 🏠 Main menu
           next_state: MAIN_MENU
           row: 3
@@ -66,11 +70,15 @@ states:
     interface:
       text:
         ru: |
-          Выбери проект, который хочешь сдать:
+          🦆 **Что отправляем на ревью?**
+
+          Выбери проект, который нужно проверить. Я покажу его остальным пирам.
 
           {available_projects_list_hint}
         en: |
-          Select the project you want to submit:
+          🦆 **What are we reviewing?**
+
+          Select the project you want to be reviewed. I'll broadcast it to other peers.
 
           {available_projects_list_hint}
       buttons:
@@ -107,7 +115,7 @@ states:
         - id: prev_projects
           label:
             ru: ⬅️ Назад
-            en: ⬅️ Prev
+            en: ⬅️ Back
           condition: "available_projects_has_prev_page == true"
           action: available_projects_prev_page
           next_state: SELECT_PROJECT_FOR_PRR
@@ -151,15 +159,23 @@ states:
     interface:
       text:
         ru: |
-          ⏰ *Когда ты в сети?*
-          Напиши текстом, в какие дни и часы тебя искать.
+          ⏰ *Когда ты на связи?*
 
-          _Пример: Сегодня до 21:00, завтра весь день с 10 утра._
+          Напиши честно, в какое время ты на связи и готов:а отвечать.
+
+          💡 _Совет Утки: Пиши конкретно, например:_
+          • «1 мая до 20:00, 2-го с утра»
+          • «Прямо сейчас и ближайшие 2 часа»
+          • «Завтра с 10:00 до 15:00 по МСК»
         en: |
-          ⏰ *When are you available?*
-          Type your available days and hours.
+          ⏰ *When are you online?*
 
-          _Example: Today until 9 PM, tomorrow all day from 10 AM._
+          Be honest about when you're online and ready to respond.
+
+          💡 _Duck's Tip: Be specific, e.g.:_
+          • "May 1st until 8 PM, May 2nd in the morning"
+          • "Right now and for the next 2 hours"
+          • "Tomorrow from 10 AM – 3 PM (UTC+3)"
       buttons:
         - id: cancel
           label:
@@ -177,25 +193,21 @@ states:
     interface:
       text:
         ru: |
-          📝 *Проверь данные запроса:*
+          📝 *Сверяем координаты:*
 
           📁 Проект: *{selected_project_name}*
-          🧩 Тип: `{selected_project_type}`
           ⏰ Время: `{create_prr_time_description}`
-          🌐 Твой часовой пояс: `{user_timezone_name}` (UTC{user_timezone_formatted})
-          📊 Прогресс ревью: {reviews_progress_text}
+          🌐 Пояс: `{user_timezone_name}` (UTC{user_timezone_formatted})
 
-          Опубликовать на доске?
+          _Если всё верно – публикуем в эфир. Пиры увидят твой сигнал на радаре._
         en: |
-          📝 *Review your request:*
+          📝 *Final check:*
 
           📁 Project: *{selected_project_name}*
-          🧩 Type: `{selected_project_type}`
           ⏰ Time: `{create_prr_time_description}`
-          🌐 Your timezone: `{user_timezone_name}` (UTC{user_timezone_formatted})
-          📊 Review progress: {reviews_progress_text}
+          🌐 Timezone: `{user_timezone_name}` (UTC{user_timezone_formatted})
 
-          Publish to the board?
+          _If everything is correct – let's go live. Peers will see your signal on the radar._
       buttons:
         - id: confirm
           label:
@@ -230,15 +242,17 @@ states:
     interface:
       text:
         ru: |
-          🚀 *Готово!*
+          🚀 *Полетела утка!*
 
-          Твой запрос опубликован на доске.
-          Пока он не закрыт, второй запрос на этот же проект создать нельзя.
+          Твой запрос на общей доске. Как только кто-то откликнется, я мигом пришлю уведомление.
+
+          _А пока можно выпить кофе или самому спасти чьё-нибудь ревью._ ☕️
         en: |
-          🚀 *Done!*
+          🚀 *The Duck has taken flight!*
 
-          Your request is live on the board.
-          While it is open, you cannot create another request for the same project.
+          Your request is now on the board. I'll notify you the moment someone responds.
+
+          _In the meantime, grab a coffee or save someone else's deadline._ ☕️
       buttons:
         - id: ok
           label:
@@ -258,16 +272,20 @@ states:
     interface:
       text:
         ru: |
-          📋 *Текущие запросы Peer Review*
+          📋 *Список текущих запросов Peer Review*
 
-          Отображать заявки по: `{current_project_filters_text}`
+          _Кто-то ждёт твоего ревью прямо сейчас. Выбери проект, чтобы увидеть список горящих заявок._
+
+          🎯 Фильтр: `{current_project_filters_text}`
 
           {project_groups_formatted}
         en: |
-          📋 *Current Peer Review Requests*
+          📋 *List of current Peer Review requests*
 
-          View requsts for: `{current_project_filters_text}`
+          _Someone needs your review right now. Pick a project to see the hottest requests._
 
+
+          🎯 Filter: `{current_project_filters_text}`
           {project_groups_formatted}
       buttons:
         - id: "{project_group_id_1}"
@@ -303,7 +321,7 @@ states:
         - id: prev_board_page
           label:
             ru: ⬅️ Назад
-            en: ⬅️ Prev
+            en: ⬅️ Back
           condition: "global_board_has_prev_page == true"
           action: global_prr_board_prev_page
           next_state: GLOBAL_PRR_BOARD
@@ -337,8 +355,8 @@ states:
           row: 7
         - id: back
           label:
-            ru: 🔙 В меню
-            en: 🔙 Menu
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: PRR_MAIN_MENU
           row: 8
 
@@ -354,19 +372,19 @@ states:
     interface:
       text:
         ru: |
-          📁 *{selected_project_name}*
+          📁 *Проект: {selected_project_name}*
           Тип: `{selected_project_type}`
 
-          {project_prr_list_formatted}
+          _Выбери пира, которому готов помочь. Утка одобряет взаимовыручку!_ 🦆
 
-          _Нажми на запрос, чтобы посмотреть карточку и откликнуться._
+          {project_prr_list_formatted}
         en: |
-          📁 *{selected_project_name}*
+          📁 *Project: {selected_project_name}*
           Type: `{selected_project_type}`
 
-          {project_prr_list_formatted}
+          _Pick a peer you're ready to help. Duck approves of peer-to-peer!_ 🦆
 
-          _Tap a request to open details and propose a review._
+          {project_prr_list_formatted}
       buttons:
         - id: "{project_prr_id_1}"
           label: "{project_prr_btn_label_1}"
@@ -401,7 +419,7 @@ states:
         - id: prev_project_prr_page
           label:
             ru: ⬅️ Назад
-            en: ⬅️ Prev
+            en: ⬅️ Back
           condition: "project_prr_has_prev_page == true"
           action: selected_project_prr_prev_page
           next_state: PROJECT_PRR_LIST
@@ -428,8 +446,8 @@ states:
           row: 7
         - id: back
           label:
-            ru: 🔙 К проектам
-            en: 🔙 Back to projects
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: GLOBAL_PRR_BOARD
           row: 7
 
@@ -443,39 +461,39 @@ states:
     interface:
       text:
         ru: |
-          🟢 *Запрос на ревью*
+          🟢 *Карточка запроса*
 
-          👤 Студент: {nickname} (уровень {peer_level})
+          👤 {nickname} (lvl {peer_level})
           📍 Кампус: {peer_campus}
-          📁 Проект: *{project_name}*
-          🧩 Тип проекта: `{project_type}`
-          📊 Прогресс ревью: {reviews_progress_text}
+          📁 Проект: {project_name}
+          🧩 Тип: {project_type}
 
           ⏰ *Когда удобно:*
           {time_description}
           _(UTC{requester_timezone_utc_offset}; у тебя: {viewer_local_time_hint})_
 
-          🕒 Открыт: {prr_opened_at}
-          👁 Просмотров: {view_count}
-          🙋 Предложений ревью: {response_count}
-          🔖 Статус: {prr_status_label}
-        en: |
-          🟢 *Review Request*
+          📊 *Статистика:*
+          👁 Просмотров: {view_count} | 🙋 Откликов: {response_count}
+          🕒 Создан: {prr_opened_at}
 
-          👤 Student: {nickname} (level {peer_level})
+          _Готов(а) выручить пира? Жми кнопку, и я выдам контакты._
+        en: |
+          🟢 *Request Card*
+
+          👤 {nickname} (lvl {peer_level})
           📍 Campus: {peer_campus}
-          📁 Project: *{project_name}*
-          🧩 Project type: `{project_type}`
-          📊 Review progress: {reviews_progress_text}
+          📁 Project: {project_name}
+          🧩 Project type: {project_type}
 
           ⏰ *Available time:*
           {time_description}
           _(UTC{requester_timezone_utc_offset}; for you: {viewer_local_time_hint})_
 
+          *Statistics:*
+          👁 Views: {view_count} | 🙋 Offers: {response_count}
           🕒 Opened: {prr_opened_at}
-          👁 Views: {view_count}
-          🙋 Review offers: {response_count}
-          🔖 Status: {prr_status_label}
+
+          _Ready to help? Click the button below to get contacts._
       buttons:
         - id: propose_review
           label:
@@ -485,8 +503,8 @@ states:
           row: 1
         - id: back
           label:
-            ru: 🔙 К списку проекта
-            en: 🔙 Back to project list
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: PROJECT_PRR_LIST
           row: 2
 
@@ -514,14 +532,16 @@ states:
         ru: |
           📨 *Контакт передан!*
 
-          Мы скрыли эту заявку с доски, чтобы автору не спамили другие пиры.
-          Напиши автору в личные сообщения.
+          _Я скрыла эту заявку с доски, чтобы автору не спамили другие пиры._ 🦆
+
+          Напиши автору и договаривайся.
           {requester_alternative_contact_line}
         en: |
           📨 *Contact shared!*
 
-          We've hidden this request from the board so the author doesn't get spammed.
-          Message the author directly.
+          _I've hidden this request from the board so the author doesn't get spammed._ 🦆
+
+          Write to the author and make an arrangement.
           {requester_alternative_contact_line}
       buttons:
         - id: message_author
@@ -658,27 +678,35 @@ states:
     interface:
       text:
         ru: |
-          📌 *Мой запрос*
+          📌 *Твой запрос на доске*
 
           📁 Проект: {my_selected_project_name}
-          🧩 Тип: {my_selected_project_type}
           ⏰ Время: {my_selected_time_description}
-          👁 Просмотров: {my_selected_view_count}
+
+          📊 *Пульс заявки:*
           🙋 Откликов: {my_selected_response_count}
+          👁 Просмотров: {my_selected_view_count}
           🔖 Статус: {my_selected_status_label}
+
           {my_selected_error_line}
           {my_selected_negotiating_contact_block}
+
+          _Договорились о встрече? Закрой запрос, чтобы не сбивать других уток с курса._
         en: |
           📌 *My request*
 
           📁 Project: {my_selected_project_name}
-          🧩 Type: {my_selected_project_type}
           ⏰ Time: {my_selected_time_description}
-          👁 Views: {my_selected_view_count}
+
+          📊 *Request Pulse:*
           🙋 Offers: {my_selected_response_count}
+          👁 Views: {my_selected_view_count}
           🔖 Status: {my_selected_status_label}
+
           {my_selected_error_line}
           {my_selected_negotiating_contact_block}
+
+          _Already negotiated? Close the request to keep the radar clear for others._
       buttons:
         - id: pause_search
           label:
@@ -714,8 +742,8 @@ states:
           row: 2
         - id: back
           label:
-            ru: 🔙 К моим запросам
-            en: 🔙 Back to my requests
+            ru: 🔙 Назад
+            en: 🔙 Back
           next_state: MY_PRR_LIST
           row: 3
 
@@ -728,19 +756,24 @@ states:
     interface:
       text:
         ru: |
-          Выбери, какие проекты ты хочешь проверять. Я буду показывать их на доске.
+          ⚙️ *Фильтры запросов Peer Review*
 
-          Раздел: `{project_filter_mode_text}`
-          Поиск по: `{project_filter_query_text}`
-          Текущий фильтр: `{current_project_filters_text}`
+          Выбери проекты, которые ты хочешь проверять. Я буду показывать только их на главной доске.
+
+          🔍 *Раздел:* `{project_filter_mode_text}`
+          🎯 *Выбрано:* `{current_project_filters_text}`
+          📝 *Поиск:* `{project_filter_query_text}`
 
           {project_filter_list_formatted}
         en: |
-          Choose which projects to show on the board.
+          ⚙️ *Peer Review Filters*
 
-          Mode: `{project_filter_mode_text}`
-          Search: `{project_filter_query_text}`
-          Current filter: `{current_project_filters_text}`
+          Choose projects you want to monitor. I'll show them on the board.
+
+          🔍 *Mode:* `{project_filter_mode_text}`
+          🎯 *Current:* `{current_project_filters_text}`
+          📝 *Search:* `{project_filter_query_text}`
+
           {project_filter_list_formatted}
       buttons:
         - id: mode_projects
@@ -805,7 +838,7 @@ states:
         - id: prev_filter_page
           label:
             ru: ⬅️ Назад
-            en: ⬅️ Prev
+            en: ⬅️ Back
           action: prr_project_filter_prev_page
           next_state: PRR_FILTERS_MENU
           row: 7
@@ -847,13 +880,17 @@ states:
     interface:
       text:
         ru: |
-          Введи поисковый запрос фильтра.
+          🔍 *Настройка фильтров*
 
-          Ищется по вхождениям в: `id проекта`, `название проекта`, `код проекта`, `id курса`, `название курса`, `nodes`.
+          Напиши название проекта или его часть. Поддерижвается поиск по: id проекта, название проекта, код проекта, id курса, название курса, nodes.
+
+          Я отфильтрую список, чтобы тебе было удобнее выбрать нужные цели. 🦆
         en: |
-          Enter a search query for the filter.
+          🔍 *Radar Calibration*
 
-          Search fields: `project name`, `project id`, `project code`, `course id`, `course name`, `nodes`.
+          Type a project name or its part. Search is supported by: project id, project name, project code, course id, course name, nodes.
+
+          I'll filter the list to make it easier for you to select the targets. 🦆
       buttons:
         - id: cancel
           label:
@@ -877,18 +914,22 @@ states:
     interface:
       text:
         ru: |
-          ❌ У тебя нет проектов в статусе `IN_REVIEWS`.
+          🦆 *Штиль на горизонте…*
 
-          Бот предлагает только завершённые проекты в статусе `IN_REVIEWS`.
+          Я заглянула в твой профиль, но не нашла там проектов со статусом `IN_REVIEWS`.
+
+          _Чтобы создать запрос, сначала нажми «Завершить проект» на платформе._
         en: |
-          ❌ You have no projects in `IN_REVIEWS` status.
+          🦆 *Dead calm on the horizon…*
 
-          The bot only offers projects from `IN_REVIEWS` status.
+          I checked your profile but couldn't find any projects with `IN_REVIEWS` status.
+
+          _To create a request, first click "Finish project" on the platform._
       buttons:
         - id: ok
           label:
-            ru: 👌 Ок
-            en: 👌 Ok
+            ru: 👌 Понятно
+            en: 👌 Got it
           next_state: PRR_MAIN_MENU
           row: 1
 
@@ -897,13 +938,17 @@ states:
     interface:
       text:
         ru: |
-          ⚠️ На этот проект уже есть открытый запрос.
+          ⚠️ *Дубликат сигнала!*
 
-          Закрой старый запрос в разделе «Мои запросы», и затем создай новый.
+          На этот проект уже заведена активная заявка. Утка не может плыть в две стороны сразу.
+
+          _Закрой старый запрос в «Моих запросах», если хочешь создать новый._
         en: |
-          ⚠️ You already have an open request for this project.
+          ⚠️ *Signal overlap!*
 
-          Close the previous request in “My requests”, then create a new one.
+          There's already an active request for this project. A duck can't swim in two directions at once.
+
+          _Close the old request in “My requests” before creating a new one._
       buttons:
         - id: my_requests
           label:
@@ -922,8 +967,8 @@ states:
     type: interactive
     interface:
       text:
-        ru: "❌ Нельзя откликнуться на собственный запрос."
-        en: "❌ You cannot respond to your own request."
+        ru: "Эй, ты не можешь поревьюить самого себя. Утка видит всё! 🦆☝️"
+        en: "Hey, you can't review your own request. Duck sees everything! 🦆☝️"
       buttons:
         - id: back
           label:
@@ -937,13 +982,13 @@ states:
     interface:
       text:
         ru: |
-          ℹ️ Этот запрос больше неактуален.
+          ℹ️ *Запрос устарел*
 
-          Проект уже не в статусе `IN_REVIEWS`, поэтому мы скрыли запрос с доски.
+          Проект больше не в статусе `IN_REVIEWS` на платформе. Мы сняли его с доски, чтобы не путать пиров.
         en: |
-          ℹ️ This request is outdated.
+          ℹ️ *Outdated request*
 
-          The project is no longer in `IN_REVIEWS`, so the request was hidden from the board.
+          The project is no longer in `IN_REVIEWS` on the platform. We've cleared it from the board to avoid confusion.
       buttons:
         - id: board
           label:
@@ -956,8 +1001,14 @@ states:
     type: interactive
     interface:
       text:
-        ru: "ℹ️ Запрос уже закрыт или приостановлен владельцем."
-        en: "ℹ️ The request is already closed or paused by the owner."
+        ru: |
+          ℹ️ *Запрос уплыл…*
+
+          Похоже, автор уже нашёл пира или решил сделать паузу. Эта заявка больше не активна. 🦆💨
+        en: |
+          ℹ️ *Request has sailed…*
+
+          It looks like the author already found a peer or took a break. This request is no longer active. 🦆💨
       buttons:
         - id: back
           label:
@@ -979,25 +1030,33 @@ notifications:
     interface:
       text:
         ru: |
-          🔔 *Твой запрос взял в работу пир!*
+          🔥 *Утка принесла благую весть!*
 
-          Пользователь @{reviewer_username} (уровень {reviewer_level}) откликнулся на твою заявку по проекту *{project_name}*.
+          На твой запрос по *{project_name}* откликнулся пир **@{reviewer_username}** (lvl {reviewer_level}).
 
-          Твоя заявка временно **скрыта с доски** (статус: `🟡 В переговорах`), чтобы тебе не писали другие.
-          Telegram: {reviewer_telegram_link}
-          Rocket.Chat: {reviewer_rocketchat_link}
+          *Что делать?*
+          1. Жди сообщение в личку Rocket.Chat / Telegram.
+          2. Напиши первым.
+
+          🔗 Telegram: {reviewer_telegram_link}
+          💬 Rocket.Chat: {reviewer_rocketchat_link}
           {reviewer_alternative_contact_line}
-          Пир скоро напишет тебе в личные сообщения для согласования времени.
+
+          🧊 Я *скрыла твою заявку*, чтобы тебя не завалили лишними сообщениями.
         en: |
-          🔔 *A peer has taken your request!*
+          🔥 *The Duck has great news!*
 
-          User @{reviewer_username} (level {reviewer_level}) responded to your request for *{project_name}*.
+          User @{reviewer_username} (level {reviewer_level}) has responded to your request for *{project_name}*.
 
-          Your request is temporarily **hidden from the board** (status: `🟡 Negotiating`) so others won't spam you.
-          Telegram: {reviewer_telegram_link}
-          Rocket.Chat: {reviewer_rocketchat_link}
+          *What to do?*
+          1. Wait for the peer to message you.
+          2. Write first.
+
+          🔗 Telegram: {reviewer_telegram_link}
+          💬 Rocket.Chat: {reviewer_rocketchat_link}
           {reviewer_alternative_contact_line}
-          The peer will message you shortly to agree on the time.
+
+          🧊 I've hidden your request so you don't get spammed.
       buttons:
         - id: contact_reviewer
           label:
@@ -1035,7 +1094,7 @@ notifications:
           row: 3
         - id: go_main_menu
           label:
-            ru: 🏠 Главное меню
+            ru: 🏠 На главную
             en: 🏠 Main menu
           next_state: PRR_MAIN_MENU
           row: 4

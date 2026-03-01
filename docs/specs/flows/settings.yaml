@@ -1,5 +1,3 @@
----
-
 initial_state: SETTINGS_MENU
 states:
   SETTINGS_MENU:
@@ -10,11 +8,11 @@ states:
         ru: |
           ⚙️ *Настройки*
 
-          Здесь ты можешь управлять своим профилем, настроить резервную связь и получить доступ к API.
+          Здесь можно кастомизировать профиль, настроить связь и получить доступ к API.
         en: |
           ⚙️ *Settings*
 
-          Here you can manage your profile, set up an emergency contact, and access the API.
+          Here you can customize your profile, set up contacts, and access the API.
       buttons:
         - id: profile
           label:
@@ -24,14 +22,14 @@ states:
           row: 1
         - id: api
           label:
-            ru: 👨‍💻 API для разработчиков
-            en: 👨‍💻 API for dev
+            ru: 👨‍💻 Мой API
+            en: 👨‍💻 My API
           next_state: LOAD_API_TOKEN
           row: 1
         - id: language
           label:
-            ru: "Язык: {my_lang_emoji}"
-            en: "Lang: {my_lang_emoji}"
+            ru: "🌐 Язык: {my_lang_emoji}"
+            en: "🌐 Lang: {my_lang_emoji}"
           next_state: SET_LANGUAGE
         - id: back
           label:
@@ -47,32 +45,28 @@ states:
     interface:
       text:
         ru: |
-          👤 *Мой профиль | Настройки*
+          👤 *Настройки / Профиль*
 
-          Эта информация используется при отображения твоего профиля другим пирам и в статистике.
+          Что видят пиры в разделе статистики и поиска.
 
-          👁️ *Видимость Telegram* @username*:*
-          `{my_searchable_status_ru}`
+          👁️ *Видят ли твой Telegram @username:* `{my_searchable_status_ru}`
 
-          📞 *Дополнительный контакт:*
-          `{my_alt_contact_display_ru}`
+          📞 *Запасной канал связи:* `{my_alt_contact_display_ru}`
 
         en: |
-          👤 *My Profile | Settings*
+          👤 *Settings / Profile*
 
-          This information is used when displaying your profile to other parties and in statistics.
+          What peers see in the stats and search sections.
 
-          👁️ *Telegram* @username *visibility:*
-          `{my_searchable_status_en}`
+          👁️ *Telegram visibility:* `{my_searchable_status_en}`
 
-          📞 *Alternative contact:*
-          `{my_alt_contact_display_en}`
+          📞 *Alternative contact:* `{my_alt_contact_display_en}`
       buttons:
         - id: searchable
           label:
-            ru: "👁️ Изменить видимость"
-            en: "👁️ Change visibility"
-          next_state: TOGGLE_SEARCHABLE
+            ru: "👁️ Скрыть/Показать TG"
+            en: "👁️ Toggle TG visibility"
+          next_state: CHECK_TELEGRAM_USERNAME
           row: 1
         - id: contact
           label:
@@ -80,11 +74,11 @@ states:
             en: 📞 Change contact
           next_state: SET_ALTERNATIVE_CONTACT
           row: 1
-        - id: delete_profile
+        - id: unlink_profile
           label:
-            ru: 🗑️ Удалить профиль
-            en: 🗑️ Delete Profile
-          next_state: DELETE_PROFILE_CONFIRMATION
+            ru: 🚪 Отвязать профиль
+            en: 🚪 Unlink Profile
+          next_state: UNLINK_PROFILE_CONFIRMATION
           row: 2
         - id: back
           label:
@@ -111,25 +105,26 @@ states:
     interface:
       text:
         ru: |
-          👁️ *Видимость Telegram*
+          👁️ *Проблема с маскировкой*
 
-          У тебя не задан Telegram @username.
+          У тебя в настройках Telegram не задан `@username`.
+          Без него другие пиры не смогут тебе написать, даже если я покажу им твой профиль.
 
-          Укажи его в настройках Telegram, затем попробуй снова.
+          Укажи его в настройках самого Telegram и возвращайся!
         en: |
-          👁️ *Telegram Visibility*
+          👁️ *Visibility Issue*
 
-          You don't have a Telegram @username set.
+          You don't have a Telegram `@username` set.
+          Other peers won't be able to message you unless you set one.
 
-          Please set it in Telegram settings, then try again.
+          Go to Telegram settings, fix it, and come back!
       buttons:
         - id: back
           label:
-            ru: 🔙 Назад
-            en: 🔙 Back
+            ru: 🔙 Понятно
+            en: 🔙 Got it
           next_state: PROFILE_SETTINGS
 
-  # Например используется в {peer_contact_line_ru} в статистике пиров
   TOGGLE_SEARCHABLE:
     type: system
     description: Переключение видимости
@@ -146,57 +141,72 @@ states:
     interface:
       text:
         ru: |
-          👁️ *Изменение видимости*
+          👁️ *Видимость изменена*
 
-          Видимость твоего Telegram @username для других пиров обновлена.
-
-          *Статус:* `{is_searchable_label_ru}`
+          Теперь твой Telegram @username виден другим пирам.
+          *Статус:* `✅ Виден`
         en: |
           👁️ *Visibility Update*
 
-          The visibility of your Telegram @username to other parties has been updated.
-
-          *Status:* `{is_searchable_label_en}`
+          Your Telegram @username is now visible to other peers.
+          *Status:* `✅ Visible`
       buttons:
         - id: back
           label:
-            ru: 💾 OK
-            en: 💾 OK
+            ru: 👌 Понятно
+            en: 👌 Got it
           next_state: PROFILE_SETTINGS
 
-  # Например, используется как {alternative_contact} в статистике пиров
+  SEARCHABLE_STATUS_HIDDEN:
+    type: interactive
+    description: Уведомление о выключенной видимости
+    interface:
+      text:
+        ru: |
+          👁️ *Видимость изменена*
+
+          Теперь твой Telegram @username скрыт от других пиров.
+          *Статус:* `❌ Не виден`
+        en: |
+          👁️ *Visibility Update*
+
+          Your Telegram @username is now hidden from other peers.
+          *Status:* `❌ Not visible`
+      buttons:
+        - id: back
+          label:
+            ru: 👌 Понятно
+            en: 👌 Got it
+          next_state: PROFILE_SETTINGS
+
   SET_ALTERNATIVE_CONTACT:
     type: input
     description: Ввод альтернативного контакта
     interface:
       text:
         ru: |
-          📞 *Дополнительный контакт*
+          📞 *Профиль / Запасной контакт*
 
-          Отправь в чат любую информацию о связи с тобой.
+          Напиши, как ещё с тобой связаться (почта, другой мессенджер, сигнал дымом).
 
-          > Например: email, другой Telegram, номер телефона и т.п.
+          _Максимум 42 символа._
         en: |
-          📞 *External Contact*
+          📞 *Profile / Backup Contact*
 
-          Send any contact information you'd like to be displayed.
+          Tell us how else to reach you (email, other messenger, smoke signals).
 
-          > For example: email, another Telegram, phone number, etc.
+          _Max 42 characters._
       error_invalid:
         ru: |
-          ⚠️ Не похоже на корректный контакт (максимум 42 символа).
-
-          Попробуй еще раз!
+          ⚠️ *Много букв!* (или слишком мало).
+          Нужно уложиться в 42 символа. Попробуй еще раз.
         en: |
-          ⚠️ This does not appear to be a valid contact (maximum 42 characters).
-
-          Please try again!
+          ⚠️ *Invalid length!* Must be between 1 and 42 characters. Try again.
       buttons:
-        # кнопка видна, только если контакт уже задан
         - id: delete
           label:
-            ru: 🧹 Удалить текущий
-            en: 🧹 Delete Current Contact
+            ru: 🧹 Стереть текущий
+            en: 🧹 Delete current
           condition: has_alt_contact == true
           next_state: DELETE_ALTERNATIVE_CONTACT
           row: 1
@@ -207,7 +217,7 @@ states:
           next_state: PROFILE_SETTINGS
           row: 1
     validation:
-      regex: ^.{1,42}$
+      regex: ^.{4,42}$
     transitions:
       - trigger: on_valid_input
         next_state: CONFIRM_ALTERNATIVE_CONTACT
@@ -234,54 +244,52 @@ states:
     interface:
       text:
         ru: |
-          ✅ *Готово!*
+          ✅ *Записала в блокнот!*
 
-          Резервный контакт обновлен: `{my_alt_contact}`
+          Контакт обновлён: `{my_alt_contact}`
         en: |
-          ✅ *Done!*
+          ✅ *Beak-marked!*
 
-          Backup contact updated: `{my_alt_contact}`
+          Contact updated: `{my_alt_contact}`
       buttons:
         - id: back
           label:
-            ru: 💾 OK
-            en: 💾 OK
+            ru: 👌 Понятно
+            en: 👌 Got it
           next_state: PROFILE_SETTINGS
 
-  DELETE_PROFILE_CONFIRMATION:
+  UNLINK_PROFILE_CONFIRMATION:
     type: interactive
-    description: Подтверждение удаления профиля
+    description: Подтверждение отвязки профиля
     interface:
       text:
         ru: |
-          ⚠️ *Удаление профиля*
+          *Профиль / Отвязать от аккаунта*
 
-          Ты собираешься удалить свой профиль из бота. Мы забудем все твои настройки и сохранённые данные.
-
-          > Уверен, что хочешь продолжить? Это действие нельзя отменить.
+          Ты хочешь отвязать свой Telegram от логина `{my_s21login}`.
+          Я забуду твои настройки и API-ключи. Придётся логиниться заново, если захочешь вернуться.
         en: |
-          ⚠️ *Delete Profile*
+          *Profile / Unlink from Account*
 
-          You are about to delete your profile from the bot. We will forget all your settings and saved data.
-
-          > Are you sure you want to proceed? This action cannot be undone.
+          You're about to unlink your Telegram from `{my_s21login}`.
+          I'll forget your settings and API keys. You'll need to log in again via Rocket.Chat to return.
       buttons:
         - id: confirm
           label:
-            ru: 🗑️ Да, удалить
-            en: 🗑️ Yes, delete
-          next_state: DELETE_PROFILE
+            ru: 🚪 Отвязать
+            en: 🚪 Unlink
+          next_state: UNLINK_PROFILE
           row: 1
         - id: cancel
           label:
-            ru: 🔙 Нет, я передумал:а
-            en: 🔙 No, I changed my mind
+            ru: 🔙 Не нужно
+            en: 🔙 No need
           next_state: PROFILE_SETTINGS
           row: 1
 
-  DELETE_PROFILE:
+  UNLINK_PROFILE:
     type: system
-    description: Удаление профиля
+    description: Процесс отвязки
     logic:
       action: delete_profile
       payload:
@@ -289,54 +297,37 @@ states:
     transitions:
       - condition: success == true
         next_state: START
-      - next_state: DELETE_PROFILE_BLOCKED
+      - next_state: UNLINK_PROFILE_BLOCKED
 
-  DELETE_PROFILE_BLOCKED:
+  UNLINK_PROFILE_BLOCKED:
     type: interactive
-    description: Нельзя удалить профиль при активных книгах/переговорках
+    description: Блокировка отвязки (активные обязательства)
     interface:
       text:
         ru: |
-          ⚠️ *Профиль пока нельзя удалить*
+          🦆 *Не так быстро, пир!*
 
-          {delete_profile_block_reason_ru}
+          Ты не можешь просто так уплыть, пока за тобой числятся долги перед кампусом:
 
           📚 Книг на руках: `{delete_profile_active_loans}`
-          🗓 Переговорок забронировано: `{delete_profile_active_room_bookings}`
-        en: |
-          ⚠️ *Profile cannot be deleted yet*
+          🗓 Забронировано переговорок: `{delete_profile_active_room_bookings}`
 
-          {delete_profile_block_reason_en}
+          Сдай книги и отмени брони, тогда и поговорим.
+        en: |
+          🦆 *Hold your feathers!*
+
+          You can't leave while you still have active commitments:
 
           📚 Borrowed books: `{delete_profile_active_loans}`
-          🗓 Active room bookings: `{delete_profile_active_room_bookings}`
+          🗓 Room bookings: `{delete_profile_active_room_bookings}`
+
+          Return the books and cancel your bookings first.
       buttons:
         - id: back
           label:
-            ru: 🔙 Назад
-            en: 🔙 Back
+            ru: 🔙 Пойду разберусь
+            en: 🔙 I'll handle it
           next_state: PROFILE_SETTINGS
-
-  # API_SETTINGS:
-  #   type: interactive
-  #   description: Меню настроек API
-  #   interface:
-  #     text:
-  #       ru: |
-  #         🔌 *Инструменты разработчика*
-  #       en: |
-  #         🔌 *Developer Tools*
-  #     buttons:
-  #       - id: api_token
-  #         label:
-  #           ru: 🔑 API ключ
-  #           en: 🔑 API Token
-  #         next_state: LOAD_API_TOKEN
-  #       - id: back
-  #         label:
-  #           ru: 🔙 Назад
-  #           en: 🔙 Back
-  #         next_state: SETTINGS_MENU
 
   LOAD_API_TOKEN:
     type: system
@@ -352,30 +343,72 @@ states:
     interface:
       text:
         ru: |
-          👨‍💻 *Токен API | Настройки*
+          👨‍💻 *Настройки / API*
 
-          Используй этот ключ для доступа к данным NoemX21 по API.
+          Используй этот ключ для доступа к моим данным. Не показывай его никому – это только между нами, кря! 🤫🦆
 
-          🔑 *Твой токен:*
+          🔑 *Твой ключ:*
           `{my_botapi_token}`
         en: |
-          👨‍💻 *API Token | Settings*
+          👨‍💻 *Settings / API*
 
-          Use this key to access NoemX21 data via API.
+          Use this key to access my data. Don't share it with anyone – it's just between us, quack! 🤫🦆
 
-          🔑 *Current Token:*
+          🔑 *Your Token:*
           `{my_botapi_token}`
       buttons:
         - id: regenerate
           label:
-            ru: 🔁 Выпустить новый токен
-            en: 🔁 Generate New Token
+            ru: 🔁 Сгенерировать новый
+            en: 🔁 Regenerate token
+          row: 1
           next_state: GENERATE_API_TOKEN
+        - id: explain_token
+          label:
+            ru: ❓ Что это?
+            en: ❓ What is this?
+          row: 2
+          next_state: API_TOKEN_EXPLANATION
         - id: back
           label:
-            ru: 🔙 Назад
-            en: 🔙 Back
+            ru: 🔙 К настройкам
+            en: 🔙 To settings
+          row: 2
           next_state: SETTINGS_MENU
+
+  API_TOKEN_EXPLANATION:
+    type: interactive
+    description: Пояснение про API токен
+    interface:
+      text:
+        ru: |
+          ❓ *Что такое?*
+
+          Это персональный ключ для запросов к API бота от твоего имени.
+
+          Метод `/check` позволяет проверить зарегистрирован ли пользователь в боте.
+          - `external_id` (string): ID пользователя в Telegram.
+          - `login` (string): Логин с платформы.
+          - `platform` (string): Название платформы (например, "telegram").
+          Ответ:
+          - registered: true/false
+        en: |
+          ❓ *What is this?*
+
+          This is a personal key for making API requests to the bot on your behalf.
+
+          The /check method allows you to verify if a user is registered with the bot.
+          - `external_id` (string): User ID in Telegram.
+          - `login` (string): Login from the platform.
+          - `platform` (string): Name of the platform (e.g., "telegram").
+          Response:
+          - registered: true/false
+      buttons:
+        - id: back
+          label:
+            ru: 🔙 Назад к API
+            en: 🔙 Back to API
+          next_state: MANAGE_API_TOKEN
 
   GENERATE_API_TOKEN:
     type: system
@@ -393,20 +426,20 @@ states:
     interface:
       text:
         ru: |
-          ✅ Новый токен сгенерирован!
+          ✅ *Новый ключ готов!*
 
           `{my_botapi_token}`
-          Старый ключ больше не работает.
+          Старый ключ теперь превратился в тыкву.
         en: |
-          ✅ *New Token Generated*
+          ✅ *New Key Ready!*
 
           `{my_botapi_token}`
-          The old token is no longer valid.
+          The old one is now useless.
       buttons:
         - id: back
           label:
-            ru: 🔙 Назад
-            en: 🔙 Back
+            ru: 👌 Понятно
+            en: 👌 Got it
           next_state: MANAGE_API_TOKEN
 
   SET_LANGUAGE:
@@ -415,13 +448,9 @@ states:
     interface:
       text:
         ru: |
-          🌐 *Язык интерфейса*
-
-          👇 Выбери язык на котором будет отображаться интерфейс бота:
+          🌐 Выбери язык / Choose language
         en: |
-          🌐 *Interface Language*
-
-          👇 Select the language in which the bot interface will be displayed:
+          🌐 Выбери язык / Choose language
       buttons:
         - id: ru
           label:

@@ -640,10 +640,9 @@ INSERT INTO review_requests (
     availability_text,
     requester_timezone,
     requester_timezone_offset,
-    reviews_progress_text,
     status
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'SEARCHING'
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, 'SEARCHING'
 )
 RETURNING *;
 
@@ -670,7 +669,6 @@ SELECT
     rr.availability_text,
     rr.requester_timezone,
     rr.requester_timezone_offset,
-    rr.reviews_progress_text,
     rr.status,
     rr.view_count,
     rr.response_count,
@@ -717,7 +715,6 @@ SELECT
     rr.availability_text,
     rr.requester_timezone,
     rr.requester_timezone_offset,
-    rr.reviews_progress_text,
     rr.status,
     rr.view_count,
     rr.response_count,
@@ -753,7 +750,6 @@ SELECT
     rr.availability_text,
     rr.requester_timezone,
     rr.requester_timezone_offset,
-    rr.reviews_progress_text,
     rr.status,
     rr.view_count,
     rr.response_count,
@@ -794,7 +790,6 @@ SELECT
     rr.availability_text,
     rr.requester_timezone,
     rr.requester_timezone_offset,
-    rr.reviews_progress_text,
     rr.status,
     rr.view_count,
     rr.response_count,

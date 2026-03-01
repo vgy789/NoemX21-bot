@@ -1,5 +1,3 @@
----
-
 initial_state: SELECT_LANGUAGE
 states:
   SELECT_LANGUAGE:
@@ -7,8 +5,10 @@ states:
     description: Инициализация локализации
     interface:
       text:
-        ru: "🌐 Выбери язык / Choose language"
-        en: "🌐 Выбери язык / Choose language"
+        ru: |
+          🌐 Выбери язык / Choose language
+        en: |
+          🌐 Choose language / Выбери язык
       buttons:
         - id: set_ru
           label: 🇷🇺 Русский
@@ -31,8 +31,8 @@ states:
         next_state: INPUT_LOGIN
     interface:
       text:
-        ru: "🔍 *Auth Check:* Проверка статуса..."
-        en: "🔍 *Auth Check:* Verifying status..."
+        ru: "🦆 *PeerDuck:* Проверяю, свой ты или залетный…"
+        en: "🦆 *PeerDuck:* Checking if you're part of the flock…"
 
   INPUT_LOGIN:
     type: input
@@ -40,24 +40,26 @@ states:
     interface:
       text:
         ru: |
-          🔑 *Идентификация*
+          👋 *Представься, пир!*
 
-          Укажи свой School21 Login.
+          Напиши свой логин от Школы 21, чтобы я могла найти тебя.
 
-          > Например: `verter`
+          > Пример: `verter`
         en: |
-          🔑 *Identification*
+          👋 *Identify yourself, peer!*
 
-          Specify your School21 Login:
+          Enter your School 21 login so I can find you in the flock.
 
-          Example: `verter`
+          > Example: `verter`
       error_invalid:
         ru: |
-          ⚠️ *Format Error:* Неверный формат логина.
+          🦆 *Кря?* Непохоже на логин.
+          Должно быть от 4 до 9 латинских букв.
 
-          👇 Попробуй ввести снова:
+          👇 Попробуй еще раз:
         en: |
-          ⚠️ *Format Error:* Invalid login format.
+          🦆 *Quack?* Doesn't look like a login.
+          Must be 4 to 9 Latin letters.
 
           👇 Try again:
     validation:
@@ -85,8 +87,8 @@ states:
       - next_state: ERROR_API
     interface:
       text:
-        ru: "📡 *API Request:* School21... `WAIT`"
-        en: "📡 *API Request:* School21... `WAIT`"
+        ru: "📡 *Ныряю в базу данных Школы...* `HOLD ON`"
+        en: "📡 *Diving into School database...* `HOLD ON`"
 
   ERROR_NOT_FOUND:
     type: interactive
@@ -94,18 +96,18 @@ states:
     interface:
       text:
         ru: |
-          ❌ *Пользователь не найден в School21.*
+          🦆 *Упс! Пустое гнездо.*
 
-          Убедись что ты вводишь свой логин правильно.
+          Пользователь с таким логином не найден. Проверь, нет ли опечаток, или ты всё-таки вертер?
         en: |
-          ❌ *User not found in School21.*
+          🦆 *Oops! Empty nest.*
 
-          Make sure you are entering your login correctly.
+          User with this login not found. Check for typos, or are you actually verter?
       buttons:
         - id: retry
           label:
-            ru: 🔁 Попробовать снова
-            en: 🔁 Try again
+            ru: 🔄 Попробовать снова
+            en: 🔄 Try again
           next_state: INPUT_LOGIN
 
   FIND_ROCKET_USER:
@@ -131,8 +133,8 @@ states:
       - next_state: ROCKET_API_ERROR
     interface:
       text:
-        ru: "📡 *API Request:* Rocket.Chat... `WAIT`"
-        en: "📡 *API Request:* Rocket.Chat... `WAIT`"
+        ru: "📡 *Ищу тебя в Rocket.Chat...* `LOOKING`"
+        en: "📡 *Searching for you in Rocket.Chat...* `LOOKING`"
 
   GENERATE_OTP:
     type: system
@@ -149,8 +151,8 @@ states:
       - next_state: ERROR_OTP_SEND_FAILED
     interface:
       text:
-        ru: "🔐 *Security:* Генерация OTP..."
-        en: "🔐 *Security:* OTP Generation..."
+        ru: "🔐 *Шифрую секретное кря…*"
+        en: "🔐 *Encrypting secret quack…*"
 
   AWAITING_OTP:
     type: input
@@ -158,28 +160,28 @@ states:
     interface:
       text:
         ru: |
-          📥 *Verification Required*
+          📥 *Лови посылку!*
 
-          Код подтверждения отправлен в твой *Rocket.Chat*.
-          👇 Введи `6 цифр` для авторизации:
+          Я отправил 6-значный код тебе в *Rocket.Chat*.
+          Беги проверяй и пиши его сюда, пока он не протух!
         en: |
-          📥 *Verification Required*
+          📥 *Catch!*
 
-          Confirmation code sent to your *Rocket.Chat*.
-          👇 Enter `6 digits` to authorize:
+          I've sent a 6-digit code to your *Rocket.Chat*.
+          Go check it and enter it here before it expires!
       error_invalid:
         ru: |
-          ❌ *Invalid Code:* Ошибка ввода или превышено время ожидания.
+          ❌ *Что-то не сходится.*
 
-          👇 Попробуй ввести снова или запроси новый код.
+          Код неверный или время вышло. Попробуй еще раз или запроси новый код.
         en: |
-          ❌ *Invalid Code:* Input error or time limit exceeded.
+          ❌ *Something's wrong.*
 
-          👇 Try entering again or request a new code.
+          Invalid code or time's up. Try again or request a new code.
       buttons:
         - id: resend_otp
           label:
-            ru: "🔄 Переотправить код"
+            ru: "🔄 Пришли ещё раз"
             en: "🔄 Resend code"
           next_state: GENERATE_OTP
           row: 1
@@ -214,8 +216,8 @@ states:
       - next_state: REGISTRATION_COMPLETE
     interface:
       text:
-        ru: "💾 *Sync:* Загрузка данных профиля..."
-        en: "💾 *Sync:* Loading profile data..."
+        ru: "💾 *Складываю данные в клюв…*"
+        en: "💾 *Gathering data into my beak…*"
 
   REGISTRATION_COMPLETE:
     type: system
@@ -223,41 +225,52 @@ states:
     interface:
       text:
         ru: |
-          🎉 *Access Granted*
+          🎉 *Добро пожаловать в стаю!*
 
-          Регистрация завершена. Аккаунт привязан к `{s21_login}`.
+          Теперь аккаунт привязан к `{s21_login}`.
         en: |
-          🎉 *Access Granted*
+          🎉 *Welcome to the flock!*
 
-          Registration complete. Account linked to `{s21_login}`.
+          Account linked to `{s21_login}`.
     transitions:
       - next_state: MAIN_MENU
 
-  # Ошибки (Interactive)
   ERROR_WRONG_PARALLEL:
     type: interactive
     interface:
       text:
-        ru: "❌ *Access Denied:* Только для студентов основной программы."
-        en: "❌ *Access Denied:* Core program students only."
+        ru: |
+          ❌ *Сорри, пир.* Я работаю только со студентами Core Program.
+
+          Бассейн позади, но ты пока в другой акватории.
+        en: |
+          ❌ *Sorry, peer.* I only work with Core Program students.
+
+          The Pool is behind, but you're in different waters.
       buttons:
         - id: retry
           label:
-            ru: "🔄 Повторить"
-            en: "🔄 Retry"
+            ru: 🔄 Попробовать другой логин
+            en: 🔄 Try another login
           next_state: INPUT_LOGIN
 
   ERROR_ACCESS_DENIED:
     type: interactive
     interface:
       text:
-        ru: "❌ *Access Denied:* Статус аккаунта неактивен (Expelled/Blocked)."
-        en: "❌ *Access Denied:* Account status is inactive (Expelled/Blocked)."
+        ru: |
+          ❌ *Ой-ой.* Кажется, твой аккаунт засосало в Черную дыру (Expelled/Blocked).
+
+          Как выберешься — возвращайся!
+        en: |
+          ❌ *Oops.* Looks like your account got sucked into the Black Hole (Expelled/Blocked).
+
+          Come back when you're out!
       buttons:
         - id: retry
           label:
-            ru: "🔄 Повторить"
-            en: "🔄 Retry"
+            ru: "🔄 Обновить статус"
+            en: "🔄 Refresh status"
           next_state: INPUT_LOGIN
 
   ERROR_EMAIL_MISMATCH:
@@ -265,13 +278,13 @@ states:
     interface:
       text:
         ru: |
-          ❌ *Security Alert*
+          ❌ *Ошибка безопасности*
 
-          Email в Rocket.Chat не совпадает с логином S21.
+          Твой email в Rocket.Chat не совпадает с логином S21. Ты точно тот, за кого себя выдаешь?
         en: |
           ❌ *Security Alert*
 
-          Rocket.Chat email mismatch with S21 login.
+          Your Rocket.Chat email doesn't match your S21 login. Are you an impostor duck?
       buttons:
         - id: retry
           label:
@@ -284,15 +297,13 @@ states:
     interface:
       text:
         ru: |
-          ❌ *Нет доступа к email в Rocket.Chat*
+          ❌ *Утка в тумане*
 
-          Похоже, у Rocket.Chat профиля нет прав на просмотр email.
-          Обратись к администратору или попробуй позже.
+          Не вижу твой email в Rocket.Chat. Пни админа, либо попробуй позже.
         en: |
-          ❌ *Rocket.Chat email not available*
+          ❌ *Duck in the fog*
 
-          It looks like this Rocket.Chat profile has no permission to view emails.
-          Please contact an admin or try again later.
+          Can't see your email in Rocket.Chat. Poke an admin, or try again later.
       buttons:
         - id: retry
           label:
@@ -305,23 +316,23 @@ states:
     interface:
       text:
         ru: |
-          ❌ *Пользователь уже авторизован!*
+          🦆 *Двойной PeerDuck!*
 
-          Выйди из другого аккаунта и попробуй снова.
+          Этот логин уже кем-то занят. Может, ты уже зашел с другого аккаунта?
         en: |
-          ❌ *User is already authorized!*
+          🦆 *Double PeerDuck!*
 
-          Log out of the other account and try again.
+          This login is already taken. Maybe you're logged in from another account?
       buttons:
         - id: retry
           label:
-            ru: 🔁 Попробовать снова
-            en: 🔁 Try again
+            ru: 🔄 Попробовать снова
+            en: 🔄 Try again
           next_state: INPUT_LOGIN
         - id: help
           label:
-            ru: ℹ️ Правила регистрации
-            en: ℹ️ Registration rules
+            ru: ℹ️ Что делать?
+            en: ℹ️ What to do?
           next_state: HELP
 
   HELP:
@@ -330,23 +341,23 @@ states:
     interface:
       text:
         ru: |
-          ℹ️ *Зарегистрировать можно только 1 профиль мессенджера.*
+          ℹ️ *Правило одной утки:* 1 профиль Telegram = 1 логин S21.
 
-          Если у тебя уже есть профиль, отвяжи бота от предыдущего, чтобы зарегистрировать этот. (В меню `Настройки→Отвязать профиль`).
+          Если хочешь перепривязать, иди в старый аккаунт и жми `Настройки→Отвязать профиль`.
         en: |
-          ℹ️ *You can register only 1 messenger profile.*
+          ℹ️ *One duck rule:* 1 Telegram profile = 1 S21 login.
 
-          If you already have a profile, unlink the bot from the previous one to register this one. (In the menu `Settings → Unlink profile`).
+          If you want to re-link, go to your old account and click `Settings → Unlink profile`.
       buttons:
         - id: retry
           label:
-            ru: 🔁 Попробовать снова
-            en: 🔁 Try again
+            ru: 👌 Понятно
+            en: 👌 Got it
           next_state: INPUT_LOGIN
         - id: goodbye
           label:
-            ru: 🖐️ Ладно, пока
-            en: 🖐️ Ok, bye
+            ru: 🖐️ Уплываю
+            en: 🖐️ Swimming away
           next_state: GOODBYE
 
   GOODBYE:
@@ -354,9 +365,9 @@ states:
     interface:
       text:
         ru: |
-          Чао! 🙃
+          Кря! Еще увидимся в кластерах. 👋
         en: |
-          Chao! 🙃
+          Quack! See you in the clusters. 👋
       buttons:
         - id: start
           label:
@@ -370,18 +381,18 @@ states:
     interface:
       text:
         ru: |
-          ❌ *Не удалось отправить код подтверждения.*
+          ❌ *Код застрял в камышах.*
 
-          Возможно, временная проблема с сервисом. Попробуй через минуту.
+          Не смог отправить тебе сообщение в Рокет. Попробуй через минуту, вдруг отлагает.
         en: |
-          ❌ *Failed to send confirmation code.*
+          ❌ *The code is stuck in the reeds.*
 
-          There might be a temporary service issue. Try again in a minute.
+          Failed to send you a message in Rocket. Try again in a minute, maybe it'll clear up.
       buttons:
         - id: retry
           label:
-            ru: 🔁 Попробовать снова
-            en: 🔁 Try again
+            ru: 🔄 Постучать еще раз
+            en: 🔄 Knock again
           next_state: INPUT_LOGIN
 
   ERROR_API:
@@ -390,18 +401,18 @@ states:
     interface:
       text:
         ru: |
-          ❌ *Ошибка API School21.*
+          ❌ *API Школы приуныло.*
 
-          Попробуй позже.
+          Сервер не отвечает. Похоже, кто-то уронил базу. Попробуй позже!
         en: |
-          ❌ *School21 API error.*
+          ❌ *School API is down.*
 
-          Try again later.
+          Server is not responding. Looks like someone dropped the database. Try again later!
       buttons:
         - id: retry
           label:
-            ru: 🔁 Повторить
-            en: 🔁 Retry
+            ru: 🔄 Повторить попытку
+            en: 🔄 Retry
           next_state: START
 
   ROCKET_USER_NOT_FOUND:
@@ -410,34 +421,54 @@ states:
     interface:
       text:
         ru: |
-          ❌ *Твой логин не найден в Rocket.Chat.*
+          ❌ *В Рокете тебя нет.*
 
-          Убедись, что ты активировал свой аккаунт.
+          Сначала активируй свой аккаунт в Rocket.Chat, а потом возвращайся.
         en: |
-          ❌ *Your login not found in Rocket.Chat.*
+          ❌ *Not found in Rocket.*
 
-          Make sure you have activated your account.
-
+          Activate your Rocket.Chat account first, then come back.
+      buttons:
+        - id: retry
+          label:
+            ru: 🔄 Повторить попытку
+            en: 🔄 Retry
+          next_state: START
   ROCKET_API_ERROR:
     type: interactive
     description: Ошибка Rocket.Chat API
     interface:
       text:
         ru: |
-          ❌ *Ошибка API Rocket.Chat.*
+          ❌ *Рокет глючит или со мной что-то не так…*
 
-          Попробуй позже.
+          Не могу достучаться до мессенджера. Попробуй зайти через пару минут.
         en: |
-          ❌ *Rocket.Chat API error.*
+          ❌ *Rocket is glitching or there's something wrong with me…*
 
-          Try again later.
-
+          Can't reach the messenger. Try again in a few minutes.
+      buttons:
+        - id: retry
+          label:
+            ru: 🔄 Повторить попытку
+            en: 🔄 Retry
+          next_state: START
   ERROR_EMAIL_ALREADY_REGISTERED:
     type: interactive
     description: Логин уже зарегистрирован
     interface:
       text:
         ru: |
-          ❌ *Этот логин уже привязан к другому аккаунту!*
+          ❌ *Этот логин уже используется другим Telegram аккаунтом!*
+
+          Выйди из всех аккаунтов, которые могли быть связаны с этим логином, и попробуй снова.
         en: |
-          ❌ *This login is already linked to another account!*
+          ❌ *This login is already used by another Telegram account!*
+
+          Log out of any accounts that might be linked to this login and try again.
+      buttons:
+        - id: retry
+          label:
+            ru: 🔄 Повторить попытку
+            en: 🔄 Retry
+          next_state: START
