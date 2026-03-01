@@ -72,7 +72,7 @@ states:
           label:
             ru: "👁️ Изменить видимость"
             en: "👁️ Change visibility"
-          next_state: CHECK_TELEGRAM_USERNAME
+          next_state: TOGGLE_SEARCHABLE
           row: 1
         - id: contact
           label:

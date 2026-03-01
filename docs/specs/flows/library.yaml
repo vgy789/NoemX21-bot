@@ -113,17 +113,17 @@ states:
     interface:
       text:
         ru: |
-          🎯 Результаты: *{results_scope_label}*
+          🎯 Результаты: *{results_scope_label_ru}*
           ⚙️ Фильтр: _{filter_status_text_ru}_
-          🧭 Страница: _{page_caption}_
+          🧭 Страница: _{page_caption_ru}_
 
           {formatted_book_list_with_icons}
           🟢 — свободна / 🔴 — на руках
           {results_error_text}
         en: |
-          🎯 Results: *{results_scope_label}*
+          🎯 Results: *{results_scope_label_en}*
           ⚙️ Filter: _{filter_status_text_en}_
-          🧭 Page: _{page_caption}_
+          🧭 Page: _{page_caption_en}_
 
           {formatted_book_list_with_icons}
           🟢 — available / 🔴 — borrowed
@@ -173,8 +173,8 @@ states:
           row: 7
         - id: page
           label:
-            ru: "{page_caption}"
-            en: "{page_caption}"
+            ru: "{page_caption_ru}"
+            en: "{page_caption_en}"
           action: none
           row: 7
         - id: next_page
@@ -528,12 +528,12 @@ states:
         ru: |
           🤷 *Ничего не нашлось*
 
-          Для *{results_scope_label}* в кампусе `{campus_name}` пока нет книг.
+          Для *{results_scope_label_ru}* в кампусе `{campus_name}` пока нет книг.
           Попробуй другой запрос или раздел.
         en: |
           🤷 *Nothing found*
 
-          We found no books for *{results_scope_label}* in `{campus_name}`.
+          We found no books for *{results_scope_label_en}* in `{campus_name}`.
           Try another query or category.
       buttons:
         - id: retry
