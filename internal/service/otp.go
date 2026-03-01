@@ -136,13 +136,8 @@ func (s *OTPService) verifyOTP(ctx context.Context, telegramUserID int64, code s
 		return false, fmt.Errorf("database error during verification: %w", err)
 	}
 
-	// Delete the used code
-	if err := s.db.DeleteAuthVerificationCode(ctx, db.DeleteAuthVerificationCodeParams{
-		S21Login: pgtype.Text{Valid: true, String: s21Login},
-		Code:     code,
-	}); err != nil {
-		s.log.Error("failed to delete used verification code", "error", err)
-	}
+	// Delete the used code and reset rate limiter state
+	s.cleanupAfterSuccess(ctx, telegramUserID, code)
 
 	return true, nil
 }
@@ -150,6 +145,22 @@ func (s *OTPService) verifyOTP(ctx context.Context, telegramUserID int64, code s
 // CleanupExpiredCodes removes expired verification codes
 func (s *OTPService) CleanupExpiredCodes(ctx context.Context) error {
 	return s.db.DeleteExpiredAuthVerificationCodes(ctx)
+}
+
+// cleanupAfterSuccess removes used code and clears rate-limit counters.
+func (s *OTPService) cleanupAfterSuccess(ctx context.Context, telegramUserID int64, code string) {
+	// Best-effort: delete code
+	s21Login, _ := ctx.Value(fsm.ContextKeyS21Login).(string)
+	if err := s.db.DeleteAuthVerificationCode(ctx, db.DeleteAuthVerificationCodeParams{
+		S21Login: pgtype.Text{Valid: true, String: s21Login},
+		Code:     code,
+	}); err != nil {
+		s.log.Warn("failed to delete verification code after success", "error", err)
+	}
+
+	// Reset rate limiter for this user to allow fresh attempts next time
+	rl := GetRateLimiter()
+	rl.Reset(telegramUserID)
 }
 
 // generateCode generates a random 6-digit code

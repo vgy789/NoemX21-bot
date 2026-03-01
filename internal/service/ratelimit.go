@@ -8,8 +8,8 @@ import (
 
 type RateLimiter struct {
 	mu          sync.Mutex
-	attempts    map[int64]map[string]struct{} // map[telegramID]map[login]struct{}
-	bans        map[int64]time.Time           // map[telegramID]banUntil
+	attempts    map[int64]int       // map[telegramID]count
+	bans        map[int64]time.Time // map[telegramID]banUntil
 	maxAttempts int
 	banDuration time.Duration
 }
@@ -23,10 +23,10 @@ var (
 func GetRateLimiter() *RateLimiter {
 	once.Do(func() {
 		globalRateLimiter = &RateLimiter{
-			attempts:    make(map[int64]map[string]struct{}),
+			attempts:    make(map[int64]int),
 			bans:        make(map[int64]time.Time),
-			maxAttempts: 10,
-			banDuration: 1 * time.Hour,
+			maxAttempts: 6,
+			banDuration: 24 * time.Hour,
 		}
 		// Start cleanup routine
 		go globalRateLimiter.cleanupLoop()
@@ -50,22 +50,25 @@ func (rl *RateLimiter) CheckAndRecord(telegramID int64, login string) error {
 		delete(rl.attempts, telegramID)
 	}
 
-	// Initialize attempts map for user if needed
-	if _, ok := rl.attempts[telegramID]; !ok {
-		rl.attempts[telegramID] = make(map[string]struct{})
-	}
-
-	// Record login attempt
-	rl.attempts[telegramID][login] = struct{}{}
+	// Record attempt
+	rl.attempts[telegramID]++
 
 	// Check limit
-	if len(rl.attempts[telegramID]) >= rl.maxAttempts {
+	if rl.attempts[telegramID] > rl.maxAttempts {
 		banUntil := time.Now().Add(rl.banDuration)
 		rl.bans[telegramID] = banUntil
-		return fmt.Errorf("rate_limit_exceeded: too many unique logins, blocked for 1h")
+		return fmt.Errorf("rate_limit_exceeded: too many attempts, try after 24h")
 	}
 
 	return nil
+}
+
+// Reset clears attempts and ban for a user (e.g., after successful verification).
+func (rl *RateLimiter) Reset(telegramID int64) {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	delete(rl.attempts, telegramID)
+	delete(rl.bans, telegramID)
 }
 
 func (rl *RateLimiter) cleanupLoop() {
@@ -81,16 +84,4 @@ func (rl *RateLimiter) cleanupLoop() {
 		}
 		rl.mu.Unlock()
 	}
-}
-
-// ResetRateLimiterForTest resets the global rate limiter for testing purposes.
-// This should only be called in tests.
-func ResetRateLimiterForTest() {
-	globalRateLimiter = &RateLimiter{
-		attempts:    make(map[int64]map[string]struct{}),
-		bans:        make(map[int64]time.Time),
-		maxAttempts: 10,
-		banDuration: 1 * time.Hour,
-	}
-	once = sync.Once{}
 }

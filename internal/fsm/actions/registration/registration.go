@@ -267,6 +267,11 @@ func Register(
 			valid = false
 		}
 
+		if valid {
+			// Successful verification resets rate limiting to avoid stale bans
+			service.GetRateLimiter().Reset(userID)
+		}
+
 		ua, err := queries.GetUserAccountByS21Login(ctx, s21Login)
 		accountExists := err == nil
 
