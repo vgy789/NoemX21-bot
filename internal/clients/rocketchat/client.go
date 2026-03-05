@@ -9,6 +9,8 @@ import (
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/vgy789/noemx21-bot/internal/pkg/netretry"
 )
 
 // Client for Rocket.Chat API
@@ -70,28 +72,44 @@ func (c *Client) SendDirectMessage(ctx context.Context, userID, text string) (*M
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(jsonBody))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
+	var body []byte
+	err = netretry.Do(ctx, func() error {
+		req, reqErr := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(jsonBody))
+		if reqErr != nil {
+			return netretry.Permanent(fmt.Errorf("failed to create request: %w", reqErr))
+		}
 
-	req.Header.Set("X-Auth-Token", c.authToken)
-	req.Header.Set("X-User-Id", c.userID)
-	req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Auth-Token", c.authToken)
+		req.Header.Set("X-User-Id", c.userID)
+		req.Header.Set("Content-Type", "application/json")
 
-	resp, err := c.httpClient.Do(req)
+		resp, doErr := c.httpClient.Do(req)
+		if doErr != nil {
+			return doErr
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		body, doErr = io.ReadAll(resp.Body)
+		if doErr != nil {
+			return doErr
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			httpErr := &netretry.HTTPStatusError{
+				Method:     http.MethodPost,
+				URL:        url,
+				StatusCode: resp.StatusCode,
+				Body:       string(body),
+			}
+			if netretry.IsRetryableStatusCode(resp.StatusCode) {
+				return httpErr
+			}
+			return netretry.Permanent(httpErr)
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API error: status %d, body: %s", resp.StatusCode, string(body))
 	}
 
 	var msgResp MessageResponse
@@ -121,34 +139,48 @@ func (c *Client) GetUserInfo(ctx context.Context, username string) (*UserInfoRes
 	url := fmt.Sprintf("%s/users.info?username=%s", c.baseURL, username)
 	fmt.Printf("DEBUG final URL: |%s|\n", url)
 
-	req, err := http.NewRequestWithContext(ctx, "GET", url, nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create request: %w", err)
-	}
-
-	req.Header.Set("X-Auth-Token", c.authToken)
-	req.Header.Set("X-User-Id", c.userID)
-
 	// DEBUG LOGGING
-	fmt.Printf("DEBUG REQUEST: %s %s|\n", req.Method, req.URL.String())
-	for k, v := range req.Header {
-		fmt.Printf("HEADER %s: %s|\n", k, strings.Join(v, ","))
-	}
+	fmt.Printf("DEBUG REQUEST: GET %s|\n", url)
+	fmt.Printf("HEADER X-Auth-Token: %s|\n", c.authToken)
+	fmt.Printf("HEADER X-User-Id: %s|\n", c.userID)
 	// END DEBUG LOGGING
 
-	resp, err := c.httpClient.Do(req)
+	var body []byte
+	err := netretry.Do(ctx, func() error {
+		req, reqErr := http.NewRequestWithContext(ctx, "GET", url, nil)
+		if reqErr != nil {
+			return netretry.Permanent(fmt.Errorf("failed to create request: %w", reqErr))
+		}
+		req.Header.Set("X-Auth-Token", c.authToken)
+		req.Header.Set("X-User-Id", c.userID)
+
+		resp, doErr := c.httpClient.Do(req)
+		if doErr != nil {
+			return doErr
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		body, doErr = io.ReadAll(resp.Body)
+		if doErr != nil {
+			return doErr
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			httpErr := &netretry.HTTPStatusError{
+				Method:     http.MethodGet,
+				URL:        url,
+				StatusCode: resp.StatusCode,
+				Body:       string(body),
+			}
+			if netretry.IsRetryableStatusCode(resp.StatusCode) {
+				return httpErr
+			}
+			return netretry.Permanent(httpErr)
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("request failed: %w", err)
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("API error: status %d, body: %s", resp.StatusCode, string(body))
 	}
 
 	var userInfo UserInfoResponse

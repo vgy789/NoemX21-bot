@@ -104,7 +104,10 @@ func (s *telegramService) getUpdater() *ext.Updater {
 
 // Run starts the telegram bot using long polling.
 func (s *telegramService) Run(ctx context.Context) error {
-	tgBot := telegram.MustNew(&s.cfg.Telegram)
+	tgBot, err := telegram.New(&s.cfg.Telegram)
+	if err != nil {
+		return err
+	}
 	s.bot = tgBot
 
 	dispatcher := ext.NewDispatcher(&ext.DispatcherOpts{
@@ -124,7 +127,7 @@ func (s *telegramService) Run(ctx context.Context) error {
 	s.setUpdater(updater)
 	s.registerHandlers(dispatcher)
 
-	err := updater.StartPolling(tgBot, &ext.PollingOpts{
+	err = updater.StartPolling(tgBot, &ext.PollingOpts{
 		DropPendingUpdates: s.cfg.Telegram.Polling.DropPendingUpdates,
 		GetUpdatesOpts: &gotgbot.GetUpdatesOpts{
 			Timeout: s.cfg.Telegram.Polling.Timeout,
@@ -155,7 +158,10 @@ func (s *telegramService) Run(ctx context.Context) error {
 
 // RunWebhook sets up and starts the telegram bot using webhook.
 func (s *telegramService) RunWebhook(ctx context.Context) error {
-	tgBot := telegram.MustNew(&s.cfg.Telegram)
+	tgBot, err := telegram.New(&s.cfg.Telegram)
+	if err != nil {
+		return err
+	}
 	s.bot = tgBot
 
 	dispatcher := ext.NewDispatcher(&ext.DispatcherOpts{
@@ -186,7 +192,7 @@ func (s *telegramService) RunWebhook(ctx context.Context) error {
 		secretToken = s.cfg.Telegram.Webhook.Secret.Expose()
 	}
 
-	_, err := tgBot.SetWebhook(webhookURL, &gotgbot.SetWebhookOpts{
+	_, err = tgBot.SetWebhook(webhookURL, &gotgbot.SetWebhookOpts{
 		SecretToken: secretToken,
 	})
 	if err != nil {

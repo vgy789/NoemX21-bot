@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/vgy789/noemx21-bot/internal/pkg/netretry"
 )
 
 //go:fix inline
@@ -152,30 +153,45 @@ func (c *Client) GetParticipantProjects(ctx context.Context, token, login string
 }
 
 func getJSON[T any](ctx context.Context, httpClient *http.Client, apiUrl string, token string) (*T, error) {
-	req, err := http.NewRequestWithContext(ctx, "GET", apiUrl, nil)
+	var bodyBytes []byte
+	err := netretry.Do(ctx, func() error {
+		req, reqErr := http.NewRequestWithContext(ctx, "GET", apiUrl, nil)
+		if reqErr != nil {
+			return netretry.Permanent(reqErr)
+		}
+
+		req.Header.Set("Authorization", "Bearer "+token)
+		req.Header.Set("User-Agent", "noemx21-bot/0.0.1")
+
+		resp, doErr := httpClient.Do(req)
+		if doErr != nil {
+			return doErr
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		bodyBytes, doErr = io.ReadAll(resp.Body)
+		if doErr != nil {
+			return doErr
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			httpErr := &netretry.HTTPStatusError{
+				Method:     http.MethodGet,
+				URL:        apiUrl,
+				StatusCode: resp.StatusCode,
+				Body:       string(bodyBytes),
+			}
+			if netretry.IsRetryableStatusCode(resp.StatusCode) {
+				return httpErr
+			}
+			return netretry.Permanent(httpErr)
+		}
+
+		return nil
+	})
 	if err != nil {
 		return nil, err
 	}
-
-	req.Header.Set("Authorization", "Bearer "+token)
-	req.Header.Set("User-Agent", "noemx21-bot/0.0.1")
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	defer func() { _ = resp.Body.Close() }()
-
-	bodyBytes, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("DEBUG: API Error Body from %s: %s\n", apiUrl, string(bodyBytes))
-		return nil, fmt.Errorf("API error: status %d, url: %s, body: %s", resp.StatusCode, apiUrl, string(bodyBytes))
-	}
-	fmt.Printf("DEBUG: API Success Body from %s: %s\n", apiUrl, string(bodyBytes))
 
 	var data T
 	if err := json.Unmarshal(bodyBytes, &data); err != nil {
@@ -229,27 +245,46 @@ func (c *Client) Auth(ctx context.Context, username, password string) (*AuthResp
 	params.Set("password", password)
 	params.Set("grant_type", "password")
 
-	req, err := http.NewRequestWithContext(ctx, "POST", authURL, strings.NewReader(params.Encode()))
-	if err != nil {
-		return nil, fmt.Errorf("failed to create auth request: %w", err)
-	}
+	var bodyBytes []byte
+	err := netretry.Do(ctx, func() error {
+		reqAttempt, reqErr := http.NewRequestWithContext(ctx, "POST", authURL, strings.NewReader(params.Encode()))
+		if reqErr != nil {
+			return netretry.Permanent(fmt.Errorf("failed to create auth request: %w", reqErr))
+		}
+		reqAttempt.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+		reqAttempt.Header.Set("User-Agent", "noemx21-bot/0.0.1")
 
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.Header.Set("User-Agent", "noemx21-bot/0.0.1")
+		resp, doErr := c.httpClient.Do(reqAttempt)
+		if doErr != nil {
+			return doErr
+		}
+		defer func() { _ = resp.Body.Close() }()
 
-	resp, err := c.httpClient.Do(req)
+		bodyBytes, doErr = io.ReadAll(resp.Body)
+		if doErr != nil {
+			return doErr
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			httpErr := &netretry.HTTPStatusError{
+				Method:     http.MethodPost,
+				URL:        authURL,
+				StatusCode: resp.StatusCode,
+				Body:       string(bodyBytes),
+			}
+			if netretry.IsRetryableStatusCode(resp.StatusCode) {
+				return httpErr
+			}
+			return netretry.Permanent(fmt.Errorf("auth failed: status %d, body: %s", resp.StatusCode, string(bodyBytes)))
+		}
+		return nil
+	})
 	if err != nil {
 		return nil, fmt.Errorf("auth request failed: %w", err)
 	}
-	defer func() { _ = resp.Body.Close() }()
-
-	if resp.StatusCode != http.StatusOK {
-		bodyBytes, _ := io.ReadAll(resp.Body)
-		return nil, fmt.Errorf("auth failed: status %d, body: %s", resp.StatusCode, string(bodyBytes))
-	}
 
 	var authResp AuthResponse
-	if err := json.NewDecoder(resp.Body).Decode(&authResp); err != nil {
+	if err := json.Unmarshal(bodyBytes, &authResp); err != nil {
 		return nil, fmt.Errorf("failed to decode auth response: %w", err)
 	}
 
