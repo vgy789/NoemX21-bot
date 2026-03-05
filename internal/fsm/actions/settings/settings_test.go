@@ -112,3 +112,53 @@ func TestSetAlternativeContact(t *testing.T) {
 	require.Equal(t, "peer@example.com", updates["my_alt_contact"])
 	require.Equal(t, true, updates["has_alt_contact"])
 }
+
+func TestCheckTelegramUsername(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	reg := fsm.NewLogicRegistry()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	Register(reg, log, q, nil)
+
+	action, ok := reg.Get("check_telegram_username")
+	require.True(t, ok)
+
+	q.EXPECT().GetUserAccountByExternalId(gomock.Any(), db.GetUserAccountByExternalIdParams{
+		Platform:   db.EnumPlatformTelegram,
+		ExternalID: "42",
+	}).Return(db.UserAccount{
+		Username: pgtype.Text{String: "@vgy789", Valid: true},
+	}, nil)
+
+	_, updates, err := action(context.Background(), 42, nil)
+	require.NoError(t, err)
+	require.Equal(t, true, updates["has_telegram_username"])
+	require.Equal(t, "vgy789", updates["telegram_username"])
+}
+
+func TestCheckTelegramUsernameMissing(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	reg := fsm.NewLogicRegistry()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	Register(reg, log, q, nil)
+
+	action, ok := reg.Get("check_telegram_username")
+	require.True(t, ok)
+
+	q.EXPECT().GetUserAccountByExternalId(gomock.Any(), db.GetUserAccountByExternalIdParams{
+		Platform:   db.EnumPlatformTelegram,
+		ExternalID: "42",
+	}).Return(db.UserAccount{
+		Username: pgtype.Text{String: "   ", Valid: true},
+	}, nil)
+
+	_, updates, err := action(context.Background(), 42, nil)
+	require.NoError(t, err)
+	require.Equal(t, false, updates["has_telegram_username"])
+	require.Equal(t, "", updates["telegram_username"])
+}

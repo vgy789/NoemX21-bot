@@ -133,11 +133,13 @@ states:
       payload:
         user_id: $context.user_id
     transitions:
-      - next_state: SEARCHABLE_STATUS_NOTIFICATION
+      - condition: is_searchable == true
+        next_state: SEARCHABLE_STATUS_VISIBLE
+      - next_state: SEARCHABLE_STATUS_HIDDEN
 
-  SEARCHABLE_STATUS_NOTIFICATION:
+  SEARCHABLE_STATUS_VISIBLE:
     type: interactive
-    description: Уведомление о смене видимости
+    description: Уведомление о включенной видимости
     interface:
       text:
         ru: |

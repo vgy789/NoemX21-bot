@@ -119,6 +119,27 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 		return "", vars, nil
 	})
 
+	registry.Register("check_telegram_username", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		ua, err := getTelegramAccount(ctx, userID)
+		if err != nil {
+			log.Warn("user account not found when checking telegram username", "user_id", userID, "error", err)
+			return "", map[string]any{
+				"has_telegram_username": false,
+				"telegram_username":     "",
+			}, nil
+		}
+
+		username := ""
+		if ua.Username.Valid {
+			username = strings.TrimSpace(strings.TrimPrefix(ua.Username.String, "@"))
+		}
+
+		return "", map[string]any{
+			"has_telegram_username": username != "",
+			"telegram_username":     username,
+		}, nil
+	})
+
 	registry.Register("toggle_searchable", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		ua, err := getTelegramAccount(ctx, userID)
 		if err != nil {
@@ -144,6 +165,7 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 				"my_searchable_status_en": "✅ Visible",
 				"is_searchable_label_ru":  "✅ Виден",
 				"is_searchable_label_en":  "✅ Visible",
+				"is_searchable":           true,
 			}, nil
 		}
 
@@ -152,6 +174,7 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 			"my_searchable_status_en": "❌ Not visible",
 			"is_searchable_label_ru":  "❌ Не виден",
 			"is_searchable_label_en":  "❌ Not visible",
+			"is_searchable":           false,
 		}, nil
 	})
 
