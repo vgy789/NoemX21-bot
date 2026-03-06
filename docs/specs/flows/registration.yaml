@@ -118,6 +118,8 @@ states:
       payload:
         login: $context.last_input
     transitions:
+      - condition: email_already_registered == true
+        next_state: ERROR_EMAIL_ALREADY_REGISTERED
       - condition: rocket_user_found == true && email_verified == true
         next_state: GENERATE_OTP
       - condition: rocket_user_found == true && email_unavailable == true
@@ -128,8 +130,6 @@ states:
         next_state: ROCKET_USER_NOT_FOUND
       - condition: rocket_api_error == true
         next_state: ROCKET_API_ERROR
-      - condition: email_already_registered == true
-        next_state: ERROR_EMAIL_ALREADY_REGISTERED
       - next_state: ROCKET_API_ERROR
     interface:
       text:
@@ -203,6 +203,8 @@ states:
         code: "{last_input}"
         student_id: "{s21_login}"
     transitions:
+      - condition: email_unique == false && is_own_email == false
+        next_state: ERROR_EMAIL_ALREADY_REGISTERED
       - condition: code_correct == true
         next_state: LOAD_PROFILE
       - next_state: AWAITING_OTP
@@ -213,7 +215,9 @@ states:
     logic:
       action: load_user_profile
     transitions:
-      - next_state: REGISTRATION_COMPLETE
+      - condition: profile_loaded == true
+        next_state: REGISTRATION_COMPLETE
+      - next_state: INPUT_LOGIN
     interface:
       text:
         ru: "💾 *Складываю данные в клюв…*"

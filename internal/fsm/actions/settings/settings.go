@@ -2,15 +2,24 @@ package settings
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
+	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 	"github.com/vgy789/noemx21-bot/internal/service"
 )
+
+const unlinkedExternalIDPrefix = "unlinked:"
+
+type userAccountUnlinker interface {
+	UnlinkUserAccountByExternalId(ctx context.Context, arg db.UnlinkUserAccountByExternalIdParams) (db.UserAccount, error)
+}
 
 // Register registers settings-related actions.
 func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier, aliasRegistrar func(alias, target string)) {
@@ -288,25 +297,84 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 
 	// Delete profile action: remove user account record
 	registry.Register("delete_profile", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		externalID := fmt.Sprintf("%d", userID)
+
 		ua, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
 			Platform:   db.EnumPlatformTelegram,
-			ExternalID: fmt.Sprintf("%d", userID),
+			ExternalID: externalID,
 		})
 		if err != nil {
-			log.Warn("user account not found for deletion", "user_id", userID)
-			return "", nil, nil
-		}
-
-		// Delete the user account record
-		if err := queries.DeleteUserAccountByExternalId(ctx, db.DeleteUserAccountByExternalIdParams{
-			Platform:   db.EnumPlatformTelegram,
-			ExternalID: fmt.Sprintf("%d", userID),
-		}); err != nil {
-			log.Error("failed to delete user account", "error", err, "user_id", userID)
+			if errors.Is(err, pgx.ErrNoRows) {
+				log.Info("user account already unlinked", "user_id", userID)
+				return "", map[string]any{
+					"success":                             true,
+					"delete_profile_active_loans":         0,
+					"delete_profile_active_room_bookings": 0,
+				}, nil
+			}
+			log.Error("failed to get user account for deletion", "error", err, "user_id", userID)
 			return "", nil, err
 		}
 
-		log.Info("deleted user account", "user_account_id", ua.ID, "user_id", userID)
-		return "", nil, nil
+		activeLoansCount, err := queries.GetUserActiveLoanCount(ctx, ua.ID)
+		if err != nil {
+			log.Error("failed to count active loans before unlink", "error", err, "user_id", userID, "user_account_id", ua.ID)
+			return "", nil, err
+		}
+
+		activeRoomBookingsRows, err := queries.GetUserRoomBookings(ctx, ua.ID)
+		if err != nil {
+			log.Error("failed to get active room bookings before unlink", "error", err, "user_id", userID, "user_account_id", ua.ID)
+			return "", nil, err
+		}
+
+		activeLoans := int(activeLoansCount)
+		activeRoomBookings := len(activeRoomBookingsRows)
+		updates := map[string]any{
+			"success":                             false,
+			"delete_profile_active_loans":         activeLoans,
+			"delete_profile_active_room_bookings": activeRoomBookings,
+		}
+
+		// Do not unlink while the user still has active obligations.
+		if activeLoans > 0 || activeRoomBookings > 0 {
+			log.Info("delete profile blocked by active obligations", "user_id", userID, "active_loans", activeLoans, "active_room_bookings", activeRoomBookings)
+			return "", updates, nil
+		}
+
+		if err := queries.RevokeOldApiKeys(ctx, ua.ID); err != nil {
+			log.Warn("failed to revoke api keys during unlink", "error", err, "user_id", userID, "user_account_id", ua.ID)
+		}
+
+		// Prefer detaching external_id instead of deleting the row because historical records
+		// (book loans/bookings) reference user_accounts via FK.
+		if unlinker, ok := queries.(userAccountUnlinker); ok {
+			newExternalID := fmt.Sprintf("%s%d:%d", unlinkedExternalIDPrefix, userID, time.Now().UnixNano())
+			unlinked, err := unlinker.UnlinkUserAccountByExternalId(ctx, db.UnlinkUserAccountByExternalIdParams{
+				Platform:      db.EnumPlatformTelegram,
+				ExternalID:    externalID,
+				NewExternalID: newExternalID,
+			})
+			if err != nil {
+				log.Error("failed to unlink user account", "error", err, "user_id", userID, "user_account_id", ua.ID)
+				return "", updates, err
+			}
+			log.Info("unlinked user account", "user_account_id", unlinked.ID, "user_id", userID, "old_external_id", externalID)
+			updates["success"] = true
+			return "", updates, nil
+		}
+
+		// Legacy fallback path for mocks/tests that don't provide unlink method.
+		if err := queries.DeleteUserAccountByExternalId(ctx, db.DeleteUserAccountByExternalIdParams{
+			Platform:   db.EnumPlatformTelegram,
+			ExternalID: externalID,
+		}); err != nil {
+			log.Error("failed to delete user account (legacy unlink)", "error", err, "user_id", userID, "user_account_id", ua.ID)
+			return "", updates, err
+		}
+
+		log.Info("deleted user account (legacy unlink)", "user_account_id", ua.ID, "user_id", userID)
+		updates["success"] = true
+		return "", updates, nil
 	})
 }

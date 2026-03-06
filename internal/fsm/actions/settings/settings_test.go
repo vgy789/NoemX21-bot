@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"testing"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/require"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
@@ -161,4 +162,87 @@ func TestCheckTelegramUsernameMissing(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, false, updates["has_telegram_username"])
 	require.Equal(t, "", updates["telegram_username"])
+}
+
+func TestDeleteProfileSuccess(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	reg := fsm.NewLogicRegistry()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	Register(reg, log, q, nil)
+
+	action, ok := reg.Get("delete_profile")
+	require.True(t, ok)
+
+	q.EXPECT().GetUserAccountByExternalId(gomock.Any(), db.GetUserAccountByExternalIdParams{
+		Platform:   db.EnumPlatformTelegram,
+		ExternalID: "42",
+	}).Return(db.UserAccount{ID: 99}, nil)
+
+	q.EXPECT().GetUserActiveLoanCount(gomock.Any(), int64(99)).Return(int32(0), nil)
+	q.EXPECT().GetUserRoomBookings(gomock.Any(), int64(99)).Return([]db.GetUserRoomBookingsRow{}, nil)
+	q.EXPECT().RevokeOldApiKeys(gomock.Any(), int64(99)).Return(nil)
+
+	q.EXPECT().DeleteUserAccountByExternalId(gomock.Any(), db.DeleteUserAccountByExternalIdParams{
+		Platform:   db.EnumPlatformTelegram,
+		ExternalID: "42",
+	}).Return(nil)
+
+	_, updates, err := action(context.Background(), 42, map[string]any{})
+	require.NoError(t, err)
+	require.Equal(t, true, updates["success"])
+	require.Equal(t, 0, updates["delete_profile_active_loans"])
+	require.Equal(t, 0, updates["delete_profile_active_room_bookings"])
+}
+
+func TestDeleteProfileBlockedByActiveObligations(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	reg := fsm.NewLogicRegistry()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	Register(reg, log, q, nil)
+
+	action, ok := reg.Get("delete_profile")
+	require.True(t, ok)
+
+	q.EXPECT().GetUserAccountByExternalId(gomock.Any(), db.GetUserAccountByExternalIdParams{
+		Platform:   db.EnumPlatformTelegram,
+		ExternalID: "42",
+	}).Return(db.UserAccount{ID: 99}, nil)
+	q.EXPECT().GetUserActiveLoanCount(gomock.Any(), int64(99)).Return(int32(2), nil)
+	q.EXPECT().GetUserRoomBookings(gomock.Any(), int64(99)).Return([]db.GetUserRoomBookingsRow{{ID: 1}}, nil)
+
+	_, updates, err := action(context.Background(), 42, map[string]any{})
+	require.NoError(t, err)
+	require.Equal(t, false, updates["success"])
+	require.Equal(t, 2, updates["delete_profile_active_loans"])
+	require.Equal(t, 1, updates["delete_profile_active_room_bookings"])
+}
+
+func TestDeleteProfileAlreadyUnlinked(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	reg := fsm.NewLogicRegistry()
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	Register(reg, log, q, nil)
+
+	action, ok := reg.Get("delete_profile")
+	require.True(t, ok)
+
+	q.EXPECT().GetUserAccountByExternalId(gomock.Any(), db.GetUserAccountByExternalIdParams{
+		Platform:   db.EnumPlatformTelegram,
+		ExternalID: "42",
+	}).Return(db.UserAccount{}, pgx.ErrNoRows)
+
+	_, updates, err := action(context.Background(), 42, map[string]any{})
+	require.NoError(t, err)
+	require.Equal(t, true, updates["success"])
+	require.Equal(t, 0, updates["delete_profile_active_loans"])
+	require.Equal(t, 0, updates["delete_profile_active_room_bookings"])
 }

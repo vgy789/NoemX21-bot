@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"maps"
 	"strings"
 
 	"hash/fnv"
@@ -17,6 +18,12 @@ import (
 	stats "github.com/vgy789/noemx21-bot/internal/fsm/actions/statistics"
 	"github.com/vgy789/noemx21-bot/internal/service"
 )
+
+const unlinkedExternalIDPrefix = "unlinked:"
+
+type userAccountRebinder interface {
+	RebindUserAccountByS21Login(ctx context.Context, arg db.RebindUserAccountByS21LoginParams) (db.UserAccount, error)
+}
 
 // Register registers registration-related actions.
 func Register(
@@ -34,6 +41,55 @@ func Register(
 	if aliasRegistrar != nil {
 		aliasRegistrar("START", "registration.yaml/START")
 	}
+	resetRegistrationFlags := func() map[string]any {
+		return map[string]any{
+			"rocket_user_found":        false,
+			"rocket_user_not_found":    false,
+			"rocket_api_error":         false,
+			"email_verified":           false,
+			"email_unavailable":        false,
+			"email_mismatch":           false,
+			"email_already_registered": false,
+			"email_unique":             false,
+			"is_own_email":             false,
+			"otp_sent":                 false,
+			"otp_correct":              false,
+			"code_correct":             false,
+			"profile_loaded":           false,
+		}
+	}
+
+	resetProfileSnapshot := func() map[string]any {
+		return map[string]any{
+			"name":                      "",
+			"s21_login":                 "",
+			"s21_user":                  map[string]any{},
+			"my_s21login":               "",
+			"my_coalition":              "—",
+			"my_level":                  "—",
+			"my_class":                  "—",
+			"my_campus":                 "—",
+			"my_coins":                  "—",
+			"my_crps":                   "—",
+			"my_prps":                   "—",
+			"my_exp":                    "—",
+			"my_friendliness":           "0.00",
+			"my_interest":               "0.00",
+			"my_punctuality":            "0.00",
+			"my_thoroughness":           "0.00",
+			"my_status":                 "",
+			"my_parallel":               "",
+			"my_alt_contact":            "❌ Not set",
+			"my_alt_contact_display_ru": "❌ Не задан",
+			"my_alt_contact_display_en": "❌ Not set",
+			"my_searchable_status_ru":   "❌ Не виден",
+			"my_searchable_status_en":   "❌ Not visible",
+			"is_searchable_label_ru":    "❌ Не виден",
+			"is_searchable_label_en":    "❌ Not visible",
+			"has_alt_contact":           false,
+		}
+	}
+
 	// Helper to extract user info from payload/context
 	getUserInfo := func(ctx context.Context, userID int64, payload map[string]any) fsm.UserInfo {
 		ui := fsm.UserInfo{
@@ -89,7 +145,14 @@ func Register(
 		_, err := userSvc.GetProfileByExternalID(ctx, platform, fmt.Sprintf("%d", ui.ID))
 		isRegistered := err == nil
 		log.Debug("checking registration status", "user_id", ui.ID, "platform", ui.Platform, "registered", isRegistered)
-		return "", map[string]any{"registered": isRegistered}, nil
+
+		updates := map[string]any{"registered": isRegistered}
+		if !isRegistered {
+			maps.Copy(updates, resetRegistrationFlags())
+			maps.Copy(updates, resetProfileSnapshot())
+		}
+
+		return "", updates, nil
 	})
 
 	// Validate School21 user
@@ -134,13 +197,16 @@ func Register(
 	// Find and verify RocketChat user and update ID in DB
 	registry.Register("find_and_verify_rocket_user", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		login := payload["login"].(string)
+		updates := resetRegistrationFlags()
 
 		// 1. Check if account already registered/linked in our DB
 		ua, err := queries.GetUserAccountByS21Login(ctx, login)
 		if err == nil {
-			if ua.ExternalID != fmt.Sprintf("%d", userID) {
+			isUnlinkedAccount := strings.HasPrefix(ua.ExternalID, unlinkedExternalIDPrefix)
+			if ua.ExternalID != fmt.Sprintf("%d", userID) && !isUnlinkedAccount {
 				log.Debug("student already registered to another telegram account", "login", login)
-				return "", map[string]any{"email_already_registered": true}, nil
+				updates["email_already_registered"] = true
+				return "", updates, nil
 			}
 		}
 
@@ -149,22 +215,32 @@ func Register(
 		rcUser, err := rcClient.GetUserInfo(ctx, login)
 		if err != nil {
 			log.Error("failed to find user in RocketChat API", "login", login, "error", err)
-			return "", map[string]any{"rocket_user_not_found": true}, nil
+			updates["rocket_user_not_found"] = true
+			return "", updates, nil
 		}
 
 		// 3. Verify email
 		expectedEmail := fmt.Sprintf("%s@student.21-school.ru", login)
 		emailVerified := false
-		for _, email := range rcUser.User.Emails {
-			if email.Address == expectedEmail && email.Verified {
-				emailVerified = true
-				break
+		if cfg.TestModeNoOTP {
+			// In test mode we intentionally bypass OTP and related strict checks.
+			// This allows local/dev auth flows even when Rocket.Chat email scope is unavailable.
+			log.Info("skipping rocketchat email verification in test mode", "login", login)
+			emailVerified = true
+		} else {
+			for _, email := range rcUser.User.Emails {
+				if email.Address == expectedEmail && email.Verified {
+					emailVerified = true
+					break
+				}
 			}
 		}
 
 		if !emailVerified {
 			log.Warn("rocketchat email verification failed", "login", login)
-			return "", map[string]any{"email_mismatch": true, "rocket_user_found": true}, nil
+			updates["email_mismatch"] = true
+			updates["rocket_user_found"] = true
+			return "", updates, nil
 		}
 
 		// 4. Update the Rocket.Chat ID in the database
@@ -197,10 +273,9 @@ func Register(
 		}
 
 		log.Debug("rocket user verified", "login", login, "rc_id", rcUser.User.ID)
-		return "", map[string]any{
-			"rocket_user_found": true,
-			"email_verified":    true,
-		}, nil
+		updates["rocket_user_found"] = true
+		updates["email_verified"] = true
+		return "", updates, nil
 	})
 
 	// Generate and send OTP
@@ -281,6 +356,27 @@ func Register(
 		}
 
 		emailUnique := !accountExists || isOwnAccount
+		isUnlinkedAccount := accountExists && strings.HasPrefix(ua.ExternalID, unlinkedExternalIDPrefix)
+		if isUnlinkedAccount {
+			emailUnique = true
+		}
+
+		upsertInitialSettings := func(userAccountID int64) {
+			langCode := fsm.LangRu
+			if val, ok := payload["language"].(string); ok {
+				langCode = val
+			}
+
+			_, upsertErr := queries.UpsertUserBotSettings(ctx, db.UpsertUserBotSettingsParams{
+				UserAccountID:        userAccountID,
+				LanguageCode:         pgtype.Text{String: langCode, Valid: true},
+				NotificationsEnabled: pgtype.Bool{Bool: true, Valid: true},
+				ReviewPostCampusIds:  []byte("[]"),
+			})
+			if upsertErr != nil {
+				log.Error("failed to save initial user settings", "error", upsertErr)
+			}
+		}
 
 		if valid && emailUnique && !isOwnAccount {
 			ui := getUserInfo(ctx, userID, payload)
@@ -299,44 +395,56 @@ func Register(
 				platform = db.EnumPlatformRocketchat
 			}
 
-			uaCreated, err := queries.CreateUserAccount(ctx, db.CreateUserAccountParams{
-				S21Login:     s21Login,
-				Platform:     platform,
-				ExternalID:   fmt.Sprintf("%d", ui.ID),
-				Username:     username,
-				IsSearchable: pgtype.Bool{Bool: true, Valid: true},
-				Role:         db.NullEnumUserRole{EnumUserRole: db.EnumUserRoleUser, Valid: true},
-			})
-			if err != nil {
-				log.Error("failed to create user account", "error", err, "s21_login", s21Login)
-			} else {
-				log.Info("created user account", "user_account_id", uaCreated.ID, "s21_login", s21Login)
-
-				langCode := fsm.LangRu
-				if val, ok := payload["language"].(string); ok {
-					langCode = val
+			if isUnlinkedAccount {
+				rebinder, ok := queries.(userAccountRebinder)
+				if !ok {
+					return "", nil, fmt.Errorf("cannot rebind unlinked account: unsupported querier implementation")
 				}
-
-				_, err = queries.UpsertUserBotSettings(ctx, db.UpsertUserBotSettingsParams{
-					UserAccountID:        uaCreated.ID,
-					LanguageCode:         pgtype.Text{String: langCode, Valid: true},
-					NotificationsEnabled: pgtype.Bool{Bool: true, Valid: true},
-					ReviewPostCampusIds:  []byte("[]"),
+				uaRebound, rebindErr := rebinder.RebindUserAccountByS21Login(ctx, db.RebindUserAccountByS21LoginParams{
+					S21Login:   s21Login,
+					Platform:   platform,
+					ExternalID: fmt.Sprintf("%d", ui.ID),
+					Username:   username,
 				})
-				if err != nil {
-					log.Error("failed to save initial user settings", "error", err)
+				if rebindErr != nil {
+					log.Error("failed to rebind user account", "error", rebindErr, "s21_login", s21Login)
+				} else {
+					log.Info("rebound user account", "user_account_id", uaRebound.ID, "s21_login", s21Login, "telegram_user_id", ui.ID)
+					upsertInitialSettings(uaRebound.ID)
+				}
+			} else {
+				uaCreated, createErr := queries.CreateUserAccount(ctx, db.CreateUserAccountParams{
+					S21Login:     s21Login,
+					Platform:     platform,
+					ExternalID:   fmt.Sprintf("%d", ui.ID),
+					Username:     username,
+					IsSearchable: pgtype.Bool{Bool: true, Valid: true},
+					Role:         db.NullEnumUserRole{EnumUserRole: db.EnumUserRoleUser, Valid: true},
+				})
+				if createErr != nil {
+					log.Error("failed to create user account", "error", createErr, "s21_login", s21Login)
+				} else {
+					log.Info("created user account", "user_account_id", uaCreated.ID, "s21_login", s21Login)
+					upsertInitialSettings(uaCreated.ID)
 				}
 			}
 		}
 
+		canContinue := valid && emailUnique
+
 		updates := map[string]any{
-			"code_correct": valid,
+			"code_correct": canContinue,
 			"email_unique": emailUnique,
 			"is_own_email": isOwnAccount,
+		}
+		if !emailUnique && !isOwnAccount {
+			updates["email_already_registered"] = true
 		}
 
 		if !valid {
 			updates["last_input_invalid"] = true
+			updates["otp_correct"] = false
+		} else if !emailUnique {
 			updates["otp_correct"] = false
 		} else {
 			updates["otp_correct"] = true
