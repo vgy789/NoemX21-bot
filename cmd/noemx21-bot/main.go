@@ -45,6 +45,8 @@ func main() {
 	}
 
 	if err := builder.Run(); err != nil {
+		log.Error("application runtime failed", "error", err)
+		fmt.Fprintf(os.Stderr, "Application failed: %v\n", err)
 		os.Exit(1)
 	}
 }

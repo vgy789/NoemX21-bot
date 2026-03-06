@@ -106,19 +106,31 @@ func (a *App) Run(ctx context.Context) error {
 	startBackground("schedule_generator", a.scheduleGen)
 
 	group.Go(func() error {
-		return a.httpServer.Start(ctx)
+		err := a.httpServer.Start(ctx)
+		if err != nil {
+			a.log.Error("http server exited with error", "error", err)
+		}
+		return err
 	})
 
 	if a.cfg.Telegram.Webhook.Enabled {
 		a.log.Info("starting bot in webhook mode", "path", a.cfg.Telegram.Webhook.ListenPath, "port", a.cfg.Telegram.Webhook.ListenPort)
 		a.httpServer.AddHandler(a.cfg.Telegram.Webhook.ListenPath, a.tg.GetWebhookHandler())
 		group.Go(func() error {
-			return a.tg.RunWebhook(ctx)
+			err := a.tg.RunWebhook(ctx)
+			if err != nil {
+				a.log.Error("telegram webhook exited with error", "error", err)
+			}
+			return err
 		})
 	} else {
 		a.log.Info("starting bot in polling mode")
 		group.Go(func() error {
-			return a.tg.Run(ctx)
+			err := a.tg.Run(ctx)
+			if err != nil {
+				a.log.Error("telegram polling exited with error", "error", err)
+			}
+			return err
 		})
 	}
 
