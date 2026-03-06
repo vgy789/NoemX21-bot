@@ -44,13 +44,13 @@ states:
 
           Напиши свой логин от Школы 21, чтобы я могла найти тебя.
 
-          > Пример: `verter`
+          _Например:_ `verter`
         en: |
           👋 *Identify yourself, peer!*
 
-          Enter your School 21 login so I can find you in the flock.
+          Enter your School 21 login so I can find you in the school.
 
-          > Example: `verter`
+          _Example:_ `verter`
       error_invalid:
         ru: |
           🦆 *Кря?* Непохоже на логин.
@@ -162,8 +162,8 @@ states:
         ru: |
           📥 *Лови посылку!*
 
-          Я отправил 6-значный код тебе в *Rocket.Chat*.
-          Беги проверяй и пиши его сюда, пока он не протух!
+          Я отправила 6-значный код тебе в *Rocket.Chat*.
+          Скорее проверяй и пиши его сюда, пока он не протух!
         en: |
           📥 *Catch!*
 
@@ -184,6 +184,12 @@ states:
             ru: "🔄 Пришли ещё раз"
             en: "🔄 Resend code"
           next_state: GENERATE_OTP
+          row: 1
+        - id: back
+          label:
+            ru: "🔙 Назад"
+            en: "🔙 Back"
+          next_state: INPUT_LOGIN
           row: 1
     validation:
       regex: ^[0-9]{6}$
@@ -263,7 +269,7 @@ states:
     interface:
       text:
         ru: |
-          ❌ *Ой-ой.* Кажется, твой аккаунт засосало в Черную дыру (Expelled/Blocked).
+          ❌ *Ой-ой.* Кажется, твой аккаунт засосало в Чёрную дыру (Expelled/Blocked).
 
           Как выберешься — возвращайся!
         en: |
@@ -322,7 +328,7 @@ states:
         ru: |
           🦆 *Двойной PeerDuck!*
 
-          Этот логин уже кем-то занят. Может, ты уже зашел с другого аккаунта?
+          Этот логин уже кем-то занят. Может, ты уже зашёл с другого аккаунта?
         en: |
           🦆 *Double PeerDuck!*
 
@@ -387,7 +393,7 @@ states:
         ru: |
           ❌ *Код застрял в камышах.*
 
-          Не смог отправить тебе сообщение в Рокет. Попробуй через минуту, вдруг отлагает.
+          Не смогла отправить тебе сообщение в Рокет. Попробуй через минуту, вдруг отлагает.
         en: |
           ❌ *The code is stuck in the reeds.*
 
