@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
@@ -123,7 +124,13 @@ func (s *telegramService) Run(ctx context.Context) error {
 		MaxRoutines: s.cfg.Telegram.Polling.MaxRoutines,
 	})
 
-	updater := ext.NewUpdater(dispatcher, nil)
+	updater := ext.NewUpdater(dispatcher, &ext.UpdaterOpts{
+		UnhandledErrFunc: func(err error) {
+			errMsg := config.RedactString(err.Error(), s.cfg.Telegram.Token, s.cfg.Telegram.Webhook.Secret)
+			s.log.Error("telegram polling error", "error", errMsg)
+			time.Sleep(time.Second)
+		},
+	})
 	s.setUpdater(updater)
 	s.registerHandlers(dispatcher)
 
