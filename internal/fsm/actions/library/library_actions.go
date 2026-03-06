@@ -157,6 +157,27 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 			description = common.TrimRunes(strings.TrimSpace(book.Description.String), 300)
 		}
 
+		holdersList := ""
+		holdersLineRU := ""
+		holdersLineEN := ""
+		if holders, err := queries.GetBookLoanHolders(ctx, db.GetBookLoanHoldersParams{
+			CampusID: campusUUID,
+			BookID:   bookID,
+		}); err == nil && len(holders) > 0 {
+			logins := make([]string, 0, len(holders))
+			for _, holder := range holders {
+				login := strings.TrimSpace(holder)
+				if login != "" {
+					logins = append(logins, login)
+				}
+			}
+			if len(logins) > 0 {
+				holdersList = strings.Join(logins, ", ")
+				holdersLineRU = fmt.Sprintf("👥 На руках у: %s", holdersList)
+				holdersLineEN = fmt.Sprintf("👥 Held by: %s", holdersList)
+			}
+		}
+
 		return "", map[string]any{
 			"selected_book_id":    book.ID,
 			"title":               book.Title,
@@ -166,6 +187,9 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 			"status_text_ru":      statusTextRU,
 			"status_text_en":      statusTextEN,
 			"description_snippet": description,
+			"holders_list":        holdersList,
+			"holders_line_ru":     holdersLineRU,
+			"holders_line_en":     holdersLineEN,
 			"is_available":        isAvailable,
 		}, nil
 	})
@@ -359,7 +383,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 				break
 			}
 			vars[fmt.Sprintf("category_id_%d", i+1)] = fmt.Sprintf("cat_%d", i+1)
-			vars[fmt.Sprintf("category_label_%d", i+1)] = common.TrimRunes(strings.TrimSpace(category), 28)
+			vars[fmt.Sprintf("category_label_%d", i+1)] = strings.TrimSpace(category)
 			vars[fmt.Sprintf("category_value_%d", i+1)] = strings.TrimSpace(category)
 		}
 		return "", vars, nil
@@ -663,6 +687,9 @@ func bookDetailsFallback(payload map[string]any) map[string]any {
 		"status_text_ru":      status,
 		"status_text_en":      status,
 		"description_snippet": desc,
+		"holders_list":        "",
+		"holders_line_ru":     "",
+		"holders_line_en":     "",
 		"is_available":        false,
 	}
 }

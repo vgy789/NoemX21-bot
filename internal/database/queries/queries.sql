@@ -552,6 +552,13 @@ JOIN books b ON bl.campus_id = b.campus_id AND bl.book_id = b.id
 WHERE bl.user_id = $1 AND bl.returned_at IS NULL
 ORDER BY bl.due_at;
 
+-- name: GetBookLoanHolders :many
+SELECT ua.student_id AS s21_login
+FROM book_loans bl
+JOIN user_accounts ua ON ua.id = bl.user_id
+WHERE bl.campus_id = $1 AND bl.book_id = $2 AND bl.returned_at IS NULL
+ORDER BY bl.borrowed_at;
+
 -- name: ReturnBookLoan :exec
 UPDATE book_loans
 SET returned_at = CURRENT_TIMESTAMP

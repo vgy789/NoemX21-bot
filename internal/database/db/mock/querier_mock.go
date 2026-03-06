@@ -508,6 +508,21 @@ func (mr *MockQuerierMockRecorder) GetBookByID(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBookByID", reflect.TypeOf((*MockQuerier)(nil).GetBookByID), ctx, arg)
 }
 
+// GetBookLoanHolders mocks base method.
+func (m *MockQuerier) GetBookLoanHolders(ctx context.Context, arg db.GetBookLoanHoldersParams) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetBookLoanHolders", ctx, arg)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetBookLoanHolders indicates an expected call of GetBookLoanHolders.
+func (mr *MockQuerierMockRecorder) GetBookLoanHolders(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetBookLoanHolders", reflect.TypeOf((*MockQuerier)(nil).GetBookLoanHolders), ctx, arg)
+}
+
 // GetBookCategories mocks base method.
 func (m *MockQuerier) GetBookCategories(ctx context.Context, campusID pgtype.UUID) ([]string, error) {
 	m.ctrl.T.Helper()

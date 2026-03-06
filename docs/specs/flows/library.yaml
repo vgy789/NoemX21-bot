@@ -246,6 +246,7 @@ states:
           🗂 Полка: {category}
 
           {status_emoji} *{status_text_ru}*
+          {holders_line_ru}
 
           *Описание:* _{description_snippet}_
         en: |
@@ -254,6 +255,7 @@ states:
           🗂 Category: {category}
 
           {status_emoji} *{status_text_en}*
+          {holders_line_en}
 
           *Description:* _{description_snippet}_
       buttons:

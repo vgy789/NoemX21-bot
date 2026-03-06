@@ -702,6 +702,11 @@ type GetBookByIDParams struct {
 	ID       int16       `json:"id"`
 }
 
+type GetBookLoanHoldersParams struct {
+	CampusID pgtype.UUID `json:"campus_id"`
+	BookID   int16       `json:"book_id"`
+}
+
 type GetBookByIDRow struct {
 	ID             int16              `json:"id"`
 	CampusID       pgtype.UUID        `json:"campus_id"`
@@ -2357,6 +2362,34 @@ func (q *Queries) GetUserBookLoans(ctx context.Context, userID int64) ([]GetUser
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getBookLoanHolders = `-- name: GetBookLoanHolders :many
+SELECT ua.student_id AS s21_login
+FROM book_loans bl
+JOIN user_accounts ua ON ua.id = bl.user_id
+WHERE bl.campus_id = $1 AND bl.book_id = $2 AND bl.returned_at IS NULL
+ORDER BY bl.borrowed_at
+`
+
+func (q *Queries) GetBookLoanHolders(ctx context.Context, arg GetBookLoanHoldersParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, getBookLoanHolders, arg.CampusID, arg.BookID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var s21Login string
+		if err := rows.Scan(&s21Login); err != nil {
+			return nil, err
+		}
+		items = append(items, s21Login)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
