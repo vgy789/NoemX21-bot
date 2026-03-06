@@ -1,0 +1,82 @@
+initial_state: ADMIN_MENU
+states:
+  ADMIN_MENU:
+    type: system
+    description: Проверка наличия групп
+    logic:
+      action: load_admin_context
+    transitions:
+      - condition: is_group_owner == true
+        next_state: SELECT_GROUP_TO_MANAGE
+      - next_state: NO_GROUPS_INFO
+
+  NO_GROUPS_INFO:
+    type: interactive
+    description: Инструкция при отсутствии групп
+    interface:
+      text:
+        ru: |
+          *Клубы / Админка групп*
+
+          Чтобы бот мог управлять твоей группой, добавь его в свою группу Telegram и назначь администратором.
+
+          *Возможности бота:*
+          • Защитник: удаление чужаков и отчисленных
+          • Уведомления: пересылка новых PRR
+          • Плашки/Статусы (Member Tags): авто-установка логина/уровня возле имени
+          • Умное приветствие: Onboarding новичков
+        en: |
+          *Clubs / Group Admin*
+
+          To let the bot manage your group, add it to your Telegram group and promote it to administrator.
+
+          *Bot features:*
+          • Defender: auto-kick non-members and expelled
+          • Notifications: forward incoming PRR
+          • Member Tags: auto-assign login/level titles near names
+          • Smart Welcome: personalized onboarding
+      buttons:
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: CLUBS_MAIN
+
+  SELECT_GROUP_TO_MANAGE:
+    type: interactive
+    description: Выбор группы (клуба) для управления
+    on_enter:
+      - action: load_admin_context
+    interface:
+      text:
+        ru: |
+          🛡 *Выбор клуба*
+
+          Здесь ты можешь настроить работу бота в своих группах.
+          *Возможности:*
+          • Защитник: удаление чужаков и отчисленных
+          • Уведомления: пересылка новых PRR
+          • Плашки/Статусы (Member Tags): авто-установка логина/уровня возле имени
+          • Умное приветствие: Onboarding новичков
+
+          Выбери группу из списка:
+        en: |
+          🛡 *Select Club*
+
+          Configure the bot for your groups here.
+          *Features:*
+          • Defender: auto-kick non-members and expelled
+          • Notifications: forward incoming PRR
+          • Member Tags: auto-assign login/level titles near names
+          • Smart Welcome: personalized onboarding
+
+          Choose a group from the list:
+      buttons:
+        - id: group_{chat_id}
+          label: "{chat_title}"
+          next_state: GROUP_ADMIN_MENU
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: CLUBS_MAIN

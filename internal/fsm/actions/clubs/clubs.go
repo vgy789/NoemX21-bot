@@ -14,6 +14,7 @@ import (
 func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar func(alias, target string)) {
 	if aliasRegistrar != nil {
 		aliasRegistrar("CLUBS_MENU", "clubs.yaml/INIT_CLUBS")
+		aliasRegistrar("CLUBS_MAIN", "clubs.yaml/CLUBS_MAIN")
 	}
 
 	registry.Register("get_campus_info", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
