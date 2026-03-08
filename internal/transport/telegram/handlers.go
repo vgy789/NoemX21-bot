@@ -283,9 +283,14 @@ func (s *telegramService) handleCallback(b *gotgbot.Bot, ctx *ext.Context) error
 			return nil
 		}
 
-		// Inform user that something went wrong but we recovered
-		_, _ = s.getSender(b).AnswerCallbackQuery(cb.Id, &gotgbot.AnswerCallbackQueryOpts{Text: "Кнопка устарела, обновляю меню..."})
-	} else {
+			// Avoid noisy stale toasts for passive pagination-caption buttons.
+			if suppressStaleButtonToast(cb.Data) {
+				_, _ = s.getSender(b).AnswerCallbackQuery(cb.Id, &gotgbot.AnswerCallbackQueryOpts{})
+			} else {
+				// Inform user that something went wrong but we recovered.
+				_, _ = s.getSender(b).AnswerCallbackQuery(cb.Id, &gotgbot.AnswerCallbackQueryOpts{Text: "Кнопка устарела, обновляю меню..."})
+			}
+		} else {
 		s.log.Debug("callback processed successfully", "user_id", userID)
 		opts := &gotgbot.AnswerCallbackQueryOpts{}
 		if render != nil && render.Alert != "" {
@@ -301,6 +306,15 @@ func (s *telegramService) handleCallback(b *gotgbot.Bot, ctx *ext.Context) error
 		s.setLastBotMessageID(userID, &gotgbot.Message{MessageId: newMessageID})
 	}
 	return err
+}
+
+func suppressStaleButtonToast(callbackData string) bool {
+	switch strings.TrimSpace(callbackData) {
+	case "campus_filter_page":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *telegramService) handlePRRNotificationCallback(ctx context.Context, userID int64, action fsm.PRRNotifyAction, prrID int64) (*fsm.RenderObject, error) {

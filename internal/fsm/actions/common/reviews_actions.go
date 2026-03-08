@@ -21,6 +21,7 @@ import (
 
 const (
 	reviewsPageSize = 5
+	campusFilterPageSize = 7
 
 	projectFilterModeProject = "project"
 	projectFilterModeCourse  = "course"
@@ -46,6 +47,11 @@ type projectFilterCandidate struct {
 	ButtonID   string
 	Label      string
 	ProjectIDs []int64
+}
+
+type campusFilterCandidate struct {
+	ID    string
+	Label string
 }
 
 func registerReviewActions(
@@ -344,20 +350,45 @@ func registerReviewActions(
 			rows = nil
 		}
 
-		filters := parseStringSet(payload["filter_project_ids"])
+		projectFilters := parseStringSet(payload["filter_project_ids"])
+		campusFilters := parseStringSet(payload["filter_campus_ids"])
 		groups := make([]reviewProjectGroup, 0, len(rows))
 		for _, r := range rows {
 			id := strconv.FormatInt(r.ProjectID, 10)
-			if len(filters) > 0 && !filters[id] {
+			if len(projectFilters) > 0 && !projectFilters[id] {
 				continue
+			}
+			requestsCount := int(r.RequestsCount)
+			if len(campusFilters) > 0 {
+				projectRows, projectErr := queries.GetOpenReviewRequestsByProject(ctx, r.ProjectID)
+				if projectErr != nil {
+					log.Warn("reviews: failed to apply campus filter for project", "project_id", r.ProjectID, "error", projectErr)
+					continue
+				}
+				requestsCount = 0
+				for _, prr := range projectRows {
+					campusID := uuidToString(prr.RequesterCampusID)
+					if campusID != "" && campusFilters[campusID] {
+						requestsCount++
+					}
+				}
+				if requestsCount == 0 {
+					continue
+				}
 			}
 			groups = append(groups, reviewProjectGroup{
 				ID:    id,
 				Name:  strings.TrimSpace(r.ProjectName),
 				Type:  strings.TrimSpace(r.ProjectType),
-				Count: int(r.RequestsCount),
+				Count: requestsCount,
 			})
 		}
+		sort.SliceStable(groups, func(i, j int) bool {
+			if groups[i].Count != groups[j].Count {
+				return groups[i].Count > groups[j].Count
+			}
+			return strings.ToLower(groups[i].Name) < strings.ToLower(groups[j].Name)
+		})
 
 		page := max(ToInt(payload["page"]), 1)
 		pageItems, page, totalPages, hasPrev, hasNext := paginateProjectGroups(groups, page, reviewsPageSize)
@@ -370,7 +401,8 @@ func registerReviewActions(
 			"global_board_page_caption_ru": fmt.Sprintf("%d/%d", page, totalPages),
 			"global_board_page_caption_en": fmt.Sprintf("%d/%d", page, totalPages),
 			"project_groups_formatted":     formatProjectGroups(pageItems),
-			"current_project_filters_text": projectFilterTextWithCatalog(ctx, queries, filters, collectKnownProjects(payload, rows), ToString(payload["language"])),
+			"current_project_filters_text": projectFilterTextWithCatalog(ctx, queries, projectFilters, collectKnownProjects(payload, rows), ToString(payload["language"])),
+			"current_campus_filters_text":  campusFilterText(ctx, queries, campusFilters, ToString(payload["language"])),
 		}
 		clearProjectGroupVars(updates)
 		for i, g := range pageItems {
@@ -639,11 +671,12 @@ func registerReviewActions(
 					Valid:  strings.TrimSpace(reviewerAlternativeContact) != "",
 				},
 			})
-			if incErr == nil {
-				updates["response_count"] = int(resp.ResponseCount)
-				updates["selected_prr_status"] = string(resp.Status)
-				updates["prr_status_label"] = statusLabel(string(resp.Status), ToString(payload["language"]))
-				notifyReviewRequestOwner(
+				switch incErr {
+				case nil:
+					updates["response_count"] = int(resp.ResponseCount)
+					updates["selected_prr_status"] = string(resp.Status)
+					updates["prr_status_label"] = statusLabel(string(resp.Status), ToString(payload["language"]))
+					notifyReviewRequestOwner(
 					ctx,
 					queries,
 					log,
@@ -653,15 +686,15 @@ func registerReviewActions(
 					reviewerUsername,
 					reviewerRocketchatID,
 					reviewerAlternativeContact,
-					reviewerLevel,
-					row.ProjectName,
-				)
-			} else if incErr == pgx.ErrNoRows {
-				updates["prr_closed"] = true
-			} else {
-				log.Warn("reviews: failed to mark request negotiating", "prr_id", id, "error", incErr)
+						reviewerLevel,
+						row.ProjectName,
+					)
+				case pgx.ErrNoRows:
+					updates["prr_closed"] = true
+				default:
+					log.Warn("reviews: failed to mark request negotiating", "prr_id", id, "error", incErr)
+				}
 			}
-		}
 
 		return "", updates, nil
 	})
@@ -814,6 +847,7 @@ func registerReviewActions(
 	registry.Register("prepare_prr_project_filters", func(ctx context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
 		knownProjects := parseAvailableProjects(payload["available_projects"])
 		selected := parseStringSet(payload["filter_project_ids"])
+		selectedCampuses := parseStringSet(payload["filter_campus_ids"])
 		lang := ToString(payload["language"])
 		mode := normalizeProjectFilterMode(ToString(payload["project_filter_mode"]))
 		searchQuery := strings.TrimSpace(ToString(payload["project_filter_query"]))
@@ -855,6 +889,7 @@ func registerReviewActions(
 			"project_filter_mode_projects":   modeButtonLabel(projectFilterModeProject, mode, lang),
 			"project_filter_mode_courses":    modeButtonLabel(projectFilterModeCourse, mode, lang),
 			"project_filter_mode_nodes":      modeButtonLabel(projectFilterModeNode, mode, lang),
+			"current_campus_filters_text":    campusFilterText(ctx, queries, selectedCampuses, lang),
 		}
 		clearProjectFilterVars(updates)
 		for i, candidate := range candidates {
@@ -946,6 +981,80 @@ func registerReviewActions(
 		}, nil
 	})
 
+	registry.Register("prepare_prr_campus_filters", func(ctx context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
+		selected := parseStringSet(payload["filter_campus_ids"])
+		lang := ToString(payload["language"])
+		page := max(ToInt(payload["page"]), 1)
+
+		items, page, totalPages, hasPrev, hasNext, err := loadCampusFilterCandidates(ctx, queries, selected, page)
+		if err != nil {
+			log.Warn("reviews: failed to load campus filter candidates", "error", err)
+		}
+
+		updates := map[string]any{
+			"campus_filter_page":            page,
+			"campus_filter_total_pages":     totalPages,
+			"campus_filter_has_prev_page":   hasPrev,
+			"campus_filter_has_next_page":   hasNext,
+			"campus_filter_page_caption_ru": fmt.Sprintf("%d/%d", page, totalPages),
+			"campus_filter_page_caption_en": fmt.Sprintf("%d/%d", page, totalPages),
+			"campus_filter_list_formatted":  formatCampusFilterCandidates(items, selected, lang),
+			"current_campus_filters_text":   campusFilterText(ctx, queries, selected, lang),
+		}
+		clearCampusFilterVars(updates)
+		for i, item := range items {
+			n := i + 1
+			check := "⬜"
+			if selected[item.ID] {
+				check = "✅"
+			}
+			updates[fmt.Sprintf("campus_filter_id_%d", n)] = item.ID
+			updates[fmt.Sprintf("campus_filter_btn_label_%d", n)] = fmt.Sprintf("%s %s", check, item.Label)
+		}
+		return "", updates, nil
+	})
+
+	registry.Register("toggle_campus_filter", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
+		id := strings.TrimSpace(ToString(payload["id"]))
+		if id == "" {
+			return "", nil, nil
+		}
+
+		set := parseStringSet(payload["filter_campus_ids"])
+		if set[id] {
+			delete(set, id)
+		} else {
+			set[id] = true
+		}
+		return "", map[string]any{
+			"filter_campus_ids": encodeStringSet(set),
+		}, nil
+	})
+
+	registry.Register("prr_campus_filter_prev_page", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
+		page := max(ToInt(payload["campus_filter_page"]), 1)
+		if page > 1 {
+			page--
+		}
+		return "", map[string]any{"campus_filter_page": page}, nil
+	})
+
+	registry.Register("prr_campus_filter_next_page", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
+		page := max(ToInt(payload["campus_filter_page"]), 1)
+		total := max(ToInt(payload["campus_filter_total_pages"]), 1)
+		if page < total {
+			page++
+		}
+		return "", map[string]any{"campus_filter_page": page}, nil
+	})
+
+	registry.Register("clear_campus_filters", func(_ context.Context, _ int64, _ map[string]any) (string, map[string]any, error) {
+		return "", map[string]any{
+			"filter_campus_ids":  []any{},
+			"campus_filter_page": 1,
+		}, nil
+	})
+
 	registry.Register("save_project_filter_query", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
 		query := strings.TrimSpace(ToString(payload["last_input"]))
 		query = TrimRunes(query, 120)
@@ -965,7 +1074,9 @@ func registerReviewActions(
 	registry.Register("reset_project_filters", func(_ context.Context, _ int64, _ map[string]any) (string, map[string]any, error) {
 		return "", map[string]any{
 			"filter_project_ids":   []any{},
+			"filter_campus_ids":    []any{},
 			"project_filter_page":  1,
+			"campus_filter_page":   1,
 			"project_filter_query": "",
 			"project_filter_mode":  projectFilterModeProject,
 		}, nil
@@ -1136,6 +1247,13 @@ func clearProjectFilterVars(updates map[string]any) {
 	for i := 1; i <= reviewsPageSize; i++ {
 		updates[fmt.Sprintf("project_filter_id_%d", i)] = ""
 		updates[fmt.Sprintf("project_filter_btn_label_%d", i)] = ""
+	}
+}
+
+func clearCampusFilterVars(updates map[string]any) {
+	for i := 1; i <= campusFilterPageSize; i++ {
+		updates[fmt.Sprintf("campus_filter_id_%d", i)] = ""
+		updates[fmt.Sprintf("campus_filter_btn_label_%d", i)] = ""
 	}
 }
 
@@ -2106,7 +2224,7 @@ func formatProjectFilterCandidates(items []projectFilterCandidate, selected map[
 		if isFilterCandidateSelected(selected, item.ProjectIDs) {
 			mark = "✅"
 		}
-		b.WriteString(fmt.Sprintf("%d. %s %s\n", i+1, mark, item.Label))
+		b.WriteString(fmt.Sprintf("%s %d. %s\n", mark, i+1, item.Label))
 	}
 	return strings.TrimSpace(b.String())
 }
@@ -2157,6 +2275,67 @@ func modeTitle(mode, lang string) string {
 		}
 		return "Проекты"
 	}
+}
+
+func loadCampusFilterCandidates(
+	ctx context.Context,
+	queries db.Querier,
+	selected map[string]bool,
+	page int,
+) ([]campusFilterCandidate, int, int, bool, bool, error) {
+	rows, err := queries.GetAllActiveCampuses(ctx)
+	if err != nil {
+		return nil, 1, 1, false, false, err
+	}
+
+	items := make([]campusFilterCandidate, 0, len(rows))
+	for _, row := range rows {
+		id := uuidToString(row.ID)
+		if id == "" {
+			continue
+		}
+		shortName := strings.TrimSpace(row.ShortName)
+		fullName := strings.TrimSpace(row.FullName)
+		label := nonEmpty(shortName, id)
+		if fullName != "" && !strings.EqualFold(fullName, shortName) {
+			label = fmt.Sprintf("%s · %s", label, fullName)
+		}
+		items = append(items, campusFilterCandidate{
+			ID:    id,
+			Label: label,
+		})
+	}
+
+	sort.SliceStable(items, func(i, j int) bool {
+		iSelected := selected[items[i].ID]
+		jSelected := selected[items[j].ID]
+		if iSelected != jSelected {
+			return iSelected
+		}
+		return strings.ToLower(items[i].Label) < strings.ToLower(items[j].Label)
+	})
+
+	pageItems, page, totalPages, hasPrev, hasNext := paginateSlice(items, page, campusFilterPageSize)
+	return pageItems, page, totalPages, hasPrev, hasNext, nil
+}
+
+func formatCampusFilterCandidates(items []campusFilterCandidate, selected map[string]bool, lang string) string {
+	if len(items) == 0 {
+		if lang == fsm.LangEn {
+			return "No campuses found."
+		}
+		return "Кампусы не найдены."
+	}
+
+	var b strings.Builder
+	for i, item := range items {
+		mark := "⬜"
+		if selected[item.ID] {
+			mark = "✅"
+		}
+		b.WriteString(fmt.Sprintf("%s %d. %s\n", mark, i+1, item.Label))
+	}
+	return strings.TrimSpace(b.String())
 }
 
 func projectFilterTextWithCatalog(
@@ -2210,6 +2389,49 @@ func projectFilterTextWithCatalog(
 		return safeInlineCodeText(fmt.Sprintf("%s +%d", strings.Join(names[:3], ", "), len(names)-3))
 	}
 	return safeInlineCodeText(strings.Join(names, ", "))
+}
+
+func campusFilterText(ctx context.Context, queries db.Querier, selected map[string]bool, lang string) string {
+	if len(selected) == 0 {
+		if lang == fsm.LangEn {
+			return "All campuses"
+		}
+		return "Все кампусы"
+	}
+
+	rows, err := queries.GetAllActiveCampuses(ctx)
+	lookup := map[string]string{}
+	if err == nil {
+		for _, row := range rows {
+			id := uuidToString(row.ID)
+			if id == "" {
+				continue
+			}
+			lookup[id] = nonEmpty(strings.TrimSpace(row.ShortName), id)
+		}
+	}
+
+	names := make([]string, 0, len(selected))
+	for id := range selected {
+		name := lookup[id]
+		if name == "" {
+			name = id
+		}
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	if len(names) > 4 {
+		return safeInlineCodeText(fmt.Sprintf("%s +%d", strings.Join(names[:4], ", "), len(names)-4))
+	}
+	return safeInlineCodeText(strings.Join(names, ", "))
+}
+
+func uuidToString(id pgtype.UUID) string {
+	if !id.Valid {
+		return ""
+	}
+	b := id.Bytes
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
 func safeInlineCodeText(s string) string {

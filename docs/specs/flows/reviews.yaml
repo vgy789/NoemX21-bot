@@ -277,6 +277,7 @@ states:
           _Кто-то ждёт твоего ревью прямо сейчас. Выбери проект, чтобы увидеть список горящих заявок._
 
           🎯 Фильтр: `{current_project_filters_text}`
+          🏫 *Кампусы:* {current_campus_filters_text}
 
           {project_groups_formatted}
         en: |
@@ -286,6 +287,7 @@ states:
 
 
           🎯 Filter: `{current_project_filters_text}`
+          🏫 *Campuses:* {current_campus_filters_text}
           {project_groups_formatted}
       buttons:
         - id: "{project_group_id_1}"
@@ -762,6 +764,7 @@ states:
 
           🔍 *Раздел:* `{project_filter_mode_text}`
           🎯 *Выбрано:* `{current_project_filters_text}`
+          📍 *Кампусы:* {current_campus_filters_text}
           📝 *Поиск:* `{project_filter_query_text}`
 
           {project_filter_list_formatted}
@@ -772,6 +775,7 @@ states:
 
           🔍 *Mode:* `{project_filter_mode_text}`
           🎯 *Current:* `{current_project_filters_text}`
+          📍 *Campuses:* {current_campus_filters_text}
           📝 *Search:* `{project_filter_query_text}`
 
           {project_filter_list_formatted}
@@ -790,6 +794,12 @@ states:
           label: "{project_filter_mode_nodes}"
           action: set_project_filter_mode_nodes
           next_state: PRR_FILTERS_MENU
+          row: 1
+        - id: campus_filters
+          label:
+            ru: 🏫 Кампусы
+            en: 🏫 Campuses
+          next_state: PRR_CAMPUS_FILTERS_MENU
           row: 1
         - id: "{project_filter_id_1}"
           label: "{project_filter_btn_label_1}"
@@ -873,6 +883,108 @@ states:
             ru: 🔙 Назад
             en: 🔙 Back
           next_state: GLOBAL_PRR_BOARD
+          row: 10
+
+  PRR_CAMPUS_FILTERS_MENU:
+    type: interactive
+    on_enter:
+      - action: prepare_prr_campus_filters
+        payload:
+          page: $context.campus_filter_page
+    interface:
+      text:
+        ru: |
+          ⚙️ *Фильтр кампусов*
+
+          Выбери кампусы, проверки которых будут отображаться на доске.
+
+          🏫 *Кампусы:* {current_campus_filters_text}
+
+          {campus_filter_list_formatted}
+        en: |
+          ⚙️ *Campus filter*
+
+          Choose campuses whose requests will be shown on the board.
+
+          🏫 *Campuses:* {current_campus_filters_text}
+
+          {campus_filter_list_formatted}
+      buttons:
+        - id: "{campus_filter_id_1}"
+          label: "{campus_filter_btn_label_1}"
+          condition: "campus_filter_id_1 != ''"
+          action: toggle_campus_filter
+          next_state: PRR_CAMPUS_FILTERS_MENU
+          row: 1
+        - id: "{campus_filter_id_2}"
+          label: "{campus_filter_btn_label_2}"
+          condition: "campus_filter_id_2 != ''"
+          action: toggle_campus_filter
+          next_state: PRR_CAMPUS_FILTERS_MENU
+          row: 2
+        - id: "{campus_filter_id_3}"
+          label: "{campus_filter_btn_label_3}"
+          condition: "campus_filter_id_3 != ''"
+          action: toggle_campus_filter
+          next_state: PRR_CAMPUS_FILTERS_MENU
+          row: 3
+        - id: "{campus_filter_id_4}"
+          label: "{campus_filter_btn_label_4}"
+          condition: "campus_filter_id_4 != ''"
+          action: toggle_campus_filter
+          next_state: PRR_CAMPUS_FILTERS_MENU
+          row: 4
+        - id: "{campus_filter_id_5}"
+          label: "{campus_filter_btn_label_5}"
+          condition: "campus_filter_id_5 != ''"
+          action: toggle_campus_filter
+          next_state: PRR_CAMPUS_FILTERS_MENU
+          row: 5
+        - id: "{campus_filter_id_6}"
+          label: "{campus_filter_btn_label_6}"
+          condition: "campus_filter_id_6 != ''"
+          action: toggle_campus_filter
+          next_state: PRR_CAMPUS_FILTERS_MENU
+          row: 6
+        - id: "{campus_filter_id_7}"
+          label: "{campus_filter_btn_label_7}"
+          condition: "campus_filter_id_7 != ''"
+          action: toggle_campus_filter
+          next_state: PRR_CAMPUS_FILTERS_MENU
+          row: 7
+        - id: prev_campus_filter_page
+          label:
+            ru: ⬅️ Назад
+            en: ⬅️ Back
+          action: prr_campus_filter_prev_page
+          next_state: PRR_CAMPUS_FILTERS_MENU
+          row: 8
+        - id: campus_filter_page
+          label:
+            ru: "{campus_filter_page_caption_ru}"
+            en: "{campus_filter_page_caption_en}"
+          action: none
+          row: 8
+        - id: next_campus_filter_page
+          label:
+            ru: Вперёд ➡️
+            en: Next ➡️
+          action: prr_campus_filter_next_page
+          next_state: PRR_CAMPUS_FILTERS_MENU
+          row: 8
+        - id: clear_campus_filters
+          label:
+            ru: 🧹 Очистить кампусы
+            en: 🧹 Clear campuses
+          condition: "current_campus_filters_text != 'Все кампусы' && current_campus_filters_text != 'All campuses'"
+          action: clear_campus_filters
+          next_state: PRR_CAMPUS_FILTERS_MENU
+          row: 9
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: PRR_FILTERS_MENU
           row: 10
 
   PRR_FILTERS_SEARCH_INPUT:
