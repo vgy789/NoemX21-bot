@@ -283,14 +283,14 @@ func (s *telegramService) handleCallback(b *gotgbot.Bot, ctx *ext.Context) error
 			return nil
 		}
 
-			// Avoid noisy stale toasts for passive pagination-caption buttons.
-			if suppressStaleButtonToast(cb.Data) {
-				_, _ = s.getSender(b).AnswerCallbackQuery(cb.Id, &gotgbot.AnswerCallbackQueryOpts{})
-			} else {
-				// Inform user that something went wrong but we recovered.
-				_, _ = s.getSender(b).AnswerCallbackQuery(cb.Id, &gotgbot.AnswerCallbackQueryOpts{Text: "Кнопка устарела, обновляю меню..."})
-			}
+		// Avoid noisy stale toasts for passive pagination-caption buttons.
+		if suppressStaleButtonToast(cb.Data) {
+			_, _ = s.getSender(b).AnswerCallbackQuery(cb.Id, &gotgbot.AnswerCallbackQueryOpts{})
 		} else {
+			// Inform user that something went wrong but we recovered.
+			_, _ = s.getSender(b).AnswerCallbackQuery(cb.Id, &gotgbot.AnswerCallbackQueryOpts{Text: "Кнопка устарела, обновляю меню..."})
+		}
+	} else {
 		s.log.Debug("callback processed successfully", "user_id", userID)
 		opts := &gotgbot.AnswerCallbackQueryOpts{}
 		if render != nil && render.Alert != "" {

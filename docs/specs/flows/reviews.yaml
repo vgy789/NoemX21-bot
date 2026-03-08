@@ -332,7 +332,7 @@ states:
           label:
             ru: "{global_board_page_caption_ru}"
             en: "{global_board_page_caption_en}"
-          condition: "project_group_id_1 != ''"
+          condition: "project_group_id_1 != '' && global_board_total_pages > 1"
           action: none
           row: 6
         - id: next_board_page
@@ -374,14 +374,14 @@ states:
     interface:
       text:
         ru: |
-          📁 *Проект: {selected_project_name}*
+          📁 *Проект: {selected_project_name_md}*
           Тип: `{selected_project_type}`
 
           _Выбери пира, которому готов помочь. Утка одобряет взаимовыручку!_ 🦆
 
           {project_prr_list_formatted}
         en: |
-          📁 *Project: {selected_project_name}*
+          📁 *Project: {selected_project_name_md}*
           Type: `{selected_project_type}`
 
           _Pick a peer you're ready to help. Duck approves of peer-to-peer!_ 🦆
@@ -430,6 +430,7 @@ states:
           label:
             ru: "{project_prr_page_caption_ru}"
             en: "{project_prr_page_caption_en}"
+          condition: "project_prr_id_1 != '' && project_prr_total_pages > 1"
           action: none
           row: 6
         - id: next_project_prr_page
@@ -874,8 +875,8 @@ states:
           row: 9
         - id: apply
           label:
-            ru: ✅ Применить
-            en: ✅ Apply
+            ru: ✅ ПРИМЕНИТЬ
+            en: ✅ APPLY
           next_state: GLOBAL_PRR_BOARD
           row: 9
         - id: back

@@ -29,6 +29,7 @@ var preformattedContextKeys = map[string]bool{
 	"alternative_contact_line":              true,
 	"my_selected_negotiating_contact_block": true,
 	"current_project_filters_text":          true,
+	"selected_project_name_md":              true,
 }
 
 // Engine handles the core FSM logic.

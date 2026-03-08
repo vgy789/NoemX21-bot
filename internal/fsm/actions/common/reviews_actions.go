@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	reviewsPageSize = 5
+	reviewsPageSize      = 5
 	campusFilterPageSize = 7
 
 	projectFilterModeProject = "project"
@@ -442,11 +442,13 @@ func registerReviewActions(
 			if strings.TrimSpace(ToString(payload[fmt.Sprintf("project_group_id_%d", i)])) == id {
 				updates["selected_project_name"] = defaultString(payload[fmt.Sprintf("project_group_name_%d", i)], "Unknown project")
 				updates["selected_project_name"] = normalizeMarkdownEscapes(ToString(updates["selected_project_name"]))
+				updates["selected_project_name_md"] = projectNameMarkdown(ToString(updates["selected_project_name"]))
 				updates["selected_project_type"] = defaultString(payload[fmt.Sprintf("project_group_type_%d", i)], "INDIVIDUAL")
 				return "", updates, nil
 			}
 		}
 		updates["selected_project_name"] = normalizeMarkdownEscapes(defaultString(payload["selected_project_name"], "Unknown project"))
+		updates["selected_project_name_md"] = projectNameMarkdown(ToString(updates["selected_project_name"]))
 		updates["selected_project_type"] = defaultString(payload["selected_project_type"], "INDIVIDUAL")
 		return "", updates, nil
 	})
@@ -469,8 +471,11 @@ func registerReviewActions(
 		page := max(ToInt(payload["page"]), 1)
 		pageItems, page, totalPages, hasPrev, hasNext := paginateProjectRequests(rows, page, reviewsPageSize)
 
+		selectedProjectName := normalizeMarkdownEscapes(defaultString(payload["selected_project_name"], "Unknown project"))
 		updates := map[string]any{
 			"selected_project_id":         strconv.FormatInt(projectID, 10),
+			"selected_project_name":       selectedProjectName,
+			"selected_project_name_md":    projectNameMarkdown(selectedProjectName),
 			"project_prr_page":            page,
 			"project_prr_total_pages":     totalPages,
 			"project_prr_has_prev_page":   hasPrev,
@@ -488,6 +493,7 @@ func registerReviewActions(
 		}
 		if len(rows) > 0 {
 			updates["selected_project_name"] = normalizeMarkdownEscapes(rows[0].ProjectName)
+			updates["selected_project_name_md"] = projectNameMarkdown(ToString(updates["selected_project_name"]))
 			updates["selected_project_type"] = rows[0].ProjectType
 		}
 		return "", updates, nil
@@ -671,12 +677,12 @@ func registerReviewActions(
 					Valid:  strings.TrimSpace(reviewerAlternativeContact) != "",
 				},
 			})
-				switch incErr {
-				case nil:
-					updates["response_count"] = int(resp.ResponseCount)
-					updates["selected_prr_status"] = string(resp.Status)
-					updates["prr_status_label"] = statusLabel(string(resp.Status), ToString(payload["language"]))
-					notifyReviewRequestOwner(
+			switch incErr {
+			case nil:
+				updates["response_count"] = int(resp.ResponseCount)
+				updates["selected_prr_status"] = string(resp.Status)
+				updates["prr_status_label"] = statusLabel(string(resp.Status), ToString(payload["language"]))
+				notifyReviewRequestOwner(
 					ctx,
 					queries,
 					log,
@@ -686,15 +692,15 @@ func registerReviewActions(
 					reviewerUsername,
 					reviewerRocketchatID,
 					reviewerAlternativeContact,
-						reviewerLevel,
-						row.ProjectName,
-					)
-				case pgx.ErrNoRows:
-					updates["prr_closed"] = true
-				default:
-					log.Warn("reviews: failed to mark request negotiating", "prr_id", id, "error", incErr)
-				}
+					reviewerLevel,
+					row.ProjectName,
+				)
+			case pgx.ErrNoRows:
+				updates["prr_closed"] = true
+			default:
+				log.Warn("reviews: failed to mark request negotiating", "prr_id", id, "error", incErr)
 			}
+		}
 
 		return "", updates, nil
 	})
@@ -1258,6 +1264,7 @@ func clearCampusFilterVars(updates map[string]any) {
 }
 
 func emptyProjectRequestList(payload map[string]any) map[string]any {
+	selectedProjectName := normalizeMarkdownEscapes(defaultString(payload["selected_project_name"], "Unknown project"))
 	updates := map[string]any{
 		"project_prr_page":            1,
 		"project_prr_total_pages":     1,
@@ -1266,7 +1273,8 @@ func emptyProjectRequestList(payload map[string]any) map[string]any {
 		"project_prr_page_caption_ru": "1/1",
 		"project_prr_page_caption_en": "1/1",
 		"project_prr_list_formatted":  "Нет активных заявок для этого проекта.",
-		"selected_project_name":       defaultString(payload["selected_project_name"], "Unknown project"),
+		"selected_project_name":       selectedProjectName,
+		"selected_project_name_md":    projectNameMarkdown(selectedProjectName),
 		"selected_project_type":       defaultString(payload["selected_project_type"], "INDIVIDUAL"),
 	}
 	clearProjectRequestVars(updates)
@@ -2454,6 +2462,10 @@ func nonEmpty(v, fallback string) string {
 		return fallback
 	}
 	return s
+}
+
+func projectNameMarkdown(name string) string {
+	return fsm.EscapeMarkdown(normalizeMarkdownEscapes(name))
 }
 
 func normalizeMarkdownEscapes(s string) string {
