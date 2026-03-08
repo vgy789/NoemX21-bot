@@ -30,22 +30,24 @@ func NewCredentialService(repo db.Querier, crypter *crypto.Crypter, s21Client S2
 	return &CredentialService{repo: repo, crypter: crypter, s21Client: s21Client, log: log}
 }
 
-func buildTokenUpsertParams(login string, creds db.PlatformCredential, authResp *s21.AuthResponse) db.UpsertPlatformCredentialsParams {
-	now := time.Now()
-	return db.UpsertPlatformCredentialsParams{
+func (s *CredentialService) persistToken(ctx context.Context, login string, creds db.PlatformCredential, authResp *s21.AuthResponse, errorMessage string) {
+	encToken, nonce, err := s.crypter.Encrypt([]byte(authResp.AccessToken), []byte(login))
+	if err != nil {
+		s.log.Error("failed to encrypt access token", "login", login, "error", err)
+		return
+	}
+
+	err = s.repo.UpsertPlatformCredentials(ctx, db.UpsertPlatformCredentialsParams{
 		S21Login:         login,
 		PasswordEnc:      creds.PasswordEnc,
 		PasswordNonce:    creds.PasswordNonce,
-		AccessToken:      pgtype.Text{String: authResp.AccessToken, Valid: true},
-		AccessExpiresAt:  pgtype.Timestamptz{Time: now.Add(time.Duration(authResp.ExpiresIn) * time.Second), Valid: true},
+		AccessTokenEnc:   encToken,
+		AccessNonce:      nonce,
+		AccessExpiresAt:  pgtype.Timestamptz{Time: time.Now().Add(time.Duration(authResp.ExpiresIn) * time.Second), Valid: true},
 		RefreshTokenEnc:  nil,
 		RefreshNonce:     nil,
-		RefreshExpiresAt: pgtype.Timestamptz{Time: now.Add(time.Duration(authResp.RefreshExpiresIn) * time.Second), Valid: true},
-	}
-}
-
-func (s *CredentialService) persistToken(ctx context.Context, login string, creds db.PlatformCredential, authResp *s21.AuthResponse, errorMessage string) {
-	err := s.repo.UpsertPlatformCredentials(ctx, buildTokenUpsertParams(login, creds, authResp))
+		RefreshExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Duration(authResp.RefreshExpiresIn) * time.Second), Valid: true},
+	})
 	if err != nil {
 		s.log.Error(errorMessage, "login", login, "error", err)
 	}
@@ -56,9 +58,13 @@ func (s *CredentialService) GetValidToken(ctx context.Context, login string) (st
 	// 1. Check existing token
 	creds, err := s.repo.GetPlatformCredentials(ctx, login)
 	if err == nil {
-		if creds.AccessToken.Valid && creds.AccessExpiresAt.Time.After(time.Now().Add(time.Minute)) {
+		if len(creds.AccessTokenEnc) > 0 && len(creds.AccessNonce) > 0 && creds.AccessExpiresAt.Valid && creds.AccessExpiresAt.Time.After(time.Now().Add(time.Minute)) {
 			// Token is valid and has at least 1 minute remaining
-			return creds.AccessToken.String, nil
+			decToken, err := s.crypter.Decrypt(creds.AccessTokenEnc, creds.AccessNonce, []byte(login))
+			if err == nil {
+				return string(decToken), nil
+			}
+			s.log.Warn("failed to decrypt access token, will re-authenticate", "login", login, "error", err)
 		}
 	} else if err != pgx.ErrNoRows {
 		return "", fmt.Errorf("failed to get credentials: %w", err)
@@ -206,7 +212,8 @@ func (s *CredentialService) Seed(ctx context.Context, cfg *config.Config) error 
 				S21Login:         cfg.Init.SchoolLogin,
 				PasswordEnc:      pwdEnc,                           // Update this
 				PasswordNonce:    pwdNonce,                         // Update this
-				AccessToken:      pgtype.Text{Valid: false},        // Reset token
+				AccessTokenEnc:   nil,                              // Reset token
+				AccessNonce:      nil,                              // Reset nonce
 				AccessExpiresAt:  pgtype.Timestamptz{Valid: false}, // Reset expiry
 				RefreshTokenEnc:  nil,
 				RefreshNonce:     nil,

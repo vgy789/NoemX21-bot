@@ -73,7 +73,7 @@ func TestRegistration_RegexValidation(t *testing.T) {
 	t.Run("invalid regex", func(t *testing.T) {
 		render, err := ts.engine.Process(ctx, userID, "abc")
 		require.NoError(t, err)
-		assert.Contains(t, render.Text, "Неверный формат")
+		assert.Contains(t, render.Text, "Непохоже на логин")
 	})
 }
 
@@ -92,7 +92,7 @@ func TestRegistration_APIErrors(t *testing.T) {
 		render, err := ts.engine.Process(ctx, userID, "discovery")
 		require.NoError(t, err)
 		require.NotNil(t, render)
-		assert.Contains(t, render.Text, "Только для студентов основной программы")
+		assert.Contains(t, render.Text, "Core Program")
 	})
 
 	t.Run("user not found", func(t *testing.T) {
@@ -105,7 +105,7 @@ func TestRegistration_APIErrors(t *testing.T) {
 		render, err := ts.engine.Process(ctx, userID, "maslenok")
 		require.NoError(t, err)
 		require.NotNil(t, render)
-		assert.Contains(t, render.Text, "Пользователь не найден в School21")
+		assert.Contains(t, render.Text, "Пустое гнездо")
 	})
 }
 
@@ -131,7 +131,7 @@ func TestRegistration_UniquenessAndOTP(t *testing.T) {
 		render, err := ts.engine.Process(ctx, userID, "123456")
 		require.NoError(t, err)
 		// OTP verification succeeds - profile is loaded from existing account
-		assert.Contains(t, render.Text, "Личный кабинет")
+		assert.Contains(t, render.Text, "Этот логин уже используется другим Telegram аккаунтом")
 	})
 
 	t.Run("success - mock accepts any code", func(t *testing.T) {
@@ -152,6 +152,6 @@ func TestRegistration_UniquenessAndOTP(t *testing.T) {
 		render, err := ts.engine.Process(ctx, userID, "654321")
 		require.NoError(t, err)
 		// After successful registration, user should be in MAIN_MENU
-		assert.Contains(t, render.Text, "Личный кабинет")
+		assert.Contains(t, render.Text, "Главное меню")
 	})
 }

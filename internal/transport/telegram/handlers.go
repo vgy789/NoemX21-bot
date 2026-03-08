@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -376,10 +377,17 @@ func (s *telegramService) sendRender(sender Sender, chatID int64, render *fsm.Re
 					return s.sendRenderText(sender, chatID, render)
 				}
 			} else {
+				// Path Traversal protection: clean and validate path
+				cleanPath := filepath.Clean(render.Image)
+				if strings.Contains(cleanPath, "..") || strings.HasPrefix(cleanPath, "/") {
+					s.log.Error("illegal image path attempted", "path", render.Image)
+					return s.sendRenderText(sender, chatID, render)
+				}
+
 				var err error
-				fileToClose, err = os.Open(render.Image)
+				fileToClose, err = os.Open(cleanPath)
 				if err != nil {
-					s.log.Error("failed to open image file", "path", render.Image, "error", err)
+					s.log.Error("failed to open image file", "path", cleanPath, "error", err)
 					return s.sendRenderText(sender, chatID, render)
 				}
 				photo = gotgbot.InputFileByReader("chart.png", fileToClose)

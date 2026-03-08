@@ -343,8 +343,9 @@ func TestCredentialSeeder_Seed_existingPlatformCredsReset(t *testing.T) {
 
 	crypter, _ := crypto.NewCrypter("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f")
 	existing := db.PlatformCredential{
-		S21Login:    "preserve",
-		AccessToken: pgtype.Text{String: "old-token", Valid: true},
+		S21Login:       "preserve",
+		AccessTokenEnc: []byte("old-token"),
+		AccessNonce:    []byte("nonce"),
 	}
 	mockRepo := mock.NewMockQuerier(ctrl)
 	mockRepo.EXPECT().GetRegisteredUserByS21Login(gomock.Any(), "preserve").Return(db.RegisteredUser{S21Login: "preserve"}, nil)
@@ -352,7 +353,7 @@ func TestCredentialSeeder_Seed_existingPlatformCredsReset(t *testing.T) {
 	mockRepo.EXPECT().
 		UpsertPlatformCredentials(gomock.Any(), gomock.Any()).
 		DoAndReturn(func(ctx context.Context, arg db.UpsertPlatformCredentialsParams) error {
-			assert.False(t, arg.AccessToken.Valid)
+			assert.Empty(t, arg.AccessTokenEnc)
 			assert.False(t, arg.AccessExpiresAt.Valid)
 			assert.NotEmpty(t, arg.PasswordEnc)
 			assert.NotEmpty(t, arg.PasswordNonce)
@@ -491,9 +492,11 @@ func TestCredentialService_GetValidToken(t *testing.T) {
 	t.Run("token exists and valid", func(t *testing.T) {
 		mockRepo := mock.NewMockQuerier(ctrl)
 		expiry := pgtype.Timestamptz{Valid: true, Time: time.Now().Add(time.Hour)}
+		enc, nonce, _ := crypter.Encrypt([]byte("valid-token"), []byte("user1"))
 		creds := db.PlatformCredential{
 			S21Login:        "user1",
-			AccessToken:     pgtype.Text{String: "valid-token", Valid: true},
+			AccessTokenEnc:  enc,
+			AccessNonce:     nonce,
 			AccessExpiresAt: expiry,
 		}
 		mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "user1").Return(creds, nil)
@@ -512,7 +515,8 @@ func TestCredentialService_GetValidToken(t *testing.T) {
 		enc, nonce, _ := crypter.Encrypt([]byte("pwd"), []byte("user2"))
 		creds := db.PlatformCredential{
 			S21Login:        "user2",
-			AccessToken:     pgtype.Text{String: "old-token", Valid: true},
+			AccessTokenEnc:  enc,
+			AccessNonce:     nonce,
 			AccessExpiresAt: expiry,
 			PasswordEnc:     enc,
 			PasswordNonce:   nonce,
@@ -535,10 +539,10 @@ func TestCredentialService_GetValidToken(t *testing.T) {
 		mockRepo := mock.NewMockQuerier(ctrl)
 		enc, nonce, _ := crypter.Encrypt([]byte("pwd"), []byte("user3"))
 		creds := db.PlatformCredential{
-			S21Login:      "user3",
-			AccessToken:   pgtype.Text{Valid: false},
-			PasswordEnc:   enc,
-			PasswordNonce: nonce,
+			S21Login:       "user3",
+			AccessTokenEnc: nil,
+			PasswordEnc:    enc,
+			PasswordNonce:  nonce,
 		}
 		mockRepo.EXPECT().GetPlatformCredentials(gomock.Any(), "user3").Return(creds, nil)
 		mockRepo.EXPECT().UpsertPlatformCredentials(gomock.Any(), gomock.Any()).Return(nil)
@@ -572,7 +576,8 @@ func TestCredentialService_GetValidToken(t *testing.T) {
 		enc, nonce, _ := crypter.Encrypt([]byte("pwd"), []byte("user5"))
 		creds := db.PlatformCredential{
 			S21Login:        "user5",
-			AccessToken:     pgtype.Text{String: "old", Valid: true},
+			AccessTokenEnc:  enc,
+			AccessNonce:     nonce,
 			AccessExpiresAt: expiry,
 			PasswordEnc:     enc,
 			PasswordNonce:   nonce,

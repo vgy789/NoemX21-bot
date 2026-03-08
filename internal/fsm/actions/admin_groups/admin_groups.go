@@ -6,12 +6,13 @@ import (
 	"log/slog"
 	"strings"
 
+	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 )
 
 // Register registers admin-related actions.
-func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier, aliasRegistrar func(alias, target string)) {
+func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger, queries db.Querier, aliasRegistrar func(alias, target string)) {
 	if aliasRegistrar != nil {
 		aliasRegistrar("ADMIN_GROUPS_MENU", "admin_groups.yaml/ADMIN_MENU")
 	}
@@ -25,6 +26,7 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 	registry.Register("load_admin_context", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		updates := map[string]any{
 			"is_group_owner": false,
+			"is_bot_owner":   false,
 		}
 
 		// Since the detailed telegram_groups tables are missing in the current schema,
@@ -37,6 +39,8 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 			log.Debug("admin groups: user account lookup failed", "user_id", userID, "error", err)
 			return "", updates, nil
 		}
+
+		updates["is_bot_owner"] = (acc.S21Login == cfg.Init.SchoolLogin)
 
 		clubs, err := queries.GetGlobalClubs(ctx)
 		if err == nil {

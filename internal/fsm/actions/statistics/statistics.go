@@ -84,6 +84,8 @@ func Register(
 			log.Error("failed to get user account", "user_id", userID, "error", err)
 			return "", nil, err
 		}
+		isBotOwner := (acc.S21Login == cfg.Init.SchoolLogin)
+		state.Context["is_bot_owner"] = isBotOwner
 
 		// Extract request type early
 		requestType, _ := payload["request_type"].(string)
@@ -93,6 +95,10 @@ func Register(
 		if alert, ok := state.Context["_alert"].(string); ok && alert == alertDone && requestType != "full_update" {
 			log.Debug("returning early due to pending alert", "user_id", userID)
 			_, dbVars, _ := getStatsFromDB(ctx, acc.S21Login, queries, log)
+			if dbVars == nil {
+				dbVars = make(map[string]any)
+			}
+			dbVars["is_bot_owner"] = (acc.S21Login == cfg.Init.SchoolLogin)
 			return "", dbVars, nil
 		}
 		var dbVars map[string]any
@@ -136,6 +142,7 @@ func Register(
 				if dbVars == nil {
 					dbVars = make(map[string]any)
 				}
+				dbVars["is_bot_owner"] = (acc.S21Login == cfg.Init.SchoolLogin)
 				dbVars["_alert"] = cooldownMsg
 				dbVars["cooldown_msg"] = cooldownMsg
 				dbVars["is_cooldown"] = true
@@ -148,6 +155,9 @@ func Register(
 		if dbVars == nil {
 			dbVars = make(map[string]any)
 		}
+
+		// Set bot owner flag for admin features
+		dbVars["is_bot_owner"] = (acc.S21Login == cfg.Init.SchoolLogin)
 
 		// If it's a full update request or we have no level data (empty cache), proceed synchronously
 		// Debug logging to see why it enters or skips

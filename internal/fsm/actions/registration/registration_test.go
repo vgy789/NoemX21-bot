@@ -66,9 +66,19 @@ func TestLoadUserProfile_LogsUpsertError(t *testing.T) {
 	// Expect GetUserAccountByExternalId to return a user account with s21 login
 	mockQ.EXPECT().GetUserAccountByExternalId(gomock.Any(), gomock.Any()).Return(db.UserAccount{S21Login: "testlogin"}, nil)
 
+	// Create a crypter for credential service (key: 32 bytes hex)
+	crypter, err := crypto.NewCrypter("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+	if err != nil {
+		t.Fatalf("failed to create crypter: %v", err)
+	}
+
+	encToken, nonce, _ := crypter.Encrypt([]byte("valid-token"), []byte("school"))
+
 	// Provide valid platform credentials for credential service
 	mockQ.EXPECT().GetPlatformCredentials(gomock.Any(), "school").Return(db.PlatformCredential{
-		AccessToken:     pgtype.Text{String: "token", Valid: true},
+		S21Login:        "school",
+		AccessTokenEnc:  encToken,
+		AccessNonce:     nonce,
 		AccessExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true},
 	}, nil)
 
@@ -89,12 +99,6 @@ func TestLoadUserProfile_LogsUpsertError(t *testing.T) {
 	})
 
 	s21Client := newMockS21Client(handler)
-
-	// Create a crypter for credential service (key: 32 bytes hex)
-	crypter, err := crypto.NewCrypter("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
-	if err != nil {
-		t.Fatalf("failed to create crypter: %v", err)
-	}
 
 	// Logger capturing output
 	var buf bytes.Buffer

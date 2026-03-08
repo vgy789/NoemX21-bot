@@ -430,6 +430,13 @@ func (e *Engine) handleSpecialInputs(state *UserState, input string, userID int6
 
 func (e *Engine) findNextState(stateSpec State, input string, userState *UserState) (string, string) {
 	for _, btn := range stateSpec.Interface.Buttons {
+		// Evaluate condition if present
+		if btn.Condition != "" && userState != nil {
+			if !e.evaluateCondition(btn.Condition, userState.Context) {
+				continue // Skip if condition is not met
+			}
+		}
+
 		// Direct match against static ID
 		if btn.ID == input {
 			return btn.NextState, btn.Action

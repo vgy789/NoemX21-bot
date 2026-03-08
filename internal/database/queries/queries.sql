@@ -69,21 +69,22 @@ ON CONFLICT (user_account_id) DO UPDATE SET
 RETURNING *;
 
 -- name: GetPlatformCredentials :one
-SELECT * FROM platform_credentials 
+SELECT * FROM platform_credentials
 WHERE s21_login = $1;
 
 -- name: UpsertPlatformCredentials :exec
 INSERT INTO platform_credentials (
     s21_login, password_enc, password_nonce, 
-    access_token, access_expires_at, refresh_token_enc, 
+    access_token_enc, access_nonce, access_expires_at, refresh_token_enc, 
     refresh_nonce, refresh_expires_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8
+    $1, $2, $3, $4, $5, $6, $7, $8, $9
 )
 ON CONFLICT (s21_login) DO UPDATE SET
     password_enc = EXCLUDED.password_enc,
     password_nonce = EXCLUDED.password_nonce,
-    access_token = EXCLUDED.access_token,
+    access_token_enc = EXCLUDED.access_token_enc,
+    access_nonce = EXCLUDED.access_nonce,
     access_expires_at = EXCLUDED.access_expires_at,
     refresh_token_enc = EXCLUDED.refresh_token_enc,
     refresh_nonce = EXCLUDED.refresh_nonce,
@@ -553,7 +554,7 @@ WHERE bl.user_id = $1 AND bl.returned_at IS NULL
 ORDER BY bl.due_at;
 
 -- name: GetBookLoanHolders :many
-SELECT ua.student_id AS s21_login
+SELECT ua.s21_login AS s21_login
 FROM book_loans bl
 JOIN user_accounts ua ON ua.id = bl.user_id
 WHERE bl.campus_id = $1 AND bl.book_id = $2 AND bl.returned_at IS NULL

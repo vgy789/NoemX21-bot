@@ -149,7 +149,7 @@ func TestEngine_GetCurrentRender(t *testing.T) {
 
 		assert.NotEmpty(t, render.Text)
 		assert.NotEmpty(t, render.Buttons)
-		assert.Contains(t, render.Text, "Личный кабинет")
+		assert.Contains(t, render.Text, "Главное меню")
 	})
 
 	t.Run("render buttons grouped by row", func(t *testing.T) {
@@ -344,7 +344,7 @@ func TestEngine_RegistrationFlow(t *testing.T) {
 		assert.Equal(t, "main_menu.yaml", state.CurrentFlow)
 		assert.Equal(t, "MAIN_MENU", state.CurrentState)
 
-		assert.Contains(t, render.Text, "Личный кабинет")
+		assert.Contains(t, render.Text, "Главное меню")
 	})
 }
 

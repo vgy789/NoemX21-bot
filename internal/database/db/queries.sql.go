@@ -251,9 +251,9 @@ INSERT INTO review_requests (
     requester_timezone_offset,
     status
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'SEARCHING'
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, 'SEARCHING'
 )
-
+RETURNING id, requester_user_id, requester_s21_login, requester_campus_id, project_id, project_name, project_type, availability_text, requester_timezone, requester_timezone_offset, status, view_count, response_count, created_at, updated_at, closed_at, negotiating_reviewer_user_id, negotiating_reviewer_s21_login, negotiating_reviewer_telegram_username, negotiating_reviewer_rocketchat_id, negotiating_reviewer_alternative_contact, negotiating_started_at
 `
 
 type CreateReviewRequestParams struct {
@@ -702,11 +702,6 @@ type GetBookByIDParams struct {
 	ID       int16       `json:"id"`
 }
 
-type GetBookLoanHoldersParams struct {
-	CampusID pgtype.UUID `json:"campus_id"`
-	BookID   int16       `json:"book_id"`
-}
-
 type GetBookByIDRow struct {
 	ID             int16              `json:"id"`
 	CampusID       pgtype.UUID        `json:"campus_id"`
@@ -759,6 +754,39 @@ func (q *Queries) GetBookCategories(ctx context.Context, campusID pgtype.UUID) (
 			return nil, err
 		}
 		items = append(items, category)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getBookLoanHolders = `-- name: GetBookLoanHolders :many
+SELECT ua.s21_login AS s21_login
+FROM book_loans bl
+JOIN user_accounts ua ON ua.id = bl.user_id
+WHERE bl.campus_id = $1 AND bl.book_id = $2 AND bl.returned_at IS NULL
+ORDER BY bl.borrowed_at
+`
+
+type GetBookLoanHoldersParams struct {
+	CampusID pgtype.UUID `json:"campus_id"`
+	BookID   int16       `json:"book_id"`
+}
+
+func (q *Queries) GetBookLoanHolders(ctx context.Context, arg GetBookLoanHoldersParams) ([]string, error) {
+	rows, err := q.db.Query(ctx, getBookLoanHolders, arg.CampusID, arg.BookID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var s21_login string
+		if err := rows.Scan(&s21_login); err != nil {
+			return nil, err
+		}
+		items = append(items, s21_login)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -1950,7 +1978,7 @@ func (q *Queries) GetPeerProfile(ctx context.Context, s21Login string) (GetPeerP
 }
 
 const getPlatformCredentials = `-- name: GetPlatformCredentials :one
-SELECT s21_login, password_enc, password_nonce, access_token, access_expires_at, refresh_token_enc, refresh_nonce, refresh_expires_at, updated_at FROM platform_credentials 
+SELECT s21_login, password_enc, password_nonce, access_expires_at, refresh_token_enc, refresh_nonce, refresh_expires_at, updated_at, access_token_enc, access_nonce FROM platform_credentials
 WHERE s21_login = $1
 `
 
@@ -1961,12 +1989,13 @@ func (q *Queries) GetPlatformCredentials(ctx context.Context, s21Login string) (
 		&i.S21Login,
 		&i.PasswordEnc,
 		&i.PasswordNonce,
-		&i.AccessToken,
 		&i.AccessExpiresAt,
 		&i.RefreshTokenEnc,
 		&i.RefreshNonce,
 		&i.RefreshExpiresAt,
 		&i.UpdatedAt,
+		&i.AccessTokenEnc,
+		&i.AccessNonce,
 	)
 	return i, err
 }
@@ -2362,34 +2391,6 @@ func (q *Queries) GetUserBookLoans(ctx context.Context, userID int64) ([]GetUser
 			return nil, err
 		}
 		items = append(items, i)
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
-const getBookLoanHolders = `-- name: GetBookLoanHolders :many
-SELECT ua.student_id AS s21_login
-FROM book_loans bl
-JOIN user_accounts ua ON ua.id = bl.user_id
-WHERE bl.campus_id = $1 AND bl.book_id = $2 AND bl.returned_at IS NULL
-ORDER BY bl.borrowed_at
-`
-
-func (q *Queries) GetBookLoanHolders(ctx context.Context, arg GetBookLoanHoldersParams) ([]string, error) {
-	rows, err := q.db.Query(ctx, getBookLoanHolders, arg.CampusID, arg.BookID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []string
-	for rows.Next() {
-		var s21Login string
-		if err := rows.Scan(&s21Login); err != nil {
-			return nil, err
-		}
-		items = append(items, s21Login)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -3407,15 +3408,16 @@ func (q *Queries) UpsertParticipantStatsCache(ctx context.Context, arg UpsertPar
 const upsertPlatformCredentials = `-- name: UpsertPlatformCredentials :exec
 INSERT INTO platform_credentials (
     s21_login, password_enc, password_nonce, 
-    access_token, access_expires_at, refresh_token_enc, 
+    access_token_enc, access_nonce, access_expires_at, refresh_token_enc, 
     refresh_nonce, refresh_expires_at
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8
+    $1, $2, $3, $4, $5, $6, $7, $8, $9
 )
 ON CONFLICT (s21_login) DO UPDATE SET
     password_enc = EXCLUDED.password_enc,
     password_nonce = EXCLUDED.password_nonce,
-    access_token = EXCLUDED.access_token,
+    access_token_enc = EXCLUDED.access_token_enc,
+    access_nonce = EXCLUDED.access_nonce,
     access_expires_at = EXCLUDED.access_expires_at,
     refresh_token_enc = EXCLUDED.refresh_token_enc,
     refresh_nonce = EXCLUDED.refresh_nonce,
@@ -3427,7 +3429,8 @@ type UpsertPlatformCredentialsParams struct {
 	S21Login         string             `json:"s21_login"`
 	PasswordEnc      []byte             `json:"password_enc"`
 	PasswordNonce    []byte             `json:"password_nonce"`
-	AccessToken      pgtype.Text        `json:"access_token"`
+	AccessTokenEnc   []byte             `json:"access_token_enc"`
+	AccessNonce      []byte             `json:"access_nonce"`
 	AccessExpiresAt  pgtype.Timestamptz `json:"access_expires_at"`
 	RefreshTokenEnc  []byte             `json:"refresh_token_enc"`
 	RefreshNonce     []byte             `json:"refresh_nonce"`
@@ -3439,7 +3442,8 @@ func (q *Queries) UpsertPlatformCredentials(ctx context.Context, arg UpsertPlatf
 		arg.S21Login,
 		arg.PasswordEnc,
 		arg.PasswordNonce,
-		arg.AccessToken,
+		arg.AccessTokenEnc,
+		arg.AccessNonce,
 		arg.AccessExpiresAt,
 		arg.RefreshTokenEnc,
 		arg.RefreshNonce,

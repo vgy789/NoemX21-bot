@@ -86,10 +86,24 @@ func (s *OTPService) generateAndSendOTP(ctx context.Context, s21Login string, ui
 
 	// 4. Send OTP via RocketChat using stored ID
 	rcUserID := regUser.RocketchatID
+	escape := func(s string) string {
+		r := strings.NewReplacer(
+			"*", "\\*",
+			"_", "\\_",
+			"`", "\\`",
+			"~", "\\~",
+		)
+		return r.Replace(s)
+	}
+
 	fullName := strings.TrimSpace(fmt.Sprintf("%s %s", ui.FirstName, ui.LastName))
 	if fullName == "" {
 		fullName = "No Name"
 	}
+
+	fullNameEscaped := escape(fullName)
+	usernameEscaped := escape(ui.Username)
+	platformEscaped := escape(ui.Platform)
 
 	message := fmt.Sprintf(
 		"🔐 *NOEMX21-BOT* | КОД ПОДТВЕРЖДЕНИЯ: *%s*\n\n"+
@@ -98,10 +112,10 @@ func (s *OTPService) generateAndSendOTP(ctx context.Context, s21Login string, ui
 			"Код запросил пользователь *%s* id: *%d* username: *%s* platform: *%s*\n"+
 			"Не передавай код третьим лицам.\n\n",
 		code,
-		fullName,
+		fullNameEscaped,
 		ui.ID,
-		ui.Username,
-		ui.Platform,
+		usernameEscaped,
+		platformEscaped,
 	)
 	_, err = s.rcClient.SendDirectMessage(ctx, rcUserID, message)
 	if err != nil {
@@ -110,7 +124,7 @@ func (s *OTPService) generateAndSendOTP(ctx context.Context, s21Login string, ui
 		return fmt.Errorf("failed to send message")
 	}
 
-	s.log.Info("OTP generated and sent", "student_id", s21Login, "code", code, "expires_at", expiresAt)
+	s.log.Info("OTP generated and sent", "student_id", s21Login, "expires_at", expiresAt)
 
 	return nil
 }

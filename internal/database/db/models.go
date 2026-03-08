@@ -324,12 +324,13 @@ type PlatformCredential struct {
 	S21Login         string             `json:"s21_login"`
 	PasswordEnc      []byte             `json:"password_enc"`
 	PasswordNonce    []byte             `json:"password_nonce"`
-	AccessToken      pgtype.Text        `json:"access_token"`
 	AccessExpiresAt  pgtype.Timestamptz `json:"access_expires_at"`
 	RefreshTokenEnc  []byte             `json:"refresh_token_enc"`
 	RefreshNonce     []byte             `json:"refresh_nonce"`
 	RefreshExpiresAt pgtype.Timestamptz `json:"refresh_expires_at"`
 	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+	AccessTokenEnc   []byte             `json:"access_token_enc"`
+	AccessNonce      []byte             `json:"access_nonce"`
 }
 
 type Project struct {

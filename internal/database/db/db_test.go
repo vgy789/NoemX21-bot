@@ -103,7 +103,7 @@ func TestQueries_UpsertPlatformCredentials(t *testing.T) {
 	q := New(mockDB)
 	ctx := context.Background()
 
-	mockDB.On("Exec", ctx, upsertPlatformCredentials, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(pgconn.CommandTag{}, nil)
+	mockDB.On("Exec", ctx, upsertPlatformCredentials, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(pgconn.CommandTag{}, nil)
 
 	err := q.UpsertPlatformCredentials(ctx, UpsertPlatformCredentialsParams{})
 	assert.NoError(t, err)
@@ -156,7 +156,7 @@ func TestQueries_Remaining(t *testing.T) {
 	t.Run("GetPlatformCredentials", func(t *testing.T) {
 		mockRow := new(MockRow)
 		mockDB.On("QueryRow", ctx, getPlatformCredentials, mock.Anything).Return(mockRow)
-		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		_, _ = q.GetPlatformCredentials(ctx, "test")
 	})
 

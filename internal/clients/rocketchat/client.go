@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -135,15 +136,8 @@ type UserInfoResponse struct {
 
 // GetUserInfo gets information about a user
 func (c *Client) GetUserInfo(ctx context.Context, username string) (*UserInfoResponse, error) {
-	fmt.Printf("DEBUG baseURL: |%s|\n", c.baseURL)
-	url := fmt.Sprintf("%s/users.info?username=%s", c.baseURL, username)
-	fmt.Printf("DEBUG final URL: |%s|\n", url)
-
-	// DEBUG LOGGING
-	fmt.Printf("DEBUG REQUEST: GET %s|\n", url)
-	fmt.Printf("HEADER X-Auth-Token: %s|\n", c.authToken)
-	fmt.Printf("HEADER X-User-Id: %s|\n", c.userID)
-	// END DEBUG LOGGING
+	// Use url.QueryEscape for safety against injection
+	url := fmt.Sprintf("%s/users.info?username=%s", c.baseURL, url.QueryEscape(username))
 
 	var body []byte
 	err := netretry.Do(ctx, func() error {
