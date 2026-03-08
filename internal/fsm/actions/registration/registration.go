@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"regexp"
 	"strings"
 
 	"hash/fnv"
@@ -20,6 +21,8 @@ import (
 )
 
 const unlinkedExternalIDPrefix = "unlinked:"
+
+var latinLoginRegex = regexp.MustCompile(`[a-z-]+`)
 
 type userAccountRebinder interface {
 	RebindUserAccountByS21Login(ctx context.Context, arg db.RebindUserAccountByS21LoginParams) (db.UserAccount, error)
@@ -158,8 +161,9 @@ func Register(
 	// Validate School21 user
 	registry.Register("validate_school21_user", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		login := strings.ToLower(strings.TrimSpace(payload["login"].(string)))
-		if parts := strings.Fields(login); len(parts) > 0 {
-			login = parts[0]
+		login = latinLoginRegex.FindString(login)
+		if login == "" {
+			return "", map[string]any{"api_status": 404}, nil
 		}
 		log.Debug("validating school21 user", "login", login)
 
@@ -189,7 +193,7 @@ func Register(
 		}
 		return "", map[string]any{
 			"api_status": 200,
-			"s21_login":  login,
+			"s21_login":  strings.ToLower(login),
 			"s21_user": map[string]any{
 				"status":       participant.Status,
 				"parallelName": parallelName,
@@ -200,8 +204,9 @@ func Register(
 	// Find and verify RocketChat user and update ID in DB
 	registry.Register("find_and_verify_rocket_user", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		login := strings.ToLower(strings.TrimSpace(payload["login"].(string)))
-		if parts := strings.Fields(login); len(parts) > 0 {
-			login = parts[0]
+		login = latinLoginRegex.FindString(login)
+		if login == "" {
+			return "", map[string]any{"rocket_user_not_found": true}, nil
 		}
 		updates := resetRegistrationFlags()
 
@@ -322,7 +327,7 @@ func Register(
 
 		return "", map[string]any{
 			"otp_sent":  true,
-			"s21_login": login,
+			"s21_login": strings.ToLower(login),
 		}, nil
 	})
 
@@ -338,6 +343,7 @@ func Register(
 				return "", nil, fmt.Errorf("student login not found in payload")
 			}
 		}
+		s21Login = strings.ToLower(s21Login)
 
 		ctx = context.WithValue(ctx, fsm.ContextKeyS21Login, s21Login)
 
@@ -618,8 +624,8 @@ func Register(
 
 		return "", map[string]any{
 			"profile_loaded": true,
-			"name":           profile.Login,
-			"s21_login":      profile.Login,
+			"name":           strings.ToLower(profile.Login),
+			"s21_login":      strings.ToLower(profile.Login),
 			"campus":         profile.CampusName,
 			"campus_id":      profile.CampusID,
 			"coalition":      profile.CoalitionName,

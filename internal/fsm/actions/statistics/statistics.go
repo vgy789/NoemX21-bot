@@ -6,10 +6,9 @@ import (
 	"hash/fnv"
 	"log/slog"
 	"maps"
-	"strings"
-
-	// "os"
+	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
@@ -25,7 +24,7 @@ const (
 	statsUpdateCooldownDuration    = 5 * time.Minute  // Дефолтный кулдаун для автоматических обновлений
 	statsUpdateManualCooldown      = 10 * time.Second // Кулдаун для ручного обновления (кнопка Refresh)
 	statsUpdateSafetyTimeout       = 30 * time.Second // Таймаут для проверки зависшего обновления
-	peerDataCacheFreshnessDuration = 1 * time.Minute  // Время, в течение которого данные пира считаются свежими
+	peerDataCacheFreshnessDuration = 10 * time.Minute // Кэшируем данные пира на 10 минут
 
 	// Default skill category
 	defaultSkillCategory = "General"
@@ -46,6 +45,8 @@ const (
 	// Number formatting
 	socialMetricFormat = "%.2f" // Формат для отображения социальных метрик (2 знака после запятой)
 )
+
+var latinLoginRegex = regexp.MustCompile(`[a-z]+`)
 
 // Register registers statistics-related actions.
 func Register(
@@ -219,7 +220,7 @@ func Register(
 				"feedback_nil", feedback == nil, "feedback_err", errFeedback)
 
 			cacheParams := db.UpsertParticipantStatsCacheParams{
-				S21Login:     acc.S21Login,
+				S21Login:     strings.ToLower(participant.Login),
 				Level:        participant.Level,
 				ExpValue:     int32(participant.ExpValue),
 				Status:       db.EnumStudentStatus(participant.Status),
@@ -357,6 +358,12 @@ func Register(
 		if !ok {
 			return "", nil, fmt.Errorf("login not found in payload")
 		}
+		login = strings.ToLower(strings.TrimSpace(login))
+		login = latinLoginRegex.FindString(login)
+		if login == "" {
+			return "", map[string]any{"peer_found": false}, nil
+		}
+		payload["login"] = login
 
 		// 0. Cache check: используем таблицу participant_stats_cache.
 		if cacheRow, err := queries.GetParticipantStatsCache(ctx, login); err == nil {
@@ -404,7 +411,7 @@ func Register(
 		// 3. Prepare variables
 		vars := map[string]any{
 			"peer_found":               true,
-			"peer_login":               participant.Login,
+			"peer_login":               strings.ToLower(participant.Login),
 			"peer_campus":              participant.Campus.ShortName,
 			"peer_coalition":           defaultCoalitionValue,
 			"peer_level":               participant.Level,
@@ -550,8 +557,9 @@ func Register(
 			return "", nil, fmt.Errorf("login not found in payload")
 		}
 		login = strings.ToLower(strings.TrimSpace(login))
-		if parts := strings.Fields(login); len(parts) > 0 {
-			login = parts[0]
+		login = latinLoginRegex.FindString(login)
+		if login == "" {
+			return "", map[string]any{"peer_found": false}, nil
 		}
 		payload["login"] = login
 		action, ok := registry.Get("get_peer_data_with_permissions")
@@ -598,9 +606,7 @@ func Register(
 
 				// Clean login just in case it contains extra text
 				login = strings.ToLower(strings.TrimSpace(login))
-				if parts := strings.Fields(login); len(parts) > 0 {
-					login = parts[0]
-				}
+				login = latinLoginRegex.FindString(login)
 			}
 
 			if login == "" {
@@ -673,7 +679,7 @@ func getStatsFromDB(ctx context.Context, s21Login string, queries db.Querier, lo
 	}
 
 	vars := map[string]any{
-		"my_s21login": profile.S21Login,
+		"my_s21login": strings.ToLower(profile.S21Login),
 	}
 
 	if profile.ExpValue.Valid {
@@ -731,7 +737,7 @@ func getStatsFromDB(ctx context.Context, s21Login string, queries db.Querier, lo
 func getPeerStatsFromCache(ctx context.Context, lang string, login string, row db.GetParticipantStatsCacheRow, queries db.Querier, log *slog.Logger) (string, map[string]any, error) {
 	vars := map[string]any{
 		"peer_found":               true,
-		"peer_login":               row.S21Login,
+		"peer_login":               strings.ToLower(row.S21Login),
 		"peer_campus":              defaultCampusValue,
 		"peer_coalition":           defaultCoalitionValue,
 		"peer_level":               row.Level,
@@ -805,7 +811,7 @@ func getPeerStatsFromDB(ctx context.Context, lang string, login string, queries 
 
 	vars := map[string]any{
 		"peer_found":               true,
-		"peer_login":               profile.S21Login,
+		"peer_login":               strings.ToLower(profile.S21Login),
 		"peer_campus":              defaultCampusValue,
 		"peer_coalition":           defaultCoalitionValue,
 		"peer_level":               profile.Level,
