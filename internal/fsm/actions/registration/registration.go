@@ -158,6 +158,9 @@ func Register(
 	// Validate School21 user
 	registry.Register("validate_school21_user", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		login := strings.ToLower(strings.TrimSpace(payload["login"].(string)))
+		if parts := strings.Fields(login); len(parts) > 0 {
+			login = parts[0]
+		}
 		log.Debug("validating school21 user", "login", login)
 
 		// 1. Get bot's own token to use for verification
@@ -197,6 +200,9 @@ func Register(
 	// Find and verify RocketChat user and update ID in DB
 	registry.Register("find_and_verify_rocket_user", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		login := strings.ToLower(strings.TrimSpace(payload["login"].(string)))
+		if parts := strings.Fields(login); len(parts) > 0 {
+			login = parts[0]
+		}
 		updates := resetRegistrationFlags()
 
 		// 1. Check if account already registered/linked in our DB

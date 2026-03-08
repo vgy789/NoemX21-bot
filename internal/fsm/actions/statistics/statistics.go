@@ -6,6 +6,7 @@ import (
 	"hash/fnv"
 	"log/slog"
 	"maps"
+	"strings"
 
 	// "os"
 	"strconv"
@@ -543,6 +544,23 @@ func Register(
 		}, nil
 	})
 
+	registry.Register("search_peer", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		login, ok := payload["login"].(string)
+		if !ok {
+			return "", nil, fmt.Errorf("login not found in payload")
+		}
+		login = strings.ToLower(strings.TrimSpace(login))
+		if parts := strings.Fields(login); len(parts) > 0 {
+			login = parts[0]
+		}
+		payload["login"] = login
+		action, ok := registry.Get("get_peer_data_with_permissions")
+		if !ok {
+			return "", nil, fmt.Errorf("action not found")
+		}
+		return action(ctx, userID, payload)
+	})
+
 	registry.Register("generate_radar_chart", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		usersRaw, ok := payload["users"].([]any)
 		if !ok {
@@ -576,6 +594,12 @@ func Register(
 					}
 				} else {
 					login = v
+				}
+
+				// Clean login just in case it contains extra text
+				login = strings.ToLower(strings.TrimSpace(login))
+				if parts := strings.Fields(login); len(parts) > 0 {
+					login = parts[0]
 				}
 			}
 

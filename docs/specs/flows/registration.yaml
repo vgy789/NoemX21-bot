@@ -269,18 +269,14 @@ states:
     interface:
       text:
         ru: |
-          ❌ *Ой-ой.* Кажется, твой аккаунт засосало в Чёрную дыру (Expelled/Blocked).
-
-          Как выберешься — возвращайся!
+          ❌ *Ой-ой.* Кажется, на платформе твой аккаунт заблокирован (Expelled/Blocked).
         en: |
-          ❌ *Oops.* Looks like your account got sucked into the Black Hole (Expelled/Blocked).
-
-          Come back when you're out!
+          ❌ *Oops.* Looks like your account on the platform is blocked (Expelled/Blocked).
       buttons:
         - id: retry
           label:
-            ru: "🔄 Обновить статус"
-            en: "🔄 Refresh status"
+            ru: "🔄 Попробовать снова"
+            en: "🔄 Try again"
           next_state: INPUT_LOGIN
 
   ERROR_EMAIL_MISMATCH:

@@ -533,14 +533,24 @@ func (e *Engine) evaluateSystemState(ctx context.Context, spec *State, state *Us
 }
 
 func (e *Engine) evaluateCondition(condition string, ctx map[string]any) bool {
-	// Support AND logic
-	subConditions := strings.SplitSeq(condition, "&&")
-	for sub := range subConditions {
-		if !e.evaluateSingleCondition(strings.TrimSpace(sub), ctx) {
-			return false
+	// Support OR logic (lower precedence)
+	orParts := strings.SplitSeq(condition, "||")
+	for orPart := range orParts {
+		// Support AND logic (higher precedence)
+		andParts := strings.Split(orPart, "&&")
+		allAndTrue := true
+		for _, andPart := range andParts {
+			if !e.evaluateSingleCondition(strings.TrimSpace(andPart), ctx) {
+				allAndTrue = false
+				break
+			}
+		}
+		// If all AND parts in this OR block are true, the whole condition is true
+		if allAndTrue {
+			return true
 		}
 	}
-	return true
+	return false
 }
 
 func (e *Engine) evaluateSingleCondition(condition string, ctx map[string]any) bool {
