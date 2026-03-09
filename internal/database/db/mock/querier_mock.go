@@ -277,6 +277,20 @@ func (mr *MockQuerierMockRecorder) DeactivateRoomsByCampus(ctx, campusID any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeactivateRoomsByCampus", reflect.TypeOf((*MockQuerier)(nil).DeactivateRoomsByCampus), ctx, campusID)
 }
 
+// DeactivateTelegramGroup mocks base method.
+func (m *MockQuerier) DeactivateTelegramGroup(ctx context.Context, chatID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeactivateTelegramGroup", ctx, chatID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeactivateTelegramGroup indicates an expected call of DeactivateTelegramGroup.
+func (mr *MockQuerierMockRecorder) DeactivateTelegramGroup(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeactivateTelegramGroup", reflect.TypeOf((*MockQuerier)(nil).DeactivateTelegramGroup), ctx, chatID)
+}
+
 // DeleteAllAuthVerificationCodes mocks base method.
 func (m *MockQuerier) DeleteAllAuthVerificationCodes(ctx context.Context, s21Login pgtype.Text) error {
 	m.ctrl.T.Helper()
@@ -1153,6 +1167,21 @@ func (mr *MockQuerierMockRecorder) IncrementReviewRequestViewCount(ctx, id any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementReviewRequestViewCount", reflect.TypeOf((*MockQuerier)(nil).IncrementReviewRequestViewCount), ctx, id)
 }
 
+// ListTelegramGroupsByOwner mocks base method.
+func (m *MockQuerier) ListTelegramGroupsByOwner(ctx context.Context, ownerTelegramUserID int64) ([]db.TelegramGroup, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListTelegramGroupsByOwner", ctx, ownerTelegramUserID)
+	ret0, _ := ret[0].([]db.TelegramGroup)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListTelegramGroupsByOwner indicates an expected call of ListTelegramGroupsByOwner.
+func (mr *MockQuerierMockRecorder) ListTelegramGroupsByOwner(ctx, ownerTelegramUserID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTelegramGroupsByOwner", reflect.TypeOf((*MockQuerier)(nil).ListTelegramGroupsByOwner), ctx, ownerTelegramUserID)
+}
+
 // MarkReviewRequestNegotiatingAndIncrementResponses mocks base method.
 func (m *MockQuerier) MarkReviewRequestNegotiatingAndIncrementResponses(ctx context.Context, arg db.MarkReviewRequestNegotiatingAndIncrementResponsesParams) (db.MarkReviewRequestNegotiatingAndIncrementResponsesRow, error) {
 	m.ctrl.T.Helper()
@@ -1559,6 +1588,21 @@ func (m *MockQuerier) UpsertSkill(ctx context.Context, arg db.UpsertSkillParams)
 func (mr *MockQuerierMockRecorder) UpsertSkill(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertSkill", reflect.TypeOf((*MockQuerier)(nil).UpsertSkill), ctx, arg)
+}
+
+// UpsertTelegramGroup mocks base method.
+func (m *MockQuerier) UpsertTelegramGroup(ctx context.Context, arg db.UpsertTelegramGroupParams) (db.TelegramGroup, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertTelegramGroup", ctx, arg)
+	ret0, _ := ret[0].(db.TelegramGroup)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertTelegramGroup indicates an expected call of UpsertTelegramGroup.
+func (mr *MockQuerierMockRecorder) UpsertTelegramGroup(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTelegramGroup", reflect.TypeOf((*MockQuerier)(nil).UpsertTelegramGroup), ctx, arg)
 }
 
 // UpsertUserBotSettings mocks base method.

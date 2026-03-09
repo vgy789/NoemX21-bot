@@ -13,6 +13,7 @@ import (
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
 	"github.com/vgy789/noemx21-bot/internal/clients/telegram"
 	"github.com/vgy789/noemx21-bot/internal/config"
+	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 	"github.com/vgy789/noemx21-bot/internal/pkg/imgcache"
 	"github.com/vgy789/noemx21-bot/internal/service"
@@ -59,11 +60,12 @@ func (s *DefaultSender) AnswerCallbackQuery(id string, opts *gotgbot.AnswerCallb
 }
 
 // NewTelegramService creates new telegram service.
-func NewTelegramService(cfg *config.Config, log *slog.Logger, userSvc service.UserService, engine *fsm.Engine, cache *imgcache.Store) *telegramService {
+func NewTelegramService(cfg *config.Config, log *slog.Logger, userSvc service.UserService, queries db.Querier, engine *fsm.Engine, cache *imgcache.Store) *telegramService {
 	return &telegramService{
 		cfg:      cfg,
 		log:      log,
 		userSvc:  userSvc,
+		queries:  queries,
 		engine:   engine,
 		imgCache: cache,
 		fileIDs:  make(map[string]string),
@@ -74,6 +76,7 @@ type telegramService struct {
 	cfg       *config.Config
 	log       *slog.Logger
 	userSvc   service.UserService
+	queries   db.Querier
 	engine    *fsm.Engine
 	imgCache  *imgcache.Store
 	sender    Sender // For testing

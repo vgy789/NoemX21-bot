@@ -432,6 +432,17 @@ type Skill struct {
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
+type TelegramGroup struct {
+	ChatID                int64              `json:"chat_id"`
+	ChatTitle             string             `json:"chat_title"`
+	OwnerTelegramUserID   int64              `json:"owner_telegram_user_id"`
+	OwnerTelegramUsername string             `json:"owner_telegram_username"`
+	IsInitialized         bool               `json:"is_initialized"`
+	IsActive              bool               `json:"is_active"`
+	CreatedAt             pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+}
+
 type UserAccount struct {
 	ID           int64              `json:"id"`
 	S21Login     string             `json:"s21_login"`

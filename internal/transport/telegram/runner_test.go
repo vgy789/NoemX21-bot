@@ -33,7 +33,7 @@ func TestNewTelegramService(t *testing.T) {
 	mockRCClient := rocketchat.NewClient("", "", "")
 
 	engine := setup.NewFSM(cfg, logger, mockQuerier, mockUserSvc, mockRCClient, nil, nil, "docs/specs/flows", nil)
-	ts := NewTelegramService(cfg, logger, mockUserSvc, engine, nil)
+	ts := NewTelegramService(cfg, logger, mockUserSvc, mockQuerier, engine, nil)
 	// Use memory repo for tests
 	ts.engine = fsm.NewEngine(ts.engine.Parser(), fsm.NewMemoryStateRepository(), logger, ts.engine.Registry(), ts.engine.Sanitizer())
 

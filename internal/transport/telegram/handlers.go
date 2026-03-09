@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -13,6 +14,9 @@ import (
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext/handlers"
+	chatmemberfilters "github.com/PaulSonOfLars/gotgbot/v2/ext/handlers/filters/chatmember"
+	"github.com/jackc/pgx/v5"
+	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 )
 
@@ -48,8 +52,31 @@ func (n *telegramNotifier) NotifyUserRender(_ context.Context, userID int64, ren
 // registerHandlers registers handlers for the dispatcher.
 func (s *telegramService) registerHandlers(d *ext.Dispatcher) {
 	d.AddHandler(handlers.NewCommand("start", s.handleStart))
+	d.AddHandler(handlers.NewCommand("init", s.handleGroupInit))
+	d.AddHandler(handlers.NewCommand("group_init", s.handleGroupInit))
+	d.AddHandler(handlers.NewMyChatMember(chatmemberfilters.All, s.handleMyChatMember))
 	d.AddHandler(handlers.NewCallback(func(cq *gotgbot.CallbackQuery) bool { return true }, s.withCallbackDebugMiddleware(s.handleCallback)))
 	d.AddHandler(handlers.NewMessage(func(msg *gotgbot.Message) bool { return true }, s.withDurationCleanupMiddleware(s.handleTextMessage)))
+}
+
+func isPrivateChat(chat *gotgbot.Chat) bool {
+	if chat == nil {
+		return true
+	}
+	chatType := strings.TrimSpace(chat.Type)
+	return chatType == "" || chatType == "private"
+}
+
+func isGroupChat(chat *gotgbot.Chat) bool {
+	if chat == nil {
+		return false
+	}
+	switch strings.TrimSpace(chat.Type) {
+	case "group", "supergroup":
+		return true
+	default:
+		return false
+	}
 }
 
 func (s *telegramService) withCallbackDebugMiddleware(next handlers.Response) handlers.Response {
@@ -104,6 +131,10 @@ func (s *telegramService) shouldCleanupDurationInput(userID int64) bool {
 
 // handleStart handles the start command.
 func (s *telegramService) handleStart(b *gotgbot.Bot, ctx *ext.Context) error {
+	if !isPrivateChat(ctx.EffectiveChat) {
+		return s.handleGroupStart(b, ctx)
+	}
+
 	userID := ctx.EffectiveUser.Id
 	s.log.Info("user started the bot", "user_id", userID, "username", ctx.EffectiveUser.Username)
 
@@ -158,8 +189,163 @@ func (s *telegramService) handleStart(b *gotgbot.Bot, ctx *ext.Context) error {
 	return err
 }
 
+func (s *telegramService) handleGroupStart(b *gotgbot.Bot, ctx *ext.Context) error {
+	if !isGroupChat(ctx.EffectiveChat) {
+		return nil
+	}
+	_, err := s.getSender(b).SendMessage(ctx.EffectiveChat.Id,
+		"Бот добавлен в группу.\n\nВладелец группы должен выполнить команду /init, чтобы завершить инициализацию.",
+		nil,
+	)
+	return err
+}
+
+func (s *telegramService) handleGroupInit(b *gotgbot.Bot, ctx *ext.Context) error {
+	if !isGroupChat(ctx.EffectiveChat) {
+		_, _ = s.getSender(b).SendMessage(ctx.EffectiveChat.Id, "Эта команда доступна только в группе.", nil)
+		return nil
+	}
+	if b == nil || ctx.EffectiveUser == nil || ctx.EffectiveChat == nil {
+		return nil
+	}
+	if s.queries == nil {
+		s.log.Error("telegram queries is nil, cannot initialize group", "chat_id", ctx.EffectiveChat.Id)
+		_, _ = s.getSender(b).SendMessage(ctx.EffectiveChat.Id, "Не удалось инициализировать группу. Попробуйте позже.", nil)
+		return nil
+	}
+
+	chatID := ctx.EffectiveChat.Id
+	userID := ctx.EffectiveUser.Id
+
+	ownerMember, err := b.GetChatMember(chatID, userID, nil)
+	if err != nil {
+		s.log.Warn("failed to verify group owner", "chat_id", chatID, "user_id", userID, "error", err)
+		_, _ = s.getSender(b).SendMessage(chatID, "Не удалось проверить права. Убедитесь, что бот администратор группы.", nil)
+		return nil
+	}
+	if ownerMember.GetStatus() != gotgbot.ChatMemberStatusOwner {
+		_, _ = s.getSender(b).SendMessage(chatID, "Инициализацию может выполнить только владелец группы.", nil)
+		return nil
+	}
+
+	botMember, err := b.GetChatMember(chatID, b.Id, nil)
+	if err != nil {
+		s.log.Warn("failed to verify bot status in group", "chat_id", chatID, "error", err)
+		_, _ = s.getSender(b).SendMessage(chatID, "Не удалось проверить права бота. Назначьте бота администратором и повторите /init.", nil)
+		return nil
+	}
+	botStatus := botMember.GetStatus()
+	if botStatus != gotgbot.ChatMemberStatusAdministrator && botStatus != gotgbot.ChatMemberStatusOwner {
+		_, _ = s.getSender(b).SendMessage(chatID, "Для инициализации назначьте бота администратором группы, затем повторите /init.", nil)
+		return nil
+	}
+
+	_, err = s.queries.GetUserAccountByExternalId(context.Background(), db.GetUserAccountByExternalIdParams{
+		Platform:   db.EnumPlatformTelegram,
+		ExternalID: fmt.Sprintf("%d", userID),
+	})
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) || strings.Contains(strings.ToLower(err.Error()), "no rows") {
+			_, _ = s.getSender(b).SendMessage(chatID, registrationRequiredGroupInitText(b), nil)
+			return nil
+		}
+		s.log.Error("failed to verify group owner registration", "chat_id", chatID, "user_id", userID, "error", err)
+		_, _ = s.getSender(b).SendMessage(chatID, "Не удалось проверить регистрацию владельца. Попробуйте позже.", nil)
+		return nil
+	}
+
+	title := strings.TrimSpace(ctx.EffectiveChat.Title)
+	if title == "" {
+		title = fmt.Sprintf("Group %d", chatID)
+	}
+
+	_, err = s.queries.UpsertTelegramGroup(context.Background(), db.UpsertTelegramGroupParams{
+		ChatID:                chatID,
+		ChatTitle:             title,
+		OwnerTelegramUserID:   userID,
+		OwnerTelegramUsername: ctx.EffectiveUser.Username,
+		IsInitialized:         true,
+		IsActive:              true,
+	})
+	if err != nil {
+		s.log.Error("failed to upsert telegram group", "chat_id", chatID, "user_id", userID, "error", err)
+		_, _ = s.getSender(b).SendMessage(chatID, "Не удалось сохранить группу. Попробуйте позже.", nil)
+		return nil
+	}
+
+	_, err = s.getSender(b).SendMessage(chatID,
+		"Группа успешно инициализирована.\nПрава управления закреплены за текущим владельцем (инициатором /init).\n\nОткрой личный чат с ботом → Клубы → Настройка групп. Там появятся кнопки выбора групп.",
+		nil,
+	)
+	return err
+}
+
+func registrationRequiredGroupInitText(b *gotgbot.Bot) string {
+	base := "Для инициализации владелец группы должен быть зарегистрирован в боте.\n\n" +
+		"1) Открой личный чат с ботом\n" +
+		"2) Выполни /start и заверши регистрацию\n" +
+		"3) Вернись в группу и повтори /init"
+
+	if b == nil {
+		return base
+	}
+
+	username := strings.TrimSpace(b.Username)
+	username = strings.TrimPrefix(username, "@")
+	if username == "" || username == "<missing>" {
+		return base
+	}
+
+	link := fmt.Sprintf("https://t.me/%s?start=register_group_owner", username)
+	return base + "\n\nБыстрый переход: " + link
+}
+
+func (s *telegramService) handleMyChatMember(b *gotgbot.Bot, ctx *ext.Context) error {
+	if ctx.MyChatMember == nil {
+		return nil
+	}
+	chat := &ctx.MyChatMember.Chat
+	if !isGroupChat(chat) {
+		return nil
+	}
+
+	chatID := chat.Id
+	oldStatus := ""
+	newStatus := ""
+	if ctx.MyChatMember.OldChatMember != nil {
+		oldStatus = ctx.MyChatMember.OldChatMember.GetStatus()
+	}
+	if ctx.MyChatMember.NewChatMember != nil {
+		newStatus = ctx.MyChatMember.NewChatMember.GetStatus()
+	}
+
+	added := (oldStatus == gotgbot.ChatMemberStatusLeft || oldStatus == gotgbot.ChatMemberStatusBanned || oldStatus == "") &&
+		(newStatus == gotgbot.ChatMemberStatusMember || newStatus == gotgbot.ChatMemberStatusAdministrator || newStatus == gotgbot.ChatMemberStatusOwner)
+	removed := newStatus == gotgbot.ChatMemberStatusLeft || newStatus == gotgbot.ChatMemberStatusBanned
+
+	if added {
+		_, _ = s.getSender(b).SendMessage(chatID,
+			"Спасибо за добавление.\n\nВладелец группы должен выполнить /init для инициализации.",
+			nil,
+		)
+		return nil
+	}
+
+	if removed && s.queries != nil {
+		if err := s.queries.DeactivateTelegramGroup(context.Background(), chatID); err != nil {
+			s.log.Warn("failed to deactivate telegram group", "chat_id", chatID, "error", err)
+		}
+	}
+
+	return nil
+}
+
 // handleTextMessage handles text messages (e.g., OTP code input).
 func (s *telegramService) handleTextMessage(b *gotgbot.Bot, ctx *ext.Context) error {
+	if !isPrivateChat(ctx.EffectiveChat) {
+		return nil
+	}
+
 	userID := ctx.EffectiveUser.Id
 	text := ctx.Message.Text
 	chatID := ctx.EffectiveChat.Id
@@ -229,6 +415,10 @@ func (s *telegramService) deleteUserMessage(b *gotgbot.Bot, chatID int64, messag
 
 // handleCallback handles callback queries (buttons).
 func (s *telegramService) handleCallback(b *gotgbot.Bot, ctx *ext.Context) error {
+	if !isPrivateChat(ctx.EffectiveChat) {
+		return nil
+	}
+
 	cb := ctx.CallbackQuery
 	userID := ctx.EffectiveUser.Id
 	bgCtx := context.WithValue(context.Background(), fsm.ContextKeyUserInfo, &fsm.UserInfo{

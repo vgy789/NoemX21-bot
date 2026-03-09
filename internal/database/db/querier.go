@@ -27,6 +27,7 @@ type Querier interface {
 	DeactivateBooksByCampus(ctx context.Context, campusID pgtype.UUID) error
 	DeactivateClubsByCampus(ctx context.Context, campusID pgtype.UUID) error
 	DeactivateRoomsByCampus(ctx context.Context, campusID pgtype.UUID) error
+	DeactivateTelegramGroup(ctx context.Context, chatID int64) error
 	DeleteAllAuthVerificationCodes(ctx context.Context, s21Login pgtype.Text) error
 	DeleteAuthVerificationCode(ctx context.Context, arg DeleteAuthVerificationCodeParams) error
 	DeleteExpiredAuthVerificationCodes(ctx context.Context) error
@@ -89,6 +90,7 @@ type Querier interface {
 	HasActiveBooks(ctx context.Context, campusID pgtype.UUID) (bool, error)
 	HasActiveRooms(ctx context.Context, campusID pgtype.UUID) (bool, error)
 	IncrementReviewRequestViewCount(ctx context.Context, id int64) (int32, error)
+	ListTelegramGroupsByOwner(ctx context.Context, ownerTelegramUserID int64) ([]TelegramGroup, error)
 	MarkReviewRequestNegotiatingAndIncrementResponses(ctx context.Context, arg MarkReviewRequestNegotiatingAndIncrementResponsesParams) (MarkReviewRequestNegotiatingAndIncrementResponsesRow, error)
 	ReturnBookLoan(ctx context.Context, arg ReturnBookLoanParams) error
 	RevokeOldApiKeys(ctx context.Context, userAccountID int64) error
@@ -117,6 +119,7 @@ type Querier interface {
 	UpsertRocketChatCredentials(ctx context.Context, arg UpsertRocketChatCredentialsParams) error
 	UpsertRoom(ctx context.Context, arg UpsertRoomParams) (Room, error)
 	UpsertSkill(ctx context.Context, arg UpsertSkillParams) (Skill, error)
+	UpsertTelegramGroup(ctx context.Context, arg UpsertTelegramGroupParams) (TelegramGroup, error)
 	UpsertUserBotSettings(ctx context.Context, arg UpsertUserBotSettingsParams) (UserBotSetting, error)
 }
 

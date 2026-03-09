@@ -51,6 +51,34 @@ INSERT INTO user_accounts (
 )
 RETURNING *;
 
+-- name: UpsertTelegramGroup :one
+INSERT INTO telegram_groups (
+    chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active
+) VALUES (
+    $1, $2, $3, $4, $5, $6
+)
+ON CONFLICT (chat_id) DO UPDATE SET
+    chat_title = EXCLUDED.chat_title,
+    owner_telegram_user_id = EXCLUDED.owner_telegram_user_id,
+    owner_telegram_username = EXCLUDED.owner_telegram_username,
+    is_initialized = EXCLUDED.is_initialized,
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING *;
+
+-- name: ListTelegramGroupsByOwner :many
+SELECT * FROM telegram_groups
+WHERE owner_telegram_user_id = $1
+  AND is_active = true
+  AND is_initialized = true
+ORDER BY chat_title;
+
+-- name: DeactivateTelegramGroup :exec
+UPDATE telegram_groups
+SET is_active = false,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1;
+
 -- name: GetUserBotSettings :one
 SELECT * FROM user_bot_settings 
 WHERE user_account_id = $1;

@@ -424,6 +424,18 @@ func (q *Queries) DeactivateRoomsByCampus(ctx context.Context, campusID pgtype.U
 	return err
 }
 
+const deactivateTelegramGroup = `-- name: DeactivateTelegramGroup :exec
+UPDATE telegram_groups
+SET is_active = false,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+`
+
+func (q *Queries) DeactivateTelegramGroup(ctx context.Context, chatID int64) error {
+	_, err := q.db.Exec(ctx, deactivateTelegramGroup, chatID)
+	return err
+}
+
 const deleteAllAuthVerificationCodes = `-- name: DeleteAllAuthVerificationCodes :exec
 DELETE FROM auth_verification_codes
 WHERE s21_login = $1
@@ -2533,6 +2545,43 @@ func (q *Queries) IncrementReviewRequestViewCount(ctx context.Context, id int64)
 	return view_count, err
 }
 
+const listTelegramGroupsByOwner = `-- name: ListTelegramGroupsByOwner :many
+SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at FROM telegram_groups
+WHERE owner_telegram_user_id = $1
+  AND is_active = true
+  AND is_initialized = true
+ORDER BY chat_title
+`
+
+func (q *Queries) ListTelegramGroupsByOwner(ctx context.Context, ownerTelegramUserID int64) ([]TelegramGroup, error) {
+	rows, err := q.db.Query(ctx, listTelegramGroupsByOwner, ownerTelegramUserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TelegramGroup
+	for rows.Next() {
+		var i TelegramGroup
+		if err := rows.Scan(
+			&i.ChatID,
+			&i.ChatTitle,
+			&i.OwnerTelegramUserID,
+			&i.OwnerTelegramUsername,
+			&i.IsInitialized,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const markReviewRequestNegotiatingAndIncrementResponses = `-- name: MarkReviewRequestNegotiatingAndIncrementResponses :one
 UPDATE review_requests
 SET response_count = response_count + 1,
@@ -3658,6 +3707,54 @@ func (q *Queries) UpsertSkill(ctx context.Context, arg UpsertSkillParams) (Skill
 		&i.ID,
 		&i.Name,
 		&i.Category,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertTelegramGroup = `-- name: UpsertTelegramGroup :one
+INSERT INTO telegram_groups (
+    chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active
+) VALUES (
+    $1, $2, $3, $4, $5, $6
+)
+ON CONFLICT (chat_id) DO UPDATE SET
+    chat_title = EXCLUDED.chat_title,
+    owner_telegram_user_id = EXCLUDED.owner_telegram_user_id,
+    owner_telegram_username = EXCLUDED.owner_telegram_username,
+    is_initialized = EXCLUDED.is_initialized,
+    is_active = EXCLUDED.is_active,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at
+`
+
+type UpsertTelegramGroupParams struct {
+	ChatID                int64  `json:"chat_id"`
+	ChatTitle             string `json:"chat_title"`
+	OwnerTelegramUserID   int64  `json:"owner_telegram_user_id"`
+	OwnerTelegramUsername string `json:"owner_telegram_username"`
+	IsInitialized         bool   `json:"is_initialized"`
+	IsActive              bool   `json:"is_active"`
+}
+
+func (q *Queries) UpsertTelegramGroup(ctx context.Context, arg UpsertTelegramGroupParams) (TelegramGroup, error) {
+	row := q.db.QueryRow(ctx, upsertTelegramGroup,
+		arg.ChatID,
+		arg.ChatTitle,
+		arg.OwnerTelegramUserID,
+		arg.OwnerTelegramUsername,
+		arg.IsInitialized,
+		arg.IsActive,
+	)
+	var i TelegramGroup
+	err := row.Scan(
+		&i.ChatID,
+		&i.ChatTitle,
+		&i.OwnerTelegramUserID,
+		&i.OwnerTelegramUsername,
+		&i.IsInitialized,
+		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 	)

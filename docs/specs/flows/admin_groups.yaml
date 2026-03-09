@@ -50,7 +50,7 @@ states:
     interface:
       text:
         ru: |
-          🛡 *Выбор клуба*
+          🎲 *Выбор группы*
 
           Здесь ты можешь настроить работу бота в своих группах.
           *Возможности:*
@@ -61,7 +61,7 @@ states:
 
           Выбери группу из списка:
         en: |
-          🛡 *Select Club*
+          🎲 *Select Group*
 
           Configure the bot for your groups here.
           *Features:*
@@ -72,9 +72,84 @@ states:
 
           Choose a group from the list:
       buttons:
-        - id: group_{chat_id}
-          label: "{chat_title}"
+        - id: "{group_button_id_1}"
+          label: "{group_title_1}"
+          condition: "group_chat_id_1 != ''"
+          action: select_admin_group
           next_state: GROUP_ADMIN_MENU
+        - id: "{group_button_id_2}"
+          label: "{group_title_2}"
+          condition: "group_chat_id_2 != ''"
+          action: select_admin_group
+          next_state: GROUP_ADMIN_MENU
+        - id: "{group_button_id_3}"
+          label: "{group_title_3}"
+          condition: "group_chat_id_3 != ''"
+          action: select_admin_group
+          next_state: GROUP_ADMIN_MENU
+        - id: "{group_button_id_4}"
+          label: "{group_title_4}"
+          condition: "group_chat_id_4 != ''"
+          action: select_admin_group
+          next_state: GROUP_ADMIN_MENU
+        - id: "{group_button_id_5}"
+          label: "{group_title_5}"
+          condition: "group_chat_id_5 != ''"
+          action: select_admin_group
+          next_state: GROUP_ADMIN_MENU
+        - id: "{group_button_id_6}"
+          label: "{group_title_6}"
+          condition: "group_chat_id_6 != ''"
+          action: select_admin_group
+          next_state: GROUP_ADMIN_MENU
+        - id: "{group_button_id_7}"
+          label: "{group_title_7}"
+          condition: "group_chat_id_7 != ''"
+          action: select_admin_group
+          next_state: GROUP_ADMIN_MENU
+        - id: "{group_button_id_8}"
+          label: "{group_title_8}"
+          condition: "group_chat_id_8 != ''"
+          action: select_admin_group
+          next_state: GROUP_ADMIN_MENU
+        - id: "{group_button_id_9}"
+          label: "{group_title_9}"
+          condition: "group_chat_id_9 != ''"
+          action: select_admin_group
+          next_state: GROUP_ADMIN_MENU
+        - id: "{group_button_id_10}"
+          label: "{group_title_10}"
+          condition: "group_chat_id_10 != ''"
+          action: select_admin_group
+          next_state: GROUP_ADMIN_MENU
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          row: 99
+          next_state: CLUBS_MAIN
+
+  GROUP_ADMIN_MENU:
+    type: interactive
+    description: Экран выбранной группы
+    interface:
+      text:
+        ru: |
+          🛠 Настройка группы / *{selected_group_title}*
+          Chat ID: `{selected_group_chat_id}`
+
+          Раздел настроек этой группы будет расширен в следующих обновлениях.
+        en: |
+          🛠 Group Settings / *{selected_group_title}*
+          Chat ID: `{selected_group_chat_id}`
+
+          This group settings section will be expanded in upcoming updates.
+      buttons:
+        - id: back_to_groups
+          label:
+            ru: ↩️ К списку групп
+            en: ↩️ Back to groups
+          next_state: SELECT_GROUP_TO_MANAGE
         - id: back
           label:
             ru: 🔙 Назад
