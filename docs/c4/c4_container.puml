@@ -2,45 +2,33 @@
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
 
 LAYOUT_WITH_LEGEND()
-title Container diagram (Refined: Cache-First Architecture)
 
-Person(user, "Пользователи", "Студенты, Админы, Провайдеры.")
-Person_Ext(ext_dev, "Сторонний Dev", "Использует API бота по токену.")
+title Container diagram for NoemX21 Bot
 
-System_Boundary(c1, "Global S21 Bot System") {
-    
-    Container(bot_engine, "Core Bot Engine", "Go (gotgbot/v2, rocket-go-sdk)", "Обработка команд. Логика Review Matcher (использует локальный кэш проектов), Random Coffee, Booking.")
-    
-    Container(api_service, "Public API Service", "Go (Gin/Fiber)", "REST API. Проверка статуса студента и навыков через локальную БД.")
-    
-    Container(worker, "Sync & Notify Worker", "Go", "Фоновое обновление кэша S21 (проекты, навыки, ивенты). Рассылка уведомлений по дедлайнам.")
-    
-    ContainerDb(db, "PostgreSQL Database", "PostgreSQL", "Хранит: Профили, **Кэш проектов (history)**, **Очередь проверок (requests)**, API токены, логи бронирования.")
+Person(student, "Student")
+Person_Ext(integrator, "External Integrator")
+
+System_Boundary(noemx, "NoemX21 Bot System") {
+    Container(app, "Application Runtime", "Go", "Единый процесс: Telegram transport, FSM, HTTP endpoint, фоновые sync-задачи и генерация расписаний.")
+    ContainerDb(db, "PostgreSQL", "PostgreSQL", "Пользователи, FSM state, кампусы, credentials, API keys, bookings, review requests, каталоги и кэш статистики.")
+    Container(fs, "Local Filesystem", "Mounted volume / local disk", "Локальный checkout git-контента и временные PNG расписаний.")
 }
 
-System_Ext(telegram, "Telegram Platform", "Messenger API")
-System_Ext(rocket_chat, "Rocket.Chat", "Messenger & Auth API")
-System_Ext(s21_api, "School 21 API", "Official S21 API")
-System_Ext(diagram, "Mermaid CLI", "Генератор PNG-схем навыков")
+System_Ext(telegram, "Telegram Bot API", "Messenger API")
+System_Ext(rocket, "Rocket.Chat API", "OTP / users.info")
+System_Ext(s21, "School 21 API", "Profiles, campuses, projects, skills, feedback")
+System_Ext(git_repo, "Content Git Repository", "SSH git repository with campus content and project catalog")
 
-' Взаимодействие
-Rel(user, telegram, "Использует")
-Rel(user, rocket_chat, "Использует")
+Rel(student, telegram, "Использует")
+Rel(telegram, app, "Updates", "Long polling or webhook")
+Rel(app, telegram, "Сообщения и фото")
 
-Rel(telegram, bot_engine, "Updates", "Webhooks")
-Rel(rocket_chat, bot_engine, "Events", "REST/WS")
+Rel(integrator, app, "POST /api/v1/webhook/register", "HTTP/JSON")
 
-' Четкое разделение ответственности с БД
-Rel(bot_engine, db, "Чтение кэша проектов, запись заявок на ревью", "SQL")
-Rel(worker, db, "Обновление кэша проектов и навыков", "SQL")
-Rel(api_service, db, "Проверка токенов и данных студентов", "SQL")
-
-' Внешние связи
-Rel(bot_engine, s21_api, "Запросы регистрации и бронирования", "HTTPS/REST")
-Rel(worker, s21_api, "Фоновая синхронизация (проекты, ивенты)", "HTTPS/REST")
-Rel(bot_engine, rocket_chat, "Отправка 2FA и уведомлений", "REST")
-Rel(ext_dev, api_service, "Запросы верификации (API Key)", "JSON")
-
-Rel(bot_engine, diagram, "Рендеринг схем")
+Rel(app, db, "CRUD", "pgx / SQL")
+Rel(app, fs, "Читает YAML и пишет PNG расписаний")
+Rel(app, rocket, "Проверка пользователя и OTP", "HTTPS/REST")
+Rel(app, s21, "Auth + API calls", "HTTPS/REST")
+Rel(app, git_repo, "Clone / fetch", "SSH git")
 
 @enduml

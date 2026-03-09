@@ -1,38 +1,32 @@
 @startuml C4_Elements
-!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
+!include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
+
 LAYOUT_WITH_LEGEND()
 
-title System Context diagram (Multi-platform & Resource Management)
+title System Context diagram for NoemX21 Bot
 
-Person(student, "Студент", "Основной пользователь: статистика, поиск проверок, бронирование переговорок и книг.")
-Person(owner, "Владелец", "Глобальный администратор: управление системой и рассылки.")
-Person(group_admin, "Админ группы", "Локальный администратор: настройка правил чата и 'Охранника'.")
-Person(provider, "Data Provider", "Волонтер: предоставляет доступ к API кампуса.")
-Person(ext_dev, "Сторонний Dev", "Разработчик других сервисов: проверяет статус студента через API бота.")
+Person(student, "Student", "Основной пользователь Telegram-бота.")
+Person(admin, "Admin", "Сопровождает деплой и управляет конфигурацией.")
+Person_Ext(integrator, "External Integrator", "Проверяет привязку external_id к School 21 login через HTTP API.")
 
-System(bot_system, "Global Bot System", "Центральное ядро: управление профилями студентов, логика Random Coffee, бронирование ресурсов и агрегация данных S21.")
+System(bot_system, "NoemX21 Bot", "Go-приложение: Telegram-бот, FSM, HTTP endpoint и фоновые синхронизации.")
 
-System_Boundary(platforms, "Messaging Platforms") {
-    System_Ext(telegram, "Telegram", "Интерфейс взаимодействия.")
-    System_Ext(rocket_chat_ui, "Rocket.Chat (Maybe)", "Корпоративный интерфейс.")
-    System_Ext(max, "Max (Never) ′⌒`", "Дополнительный интерфейс.")
-    System_Ext(discord, "Discord (Bright future)", "Дополнительный интерфейс.")
-}
+System_Ext(telegram, "Telegram Bot API", "Доставка updates и отправка сообщений пользователям.")
+System_Ext(rocket, "Rocket.Chat API", "Проверка пользователя и доставка OTP.")
+System_Ext(s21, "School 21 API", "Профиль, кампусы, проекты, навыки, коалиция и review-данные.")
+System_Ext(git_repo, "Content Git Repository", "YAML-контент кампусов и каталог проектов для локальной синхронизации.")
+System_Ext(dokku, "Dokku / Environment", "Поставка env-конфига и запуск приложения.")
 
-System_Ext(s21_api, "School 21 API", "Источник данных о студентах, проектах и ивентах.")
-System_Ext(rocket_api, "Rocket.Chat API", "Используется системой для 2FA верификации.")
+Rel(student, telegram, "Общается через")
+Rel(telegram, bot_system, "Updates / Webhook")
+Rel(bot_system, telegram, "Ответы, меню, изображения расписания")
 
-' Связи
-Rel(student, platforms, "Взаимодействует через")
-Rel(group_admin, platforms, "Настраивает чаты")
-Rel(provider, platforms, "Авторизует доступ к кампусу")
-Rel(owner, platforms, "Управляет ботом и делает рассылки")
+Rel(bot_system, rocket, "OTP и проверка username/email", "HTTPS/REST")
+Rel(bot_system, s21, "Аутентификация и запросы данных", "HTTPS/REST")
+Rel(bot_system, git_repo, "Читает и синхронизирует YAML-контент", "git / filesystem")
 
-Rel_D(platforms, bot_system, "Передают события (Webhooks/Long Polling)")
-Rel_U(bot_system, platforms, "Отправляет уведомления, отчеты, графики")
+Rel(integrator, bot_system, "POST /api/v1/webhook/register", "HTTP/JSON + X-Secret")
+Rel(admin, dokku, "Настраивает переменные окружения и deploy")
+Rel(dokku, bot_system, "Запускает контейнер приложения")
 
-Rel_R(bot_system, s21_api, "Запрашивает данные", "HTTPS/JSON")
-Rel_L(bot_system, rocket_api, "Отправляет коды 2FA", "HTTPS/REST")
-
-Rel(ext_dev, bot_system, "Проверяет статус студента", "HTTPS/REST API")
 @enduml

@@ -2,44 +2,43 @@
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Component.puml
 
 LAYOUT_WITH_LEGEND()
-title Component diagram for Bot Engine (Simplified)
 
-Container_Boundary(bot_engine, "Bot Application") {
-    Component(router, "Bot Router / Dispatcher", "gotgbot/v2", "Принимает команды, определяет платформу и язык")
-    
-    ' Группа бизнес-логики
-    Container_Boundary(bot_tools, "Business Logic (Core Services)") {
-        Component(booking_svc, "Booking & Library", "Go", "Ресурсы кампуса")
-        Component(review_svc, "Review & Coffee", "Go", "Взаимодействие пиров")
-        Component(auth_svc, "Auth & Guard", "Go", "Безопасность и регистрация")
-        Component(stats_svc, "Stats & Mermaid", "Go", "Визуализация")
-    }
-    
-    Component(repo, "Data Repository", "pgx", "Единый слой доступа к БД")
-    Component(i18n, "i18n Service", "Go-i18n", "Локализация")
+title Component diagram for Bot Runtime
+
+skinparam defaultFontName Monospaced
+skinparam componentStyle rectangle
+
+ContainerDb(db, "PostgreSQL", "PostgreSQL")
+System_Ext(telegram, "Telegram Bot API")
+System_Ext(rocket, "Rocket.Chat API")
+System_Ext(s21, "School 21 API")
+
+Container_Boundary(bot_runtime, "Bot Runtime (Go)") {
+    Component(tg_transport, "Telegram Transport", "gotgbot/v2", "Handles updates, callbacks, and outgoing messages.")
+    Component(fsm_engine, "FSM Engine", "Flow parser + state store", "Loads YAML flows, restores user state, routes actions.")
+    Component(action_modules, "Action Modules", "registration / booking / library / reviews / stats / settings / groups / clubs", "User-facing bot scenarios.")
+    Component(user_service, "User Service", "Go service", "Profiles, user accounts, platform links.")
+    Component(otp_service, "OTP Service", "Go service", "OTP generation, rate limits, Rocket.Chat delivery.")
+    Component(credential_service, "Credential Service", "Go service + AES-GCM", "Encrypted School 21 credentials and tokens.")
+    Component(schedule_regen, "Schedule Regenerator", "Go service + imgcache", "Builds schedule PNGs and invalidates Telegram file IDs.")
+    Component(repo, "Repositories", "sqlc + pgx", "Database access layer.")
 }
 
-ContainerDb(db, "Database", "PostgreSQL")
-System_Ext(messanger, "Messanger")
-System_Ext(s21, "School 21 API")
-System_Ext(rocket, "Rocket.Chat")
+Rel(telegram, tg_transport, "Updates")
+Rel(tg_transport, fsm_engine, "Passes events")
+Rel(fsm_engine, action_modules, "Calls actions")
 
-' --- СВЯЗИ ---
+Rel(action_modules, user_service, "Profiles and links")
+Rel(action_modules, otp_service, "Registration OTP flow")
+Rel(action_modules, credential_service, "School 21 auth and verify")
+Rel(action_modules, schedule_regen, "Force regenerate after booking changes")
+Rel(action_modules, repo, "Reads and writes domain data")
 
-' Входящий поток
-Rel(messanger, router, "Updates")
-Rel(router, bot_tools, "Execute command")
-
-' Общие зависимости для всей бизнес-логики (рисуем одну стрелку от границы)
-Rel(bot_tools, repo, "CRUD Operations")
-Rel(bot_tools, i18n, "Get translations")
-
-' Специализированные внешние связи
-Rel(auth_svc, rocket, "Send OTP", "REST")
-Rel(stats_svc, s21, "Fetch raw data", "REST")
-
-' Инфраструктурные связи
-Rel(router, repo, "Identify student & lang")
+Rel(otp_service, rocket, "chat.postMessage / users.info", "HTTPS/REST")
+Rel(credential_service, s21, "Auth / participant API", "HTTPS/REST")
+Rel(schedule_regen, tg_transport, "Invalidate cached file_id")
+Rel(user_service, repo, "CRUD")
 Rel(repo, db, "SQL")
+Rel(tg_transport, telegram, "SendMessage / SendPhoto")
 
 @enduml

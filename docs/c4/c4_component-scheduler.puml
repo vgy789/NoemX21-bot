@@ -3,29 +3,40 @@
 
 LAYOUT_WITH_LEGEND()
 
-title Component diagram for Sync Worker (Go)
+title Component diagram for Background Jobs
 
-ContainerDb(db, "Database", "PostgreSQL", "Хранит токены кампусов и кэш ивентов/сейлов.")
-System_Ext(s21, "School 21 API", "Официальный источник данных.")
+skinparam defaultFontName Monospaced
+skinparam componentStyle rectangle
 
-Container_Boundary(sync_worker, "Sync Worker") {
-    Component(scheduler, "Task Scheduler", "Go: gocron / Ticker", "Запускает задачи по расписанию (раз в 15-60 минут).")
-    
-    Component(token_mgr, "Token Manager", "Go Logic", "Выбирает живой токен Data Provider'а для нужного кампуса.")
-    
-    Component(sync_logic, "Sync Engine", "Go Logic", "Цикл: Опрос API -> Сравнение данных -> Обновление кэша.")
-    
-    Component(s21_client, "S21 Client", "Go: HTTP Client", "Обертка над API школы с обработкой ошибок и лимитов.")
-    
-    Component(repo, "Data Repository", "Go: pgx", "Обновляет таблицы ивентов, сейлов и статистики.")
+ContainerDb(db, "PostgreSQL", "PostgreSQL")
+System_Ext(s21, "School 21 API")
+System_Ext(git_repo, "Content Git Repository")
+Container(fs, "Local Filesystem", "Disk", "Git checkout and temporary schedule PNG files.")
+
+Container_Boundary(background_runtime, "Background Services (inside Go app)") {
+    Component(app_runner, "App Runner", "errgroup", "Starts background services with Telegram and HTTP transports.")
+    Component(gitsync, "GitSync Service", "cron + go-git", "Updates the git repo and syncs YAML content into the database.")
+    Component(campus, "Campus Service", "cron", "Refreshes campuses and closes stale review requests.")
+    Component(schedule_gen, "Schedule Image Generator", "ticker + imgcache", "Builds schedule PNGs for active campuses.")
+    Component(credentials, "Credential Service", "Go service + AES-GCM", "Provides valid School 21 access tokens.")
+    Component(repo, "Repositories", "sqlc + pgx", "Data access for campuses, bookings, reviews, and catalogs.")
 }
 
-Rel_D(scheduler, sync_logic, "Инициирует запуск")
-Rel(sync_logic, token_mgr, "Запрашивает токен для кампуса")
-Rel(token_mgr, repo, "Читает токены из БД")
-Rel(sync_logic, s21_client, "Запрос данных (Events/Sales)")
-Rel(s21_client, s21, "HTTPS Request", "REST")
-Rel(sync_logic, repo, "Записывает свежие данные в кэш")
-Rel(repo, db, "SQL INSERT/UPDATE", "TCP/5432")
+Rel(app_runner, gitsync, "Start")
+Rel(app_runner, campus, "Start")
+Rel(app_runner, schedule_gen, "Start")
+
+Rel(gitsync, git_repo, "Clone / fetch", "SSH git")
+Rel(gitsync, fs, "Reads local checkout")
+Rel(gitsync, repo, "Upserts catalog and campus content")
+
+Rel(campus, credentials, "GetValidToken")
+Rel(campus, s21, "GetCampuses / GetParticipantProjects", "HTTPS/REST")
+Rel(campus, repo, "Upserts campuses and closes stale reviews")
+
+Rel(schedule_gen, repo, "Reads campuses, rooms, bookings")
+Rel(schedule_gen, fs, "Writes PNG files")
+
+Rel(repo, db, "SQL")
 
 @enduml
