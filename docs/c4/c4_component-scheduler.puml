@@ -3,39 +3,39 @@
 
 LAYOUT_WITH_LEGEND()
 
-title Component diagram for Background Jobs
+title Компоненты фоновых задач
 
 skinparam defaultFontName Monospaced
 skinparam componentStyle rectangle
 
 ContainerDb(db, "PostgreSQL", "PostgreSQL")
 System_Ext(s21, "School 21 API")
-System_Ext(git_repo, "Content Git Repository")
-Container(fs, "Local Filesystem", "Disk", "Git checkout and temporary schedule PNG files.")
+System_Ext(git_repo, "Git-репозиторий контента")
+Container(fs, "Локальная файловая система", "Disk", "Git checkout и временные schedule PNG.")
 
-Container_Boundary(background_runtime, "Background Services (inside Go app)") {
-    Component(app_runner, "App Runner", "errgroup", "Starts background services with Telegram and HTTP transports.")
-    Component(gitsync, "GitSync Service", "cron + go-git", "Updates the git repo and syncs YAML content into the database.")
-    Component(campus, "Campus Service", "cron", "Refreshes campuses and closes stale review requests.")
-    Component(schedule_gen, "Schedule Image Generator", "ticker + imgcache", "Builds schedule PNGs for active campuses.")
-    Component(credentials, "Credential Service", "Go service + AES-GCM", "Provides valid School 21 access tokens.")
-    Component(repo, "Repositories", "sqlc + pgx", "Data access for campuses, bookings, reviews, and catalogs.")
+Container_Boundary(background_runtime, "Фоновые сервисы (внутри Go-приложения)") {
+    Component(app_runner, "App runner", "errgroup", "Запускает фоновые сервисы вместе с Telegram и HTTP transport.")
+    Component(gitsync, "GitSync service", "cron + go-git", "Обновляет git-репозиторий и синхронизирует YAML-контент в БД.")
+    Component(campus, "Сервис кампусов", "cron", "Обновляет кампусы и закрывает устаревшие review requests.")
+    Component(schedule_gen, "Генератор расписаний", "ticker + imgcache", "Строит schedule PNG для активных кампусов.")
+    Component(credentials, "Сервис credentials", "Go service + AES-GCM", "Выдает валидные School 21 access tokens.")
+    Component(repo, "Репозитории", "sqlc + pgx", "Доступ к данным кампусов, bookings, reviews и catalogs.")
 }
 
-Rel(app_runner, gitsync, "Start")
-Rel(app_runner, campus, "Start")
-Rel(app_runner, schedule_gen, "Start")
+Rel(app_runner, gitsync, "Запуск")
+Rel(app_runner, campus, "Запуск")
+Rel(app_runner, schedule_gen, "Запуск")
 
 Rel(gitsync, git_repo, "Clone / fetch", "SSH git")
-Rel(gitsync, fs, "Reads local checkout")
-Rel(gitsync, repo, "Upserts catalog and campus content")
+Rel(gitsync, fs, "Читает локальный checkout")
+Rel(gitsync, repo, "Upsert каталога и campus content")
 
 Rel(campus, credentials, "GetValidToken")
 Rel(campus, s21, "GetCampuses / GetParticipantProjects", "HTTPS/REST")
-Rel(campus, repo, "Upserts campuses and closes stale reviews")
+Rel(campus, repo, "Upsert кампусов и закрытие stale reviews")
 
-Rel(schedule_gen, repo, "Reads campuses, rooms, bookings")
-Rel(schedule_gen, fs, "Writes PNG files")
+Rel(schedule_gen, repo, "Читает кампусы, комнаты и bookings")
+Rel(schedule_gen, fs, "Пишет PNG files")
 
 Rel(repo, db, "SQL")
 

@@ -1,26 +1,26 @@
-@startuml C4_Elements
+@startuml
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Container.puml
 
 LAYOUT_WITH_LEGEND()
 
-title Container diagram for NoemX21 Bot
+title Контейнеры NoemX21 Bot
 
-Person(student, "Student")
-Person_Ext(integrator, "External Integrator")
+Person(student, "Студент")
+Person_Ext(integrator, "Внешняя интеграция")
 
-System_Boundary(noemx, "NoemX21 Bot System") {
-    Container(app, "Application Runtime", "Go", "Единый процесс: Telegram transport, FSM, HTTP endpoint, фоновые sync-задачи и генерация расписаний.")
+System_Boundary(noemx, "Система NoemX21 Bot") {
+    Container(app, "Основной runtime", "Go", "Единый процесс: Telegram transport, FSM, HTTP endpoint, фоновые sync-зачи и генерация расписаний.")
     ContainerDb(db, "PostgreSQL", "PostgreSQL", "Пользователи, FSM state, кампусы, credentials, API keys, bookings, review requests, каталоги и кэш статистики.")
-    Container(fs, "Local Filesystem", "Mounted volume / local disk", "Локальный checkout git-контента и временные PNG расписаний.")
+    Container(fs, "Локальная файловая система", "Mounted volume / local disk", "Локальный checkout git-контента и временные PNG расписаний.")
 }
 
 System_Ext(telegram, "Telegram Bot API", "Messenger API")
 System_Ext(rocket, "Rocket.Chat API", "OTP / users.info")
-System_Ext(s21, "School 21 API", "Profiles, campuses, projects, skills, feedback")
-System_Ext(git_repo, "Content Git Repository", "SSH git repository with campus content and project catalog")
+System_Ext(s21, "School 21 API", "Профили, кампусы, проекты, навыки, feedback")
+System_Ext(git_repo, "Git-репозиторий контента", "SSH git-репозиторий с контентом кампусов и каталогом проектов")
 
 Rel(student, telegram, "Использует")
-Rel(telegram, app, "Updates", "Long polling or webhook")
+Rel(telegram, app, "Обновления", "Long polling или webhook")
 Rel(app, telegram, "Сообщения и фото")
 
 Rel(integrator, app, "POST /api/v1/webhook/register", "HTTP/JSON")
@@ -28,7 +28,7 @@ Rel(integrator, app, "POST /api/v1/webhook/register", "HTTP/JSON")
 Rel(app, db, "CRUD", "pgx / SQL")
 Rel(app, fs, "Читает YAML и пишет PNG расписаний")
 Rel(app, rocket, "Проверка пользователя и OTP", "HTTPS/REST")
-Rel(app, s21, "Auth + API calls", "HTTPS/REST")
+Rel(app, s21, "Auth + API-запросы", "HTTPS/REST")
 Rel(app, git_repo, "Clone / fetch", "SSH git")
 
 @enduml

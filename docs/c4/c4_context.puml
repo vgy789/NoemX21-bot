@@ -1,24 +1,24 @@
-@startuml C4_Elements
+@startuml
 !include https://raw.githubusercontent.com/plantuml-stdlib/C4-PlantUML/master/C4_Context.puml
 
 LAYOUT_WITH_LEGEND()
 
-title System Context diagram for NoemX21 Bot
+title Контекст системы NoemX21 Bot
 
-Person(student, "Student", "Основной пользователь Telegram-бота.")
-Person(admin, "Admin", "Сопровождает деплой и управляет конфигурацией.")
-Person_Ext(integrator, "External Integrator", "Проверяет привязку external_id к School 21 login через HTTP API.")
+Person(student, "Студент", "Основной пользователь Telegram-бота.")
+Person(admin, "Администратор", "Сопровождает деплой и управляет конфигурацией.")
+Person_Ext(integrator, "Внешняя интеграция", "Проверяет привязку external_id к School 21 login через HTTP API.")
 
 System(bot_system, "NoemX21 Bot", "Go-приложение: Telegram-бот, FSM, HTTP endpoint и фоновые синхронизации.")
 
-System_Ext(telegram, "Telegram Bot API", "Доставка updates и отправка сообщений пользователям.")
+System_Ext(telegram, "Telegram Bot API", "Доставка обновлений и отправка сообщений пользователям.")
 System_Ext(rocket, "Rocket.Chat API", "Проверка пользователя и доставка OTP.")
 System_Ext(s21, "School 21 API", "Профиль, кампусы, проекты, навыки, коалиция и review-данные.")
-System_Ext(git_repo, "Content Git Repository", "YAML-контент кампусов и каталог проектов для локальной синхронизации.")
-System_Ext(dokku, "Dokku / Environment", "Поставка env-конфига и запуск приложения.")
+System_Ext(git_repo, "Git-репозиторий контента", "YAML-контент кампусов и каталог проектов для локальной синхронизации.")
+System_Ext(dokku, "Dokku / окружение", "Поставка env-конфига и запуск приложения.")
 
 Rel(student, telegram, "Общается через")
-Rel(telegram, bot_system, "Updates / Webhook")
+Rel(telegram, bot_system, "Обновления / webhook")
 Rel(bot_system, telegram, "Ответы, меню, изображения расписания")
 
 Rel(bot_system, rocket, "OTP и проверка username/email", "HTTPS/REST")

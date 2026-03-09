@@ -3,7 +3,7 @@
 
 LAYOUT_WITH_LEGEND()
 
-title Component diagram for Bot Runtime
+title Компоненты bot runtime
 
 skinparam defaultFontName Monospaced
 skinparam componentStyle rectangle
@@ -13,26 +13,26 @@ System_Ext(telegram, "Telegram Bot API")
 System_Ext(rocket, "Rocket.Chat API")
 System_Ext(s21, "School 21 API")
 
-Container_Boundary(bot_runtime, "Bot Runtime (Go)") {
-    Component(tg_transport, "Telegram Transport", "gotgbot/v2", "Handles updates, callbacks, and outgoing messages.")
-    Component(fsm_engine, "FSM Engine", "Flow parser + state store", "Loads YAML flows, restores user state, routes actions.")
-    Component(action_modules, "Action Modules", "registration / booking / library / reviews / stats / settings / groups / clubs", "User-facing bot scenarios.")
-    Component(user_service, "User Service", "Go service", "Profiles, user accounts, platform links.")
-    Component(otp_service, "OTP Service", "Go service", "OTP generation, rate limits, Rocket.Chat delivery.")
-    Component(credential_service, "Credential Service", "Go service + AES-GCM", "Encrypted School 21 credentials and tokens.")
-    Component(schedule_regen, "Schedule Regenerator", "Go service + imgcache", "Builds schedule PNGs and invalidates Telegram file IDs.")
-    Component(repo, "Repositories", "sqlc + pgx", "Database access layer.")
+Container_Boundary(bot_runtime, "Bot runtime (Go)") {
+    Component(tg_transport, "Telegram transport", "gotgbot/v2", "Принимает обновления, callbacks и отправляет сообщения.")
+    Component(fsm_engine, "FSM engine", "Flow parser + state store", "Загружает YAML flows, восстанавливает state и маршрутизирует actions.")
+    Component(action_modules, "Action-модули", "registration / booking / library / reviews / stats / settings / groups / clubs", "Пользовательские сценарии бота.")
+    Component(user_service, "Сервис пользователей", "Go service", "Профили, user accounts, platform links.")
+    Component(otp_service, "OTP service", "Go service", "Генерация OTP, rate limit и доставка через Rocket.Chat.")
+    Component(credential_service, "Сервис credentials", "Go service + AES-GCM", "Зашифрованные School 21 credentials и tokens.")
+    Component(schedule_regen, "Регенерация расписаний", "Go service + imgcache", "Строит schedule PNG и инвалидирует Telegram file IDs.")
+    Component(repo, "Репозитории", "sqlc + pgx", "Слой доступа к БД.")
 }
 
-Rel(telegram, tg_transport, "Updates")
-Rel(tg_transport, fsm_engine, "Passes events")
-Rel(fsm_engine, action_modules, "Calls actions")
+Rel(telegram, tg_transport, "Обновления")
+Rel(tg_transport, fsm_engine, "Передает события")
+Rel(fsm_engine, action_modules, "Вызывает actions")
 
-Rel(action_modules, user_service, "Profiles and links")
-Rel(action_modules, otp_service, "Registration OTP flow")
-Rel(action_modules, credential_service, "School 21 auth and verify")
-Rel(action_modules, schedule_regen, "Force regenerate after booking changes")
-Rel(action_modules, repo, "Reads and writes domain data")
+Rel(action_modules, user_service, "Профили и связи")
+Rel(action_modules, otp_service, "OTP flow регистрации")
+Rel(action_modules, credential_service, "School 21 auth и verify")
+Rel(action_modules, schedule_regen, "Force regenerate после booking changes")
+Rel(action_modules, repo, "Читает и пишет доменные данные")
 
 Rel(otp_service, rocket, "chat.postMessage / users.info", "HTTPS/REST")
 Rel(credential_service, s21, "Auth / participant API", "HTTPS/REST")

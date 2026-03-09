@@ -1,0 +1,89 @@
+# Безопасность и Ограничения
+
+Документ описывает фактические ограничения и защитные меры, реализованные в текущем коде.
+
+## Внутренние ограничения
+
+### OTP resend cooldown
+
+- Источник: `auth_verification_codes`
+- Ограничение: не чаще 1 нового OTP в 60 секунд на `s21_login`
+- Поведение: при раннем повторе возвращается `RATE_LIMIT:{seconds_left}`
+
+### Registration attempt limiter
+
+- Источник: in-memory limiter
+- Область: попытки OTP/регистрации на уровне Telegram user id
+- Порог: 6 неуспешных попыток
+- Наказание: блокировка на 24 часа
+- Сброс: после успешной верификации OTP
+
+### HTTP API auth
+
+- Публичный endpoint требует заголовок `X-Secret`
+- Значение проверяется через `ApiKeyService`
+- В БД хранится только SHA-256 hash ключа, не raw secret
+
+## Внешние интеграции
+
+### School 21 API
+
+- Используется для auth, профиля, skills, coalition, feedback, campuses, participant projects
+- Сетевые ошибки и retryable HTTP-статусы обрабатываются через `netretry`
+- `CredentialService` хранит access token и при необходимости переаутентифицируется
+
+### Rocket.Chat API
+
+- Используется для `users.info` и отправки OTP в direct message
+- Сетевые ошибки и retryable HTTP-статусы обрабатываются через `netretry`
+
+### Telegram Bot API
+
+- Используется через `gotgbot/v2`
+- Режимы запуска: polling или webhook
+
+## Хранение и кэш
+
+### In-memory
+
+- cache распарсенных FSM flows
+- image byte cache для расписаний (`imgcache`)
+- cache Telegram `file_id` для уже отправленных schedule images
+- in-memory limiter попыток регистрации
+
+### PostgreSQL
+
+- `platform_credentials`: зашифрованные School 21 credentials и access token
+- `auth_verification_codes`: одноразовые OTP-коды с TTL 5 минут
+- `participant_stats_cache`: кэш статистики участников
+- остальные доменные данные: users, accounts, bookings, reviews, catalogs
+
+Redis в текущей реализации не используется.
+
+## Шифрование
+
+- Алгоритм: AES-256-GCM
+- Ключ: один `AEAD_KEY`, 32 байта в hex
+- Реализация: `tink-go/v2/aead/subtle`
+- Область применения: чувствительные поля в БД (`platform_credentials`)
+- Additional Authenticated Data: используется login пользователя
+
+## OTP
+
+- Генерируется как случайный 6-значный код
+- Срок жизни: 5 минут
+- Перед созданием нового OTP старые коды для этого login удаляются
+- После успешной проверки использованный код удаляется
+
+## Защитные меры
+
+- Секреты редактируются в логах через `config.RedactString`
+- При `TEST_MODE_NO_OTP=true` и `PRODUCTION=true` приложение завершает запуск
+- Raw API keys не сохраняются, только hash
+- School 21 credentials не логируются
+
+## Известные границы
+
+- OTP-коды сейчас хранятся в PostgreSQL, а не только в RAM
+- Регистрационный limiter сейчас не `Token Bucket`, а счётчик попыток с временной блокировкой
+- Централизованного distributed rate limiter нет

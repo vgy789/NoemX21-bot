@@ -3,20 +3,20 @@
 
 LAYOUT_WITH_LEGEND()
 
-title Component diagram for HTTP API
+title Компоненты HTTP API
 
-Person_Ext(integrator, "External Integrator", "Вызывает endpoint регистрации вебхука.")
+Person_Ext(integrator, "Внешняя интеграция", "Вызывает endpoint регистрации вебхука.")
 ContainerDb(db, "PostgreSQL", "PostgreSQL")
 
-Container_Boundary(api_runtime, "HTTP Server (inside Go app)") {
-    Component(server, "HTTP Server", "net/http + ServeMux", "Поднимает HTTP listener и маршрутизирует запросы.")
-    Component(handler, "Register Webhook Handler", "net/http handler", "Обрабатывает POST /api/v1/webhook/register.")
-    Component(api_keys, "API Key Service", "Go service", "Валидирует X-Secret по хэшу ключа.")
-    Component(repo, "Repositories", "sqlc + pgx", "Читает api_keys и user_accounts.")
+Container_Boundary(api_runtime, "HTTP server (внутри Go-приложения)") {
+    Component(server, "HTTP server", "net/http + ServeMux", "Поднимает HTTP listener и маршрутизирует запросы.")
+    Component(handler, "Webhook handler", "net/http handler", "Обрабатывает POST /api/v1/webhook/register.")
+    Component(api_keys, "Сервис API-ключей", "Go service", "Валидирует X-Secret по хэшу ключа.")
+    Component(repo, "Репозитории", "sqlc + pgx", "Читает api_keys и user_accounts.")
 }
 
 Rel(integrator, server, "POST /api/v1/webhook/register", "HTTP/JSON")
-Rel(server, handler, "Route request")
+Rel(server, handler, "Маршрутизация")
 Rel(handler, api_keys, "ValidateApiKey(X-Secret)")
 Rel(handler, repo, "GetUserAccountByExternalId")
 Rel(api_keys, repo, "GetApiKeyByHash")

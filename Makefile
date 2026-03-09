@@ -30,6 +30,7 @@ MIGRATIONS_DIR	:= internal/database/migrations
 	build run release \
 	test cover \
 	lint fmt vet security \
+	docs-c4 \
 	generate sqlc mockgen \
 	migrate-up migrate-down migrate-create \
 	docker-build docker-save \
@@ -84,6 +85,21 @@ ci: .github/workflows/ci.yml		## Run CI pipeline locally (act)
 	act push -P ubuntu-22.04=catthehacker/ubuntu:act-22.04
 
 ci-check: fmt vet lint test security yaml		## Full CI check locally
+
+# =========================
+# Docs
+# =========================
+
+docs-c4:		## Generate C4 SVG diagrams into docs/specs/system/c4
+	mkdir -p docs/specs/system/c4
+	@if command -v docker >/dev/null 2>&1; then \
+		docker run --rm -v "$(CURDIR):/workspace" -w /workspace plantuml/plantuml:latest -tsvg -o ../specs/system/c4 docs/c4/*.puml; \
+	elif command -v plantuml >/dev/null 2>&1; then \
+		plantuml -tsvg -o ../specs/system/c4 docs/c4/*.puml; \
+	else \
+		echo "docs-c4 requires either docker or plantuml in PATH"; \
+		exit 1; \
+	fi
 
 # =========================
 # Code generation
