@@ -30,7 +30,7 @@ MIGRATIONS_DIR	:= internal/database/migrations
 	build run release \
 	test cover \
 	lint fmt vet security \
-	docs-c4 \
+	docs-c4 docs-schema docs-diagrams \
 	generate sqlc mockgen \
 	migrate-up migrate-down migrate-create \
 	docker-build docker-save \
@@ -100,6 +100,18 @@ docs-c4:		## Generate C4 SVG diagrams into docs/specs/system/c4
 		echo "docs-c4 requires either docker or plantuml in PATH"; \
 		exit 1; \
 	fi
+
+docs-schema:		## Generate docs/schema.svg from docs/schema.puml
+	@if command -v docker >/dev/null 2>&1; then \
+		docker run --rm -v "$(CURDIR):/workspace" -w /workspace plantuml/plantuml:latest -tsvg docs/schema.puml; \
+	elif command -v plantuml >/dev/null 2>&1; then \
+		plantuml -tsvg docs/schema.puml; \
+	else \
+		echo "docs-schema requires either docker or plantuml in PATH"; \
+		exit 1; \
+	fi
+
+docs-diagrams: docs-c4 docs-schema		## Generate all PlantUML SVG diagrams
 
 # =========================
 # Code generation

@@ -114,7 +114,7 @@ app.Run
 Исходники лежат в `docs/c4/*.puml`, генерация:
 
 ```bash
-make docs-c4
+make docs-diagrams
 ```
 
 Артефакты:
@@ -124,3 +124,7 @@ make docs-c4
 - [Bot Components](./c4/c4_component_bot.svg)
 - [API Components](./c4/c4_component_api.svg)
 - [Scheduler Components](./c4/c4_component-scheduler.svg)
+
+## Диаграмма БД
+
+- [ER Diagram](../../schema.svg)

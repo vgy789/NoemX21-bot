@@ -52,10 +52,10 @@ make vet
 make ci-check
 ```
 
-Генерация C4-диаграмм:
+Генерация PlantUML-диаграмм:
 
 ```bash
-make docs-c4
+make docs-diagrams
 ```
 
 ## Документация
@@ -63,6 +63,7 @@ make docs-c4
 - Системные спецификации: [`docs/specs/system/`](./docs/specs/system/)
 - FSM flow-спеки: [`docs/specs/flows/`](./docs/specs/flows/)
 - Исходники C4: [`docs/c4/`](./docs/c4/)
+- ER-диаграмма БД: [`docs/schema.svg`](./docs/schema.svg)
 
 С чего начать:
 
