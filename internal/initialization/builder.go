@@ -9,6 +9,7 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/clients/s21"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/crypto"
+	"github.com/vgy789/noemx21-bot/internal/database"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/pkg/imgcache"
 	"github.com/vgy789/noemx21-bot/internal/service"
@@ -103,12 +104,18 @@ func (b *Builder) Run() error {
 	if b.log == nil {
 		return nil
 	}
+	if b.ctx == nil {
+		b.ctx = context.Background()
+	}
 
 	b.log.Info("Bot started", "version", "0.0.1", "production", b.cfg.Production, "log_level", b.cfg.LogLevel)
 
 	// Initialize Database
 	repo, err := b.BuildDatabase()
 	if err != nil {
+		return err
+	}
+	if err := database.NewMigrator(repo.Pool, b.log).Apply(b.ctx); err != nil {
 		return err
 	}
 
@@ -132,9 +139,6 @@ func (b *Builder) Run() error {
 	}
 
 	app := b.BuildApp(repo, rcClient, s21Client, credService)
-	if b.ctx == nil {
-		b.ctx = context.Background()
-	}
 	if err := app.Run(b.ctx); err != nil {
 		return err
 	}
