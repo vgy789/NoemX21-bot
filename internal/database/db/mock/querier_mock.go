@@ -291,6 +291,21 @@ func (mr *MockQuerierMockRecorder) DeactivateTelegramGroup(ctx, chatID any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeactivateTelegramGroup", reflect.TypeOf((*MockQuerier)(nil).DeactivateTelegramGroup), ctx, chatID)
 }
 
+// DeactivateTelegramGroupIfOwner mocks base method.
+func (m *MockQuerier) DeactivateTelegramGroupIfOwner(ctx context.Context, arg db.DeactivateTelegramGroupIfOwnerParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeactivateTelegramGroupIfOwner", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeactivateTelegramGroupIfOwner indicates an expected call of DeactivateTelegramGroupIfOwner.
+func (mr *MockQuerierMockRecorder) DeactivateTelegramGroupIfOwner(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeactivateTelegramGroupIfOwner", reflect.TypeOf((*MockQuerier)(nil).DeactivateTelegramGroupIfOwner), ctx, arg)
+}
+
 // DeleteAllAuthVerificationCodes mocks base method.
 func (m *MockQuerier) DeleteAllAuthVerificationCodes(ctx context.Context, s21Login pgtype.Text) error {
 	m.ctrl.T.Helper()
@@ -1002,6 +1017,21 @@ func (mr *MockQuerierMockRecorder) GetRoomByID(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRoomByID", reflect.TypeOf((*MockQuerier)(nil).GetRoomByID), ctx, arg)
 }
 
+// GetTelegramGroupByChatID mocks base method.
+func (m *MockQuerier) GetTelegramGroupByChatID(ctx context.Context, chatID int64) (db.TelegramGroup, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTelegramGroupByChatID", ctx, chatID)
+	ret0, _ := ret[0].(db.TelegramGroup)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTelegramGroupByChatID indicates an expected call of GetTelegramGroupByChatID.
+func (mr *MockQuerierMockRecorder) GetTelegramGroupByChatID(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelegramGroupByChatID", reflect.TypeOf((*MockQuerier)(nil).GetTelegramGroupByChatID), ctx, chatID)
+}
+
 // GetUserAccountByExternalId mocks base method.
 func (m *MockQuerier) GetUserAccountByExternalId(ctx context.Context, arg db.GetUserAccountByExternalIdParams) (db.UserAccount, error) {
 	m.ctrl.T.Helper()
@@ -1313,6 +1343,35 @@ func (m *MockQuerier) SetReviewRequestStatus(ctx context.Context, arg db.SetRevi
 func (mr *MockQuerierMockRecorder) SetReviewRequestStatus(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReviewRequestStatus", reflect.TypeOf((*MockQuerier)(nil).SetReviewRequestStatus), ctx, arg)
+}
+
+// UnlinkTelegramGroupOwner mocks base method.
+func (m *MockQuerier) UnlinkTelegramGroupOwner(ctx context.Context, chatID int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UnlinkTelegramGroupOwner", ctx, chatID)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UnlinkTelegramGroupOwner indicates an expected call of UnlinkTelegramGroupOwner.
+func (mr *MockQuerierMockRecorder) UnlinkTelegramGroupOwner(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnlinkTelegramGroupOwner", reflect.TypeOf((*MockQuerier)(nil).UnlinkTelegramGroupOwner), ctx, chatID)
+}
+
+// UnlinkTelegramGroupOwnerIfOwner mocks base method.
+func (m *MockQuerier) UnlinkTelegramGroupOwnerIfOwner(ctx context.Context, arg db.UnlinkTelegramGroupOwnerIfOwnerParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UnlinkTelegramGroupOwnerIfOwner", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UnlinkTelegramGroupOwnerIfOwner indicates an expected call of UnlinkTelegramGroupOwnerIfOwner.
+func (mr *MockQuerierMockRecorder) UnlinkTelegramGroupOwnerIfOwner(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnlinkTelegramGroupOwnerIfOwner", reflect.TypeOf((*MockQuerier)(nil).UnlinkTelegramGroupOwnerIfOwner), ctx, arg)
 }
 
 // UpdateRoomBookingDuration mocks base method.

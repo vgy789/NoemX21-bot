@@ -28,6 +28,7 @@ type Querier interface {
 	DeactivateClubsByCampus(ctx context.Context, campusID pgtype.UUID) error
 	DeactivateRoomsByCampus(ctx context.Context, campusID pgtype.UUID) error
 	DeactivateTelegramGroup(ctx context.Context, chatID int64) error
+	DeactivateTelegramGroupIfOwner(ctx context.Context, arg DeactivateTelegramGroupIfOwnerParams) (int64, error)
 	DeleteAllAuthVerificationCodes(ctx context.Context, s21Login pgtype.Text) error
 	DeleteAuthVerificationCode(ctx context.Context, arg DeleteAuthVerificationCodeParams) error
 	DeleteExpiredAuthVerificationCodes(ctx context.Context) error
@@ -79,6 +80,7 @@ type Querier interface {
 	GetRocketChatCredentials(ctx context.Context, s21Login string) (RocketchatCredential, error)
 	GetRoomBookingsByDate(ctx context.Context, arg GetRoomBookingsByDateParams) ([]GetRoomBookingsByDateRow, error)
 	GetRoomByID(ctx context.Context, arg GetRoomByIDParams) (Room, error)
+	GetTelegramGroupByChatID(ctx context.Context, chatID int64) (TelegramGroup, error)
 	GetUserAccountByExternalId(ctx context.Context, arg GetUserAccountByExternalIdParams) (UserAccount, error)
 	GetUserAccountByID(ctx context.Context, id int64) (UserAccount, error)
 	GetUserAccountByS21Login(ctx context.Context, s21Login string) (UserAccount, error)
@@ -100,6 +102,8 @@ type Querier interface {
 	SearchCatalogProjects(ctx context.Context, arg SearchCatalogProjectsParams) ([]SearchCatalogProjectsRow, error)
 	SearchCatalogProjectsAll(ctx context.Context, dollar_1 interface{}) ([]SearchCatalogProjectsAllRow, error)
 	SetReviewRequestStatus(ctx context.Context, arg SetReviewRequestStatusParams) (SetReviewRequestStatusRow, error)
+	UnlinkTelegramGroupOwner(ctx context.Context, chatID int64) error
+	UnlinkTelegramGroupOwnerIfOwner(ctx context.Context, arg UnlinkTelegramGroupOwnerIfOwnerParams) (int64, error)
 	UpdateRoomBookingDuration(ctx context.Context, arg UpdateRoomBookingDurationParams) error
 	UpdateUserAccountSearchableByExternalId(ctx context.Context, arg UpdateUserAccountSearchableByExternalIdParams) (UserAccount, error)
 	UpsertBook(ctx context.Context, arg UpsertBookParams) (Book, error)

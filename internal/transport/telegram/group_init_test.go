@@ -195,3 +195,111 @@ func TestHandleMyChatMember_DeactivateOnRemoved(t *testing.T) {
 	err := s.handleMyChatMember(nil, ctx)
 	require.NoError(t, err)
 }
+
+func TestHandleGroupInit_OldOwnerRevokedImmediately(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	queries := dbmock.NewMockQuerier(ctrl)
+	sender := mock.NewMockSender(ctrl)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	s := &telegramService{log: log, sender: sender, queries: queries}
+
+	bot := &gotgbot.Bot{
+		Token: "test-token",
+		User:  gotgbot.User{Id: 9000, IsBot: true, Username: "testgroupbot"},
+		BotClient: &fakeBotClient{statuses: map[int64]string{
+			3003: gotgbot.ChatMemberStatusAdministrator, // already not owner
+		}},
+	}
+
+	chatID := int64(-100123)
+	update := &gotgbot.Update{Message: &gotgbot.Message{
+		Chat: gotgbot.Chat{Id: chatID, Type: "supergroup", Title: "Group D"},
+		From: &gotgbot.User{Id: 3003, Username: "old_owner"},
+		Text: "/init",
+	}}
+	ctx := ext.NewContext(bot, update, nil)
+
+	queries.EXPECT().UnlinkTelegramGroupOwnerIfOwner(gomock.Any(), db.UnlinkTelegramGroupOwnerIfOwnerParams{
+		ChatID:              chatID,
+		OwnerTelegramUserID: int64(3003),
+	}).Return(int64(1), nil)
+
+	var msgText string
+	sender.EXPECT().SendMessage(chatID, gomock.Any(), gomock.Nil()).DoAndReturn(func(_ int64, text string, _ *gotgbot.SendMessageOpts) (*gotgbot.Message, error) {
+		msgText = text
+		return nil, nil
+	})
+
+	err := s.handleGroupInit(bot, ctx)
+	require.NoError(t, err)
+	assert.Contains(t, msgText, "привязка к админке")
+	assert.Contains(t, msgText, "Бот продолжает работать")
+}
+
+func TestHandleChatMember_AutoUnlinkWhenStoredOwnerLosesCreator(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	queries := dbmock.NewMockQuerier(ctrl)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	s := &telegramService{log: log, queries: queries}
+
+	chatID := int64(-100321)
+	ownerID := int64(7007)
+
+	update := &gotgbot.Update{
+		ChatMember: &gotgbot.ChatMemberUpdated{
+			Chat:          gotgbot.Chat{Id: chatID, Type: "supergroup", Title: "Group E"},
+			OldChatMember: gotgbot.ChatMemberOwner{User: gotgbot.User{Id: ownerID}},
+			NewChatMember: gotgbot.ChatMemberAdministrator{User: gotgbot.User{Id: ownerID}},
+		},
+	}
+	ctx := ext.NewContext(&gotgbot.Bot{}, update, nil)
+
+	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
+		ChatID:              chatID,
+		OwnerTelegramUserID: ownerID,
+		IsInitialized:       true,
+		IsActive:            true,
+	}, nil)
+	queries.EXPECT().UnlinkTelegramGroupOwner(gomock.Any(), chatID).Return(nil)
+
+	err := s.handleChatMember(nil, ctx)
+	require.NoError(t, err)
+}
+
+func TestHandleChatMember_AutoUnlinkWhenAnotherUserBecomesCreator(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	queries := dbmock.NewMockQuerier(ctrl)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	s := &telegramService{log: log, queries: queries}
+
+	chatID := int64(-100654)
+	storedOwnerID := int64(8008)
+	newOwnerID := int64(9009)
+
+	update := &gotgbot.Update{
+		ChatMember: &gotgbot.ChatMemberUpdated{
+			Chat:          gotgbot.Chat{Id: chatID, Type: "supergroup", Title: "Group F"},
+			OldChatMember: gotgbot.ChatMemberAdministrator{User: gotgbot.User{Id: newOwnerID}},
+			NewChatMember: gotgbot.ChatMemberOwner{User: gotgbot.User{Id: newOwnerID}},
+		},
+	}
+	ctx := ext.NewContext(&gotgbot.Bot{}, update, nil)
+
+	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
+		ChatID:              chatID,
+		OwnerTelegramUserID: storedOwnerID,
+		IsInitialized:       true,
+		IsActive:            true,
+	}, nil)
+	queries.EXPECT().UnlinkTelegramGroupOwner(gomock.Any(), chatID).Return(nil)
+
+	err := s.handleChatMember(nil, ctx)
+	require.NoError(t, err)
+}

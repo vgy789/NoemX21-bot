@@ -55,6 +55,7 @@ func (s *telegramService) registerHandlers(d *ext.Dispatcher) {
 	d.AddHandler(handlers.NewCommand("init", s.handleGroupInit))
 	d.AddHandler(handlers.NewCommand("group_init", s.handleGroupInit))
 	d.AddHandler(handlers.NewMyChatMember(chatmemberfilters.All, s.handleMyChatMember))
+	d.AddHandler(handlers.NewChatMember(chatmemberfilters.All, s.handleChatMember))
 	d.AddHandler(handlers.NewCallback(func(cq *gotgbot.CallbackQuery) bool { return true }, s.withCallbackDebugMiddleware(s.handleCallback)))
 	d.AddHandler(handlers.NewMessage(func(msg *gotgbot.Message) bool { return true }, s.withDurationCleanupMiddleware(s.handleTextMessage)))
 }
@@ -224,6 +225,17 @@ func (s *telegramService) handleGroupInit(b *gotgbot.Bot, ctx *ext.Context) erro
 		return nil
 	}
 	if ownerMember.GetStatus() != gotgbot.ChatMemberStatusOwner {
+		rows, revokeErr := s.queries.UnlinkTelegramGroupOwnerIfOwner(context.Background(), db.UnlinkTelegramGroupOwnerIfOwnerParams{
+			ChatID:              chatID,
+			OwnerTelegramUserID: userID,
+		})
+		if revokeErr != nil {
+			s.log.Warn("failed to unlink stale owner access", "chat_id", chatID, "user_id", userID, "error", revokeErr)
+		}
+		if rows > 0 {
+			_, _ = s.getSender(b).SendMessage(chatID, "Владелец группы изменился. Твоя привязка к админке этой группы снята. Бот продолжает работать. Новый владелец должен выполнить /init.", nil)
+			return nil
+		}
 		_, _ = s.getSender(b).SendMessage(chatID, "Инициализацию может выполнить только владелец группы.", nil)
 		return nil
 	}
@@ -298,6 +310,51 @@ func registrationRequiredGroupInitText(b *gotgbot.Bot) string {
 
 	link := fmt.Sprintf("https://t.me/%s?start=register_group_owner", username)
 	return base + "\n\nБыстрый переход: " + link
+}
+
+func (s *telegramService) handleChatMember(_ *gotgbot.Bot, ctx *ext.Context) error {
+	if ctx.ChatMember == nil || s.queries == nil {
+		return nil
+	}
+
+	chat := &ctx.ChatMember.Chat
+	if !isGroupChat(chat) {
+		return nil
+	}
+
+	group, err := s.queries.GetTelegramGroupByChatID(context.Background(), chat.Id)
+	if err != nil {
+		// Group is not initialized in DB yet or failed to load: nothing to revoke.
+		return nil
+	}
+	if !group.IsActive || !group.IsInitialized {
+		return nil
+	}
+
+	updatedUserID := ctx.ChatMember.NewChatMember.GetUser().Id
+	newStatus := ctx.ChatMember.NewChatMember.GetStatus()
+
+	shouldDeactivate := false
+	if updatedUserID == group.OwnerTelegramUserID && newStatus != gotgbot.ChatMemberStatusOwner {
+		// Stored owner lost creator status.
+		shouldDeactivate = true
+	}
+	if updatedUserID != group.OwnerTelegramUserID && newStatus == gotgbot.ChatMemberStatusOwner {
+		// Another user became creator -> ownership changed.
+		shouldDeactivate = true
+	}
+
+	if !shouldDeactivate {
+		return nil
+	}
+
+	if err := s.queries.UnlinkTelegramGroupOwner(context.Background(), chat.Id); err != nil {
+		s.log.Warn("failed to auto-unlink group owner on owner change", "chat_id", chat.Id, "error", err)
+		return nil
+	}
+
+	s.log.Info("group owner auto-unlinked on owner change", "chat_id", chat.Id, "stored_owner_user_id", group.OwnerTelegramUserID, "updated_user_id", updatedUserID, "new_status", newStatus)
+	return nil
 }
 
 func (s *telegramService) handleMyChatMember(b *gotgbot.Bot, ctx *ext.Context) error {

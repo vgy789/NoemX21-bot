@@ -73,11 +73,37 @@ WHERE owner_telegram_user_id = $1
   AND is_initialized = true
 ORDER BY chat_title;
 
+-- name: GetTelegramGroupByChatID :one
+SELECT * FROM telegram_groups
+WHERE chat_id = $1;
+
 -- name: DeactivateTelegramGroup :exec
 UPDATE telegram_groups
 SET is_active = false,
     updated_at = CURRENT_TIMESTAMP
 WHERE chat_id = $1;
+
+-- name: DeactivateTelegramGroupIfOwner :execrows
+UPDATE telegram_groups
+SET is_active = false,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2;
+
+-- name: UnlinkTelegramGroupOwner :exec
+UPDATE telegram_groups
+SET owner_telegram_user_id = 0,
+    owner_telegram_username = '',
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1;
+
+-- name: UnlinkTelegramGroupOwnerIfOwner :execrows
+UPDATE telegram_groups
+SET owner_telegram_user_id = 0,
+    owner_telegram_username = '',
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2;
 
 -- name: GetUserBotSettings :one
 SELECT * FROM user_bot_settings 

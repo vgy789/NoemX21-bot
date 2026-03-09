@@ -436,6 +436,27 @@ func (q *Queries) DeactivateTelegramGroup(ctx context.Context, chatID int64) err
 	return err
 }
 
+const deactivateTelegramGroupIfOwner = `-- name: DeactivateTelegramGroupIfOwner :execrows
+UPDATE telegram_groups
+SET is_active = false,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2
+`
+
+type DeactivateTelegramGroupIfOwnerParams struct {
+	ChatID              int64 `json:"chat_id"`
+	OwnerTelegramUserID int64 `json:"owner_telegram_user_id"`
+}
+
+func (q *Queries) DeactivateTelegramGroupIfOwner(ctx context.Context, arg DeactivateTelegramGroupIfOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deactivateTelegramGroupIfOwner, arg.ChatID, arg.OwnerTelegramUserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteAllAuthVerificationCodes = `-- name: DeleteAllAuthVerificationCodes :exec
 DELETE FROM auth_verification_codes
 WHERE s21_login = $1
@@ -2279,6 +2300,27 @@ func (q *Queries) GetRoomByID(ctx context.Context, arg GetRoomByIDParams) (Room,
 	return i, err
 }
 
+const getTelegramGroupByChatID = `-- name: GetTelegramGroupByChatID :one
+SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at FROM telegram_groups
+WHERE chat_id = $1
+`
+
+func (q *Queries) GetTelegramGroupByChatID(ctx context.Context, chatID int64) (TelegramGroup, error) {
+	row := q.db.QueryRow(ctx, getTelegramGroupByChatID, chatID)
+	var i TelegramGroup
+	err := row.Scan(
+		&i.ChatID,
+		&i.ChatTitle,
+		&i.OwnerTelegramUserID,
+		&i.OwnerTelegramUsername,
+		&i.IsInitialized,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getUserAccountByExternalId = `-- name: GetUserAccountByExternalId :one
 SELECT id, s21_login, platform, external_id, username, is_searchable, role, linked_at FROM user_accounts 
 WHERE platform = $1 AND external_id = $2
@@ -3029,6 +3071,41 @@ func (q *Queries) SetReviewRequestStatus(ctx context.Context, arg SetReviewReque
 	var i SetReviewRequestStatusRow
 	err := row.Scan(&i.ID, &i.Status)
 	return i, err
+}
+
+const unlinkTelegramGroupOwner = `-- name: UnlinkTelegramGroupOwner :exec
+UPDATE telegram_groups
+SET owner_telegram_user_id = 0,
+    owner_telegram_username = '',
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+`
+
+func (q *Queries) UnlinkTelegramGroupOwner(ctx context.Context, chatID int64) error {
+	_, err := q.db.Exec(ctx, unlinkTelegramGroupOwner, chatID)
+	return err
+}
+
+const unlinkTelegramGroupOwnerIfOwner = `-- name: UnlinkTelegramGroupOwnerIfOwner :execrows
+UPDATE telegram_groups
+SET owner_telegram_user_id = 0,
+    owner_telegram_username = '',
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2
+`
+
+type UnlinkTelegramGroupOwnerIfOwnerParams struct {
+	ChatID              int64 `json:"chat_id"`
+	OwnerTelegramUserID int64 `json:"owner_telegram_user_id"`
+}
+
+func (q *Queries) UnlinkTelegramGroupOwnerIfOwner(ctx context.Context, arg UnlinkTelegramGroupOwnerIfOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, unlinkTelegramGroupOwnerIfOwner, arg.ChatID, arg.OwnerTelegramUserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateRoomBookingDuration = `-- name: UpdateRoomBookingDuration :exec
