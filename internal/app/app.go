@@ -2,8 +2,10 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"net/http"
+	"time"
 
 	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
 	"github.com/vgy789/noemx21-bot/internal/clients/s21"
@@ -51,6 +53,8 @@ type App struct {
 
 	log *slog.Logger
 }
+
+const telegramRestartDelay = 3 * time.Second
 
 // New creates a new application instance.
 func New(cfg *config.Config, log *slog.Logger, repo *db.DBWrapper, rcClient *rocketchat.Client, s21Client *s21.Client, credService *service.CredentialService, gitSync Starter, campusSvc Starter, scheduleGen Starter, scheduleRegen ScheduleRegenerator, cache *imgcache.Store) *App {
@@ -117,22 +121,61 @@ func (a *App) Run(ctx context.Context) error {
 		a.log.Info("starting bot in webhook mode", "path", a.cfg.Telegram.Webhook.ListenPath, "port", a.cfg.Telegram.Webhook.ListenPort)
 		a.httpServer.AddHandler(a.cfg.Telegram.Webhook.ListenPath, a.tg.GetWebhookHandler())
 		group.Go(func() error {
-			err := a.tg.RunWebhook(ctx)
-			if err != nil {
-				a.log.Error("telegram webhook exited with error", "error", err)
-			}
-			return err
+			return a.runTelegramWithRestart(ctx, true)
 		})
 	} else {
 		a.log.Info("starting bot in polling mode")
 		group.Go(func() error {
-			err := a.tg.Run(ctx)
-			if err != nil {
-				a.log.Error("telegram polling exited with error", "error", err)
-			}
-			return err
+			return a.runTelegramWithRestart(ctx, false)
 		})
 	}
 
 	return group.Wait()
+}
+
+func (a *App) runTelegramWithRestart(ctx context.Context, webhook bool) error {
+	for {
+		var err error
+		if webhook {
+			err = a.tg.RunWebhook(ctx)
+		} else {
+			err = a.tg.Run(ctx)
+		}
+
+		if err == nil {
+			if ctx.Err() != nil {
+				return nil
+			}
+			a.log.Warn("telegram runner exited without error; restarting", "mode", telegramMode(webhook), "retry_in", telegramRestartDelay)
+		} else {
+			a.log.Error(
+				fmt.Sprintf("telegram %s exited with error", telegramMode(webhook)),
+				"error", err,
+				"retry_in", telegramRestartDelay,
+			)
+		}
+
+		if waitErr := waitForRetry(ctx, telegramRestartDelay); waitErr != nil {
+			return nil
+		}
+	}
+}
+
+func waitForRetry(ctx context.Context, delay time.Duration) error {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
+}
+
+func telegramMode(webhook bool) string {
+	if webhook {
+		return "webhook"
+	}
+	return "polling"
 }
