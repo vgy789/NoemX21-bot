@@ -12,6 +12,7 @@ import (
 // UserProfile represents the domain model for a user profile.
 type UserProfile struct {
 	Login         string
+	Status        db.EnumStudentStatus
 	CampusID      string
 	CampusName    string
 	CoalitionName string
@@ -63,6 +64,7 @@ func (s *userService) GetProfileByExternalID(ctx context.Context, platform db.En
 
 	return &UserProfile{
 		Login:         profile.S21Login,
+		Status:        profile.Status.EnumStudentStatus,
 		CampusID:      campusIDStr,
 		CampusName:    profile.CampusName.String,
 		CoalitionName: profile.CoalitionName.String,

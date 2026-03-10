@@ -119,6 +119,20 @@ SET member_tag_format = $3,
 WHERE chat_id = $1
   AND owner_telegram_user_id = $2;
 
+-- name: UpdateTelegramGroupDefenderEnabledByOwner :execrows
+UPDATE telegram_groups
+SET defender_enabled = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2;
+
+-- name: UpdateTelegramGroupDefenderRemoveBlockedByOwner :execrows
+UPDATE telegram_groups
+SET defender_remove_blocked = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2;
+
 -- name: UpsertTelegramGroupMember :one
 INSERT INTO telegram_group_members (
     chat_id, telegram_user_id, is_member, is_bot, last_status, last_seen_at
@@ -148,6 +162,52 @@ WHERE chat_id = $1
   AND is_member = true
 ORDER BY telegram_user_id;
 
+-- name: UpsertTelegramGroupWhitelist :one
+INSERT INTO telegram_group_whitelists (
+    chat_id, telegram_user_id, added_by_account_id
+) VALUES (
+    $1, $2, $3
+)
+ON CONFLICT (chat_id, telegram_user_id) DO UPDATE SET
+    added_by_account_id = EXCLUDED.added_by_account_id,
+    created_at = CURRENT_TIMESTAMP
+RETURNING *;
+
+-- name: DeleteTelegramGroupWhitelistByOwner :execrows
+DELETE FROM telegram_group_whitelists w
+USING telegram_groups g
+WHERE w.chat_id = $1
+  AND w.telegram_user_id = $2
+  AND g.chat_id = w.chat_id
+  AND g.owner_telegram_user_id = $3;
+
+-- name: ListTelegramGroupWhitelists :many
+SELECT * FROM telegram_group_whitelists
+WHERE chat_id = $1
+ORDER BY created_at DESC
+LIMIT sqlc.arg(row_limit);
+
+-- name: ExistsTelegramGroupWhitelist :one
+SELECT EXISTS (
+    SELECT 1
+    FROM telegram_group_whitelists
+    WHERE chat_id = $1
+      AND telegram_user_id = $2
+);
+
+-- name: InsertTelegramGroupLog :exec
+INSERT INTO telegram_group_logs (
+    chat_id, source, telegram_user_id, action, reason, details
+) VALUES (
+    $1, $2, $3, $4, $5, $6
+);
+
+-- name: ListTelegramGroupLogs :many
+SELECT * FROM telegram_group_logs
+WHERE chat_id = $1
+ORDER BY created_at DESC
+LIMIT sqlc.arg(row_limit);
+
 -- name: ListMemberTagGroupsByTelegramUser :many
 SELECT g.*
 FROM telegram_groups g
@@ -162,6 +222,12 @@ ORDER BY g.chat_title;
 -- name: GetUserBotSettings :one
 SELECT * FROM user_bot_settings 
 WHERE user_account_id = $1;
+
+-- name: GetUserAccountIDByExternalId :one
+SELECT id
+FROM user_accounts
+WHERE platform = $1
+  AND external_id = $2;
 
 -- name: UpsertUserBotSettings :one
 INSERT INTO user_bot_settings (

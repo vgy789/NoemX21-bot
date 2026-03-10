@@ -542,6 +542,29 @@ func (q *Queries) DeleteStaleProjectsCatalog(ctx context.Context, syncBatchID in
 	return err
 }
 
+const deleteTelegramGroupWhitelistByOwner = `-- name: DeleteTelegramGroupWhitelistByOwner :execrows
+DELETE FROM telegram_group_whitelists w
+USING telegram_groups g
+WHERE w.chat_id = $1
+  AND w.telegram_user_id = $2
+  AND g.chat_id = w.chat_id
+  AND g.owner_telegram_user_id = $3
+`
+
+type DeleteTelegramGroupWhitelistByOwnerParams struct {
+	ChatID              int64 `json:"chat_id"`
+	TelegramUserID      int64 `json:"telegram_user_id"`
+	OwnerTelegramUserID int64 `json:"owner_telegram_user_id"`
+}
+
+func (q *Queries) DeleteTelegramGroupWhitelistByOwner(ctx context.Context, arg DeleteTelegramGroupWhitelistByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTelegramGroupWhitelistByOwner, arg.ChatID, arg.TelegramUserID, arg.OwnerTelegramUserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteUserAccountByExternalId = `-- name: DeleteUserAccountByExternalId :exec
 DELETE FROM user_accounts
 WHERE platform = $1 AND external_id = $2
@@ -574,6 +597,27 @@ type ExistsOpenReviewRequestByUserAndProjectParams struct {
 
 func (q *Queries) ExistsOpenReviewRequestByUserAndProject(ctx context.Context, arg ExistsOpenReviewRequestByUserAndProjectParams) (bool, error) {
 	row := q.db.QueryRow(ctx, existsOpenReviewRequestByUserAndProject, arg.RequesterUserID, arg.ProjectID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const existsTelegramGroupWhitelist = `-- name: ExistsTelegramGroupWhitelist :one
+SELECT EXISTS (
+    SELECT 1
+    FROM telegram_group_whitelists
+    WHERE chat_id = $1
+      AND telegram_user_id = $2
+)
+`
+
+type ExistsTelegramGroupWhitelistParams struct {
+	ChatID         int64 `json:"chat_id"`
+	TelegramUserID int64 `json:"telegram_user_id"`
+}
+
+func (q *Queries) ExistsTelegramGroupWhitelist(ctx context.Context, arg ExistsTelegramGroupWhitelistParams) (bool, error) {
+	row := q.db.QueryRow(ctx, existsTelegramGroupWhitelist, arg.ChatID, arg.TelegramUserID)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
@@ -2301,7 +2345,7 @@ func (q *Queries) GetRoomByID(ctx context.Context, arg GetRoomByIDParams) (Room,
 }
 
 const getTelegramGroupByChatID = `-- name: GetTelegramGroupByChatID :one
-SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format FROM telegram_groups
+SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked FROM telegram_groups
 WHERE chat_id = $1
 `
 
@@ -2319,6 +2363,8 @@ func (q *Queries) GetTelegramGroupByChatID(ctx context.Context, chatID int64) (T
 		&i.UpdatedAt,
 		&i.MemberTagsEnabled,
 		&i.MemberTagFormat,
+		&i.DefenderEnabled,
+		&i.DefenderRemoveBlocked,
 	)
 	return i, err
 }
@@ -2389,6 +2435,25 @@ func (q *Queries) GetUserAccountByS21Login(ctx context.Context, s21Login string)
 		&i.LinkedAt,
 	)
 	return i, err
+}
+
+const getUserAccountIDByExternalId = `-- name: GetUserAccountIDByExternalId :one
+SELECT id
+FROM user_accounts
+WHERE platform = $1
+  AND external_id = $2
+`
+
+type GetUserAccountIDByExternalIdParams struct {
+	Platform   EnumPlatform `json:"platform"`
+	ExternalID string       `json:"external_id"`
+}
+
+func (q *Queries) GetUserAccountIDByExternalId(ctx context.Context, arg GetUserAccountIDByExternalIdParams) (int64, error) {
+	row := q.db.QueryRow(ctx, getUserAccountIDByExternalId, arg.Platform, arg.ExternalID)
+	var id int64
+	err := row.Scan(&id)
+	return id, err
 }
 
 const getUserActiveLoanCount = `-- name: GetUserActiveLoanCount :one
@@ -2589,8 +2654,37 @@ func (q *Queries) IncrementReviewRequestViewCount(ctx context.Context, id int64)
 	return view_count, err
 }
 
+const insertTelegramGroupLog = `-- name: InsertTelegramGroupLog :exec
+INSERT INTO telegram_group_logs (
+    chat_id, source, telegram_user_id, action, reason, details
+) VALUES (
+    $1, $2, $3, $4, $5, $6
+)
+`
+
+type InsertTelegramGroupLogParams struct {
+	ChatID         int64  `json:"chat_id"`
+	Source         string `json:"source"`
+	TelegramUserID int64  `json:"telegram_user_id"`
+	Action         string `json:"action"`
+	Reason         string `json:"reason"`
+	Details        string `json:"details"`
+}
+
+func (q *Queries) InsertTelegramGroupLog(ctx context.Context, arg InsertTelegramGroupLogParams) error {
+	_, err := q.db.Exec(ctx, insertTelegramGroupLog,
+		arg.ChatID,
+		arg.Source,
+		arg.TelegramUserID,
+		arg.Action,
+		arg.Reason,
+		arg.Details,
+	)
+	return err
+}
+
 const listMemberTagGroupsByTelegramUser = `-- name: ListMemberTagGroupsByTelegramUser :many
-SELECT g.chat_id, g.chat_title, g.owner_telegram_user_id, g.owner_telegram_username, g.is_initialized, g.is_active, g.created_at, g.updated_at, g.member_tags_enabled, g.member_tag_format
+SELECT g.chat_id, g.chat_title, g.owner_telegram_user_id, g.owner_telegram_username, g.is_initialized, g.is_active, g.created_at, g.updated_at, g.member_tags_enabled, g.member_tag_format, g.defender_enabled, g.defender_remove_blocked
 FROM telegram_groups g
 JOIN telegram_group_members m ON m.chat_id = g.chat_id
 WHERE m.telegram_user_id = $1
@@ -2621,6 +2715,8 @@ func (q *Queries) ListMemberTagGroupsByTelegramUser(ctx context.Context, telegra
 			&i.UpdatedAt,
 			&i.MemberTagsEnabled,
 			&i.MemberTagFormat,
+			&i.DefenderEnabled,
+			&i.DefenderRemoveBlocked,
 		); err != nil {
 			return nil, err
 		}
@@ -2667,8 +2763,87 @@ func (q *Queries) ListTelegramGroupKnownMembers(ctx context.Context, chatID int6
 	return items, nil
 }
 
+const listTelegramGroupLogs = `-- name: ListTelegramGroupLogs :many
+SELECT id, chat_id, source, telegram_user_id, action, reason, details, created_at FROM telegram_group_logs
+WHERE chat_id = $1
+ORDER BY created_at DESC
+LIMIT $2
+`
+
+type ListTelegramGroupLogsParams struct {
+	ChatID   int64 `json:"chat_id"`
+	RowLimit int32 `json:"row_limit"`
+}
+
+func (q *Queries) ListTelegramGroupLogs(ctx context.Context, arg ListTelegramGroupLogsParams) ([]TelegramGroupLog, error) {
+	rows, err := q.db.Query(ctx, listTelegramGroupLogs, arg.ChatID, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TelegramGroupLog
+	for rows.Next() {
+		var i TelegramGroupLog
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.Source,
+			&i.TelegramUserID,
+			&i.Action,
+			&i.Reason,
+			&i.Details,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTelegramGroupWhitelists = `-- name: ListTelegramGroupWhitelists :many
+SELECT id, chat_id, telegram_user_id, added_by_account_id, created_at FROM telegram_group_whitelists
+WHERE chat_id = $1
+ORDER BY created_at DESC
+LIMIT $2
+`
+
+type ListTelegramGroupWhitelistsParams struct {
+	ChatID   int64 `json:"chat_id"`
+	RowLimit int32 `json:"row_limit"`
+}
+
+func (q *Queries) ListTelegramGroupWhitelists(ctx context.Context, arg ListTelegramGroupWhitelistsParams) ([]TelegramGroupWhitelist, error) {
+	rows, err := q.db.Query(ctx, listTelegramGroupWhitelists, arg.ChatID, arg.RowLimit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TelegramGroupWhitelist
+	for rows.Next() {
+		var i TelegramGroupWhitelist
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.TelegramUserID,
+			&i.AddedByAccountID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTelegramGroupsByOwner = `-- name: ListTelegramGroupsByOwner :many
-SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format FROM telegram_groups
+SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked FROM telegram_groups
 WHERE owner_telegram_user_id = $1
   AND is_active = true
   AND is_initialized = true
@@ -2695,6 +2870,8 @@ func (q *Queries) ListTelegramGroupsByOwner(ctx context.Context, ownerTelegramUs
 			&i.UpdatedAt,
 			&i.MemberTagsEnabled,
 			&i.MemberTagFormat,
+			&i.DefenderEnabled,
+			&i.DefenderRemoveBlocked,
 		); err != nil {
 			return nil, err
 		}
@@ -3232,6 +3409,50 @@ type UpdateRoomBookingDurationParams struct {
 func (q *Queries) UpdateRoomBookingDuration(ctx context.Context, arg UpdateRoomBookingDurationParams) error {
 	_, err := q.db.Exec(ctx, updateRoomBookingDuration, arg.ID, arg.UserID, arg.DurationMinutes)
 	return err
+}
+
+const updateTelegramGroupDefenderEnabledByOwner = `-- name: UpdateTelegramGroupDefenderEnabledByOwner :execrows
+UPDATE telegram_groups
+SET defender_enabled = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2
+`
+
+type UpdateTelegramGroupDefenderEnabledByOwnerParams struct {
+	ChatID              int64 `json:"chat_id"`
+	OwnerTelegramUserID int64 `json:"owner_telegram_user_id"`
+	DefenderEnabled     bool  `json:"defender_enabled"`
+}
+
+func (q *Queries) UpdateTelegramGroupDefenderEnabledByOwner(ctx context.Context, arg UpdateTelegramGroupDefenderEnabledByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateTelegramGroupDefenderEnabledByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.DefenderEnabled)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateTelegramGroupDefenderRemoveBlockedByOwner = `-- name: UpdateTelegramGroupDefenderRemoveBlockedByOwner :execrows
+UPDATE telegram_groups
+SET defender_remove_blocked = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2
+`
+
+type UpdateTelegramGroupDefenderRemoveBlockedByOwnerParams struct {
+	ChatID                int64 `json:"chat_id"`
+	OwnerTelegramUserID   int64 `json:"owner_telegram_user_id"`
+	DefenderRemoveBlocked bool  `json:"defender_remove_blocked"`
+}
+
+func (q *Queries) UpdateTelegramGroupDefenderRemoveBlockedByOwner(ctx context.Context, arg UpdateTelegramGroupDefenderRemoveBlockedByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateTelegramGroupDefenderRemoveBlockedByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.DefenderRemoveBlocked)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateTelegramGroupMemberTagFormatByOwner = `-- name: UpdateTelegramGroupMemberTagFormatByOwner :execrows
@@ -3956,7 +4177,7 @@ ON CONFLICT (chat_id) DO UPDATE SET
     is_initialized = EXCLUDED.is_initialized,
     is_active = EXCLUDED.is_active,
     updated_at = CURRENT_TIMESTAMP
-RETURNING chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format
+RETURNING chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked
 `
 
 type UpsertTelegramGroupParams struct {
@@ -3989,6 +4210,8 @@ func (q *Queries) UpsertTelegramGroup(ctx context.Context, arg UpsertTelegramGro
 		&i.UpdatedAt,
 		&i.MemberTagsEnabled,
 		&i.MemberTagFormat,
+		&i.DefenderEnabled,
+		&i.DefenderRemoveBlocked,
 	)
 	return i, err
 }
@@ -4035,6 +4258,37 @@ func (q *Queries) UpsertTelegramGroupMember(ctx context.Context, arg UpsertTeleg
 		&i.LastStatus,
 		&i.LastSeenAt,
 		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const upsertTelegramGroupWhitelist = `-- name: UpsertTelegramGroupWhitelist :one
+INSERT INTO telegram_group_whitelists (
+    chat_id, telegram_user_id, added_by_account_id
+) VALUES (
+    $1, $2, $3
+)
+ON CONFLICT (chat_id, telegram_user_id) DO UPDATE SET
+    added_by_account_id = EXCLUDED.added_by_account_id,
+    created_at = CURRENT_TIMESTAMP
+RETURNING id, chat_id, telegram_user_id, added_by_account_id, created_at
+`
+
+type UpsertTelegramGroupWhitelistParams struct {
+	ChatID           int64 `json:"chat_id"`
+	TelegramUserID   int64 `json:"telegram_user_id"`
+	AddedByAccountID int64 `json:"added_by_account_id"`
+}
+
+func (q *Queries) UpsertTelegramGroupWhitelist(ctx context.Context, arg UpsertTelegramGroupWhitelistParams) (TelegramGroupWhitelist, error) {
+	row := q.db.QueryRow(ctx, upsertTelegramGroupWhitelist, arg.ChatID, arg.TelegramUserID, arg.AddedByAccountID)
+	var i TelegramGroupWhitelist
+	err := row.Scan(
+		&i.ID,
+		&i.ChatID,
+		&i.TelegramUserID,
+		&i.AddedByAccountID,
+		&i.CreatedAt,
 	)
 	return i, err
 }

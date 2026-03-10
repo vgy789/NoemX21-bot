@@ -30,6 +30,12 @@ var preformattedContextKeys = map[string]bool{
 	"my_selected_negotiating_contact_block": true,
 	"current_project_filters_text":          true,
 	"selected_project_name_md":              true,
+	"defender_preview_summary_ru":           true,
+	"defender_preview_summary_en":           true,
+	"defender_logs_list_ru":                 true,
+	"defender_logs_list_en":                 true,
+	"defender_whitelist_list_ru":            true,
+	"defender_whitelist_list_en":            true,
 }
 
 // Engine handles the core FSM logic.

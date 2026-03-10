@@ -443,6 +443,19 @@ type TelegramGroup struct {
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
 	MemberTagsEnabled     bool               `json:"member_tags_enabled"`
 	MemberTagFormat       string             `json:"member_tag_format"`
+	DefenderEnabled       bool               `json:"defender_enabled"`
+	DefenderRemoveBlocked bool               `json:"defender_remove_blocked"`
+}
+
+type TelegramGroupLog struct {
+	ID             int64              `json:"id"`
+	ChatID         int64              `json:"chat_id"`
+	Source         string             `json:"source"`
+	TelegramUserID int64              `json:"telegram_user_id"`
+	Action         string             `json:"action"`
+	Reason         string             `json:"reason"`
+	Details        string             `json:"details"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 }
 
 type TelegramGroupMember struct {
@@ -453,6 +466,14 @@ type TelegramGroupMember struct {
 	LastStatus     string             `json:"last_status"`
 	LastSeenAt     pgtype.Timestamptz `json:"last_seen_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type TelegramGroupWhitelist struct {
+	ID               int64              `json:"id"`
+	ChatID           int64              `json:"chat_id"`
+	TelegramUserID   int64              `json:"telegram_user_id"`
+	AddedByAccountID int64              `json:"added_by_account_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
 }
 
 type UserAccount struct {

@@ -80,6 +80,8 @@ const (
 	ContextKeyNotifier ContextKey = "notifier"
 	// ContextKeyMemberTagRunner is used to store transport-level member tags runner.
 	ContextKeyMemberTagRunner ContextKey = "member_tag_runner"
+	// ContextKeyDefenderRunner is used to store transport-level defender runner.
+	ContextKeyDefenderRunner ContextKey = "defender_runner"
 )
 
 // UserInfo represents basic user metadata from the transport layer
@@ -125,6 +127,32 @@ type MemberTagRunner interface {
 	SyncMemberTagsForRegisteredUser(ctx context.Context, telegramUserID int64) error
 }
 
+// DefenderRunResult contains aggregated counters for a defender run.
+type DefenderRunResult struct {
+	Removed             int
+	SkippedWhitelist    int
+	SkippedNotMember    int
+	SkippedNoRights     int
+	SkippedUnregistered int
+	SkippedBlocked      int
+	Errors              int
+}
+
+// DefenderPreviewItem describes a user that matches defender rules during preview.
+type DefenderPreviewItem struct {
+	TelegramUserID int64
+	DisplayName    string
+	Username       string
+	Reason         string
+}
+
+// DefenderRunner executes defender operations bound to transport capabilities.
+type DefenderRunner interface {
+	RunGroupDefender(ctx context.Context, ownerTelegramUserID, chatID int64) (DefenderRunResult, error)
+	PreviewGroupDefenderCandidates(ctx context.Context, ownerTelegramUserID, chatID int64) ([]DefenderPreviewItem, error)
+	ResolveGroupMemberIdentity(ctx context.Context, ownerTelegramUserID, chatID, telegramUserID int64) (displayName, username string, err error)
+}
+
 // NotifierFromContext extracts a Notifier from context.
 func NotifierFromContext(ctx context.Context) (Notifier, bool) {
 	if ctx == nil {
@@ -149,5 +177,14 @@ func MemberTagRunnerFromContext(ctx context.Context) (MemberTagRunner, bool) {
 		return nil, false
 	}
 	r, ok := ctx.Value(ContextKeyMemberTagRunner).(MemberTagRunner)
+	return r, ok && r != nil
+}
+
+// DefenderRunnerFromContext extracts a DefenderRunner from context.
+func DefenderRunnerFromContext(ctx context.Context) (DefenderRunner, bool) {
+	if ctx == nil {
+		return nil, false
+	}
+	r, ok := ctx.Value(ContextKeyDefenderRunner).(DefenderRunner)
 	return r, ok && r != nil
 }

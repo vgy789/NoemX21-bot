@@ -26,6 +26,7 @@ type rawChatMember struct {
 	Tag           string `json:"tag,omitempty"`
 	CanManageTags bool   `json:"can_manage_tags,omitempty"`
 	CanEditTag    bool   `json:"can_edit_tag,omitempty"`
+	CanRestrict   bool   `json:"can_restrict_members,omitempty"`
 	User          struct {
 		ID    int64 `json:"id"`
 		IsBot bool  `json:"is_bot"`

@@ -254,6 +254,8 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 
 		return "", updates, nil
 	})
+
+	registerDefenderActions(registry, log, queries)
 }
 
 func resetGroupSlots(updates map[string]any) {

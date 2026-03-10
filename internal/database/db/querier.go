@@ -37,8 +37,10 @@ type Querier interface {
 	DeleteStaleProjectNodesCatalog(ctx context.Context, syncBatchID int64) error
 	DeleteStaleProjectSearchCatalog(ctx context.Context, syncBatchID int64) error
 	DeleteStaleProjectsCatalog(ctx context.Context, syncBatchID int64) error
+	DeleteTelegramGroupWhitelistByOwner(ctx context.Context, arg DeleteTelegramGroupWhitelistByOwnerParams) (int64, error)
 	DeleteUserAccountByExternalId(ctx context.Context, arg DeleteUserAccountByExternalIdParams) error
 	ExistsOpenReviewRequestByUserAndProject(ctx context.Context, arg ExistsOpenReviewRequestByUserAndProjectParams) (bool, error)
+	ExistsTelegramGroupWhitelist(ctx context.Context, arg ExistsTelegramGroupWhitelistParams) (bool, error)
 	GetActiveApiKey(ctx context.Context, userAccountID int64) (ApiKey, error)
 	GetActiveRoomsByCampus(ctx context.Context, campusID pgtype.UUID) ([]Room, error)
 	GetAllActiveCampuses(ctx context.Context) ([]GetAllActiveCampusesRow, error)
@@ -84,6 +86,7 @@ type Querier interface {
 	GetUserAccountByExternalId(ctx context.Context, arg GetUserAccountByExternalIdParams) (UserAccount, error)
 	GetUserAccountByID(ctx context.Context, id int64) (UserAccount, error)
 	GetUserAccountByS21Login(ctx context.Context, s21Login string) (UserAccount, error)
+	GetUserAccountIDByExternalId(ctx context.Context, arg GetUserAccountIDByExternalIdParams) (int64, error)
 	GetUserActiveLoanCount(ctx context.Context, userID int64) (int32, error)
 	GetUserBookLoans(ctx context.Context, userID int64) ([]GetUserBookLoansRow, error)
 	GetUserBotSettings(ctx context.Context, userAccountID int64) (UserBotSetting, error)
@@ -92,8 +95,11 @@ type Querier interface {
 	HasActiveBooks(ctx context.Context, campusID pgtype.UUID) (bool, error)
 	HasActiveRooms(ctx context.Context, campusID pgtype.UUID) (bool, error)
 	IncrementReviewRequestViewCount(ctx context.Context, id int64) (int32, error)
+	InsertTelegramGroupLog(ctx context.Context, arg InsertTelegramGroupLogParams) error
 	ListMemberTagGroupsByTelegramUser(ctx context.Context, telegramUserID int64) ([]TelegramGroup, error)
 	ListTelegramGroupKnownMembers(ctx context.Context, chatID int64) ([]TelegramGroupMember, error)
+	ListTelegramGroupLogs(ctx context.Context, arg ListTelegramGroupLogsParams) ([]TelegramGroupLog, error)
+	ListTelegramGroupWhitelists(ctx context.Context, arg ListTelegramGroupWhitelistsParams) ([]TelegramGroupWhitelist, error)
 	ListTelegramGroupsByOwner(ctx context.Context, ownerTelegramUserID int64) ([]TelegramGroup, error)
 	MarkReviewRequestNegotiatingAndIncrementResponses(ctx context.Context, arg MarkReviewRequestNegotiatingAndIncrementResponsesParams) (MarkReviewRequestNegotiatingAndIncrementResponsesRow, error)
 	MarkTelegramGroupMemberLeft(ctx context.Context, arg MarkTelegramGroupMemberLeftParams) error
@@ -108,6 +114,8 @@ type Querier interface {
 	UnlinkTelegramGroupOwner(ctx context.Context, chatID int64) error
 	UnlinkTelegramGroupOwnerIfOwner(ctx context.Context, arg UnlinkTelegramGroupOwnerIfOwnerParams) (int64, error)
 	UpdateRoomBookingDuration(ctx context.Context, arg UpdateRoomBookingDurationParams) error
+	UpdateTelegramGroupDefenderEnabledByOwner(ctx context.Context, arg UpdateTelegramGroupDefenderEnabledByOwnerParams) (int64, error)
+	UpdateTelegramGroupDefenderRemoveBlockedByOwner(ctx context.Context, arg UpdateTelegramGroupDefenderRemoveBlockedByOwnerParams) (int64, error)
 	UpdateTelegramGroupMemberTagFormatByOwner(ctx context.Context, arg UpdateTelegramGroupMemberTagFormatByOwnerParams) (int64, error)
 	UpdateTelegramGroupMemberTagsEnabledByOwner(ctx context.Context, arg UpdateTelegramGroupMemberTagsEnabledByOwnerParams) (int64, error)
 	UpdateUserAccountSearchableByExternalId(ctx context.Context, arg UpdateUserAccountSearchableByExternalIdParams) (UserAccount, error)
@@ -130,6 +138,7 @@ type Querier interface {
 	UpsertSkill(ctx context.Context, arg UpsertSkillParams) (Skill, error)
 	UpsertTelegramGroup(ctx context.Context, arg UpsertTelegramGroupParams) (TelegramGroup, error)
 	UpsertTelegramGroupMember(ctx context.Context, arg UpsertTelegramGroupMemberParams) (TelegramGroupMember, error)
+	UpsertTelegramGroupWhitelist(ctx context.Context, arg UpsertTelegramGroupWhitelistParams) (TelegramGroupWhitelist, error)
 	UpsertUserBotSettings(ctx context.Context, arg UpsertUserBotSettingsParams) (UserBotSetting, error)
 }
 

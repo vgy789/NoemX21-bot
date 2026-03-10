@@ -418,6 +418,21 @@ func (mr *MockQuerierMockRecorder) DeleteStaleProjectsCatalog(ctx, syncBatchID a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStaleProjectsCatalog", reflect.TypeOf((*MockQuerier)(nil).DeleteStaleProjectsCatalog), ctx, syncBatchID)
 }
 
+// DeleteTelegramGroupWhitelistByOwner mocks base method.
+func (m *MockQuerier) DeleteTelegramGroupWhitelistByOwner(ctx context.Context, arg db.DeleteTelegramGroupWhitelistByOwnerParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteTelegramGroupWhitelistByOwner", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteTelegramGroupWhitelistByOwner indicates an expected call of DeleteTelegramGroupWhitelistByOwner.
+func (mr *MockQuerierMockRecorder) DeleteTelegramGroupWhitelistByOwner(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTelegramGroupWhitelistByOwner", reflect.TypeOf((*MockQuerier)(nil).DeleteTelegramGroupWhitelistByOwner), ctx, arg)
+}
+
 // DeleteUserAccountByExternalId mocks base method.
 func (m *MockQuerier) DeleteUserAccountByExternalId(ctx context.Context, arg db.DeleteUserAccountByExternalIdParams) error {
 	m.ctrl.T.Helper()
@@ -445,6 +460,21 @@ func (m *MockQuerier) ExistsOpenReviewRequestByUserAndProject(ctx context.Contex
 func (mr *MockQuerierMockRecorder) ExistsOpenReviewRequestByUserAndProject(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExistsOpenReviewRequestByUserAndProject", reflect.TypeOf((*MockQuerier)(nil).ExistsOpenReviewRequestByUserAndProject), ctx, arg)
+}
+
+// ExistsTelegramGroupWhitelist mocks base method.
+func (m *MockQuerier) ExistsTelegramGroupWhitelist(ctx context.Context, arg db.ExistsTelegramGroupWhitelistParams) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExistsTelegramGroupWhitelist", ctx, arg)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExistsTelegramGroupWhitelist indicates an expected call of ExistsTelegramGroupWhitelist.
+func (mr *MockQuerierMockRecorder) ExistsTelegramGroupWhitelist(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExistsTelegramGroupWhitelist", reflect.TypeOf((*MockQuerier)(nil).ExistsTelegramGroupWhitelist), ctx, arg)
 }
 
 // GetActiveApiKey mocks base method.
@@ -1077,6 +1107,21 @@ func (mr *MockQuerierMockRecorder) GetUserAccountByS21Login(ctx, s21Login any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserAccountByS21Login", reflect.TypeOf((*MockQuerier)(nil).GetUserAccountByS21Login), ctx, s21Login)
 }
 
+// GetUserAccountIDByExternalId mocks base method.
+func (m *MockQuerier) GetUserAccountIDByExternalId(ctx context.Context, arg db.GetUserAccountIDByExternalIdParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserAccountIDByExternalId", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserAccountIDByExternalId indicates an expected call of GetUserAccountIDByExternalId.
+func (mr *MockQuerierMockRecorder) GetUserAccountIDByExternalId(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserAccountIDByExternalId", reflect.TypeOf((*MockQuerier)(nil).GetUserAccountIDByExternalId), ctx, arg)
+}
+
 // GetUserActiveLoanCount mocks base method.
 func (m *MockQuerier) GetUserActiveLoanCount(ctx context.Context, userID int64) (int32, error) {
 	m.ctrl.T.Helper()
@@ -1197,6 +1242,20 @@ func (mr *MockQuerierMockRecorder) IncrementReviewRequestViewCount(ctx, id any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementReviewRequestViewCount", reflect.TypeOf((*MockQuerier)(nil).IncrementReviewRequestViewCount), ctx, id)
 }
 
+// InsertTelegramGroupLog mocks base method.
+func (m *MockQuerier) InsertTelegramGroupLog(ctx context.Context, arg db.InsertTelegramGroupLogParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertTelegramGroupLog", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertTelegramGroupLog indicates an expected call of InsertTelegramGroupLog.
+func (mr *MockQuerierMockRecorder) InsertTelegramGroupLog(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTelegramGroupLog", reflect.TypeOf((*MockQuerier)(nil).InsertTelegramGroupLog), ctx, arg)
+}
+
 // ListMemberTagGroupsByTelegramUser mocks base method.
 func (m *MockQuerier) ListMemberTagGroupsByTelegramUser(ctx context.Context, telegramUserID int64) ([]db.TelegramGroup, error) {
 	m.ctrl.T.Helper()
@@ -1225,6 +1284,36 @@ func (m *MockQuerier) ListTelegramGroupKnownMembers(ctx context.Context, chatID 
 func (mr *MockQuerierMockRecorder) ListTelegramGroupKnownMembers(ctx, chatID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTelegramGroupKnownMembers", reflect.TypeOf((*MockQuerier)(nil).ListTelegramGroupKnownMembers), ctx, chatID)
+}
+
+// ListTelegramGroupLogs mocks base method.
+func (m *MockQuerier) ListTelegramGroupLogs(ctx context.Context, arg db.ListTelegramGroupLogsParams) ([]db.TelegramGroupLog, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListTelegramGroupLogs", ctx, arg)
+	ret0, _ := ret[0].([]db.TelegramGroupLog)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListTelegramGroupLogs indicates an expected call of ListTelegramGroupLogs.
+func (mr *MockQuerierMockRecorder) ListTelegramGroupLogs(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTelegramGroupLogs", reflect.TypeOf((*MockQuerier)(nil).ListTelegramGroupLogs), ctx, arg)
+}
+
+// ListTelegramGroupWhitelists mocks base method.
+func (m *MockQuerier) ListTelegramGroupWhitelists(ctx context.Context, arg db.ListTelegramGroupWhitelistsParams) ([]db.TelegramGroupWhitelist, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListTelegramGroupWhitelists", ctx, arg)
+	ret0, _ := ret[0].([]db.TelegramGroupWhitelist)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListTelegramGroupWhitelists indicates an expected call of ListTelegramGroupWhitelists.
+func (mr *MockQuerierMockRecorder) ListTelegramGroupWhitelists(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTelegramGroupWhitelists", reflect.TypeOf((*MockQuerier)(nil).ListTelegramGroupWhitelists), ctx, arg)
 }
 
 // ListTelegramGroupsByOwner mocks base method.
@@ -1430,6 +1519,36 @@ func (m *MockQuerier) UpdateRoomBookingDuration(ctx context.Context, arg db.Upda
 func (mr *MockQuerierMockRecorder) UpdateRoomBookingDuration(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRoomBookingDuration", reflect.TypeOf((*MockQuerier)(nil).UpdateRoomBookingDuration), ctx, arg)
+}
+
+// UpdateTelegramGroupDefenderEnabledByOwner mocks base method.
+func (m *MockQuerier) UpdateTelegramGroupDefenderEnabledByOwner(ctx context.Context, arg db.UpdateTelegramGroupDefenderEnabledByOwnerParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTelegramGroupDefenderEnabledByOwner", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateTelegramGroupDefenderEnabledByOwner indicates an expected call of UpdateTelegramGroupDefenderEnabledByOwner.
+func (mr *MockQuerierMockRecorder) UpdateTelegramGroupDefenderEnabledByOwner(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTelegramGroupDefenderEnabledByOwner", reflect.TypeOf((*MockQuerier)(nil).UpdateTelegramGroupDefenderEnabledByOwner), ctx, arg)
+}
+
+// UpdateTelegramGroupDefenderRemoveBlockedByOwner mocks base method.
+func (m *MockQuerier) UpdateTelegramGroupDefenderRemoveBlockedByOwner(ctx context.Context, arg db.UpdateTelegramGroupDefenderRemoveBlockedByOwnerParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTelegramGroupDefenderRemoveBlockedByOwner", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateTelegramGroupDefenderRemoveBlockedByOwner indicates an expected call of UpdateTelegramGroupDefenderRemoveBlockedByOwner.
+func (mr *MockQuerierMockRecorder) UpdateTelegramGroupDefenderRemoveBlockedByOwner(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTelegramGroupDefenderRemoveBlockedByOwner", reflect.TypeOf((*MockQuerier)(nil).UpdateTelegramGroupDefenderRemoveBlockedByOwner), ctx, arg)
 }
 
 // UpdateTelegramGroupMemberTagFormatByOwner mocks base method.
@@ -1751,6 +1870,21 @@ func (m *MockQuerier) UpsertTelegramGroupMember(ctx context.Context, arg db.Upse
 func (mr *MockQuerierMockRecorder) UpsertTelegramGroupMember(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTelegramGroupMember", reflect.TypeOf((*MockQuerier)(nil).UpsertTelegramGroupMember), ctx, arg)
+}
+
+// UpsertTelegramGroupWhitelist mocks base method.
+func (m *MockQuerier) UpsertTelegramGroupWhitelist(ctx context.Context, arg db.UpsertTelegramGroupWhitelistParams) (db.TelegramGroupWhitelist, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertTelegramGroupWhitelist", ctx, arg)
+	ret0, _ := ret[0].(db.TelegramGroupWhitelist)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertTelegramGroupWhitelist indicates an expected call of UpsertTelegramGroupWhitelist.
+func (mr *MockQuerierMockRecorder) UpsertTelegramGroupWhitelist(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTelegramGroupWhitelist", reflect.TypeOf((*MockQuerier)(nil).UpsertTelegramGroupWhitelist), ctx, arg)
 }
 
 // UpsertUserBotSettings mocks base method.

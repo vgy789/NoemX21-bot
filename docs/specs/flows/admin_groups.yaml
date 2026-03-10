@@ -145,6 +145,11 @@ states:
 
           Pick a section.
       buttons:
+        - id: open_defender_settings
+          label:
+            ru: 🛡 Безопасность
+            en: 🛡 Security
+          next_state: GROUP_DEFENDER_MENU
         - id: open_member_tags_settings
           label:
             ru: 🏷 Теги пользователей
@@ -277,6 +282,396 @@ states:
             en: 🔙 Back
           row: 99
           next_state: GROUP_MEMBER_TAGS_MENU
+
+  GROUP_DEFENDER_MENU:
+    type: interactive
+    description: Раздел безопасности (фильтрации) группы
+    on_enter:
+      - action: load_group_defender_context
+    interface:
+      text:
+        ru: |
+          🛡 *Безопасность* / {selected_group_title}
+          🆔 Chat ID: `{selected_group_chat_id}`
+
+          Я слежу за тем, чтобы в чат не просочились «левые» люди. Могу проверять каждого на входе или устроить генеральную уборку.
+
+          - Автоматический фейс-контроль: `{defender_enabled_label_ru}`
+          - Удалять BLOCKED/EXPELLED: `{defender_remove_blocked_label_ru}`
+          - Whitelist: `{defender_whitelist_count}`
+        en: |
+          🛡 *Security* / {selected_group_title}
+          🆔 Chat ID: `{selected_group_chat_id}`
+
+          I make sure no outsiders sneak into the flock. I can check everyone at the gate or perform a full pond cleanup.
+
+          - **Automatic gatekeeper:** `{defender_enabled_label_en}`
+          - **Expelled filter:** `{defender_remove_blocked_label_en}`
+          - **Whitelist:** `{defender_whitelist_count}`
+      buttons:
+        - id: def_open_toggle
+          label:
+            ru: ⚙️ Автоматический фейс-контроль
+            en: ⚙️ Automatic gatekeeper
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_DEFENDER_AUTOMODE
+          row: 1
+        - id: def_open_run
+          label:
+            ru: 🚀 Генеральная уборка
+            en: 🚀 Full Cleanup
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_DEFENDER_RUN
+          row: 2
+        - id: def_open_whitelist
+          label:
+            ru: ✅ Белый список
+            en: ✅ Whitelist
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_DEFENDER_WHITELIST
+          row: 3
+        - id: def_open_logs
+          label:
+            ru: 📜 История действий
+            en: 📜 Action Log
+          condition: "can_manage_selected_group == true"
+          action: load_group_defender_logs
+          next_state: GROUP_DEFENDER_LOGS
+          row: 4
+        - id: def_back_menu
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          row: 99
+          next_state: GROUP_ADMIN_MENU
+
+  GROUP_DEFENDER_AUTOMODE:
+    type: interactive
+    description: Настройки авто-защиты
+    on_enter:
+      - action: load_group_defender_context
+    interface:
+      text:
+        ru: |
+          ⚙️ *Настройки фейс-контроля*
+
+          Если режим включён, я проверяю *каждого новичка* прямо на пороге.
+          _Важно: авто-режим не влияет на старых участников._
+
+          🦆 *Мои фильтры:*
+          1. Незарегистрированные в боте:
+          `{defender_enabled_label_ru}` _(Когда включено – не пускаю, не залогинился в боте пользователей.)_
+          2. Отчисленные (BLOCKED/EXPELLED):
+          `{defender_remove_blocked_label_ru}` _(Когда включено – не пускаю отчисленных студентов.)_
+        en: |
+          ⚙️ *Gatekeeper Settings*
+
+          When enabled, I check *every newcomer* right at the gate.
+          _Note: auto-mode does not affect existing members._
+
+          🦆 *My filters:*
+          1. Unregistered in the bot:
+          `{defender_enabled_label_en}` _(When enabled – I won't allow users who haven't logged into the bot.)_
+          2. Expelled (BLOCKED/EXPELLED):
+          `{defender_remove_blocked_label_en}` _(When enabled – I won't allow expelled students.)_
+      buttons:
+        - id: def_enable_on
+          label:
+            ru: 1. Не пускать незарегистрированных в боте
+            en: 1. Don‘t allow unregistered users in the bot
+          action: set_group_defender_enabled
+          condition: "can_manage_selected_group == true && defender_enabled == false"
+          next_state: GROUP_DEFENDER_AUTOMODE
+          row: 1
+        - id: def_enable_off
+          label:
+            ru: 1. Пускать незарегистрироанных в боте
+            en: 1. Allow unregistered users in the bot
+          action: set_group_defender_enabled
+          condition: "can_manage_selected_group == true && defender_enabled == true"
+          next_state: GROUP_DEFENDER_AUTOMODE
+          row: 1
+        - id: def_blocked_on
+          label:
+            ru: 2. Не пускать отчисленных
+            en: 2. Don‘t allow blocked users
+          action: set_group_defender_remove_blocked
+          condition: "can_manage_selected_group == true && defender_remove_blocked == false"
+          next_state: GROUP_DEFENDER_AUTOMODE
+          row: 2
+        - id: def_blocked_off
+          label:
+            ru: 2. Пускать отчисленных
+            en: 2. Allow blocked users
+          action: set_group_defender_remove_blocked
+          condition: "can_manage_selected_group == true && defender_remove_blocked == true"
+          next_state: GROUP_DEFENDER_AUTOMODE
+          row: 2
+        - id: def_back_menu
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          row: 99
+          next_state: GROUP_DEFENDER_MENU
+
+  GROUP_DEFENDER_RUN:
+    type: interactive
+    description: Ручная проверка участников
+    on_enter:
+      - action: load_group_defender_context
+    interface:
+      text:
+        ru: |
+          🚀 *Генеральная уборка*
+
+          Хочешь проверить всех участников чата прямо сейчас? Я найду тех, кто не зарегистрирован или потерял доступ к обучению.
+
+          {defender_last_run_notice_ru}
+
+          🦆 *План действий:*
+          1. Нажми «Предпросмотр», чтобы увидеть список «кандидатов».
+          2. Если там есть свои — добавь их в Whitelist.
+          3. Нажимай «Запустить», и я очищу пруд.
+        en: |
+          🚀 *Full Cleanup*
+
+          Want to check all chat members right now? I'll find those who aren't registered or have lost their access.
+
+          {defender_last_run_notice_en}
+
+          🦆 *The Plan:*
+          1. Hit "Preview" to see the list of "candidates."
+          2. If you see friends there — add them to the Whitelist.
+          3. Hit "Run," and I'll clean the pond.
+      buttons:
+        - id: def_preview
+          label:
+            ru: 🔎 Предпросмотр списка
+            en: 🔎 Previewlist
+          action: preview_group_defender_violations
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_DEFENDER_PREVIEW
+          row: 1
+        - id: def_run_now
+          label:
+            ru: ▶️ Запустить очищение по списку
+            en: ▶️ Start cleaning according to the list
+          action: run_group_defender
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_DEFENDER_RUN
+          row: 2
+        - id: def_back_menu
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          row: 99
+          next_state: GROUP_DEFENDER_MENU
+
+  GROUP_DEFENDER_PREVIEW:
+    type: interactive
+    description: Предпросмотр нарушителей
+    on_enter:
+      - action: load_group_defender_context
+    interface:
+      text:
+        ru: |
+          🔎 *Список на вылет*
+
+          Вот те, кто не прошел фильтр по текущим правилам:
+
+          {defender_preview_summary_ru}
+
+          _Если нажать «Добавить всех в Whitelist», чистка их не тронет._
+        en: |
+          🔎 *Preview*
+
+          Here are those who didn't pass the filter under current rules:
+
+          {defender_preview_summary_en}
+
+          _If you "Add all to whitelist," the cleanup won't touch them._
+      buttons:
+        - id: def_preview_whitelist_all
+          label:
+            ru: ✅ Помиловать всех (в Whitelist)
+            en: ✅ Spare all (Add to Whitelist)
+          action: add_group_defender_preview_to_whitelist
+          condition: "can_manage_selected_group == true && defender_preview_candidate_ids != ''"
+          next_state: GROUP_DEFENDER_PREVIEW
+          row: 1
+        - id: def_preview_refresh
+          label:
+            ru: 🔄 Обновить
+            en: 🔄 Refresh
+          action: preview_group_defender_violations
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_DEFENDER_PREVIEW
+          row: 2
+        - id: def_back_run
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back to run
+          row: 99
+          next_state: GROUP_DEFENDER_RUN
+
+  GROUP_DEFENDER_WHITELIST:
+    type: interactive
+    description: Whitelist защитника
+    on_enter:
+      - action: load_group_defender_context
+    interface:
+      text:
+        ru: |
+          ✅ *Белый список*
+
+          Этих людей я не трону ни при каких обстоятельствах, даже если они не залогинены в боте.
+
+          *Текущий список:*
+          {defender_whitelist_list_ru}
+        en: |
+          ✅ *Whitelist*
+
+          I won't touch these people under any circumstances, even if they aren't logged into the bot.
+
+          *Current list:*
+          {defender_whitelist_list_en}
+      buttons:
+        - id: def_wl_add
+          label:
+            ru: ➕ Добавить ID
+            en: ➕ Add ID
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_DEFENDER_WHITELIST_ADD_INPUT
+          row: 1
+        - id: "{defender_whitelist_remove_button_id_1}"
+          label: "{defender_whitelist_remove_label_1}"
+          action: remove_group_defender_whitelist
+          condition: "defender_whitelist_remove_button_id_1 != ''"
+          next_state: GROUP_DEFENDER_WHITELIST
+          row: 2
+        - id: "{defender_whitelist_remove_button_id_2}"
+          label: "{defender_whitelist_remove_label_2}"
+          action: remove_group_defender_whitelist
+          condition: "defender_whitelist_remove_button_id_2 != ''"
+          next_state: GROUP_DEFENDER_WHITELIST
+          row: 3
+        - id: "{defender_whitelist_remove_button_id_3}"
+          label: "{defender_whitelist_remove_label_3}"
+          action: remove_group_defender_whitelist
+          condition: "defender_whitelist_remove_button_id_3 != ''"
+          next_state: GROUP_DEFENDER_WHITELIST
+          row: 4
+        - id: "{defender_whitelist_remove_button_id_4}"
+          label: "{defender_whitelist_remove_label_4}"
+          action: remove_group_defender_whitelist
+          condition: "defender_whitelist_remove_button_id_4 != ''"
+          next_state: GROUP_DEFENDER_WHITELIST
+          row: 5
+        - id: "{defender_whitelist_remove_button_id_5}"
+          label: "{defender_whitelist_remove_label_5}"
+          action: remove_group_defender_whitelist
+          condition: "defender_whitelist_remove_button_id_5 != ''"
+          next_state: GROUP_DEFENDER_WHITELIST
+          row: 6
+        - id: "{defender_whitelist_remove_button_id_6}"
+          label: "{defender_whitelist_remove_label_6}"
+          action: remove_group_defender_whitelist
+          condition: "defender_whitelist_remove_button_id_6 != ''"
+          next_state: GROUP_DEFENDER_WHITELIST
+          row: 7
+        - id: "{defender_whitelist_remove_button_id_7}"
+          label: "{defender_whitelist_remove_label_7}"
+          action: remove_group_defender_whitelist
+          condition: "defender_whitelist_remove_button_id_7 != ''"
+          next_state: GROUP_DEFENDER_WHITELIST
+          row: 8
+        - id: "{defender_whitelist_remove_button_id_8}"
+          label: "{defender_whitelist_remove_label_8}"
+          action: remove_group_defender_whitelist
+          condition: "defender_whitelist_remove_button_id_8 != ''"
+          next_state: GROUP_DEFENDER_WHITELIST
+          row: 9
+        - id: "{defender_whitelist_remove_button_id_9}"
+          label: "{defender_whitelist_remove_label_9}"
+          action: remove_group_defender_whitelist
+          condition: "defender_whitelist_remove_button_id_9 != ''"
+          next_state: GROUP_DEFENDER_WHITELIST
+          row: 10
+        - id: "{defender_whitelist_remove_button_id_10}"
+          label: "{defender_whitelist_remove_label_10}"
+          action: remove_group_defender_whitelist
+          condition: "defender_whitelist_remove_button_id_10 != ''"
+          next_state: GROUP_DEFENDER_WHITELIST
+          row: 11
+        - id: def_back_menu
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          row: 99
+          next_state: GROUP_DEFENDER_MENU
+
+  GROUP_DEFENDER_WHITELIST_ADD_INPUT:
+    type: input
+    description: Ввод Telegram ID для whitelist
+    interface:
+      text:
+        ru: |
+          ➕ *Добавление в whitelist*
+
+          Введи числовой Telegram ID пользователя.
+        en: |
+          ➕ *Add to whitelist*
+
+          Enter numeric Telegram user ID.
+      error_invalid:
+        ru: "Нужен числовой Telegram ID."
+        en: "Numeric Telegram ID is required."
+      buttons:
+        - id: def_wl_add_cancel
+          label:
+            ru: 🔙 Отмена
+            en: 🔙 Cancel
+          next_state: GROUP_DEFENDER_WHITELIST
+    validation:
+      regex: ^[0-9]{4,20}$
+    transitions:
+      - trigger: on_valid_input
+        action: add_group_defender_whitelist_from_input
+        next_state: GROUP_DEFENDER_WHITELIST
+
+  GROUP_DEFENDER_LOGS:
+    type: interactive
+    description: Лог последних действий защитника
+    on_enter:
+      - action: load_group_defender_logs
+    interface:
+      text:
+        ru: |
+          📜 *Последние действия защитника*
+
+          _Что здесь отображается:_ когда сработал защитник, что сделал и почему.
+
+          {defender_logs_list_ru}
+        en: |
+          📜 *Recent defender actions*
+
+          _What you see here:_ when Defender ran, what it did, and why.
+
+          {defender_logs_list_en}
+      buttons:
+        - id: def_logs_refresh
+          label:
+            ru: 🔄 Обновить
+            en: 🔄 Refresh
+          action: load_group_defender_logs
+          next_state: GROUP_DEFENDER_LOGS
+          row: 1
+        - id: def_back_menu
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          row: 99
+          next_state: GROUP_DEFENDER_MENU
 
   GROUP_MEMBER_TAGS_RUN:
     type: interactive

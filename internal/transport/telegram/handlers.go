@@ -327,9 +327,6 @@ func (s *telegramService) handleChatMember(b *gotgbot.Bot, ctx *ext.Context) err
 		isMember := isChatMemberActive(ctx.ChatMember.NewChatMember)
 		if isMember {
 			s.upsertKnownGroupMember(context.Background(), chat.Id, updated.Id, updated.IsBot, ctx.ChatMember.NewChatMember.GetStatus(), true)
-			if b != nil && !updated.IsBot {
-				s.tryAutoAssignMemberTag(context.Background(), b, chat.Id, updated.Id)
-			}
 		} else {
 			s.markKnownGroupMemberLeft(context.Background(), chat.Id, updated.Id, ctx.ChatMember.NewChatMember.GetStatus())
 		}
@@ -348,16 +345,19 @@ func (s *telegramService) handleChatMember(b *gotgbot.Bot, ctx *ext.Context) err
 	newStatus := ctx.ChatMember.NewChatMember.GetStatus()
 	shouldDeactivate := (updatedUserID == group.OwnerTelegramUserID && newStatus != gotgbot.ChatMemberStatusOwner) ||
 		(updatedUserID != group.OwnerTelegramUserID && newStatus == gotgbot.ChatMemberStatusOwner)
-	if !shouldDeactivate {
-		return nil
+	if shouldDeactivate {
+		if err := s.queries.UnlinkTelegramGroupOwner(context.Background(), chat.Id); err != nil {
+			s.log.Warn("failed to auto-unlink group owner on owner change", "chat_id", chat.Id, "error", err)
+			return nil
+		}
+		s.log.Info("group owner auto-unlinked on owner change", "chat_id", chat.Id, "stored_owner_user_id", group.OwnerTelegramUserID, "updated_user_id", updatedUserID, "new_status", newStatus)
 	}
 
-	if err := s.queries.UnlinkTelegramGroupOwner(context.Background(), chat.Id); err != nil {
-		s.log.Warn("failed to auto-unlink group owner on owner change", "chat_id", chat.Id, "error", err)
-		return nil
+	if b != nil && !updated.IsBot {
+		s.tryAutoDefenderForKnownGroup(context.Background(), b, group, updated.Id)
+		s.tryAutoAssignMemberTag(context.Background(), b, chat.Id, updated.Id)
 	}
 
-	s.log.Info("group owner auto-unlinked on owner change", "chat_id", chat.Id, "stored_owner_user_id", group.OwnerTelegramUserID, "updated_user_id", updatedUserID, "new_status", newStatus)
 	return nil
 }
 
@@ -424,6 +424,9 @@ func (s *telegramService) handleTextMessage(b *gotgbot.Bot, ctx *ext.Context) er
 	bgCtx = context.WithValue(bgCtx, fsm.ContextKeyNotifier, &telegramNotifier{sender: s.getSender(b)})
 	if runner := s.newMemberTagRunner(b); runner != nil {
 		bgCtx = context.WithValue(bgCtx, fsm.ContextKeyMemberTagRunner, runner)
+	}
+	if runner := s.newDefenderRunner(b); runner != nil {
+		bgCtx = context.WithValue(bgCtx, fsm.ContextKeyDefenderRunner, runner)
 	}
 
 	s.log.Debug("text message received", "user_id", userID, "text", text)
@@ -498,6 +501,9 @@ func (s *telegramService) handleCallback(b *gotgbot.Bot, ctx *ext.Context) error
 	bgCtx = context.WithValue(bgCtx, fsm.ContextKeyNotifier, &telegramNotifier{sender: s.getSender(b)})
 	if runner := s.newMemberTagRunner(b); runner != nil {
 		bgCtx = context.WithValue(bgCtx, fsm.ContextKeyMemberTagRunner, runner)
+	}
+	if runner := s.newDefenderRunner(b); runner != nil {
+		bgCtx = context.WithValue(bgCtx, fsm.ContextKeyDefenderRunner, runner)
 	}
 
 	s.log.Debug("callback received", "user_id", userID, "data", cb.Data)
