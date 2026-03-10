@@ -322,6 +322,182 @@ func registerDefenderActions(registry *fsm.LogicRegistry, log logger, queries db
 		return "", updates, nil
 	})
 
+	registry.Register("set_defender_cleanup_scope_unregistered", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		updates := buildDefenderContextUpdates(ctx, userID, payload, log, queries)
+		updates["defender_cleanup_scope"] = string(fsm.DefenderManualScopeUnregistered)
+		return "", updates, nil
+	})
+
+	registry.Register("set_defender_cleanup_scope_blocked", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		updates := buildDefenderContextUpdates(ctx, userID, payload, log, queries)
+		updates["defender_cleanup_scope"] = string(fsm.DefenderManualScopeBlocked)
+		return "", updates, nil
+	})
+
+	registry.Register("set_defender_cleanup_scope_campus", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		updates := buildDefenderContextUpdates(ctx, userID, payload, log, queries)
+		updates["defender_cleanup_scope"] = string(fsm.DefenderManualScopeCampus)
+		return "", updates, nil
+	})
+
+	registry.Register("set_defender_cleanup_scope_tribe", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		updates := buildDefenderContextUpdates(ctx, userID, payload, log, queries)
+		updates["defender_cleanup_scope"] = string(fsm.DefenderManualScopeTribe)
+		return "", updates, nil
+	})
+
+	registry.Register("load_group_defender_cleanup_campus_options", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		updates := buildDefenderContextUpdates(ctx, userID, payload, log, queries)
+		updates["defender_cleanup_scope"] = string(fsm.DefenderManualScopeCampus)
+		chatID, err := parseSelectedGroupChatID(payload)
+		if err != nil {
+			return "", updates, nil
+		}
+		if _, err := requireOwnedGroup(ctx, queries, userID, chatID); err != nil {
+			return "", updates, nil
+		}
+		campuses, err := queries.GetAllActiveCampuses(ctx)
+		if err != nil {
+			return "", updates, nil
+		}
+		selectedCampus, hasSelectedCampus := parseUUIDFromPayload(payload, "defender_cleanup_target_campus_id")
+		selected := map[string]struct{}{}
+		if hasSelectedCampus {
+			selected[uuidToString(selectedCampus)] = struct{}{}
+		}
+		page := parsePositiveInt(payload["defender_campus_page"], 1)
+		applyDefenderCampusButtons(updates, campuses, selected, page)
+		return "", updates, nil
+	})
+
+	registry.Register("set_group_defender_cleanup_campus_target", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		updates := buildDefenderContextUpdates(ctx, userID, payload, log, queries)
+		updates["defender_cleanup_scope"] = string(fsm.DefenderManualScopeCampus)
+		rawID := strings.TrimSpace(fmt.Sprintf("%v", payload["id"]))
+		campusID, ok := parseDefenderCampusButtonID(rawID)
+		if !ok {
+			return "", updates, nil
+		}
+		updates["defender_cleanup_target_campus_id"] = uuidToString(campusID)
+		if campus, err := queries.GetCampusByID(ctx, campusID); err == nil {
+			name := strings.TrimSpace(campus.ShortName)
+			if name == "" {
+				name = strings.TrimSpace(campus.FullName)
+			}
+			if name == "" {
+				name = uuidToString(campusID)
+			}
+			updates["defender_cleanup_target_campus_label_ru"] = name
+			updates["defender_cleanup_target_campus_label_en"] = name
+		}
+		return "", updates, nil
+	})
+
+	registry.Register("defender_cleanup_campus_prev_page", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
+		page := parsePositiveInt(payload["defender_campus_page"], 1)
+		if page > 1 {
+			page--
+		}
+		return "", map[string]any{"defender_campus_page": page}, nil
+	})
+
+	registry.Register("defender_cleanup_campus_next_page", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
+		page := parsePositiveInt(payload["defender_campus_page"], 1)
+		total := parsePositiveInt(payload["defender_campus_total_pages"], 1)
+		if page < total {
+			page++
+		}
+		return "", map[string]any{"defender_campus_page": page}, nil
+	})
+
+	registry.Register("load_group_defender_cleanup_tribe_options", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		updates := buildDefenderContextUpdates(ctx, userID, payload, log, queries)
+		updates["defender_cleanup_scope"] = string(fsm.DefenderManualScopeTribe)
+		chatID, err := parseSelectedGroupChatID(payload)
+		if err != nil {
+			return "", updates, nil
+		}
+		if _, err := requireOwnedGroup(ctx, queries, userID, chatID); err != nil {
+			return "", updates, nil
+		}
+		adminCampusID, ok := parseUUIDFromPayload(payload, "campus_id")
+		if !ok {
+			updates["defender_filter_tribe_scope_ru"] = "Кампус администратора не определён."
+			updates["defender_filter_tribe_scope_en"] = "Admin campus is unavailable."
+			return "", updates, nil
+		}
+		updates["defender_filter_tribe_scope_ru"] = strings.TrimSpace(fmt.Sprintf("%v", payload["my_campus"]))
+		updates["defender_filter_tribe_scope_en"] = updates["defender_filter_tribe_scope_ru"]
+		tribes, err := queries.ListCoalitionsByCampus(ctx, adminCampusID)
+		if err != nil {
+			return "", updates, nil
+		}
+		selectedTribeID := int16(parsePositiveInt(payload["defender_cleanup_target_tribe_id"], 0))
+		selected := map[int16]struct{}{}
+		if selectedTribeID > 0 {
+			selected[selectedTribeID] = struct{}{}
+		}
+		page := parsePositiveInt(payload["defender_tribe_page"], 1)
+		applyDefenderTribeButtons(updates, tribes, selected, page)
+		return "", updates, nil
+	})
+
+	registry.Register("set_group_defender_cleanup_tribe_target", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		updates := buildDefenderContextUpdates(ctx, userID, payload, log, queries)
+		updates["defender_cleanup_scope"] = string(fsm.DefenderManualScopeTribe)
+		adminCampusID, ok := parseUUIDFromPayload(payload, "campus_id")
+		if !ok {
+			return "", updates, nil
+		}
+		rawID := strings.TrimSpace(fmt.Sprintf("%v", payload["id"]))
+		tribeID, ok := parseDefenderTribeButtonID(rawID)
+		if !ok {
+			return "", updates, nil
+		}
+		exists, err := queries.ExistsCoalitionByID(ctx, db.ExistsCoalitionByIDParams{
+			CampusID: adminCampusID,
+			ID:       tribeID,
+		})
+		if err != nil || !exists {
+			return "", updates, nil
+		}
+		updates["defender_cleanup_target_campus_id"] = uuidToString(adminCampusID)
+		updates["defender_cleanup_target_tribe_id"] = int64(tribeID)
+		updates["defender_cleanup_target_campus_label_ru"] = strings.TrimSpace(fmt.Sprintf("%v", payload["my_campus"]))
+		updates["defender_cleanup_target_campus_label_en"] = updates["defender_cleanup_target_campus_label_ru"]
+		if tribes, err := queries.ListCoalitionsByCampus(ctx, adminCampusID); err == nil {
+			label := strconv.FormatInt(int64(tribeID), 10)
+			for _, tribe := range tribes {
+				if tribe.ID == tribeID {
+					if name := strings.TrimSpace(tribe.Name); name != "" {
+						label = name
+					}
+					break
+				}
+			}
+			updates["defender_cleanup_target_tribe_label_ru"] = label
+			updates["defender_cleanup_target_tribe_label_en"] = label
+		}
+		return "", updates, nil
+	})
+
+	registry.Register("defender_cleanup_tribe_prev_page", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
+		page := parsePositiveInt(payload["defender_tribe_page"], 1)
+		if page > 1 {
+			page--
+		}
+		return "", map[string]any{"defender_tribe_page": page}, nil
+	})
+
+	registry.Register("defender_cleanup_tribe_next_page", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
+		page := parsePositiveInt(payload["defender_tribe_page"], 1)
+		total := parsePositiveInt(payload["defender_tribe_total_pages"], 1)
+		if page < total {
+			page++
+		}
+		return "", map[string]any{"defender_tribe_page": page}, nil
+	})
+
 	registry.Register("run_group_defender", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		updates := buildDefenderContextUpdates(ctx, userID, payload, log, queries)
 
@@ -339,8 +515,20 @@ func registerDefenderActions(registry *fsm.LogicRegistry, log logger, queries db
 			updates["defender_last_run_summary_en"] = "Unavailable: transport runner is not configured."
 			return "", updates, nil
 		}
+		manualFilter, hasManualFilter, manualErrRU, manualErrEN := buildDefenderManualFilterFromPayload(payload)
+		if manualErrRU != "" {
+			updates["defender_last_run_summary_ru"] = manualErrRU
+			updates["defender_last_run_summary_en"] = manualErrEN
+			updates["defender_last_run_notice_ru"] = ""
+			updates["defender_last_run_notice_en"] = ""
+			return "", updates, nil
+		}
+		runCtx := ctx
+		if hasManualFilter {
+			runCtx = context.WithValue(ctx, fsm.ContextKeyDefenderManualFilter, manualFilter)
+		}
 
-		result, err := runner.RunGroupDefender(ctx, userID, chatID)
+		result, err := runner.RunGroupDefender(runCtx, userID, chatID)
 		if err != nil {
 			updates["defender_last_run_summary_ru"] = fmt.Sprintf("Ошибка запуска: %v", err)
 			updates["defender_last_run_summary_en"] = fmt.Sprintf("Run failed: %v", err)
@@ -390,9 +578,20 @@ func registerDefenderActions(registry *fsm.LogicRegistry, log logger, queries db
 			Reason string
 		}
 		candidates := make([]candidate, 0)
+		manualFilter, hasManualFilter, manualErrRU, manualErrEN := buildDefenderManualFilterFromPayload(payload)
+		if manualErrRU != "" {
+			updates["defender_preview_summary_ru"] = manualErrRU
+			updates["defender_preview_summary_en"] = manualErrEN
+			updates["defender_preview_candidate_ids"] = ""
+			return "", updates, nil
+		}
 
 		if runner, ok := fsm.DefenderRunnerFromContext(ctx); ok {
-			items, err := runner.PreviewGroupDefenderCandidates(ctx, userID, chatID)
+			previewCtx := ctx
+			if hasManualFilter {
+				previewCtx = context.WithValue(ctx, fsm.ContextKeyDefenderManualFilter, manualFilter)
+			}
+			items, err := runner.PreviewGroupDefenderCandidates(previewCtx, userID, chatID)
 			if err != nil {
 				updates["defender_preview_summary_ru"] = "Не удалось собрать список участников для предпросмотра."
 				updates["defender_preview_summary_en"] = "Failed to build preview from known members."
@@ -407,6 +606,12 @@ func registerDefenderActions(registry *fsm.LogicRegistry, log logger, queries db
 				})
 			}
 		} else {
+			if hasManualFilter {
+				updates["defender_preview_summary_ru"] = "Недоступно: предпросмотр в режиме генеральной уборки требует transport runner."
+				updates["defender_preview_summary_en"] = "Unavailable: manual cleanup preview requires transport runner."
+				updates["defender_preview_candidate_ids"] = ""
+				return "", updates, nil
+			}
 			knownMembers, err := queries.ListTelegramGroupKnownMembers(ctx, chatID)
 			if err != nil {
 				updates["defender_preview_summary_ru"] = "Не удалось собрать список участников для предпросмотра."
@@ -701,6 +906,45 @@ func mergeDefenderDefaults(updates map[string]any, payload map[string]any) {
 	updates["defender_filter_tribe_label_en"] = "All tribes"
 	updates["defender_filter_tribe_scope_ru"] = ""
 	updates["defender_filter_tribe_scope_en"] = ""
+	cleanupScope := "configured"
+	cleanupCampusID := ""
+	cleanupCampusLabelRU := "—"
+	cleanupCampusLabelEN := "—"
+	cleanupTribeID := int64(0)
+	cleanupTribeLabelRU := "—"
+	cleanupTribeLabelEN := "—"
+	if payload != nil {
+		if v := strings.TrimSpace(fmt.Sprintf("%v", payload["defender_cleanup_scope"])); v != "" {
+			cleanupScope = v
+		}
+		if v := strings.TrimSpace(fmt.Sprintf("%v", payload["defender_cleanup_target_campus_id"])); v != "" && v != "<nil>" {
+			cleanupCampusID = v
+		}
+		if v := strings.TrimSpace(fmt.Sprintf("%v", payload["defender_cleanup_target_campus_label_ru"])); v != "" && v != "<nil>" {
+			cleanupCampusLabelRU = v
+		}
+		if v := strings.TrimSpace(fmt.Sprintf("%v", payload["defender_cleanup_target_campus_label_en"])); v != "" && v != "<nil>" {
+			cleanupCampusLabelEN = v
+		}
+		if v := strings.TrimSpace(fmt.Sprintf("%v", payload["defender_cleanup_target_tribe_id"])); v != "" && v != "<nil>" {
+			if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+				cleanupTribeID = n
+			}
+		}
+		if v := strings.TrimSpace(fmt.Sprintf("%v", payload["defender_cleanup_target_tribe_label_ru"])); v != "" && v != "<nil>" {
+			cleanupTribeLabelRU = v
+		}
+		if v := strings.TrimSpace(fmt.Sprintf("%v", payload["defender_cleanup_target_tribe_label_en"])); v != "" && v != "<nil>" {
+			cleanupTribeLabelEN = v
+		}
+	}
+	updates["defender_cleanup_scope"] = cleanupScope
+	updates["defender_cleanup_target_campus_id"] = cleanupCampusID
+	updates["defender_cleanup_target_campus_label_ru"] = cleanupCampusLabelRU
+	updates["defender_cleanup_target_campus_label_en"] = cleanupCampusLabelEN
+	updates["defender_cleanup_target_tribe_id"] = cleanupTribeID
+	updates["defender_cleanup_target_tribe_label_ru"] = cleanupTribeLabelRU
+	updates["defender_cleanup_target_tribe_label_en"] = cleanupTribeLabelEN
 	updates["defender_campus_page"] = 1
 	updates["defender_campus_total_pages"] = 1
 	updates["defender_campus_has_prev_page"] = false
@@ -954,6 +1198,16 @@ func defenderLogResultLabel(action, reason, language string) string {
 			return "✅ Removed: tribe filter mismatch"
 		}
 		return "✅ Удалён: не прошёл фильтр трайба"
+	case "removed/campus_selected":
+		if language == fsm.LangEn {
+			return "✅ Removed: matched selected campus"
+		}
+		return "✅ Удалён: из выбранного кампуса"
+	case "removed/tribe_selected":
+		if language == fsm.LangEn {
+			return "✅ Removed: matched selected tribe"
+		}
+		return "✅ Удалён: из выбранного трайба"
 	case "skipped_whitelist/whitelist":
 		if language == fsm.LangEn {
 			return "⏭ Skipped: in whitelist"
@@ -1251,6 +1505,43 @@ func parsePositiveInt(v any, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func buildDefenderManualFilterFromPayload(payload map[string]any) (fsm.DefenderManualFilter, bool, string, string) {
+	scopeRaw := strings.TrimSpace(fmt.Sprintf("%v", payload["defender_cleanup_scope"]))
+	if scopeRaw == "" || scopeRaw == "<nil>" || scopeRaw == string(fsm.DefenderManualScopeConfigured) {
+		return fsm.DefenderManualFilter{}, false, "", ""
+	}
+	scope := fsm.DefenderManualScope(scopeRaw)
+	switch scope {
+	case fsm.DefenderManualScopeUnregistered, fsm.DefenderManualScopeBlocked:
+		return fsm.DefenderManualFilter{Scope: scope}, true, "", ""
+	case fsm.DefenderManualScopeCampus:
+		campusID := strings.TrimSpace(fmt.Sprintf("%v", payload["defender_cleanup_target_campus_id"]))
+		if campusID == "" || campusID == "<nil>" {
+			return fsm.DefenderManualFilter{}, false, "Сначала выбери кампус для очищения.", "Pick a campus first."
+		}
+		return fsm.DefenderManualFilter{
+			Scope:    scope,
+			CampusID: campusID,
+		}, true, "", ""
+	case fsm.DefenderManualScopeTribe:
+		campusID := strings.TrimSpace(fmt.Sprintf("%v", payload["defender_cleanup_target_campus_id"]))
+		if campusID == "" || campusID == "<nil>" {
+			return fsm.DefenderManualFilter{}, false, "Сначала выбери кампус/трайб для очищения.", "Pick campus/tribe first."
+		}
+		tribeID := int16(parsePositiveInt(payload["defender_cleanup_target_tribe_id"], 0))
+		if tribeID <= 0 {
+			return fsm.DefenderManualFilter{}, false, "Сначала выбери трайб для очищения.", "Pick a tribe first."
+		}
+		return fsm.DefenderManualFilter{
+			Scope:    scope,
+			CampusID: campusID,
+			TribeID:  tribeID,
+		}, true, "", ""
+	default:
+		return fsm.DefenderManualFilter{}, false, "", ""
+	}
 }
 
 func parseWhitelistRemoveID(buttonID string) (int64, bool) {

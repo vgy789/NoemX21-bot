@@ -684,48 +684,348 @@ states:
         ru: |
           🚀 *Генеральная уборка*
 
-          Хочешь проверить всех участников чата прямо сейчас? Я найду тех, кто не зарегистрирован или потерял доступ к обучению.
-
-          {defender_last_run_notice_ru}
-
-          🦆 *План действий:*
-          1. Нажми «Предпросмотр», чтобы увидеть список «кандидатов».
-          2. Если там есть свои — добавь их в Whitelist.
-          3. Нажимай «Запустить», и я очищу пруд.
+          Выбери тип очищения. Для каждого режима отдельный предпросмотр и запуск.
         en: |
           🚀 *Full Cleanup*
 
-          Want to check all chat members right now? I'll find those who aren't registered or have lost their access.
-
-          {defender_last_run_notice_en}
-
-          🦆 *The Plan:*
-          1. Hit "Preview" to see the list of "candidates."
-          2. If you see friends there — add them to the Whitelist.
-          3. Hit "Run," and I'll clean the pond.
+          Pick a cleanup type. Each mode has its own preview and run buttons.
       buttons:
-        - id: def_preview
+        - id: def_clean_unreg
           label:
-            ru: 🔎 Предпросмотр списка
-            en: 🔎 Previewlist
-          action: preview_group_defender_violations
+            ru: 🧹 Выкинуть незарегистрированных
+            en: 🧹 Remove unregistered
           condition: "can_manage_selected_group == true"
-          next_state: GROUP_DEFENDER_PREVIEW
+          next_state: GROUP_DEFENDER_RUN_UNREGISTERED
           row: 1
-        - id: def_run_now
+        - id: def_clean_blocked
           label:
-            ru: ▶️ Запустить очищение по списку
-            en: ▶️ Start cleaning according to the list
-          action: run_group_defender
+            ru: 🧹 Выкинуть отчисленных
+            en: 🧹 Remove expelled
           condition: "can_manage_selected_group == true"
-          next_state: GROUP_DEFENDER_RUN
+          next_state: GROUP_DEFENDER_RUN_BLOCKED
           row: 2
+        - id: def_clean_campus
+          label:
+            ru: 🧹 Участников кампуса
+            en: 🧹 By campus
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_DEFENDER_RUN_CAMPUS
+          row: 3
+        - id: def_clean_tribe
+          label:
+            ru: 🧹 Участников трайба
+            en: 🧹 By tribe
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_DEFENDER_RUN_TRIBE
+          row: 4
         - id: def_back_menu
           label:
             ru: 🔙 Назад
             en: 🔙 Back
           row: 99
           next_state: GROUP_DEFENDER_MENU
+
+  GROUP_DEFENDER_RUN_UNREGISTERED:
+    type: interactive
+    description: Генеральная уборка — незарегистрированные
+    on_enter:
+      - action: load_group_defender_context
+      - action: set_defender_cleanup_scope_unregistered
+    interface:
+      text:
+        ru: |
+          🧹 *Выкинуть незарегистрированных*
+
+          Удаляются только пользователи, которые не зарегистрированы в боте.
+
+          {defender_last_run_notice_ru}
+        en: |
+          🧹 *Remove unregistered*
+
+          Removes only users not registered in the bot.
+
+          {defender_last_run_notice_en}
+      buttons:
+        - id: def_preview_unreg
+          label:
+            ru: 🔎 Предпросмотр списка
+            en: 🔎 Preview list
+          action: preview_group_defender_violations
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_DEFENDER_PREVIEW
+          row: 1
+        - id: def_back_run_unreg
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back to cleanup menu
+          row: 99
+          next_state: GROUP_DEFENDER_RUN
+
+  GROUP_DEFENDER_RUN_BLOCKED:
+    type: interactive
+    description: Генеральная уборка — отчисленные
+    on_enter:
+      - action: load_group_defender_context
+      - action: set_defender_cleanup_scope_blocked
+    interface:
+      text:
+        ru: |
+          🧹 *Выкинуть отчисленных*
+
+          Удаляются только участники со статусом BLOCKED/EXPELLED.
+
+          {defender_last_run_notice_ru}
+        en: |
+          🧹 *Remove expelled*
+
+          Removes only participants with BLOCKED/EXPELLED status.
+
+          {defender_last_run_notice_en}
+      buttons:
+        - id: def_preview_blocked
+          label:
+            ru: 🔎 Предпросмотр списка
+            en: 🔎 Preview list
+          action: preview_group_defender_violations
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_DEFENDER_PREVIEW
+          row: 1
+        - id: def_back_run_blocked
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back to cleanup menu
+          row: 99
+          next_state: GROUP_DEFENDER_RUN
+
+  GROUP_DEFENDER_RUN_CAMPUS:
+    type: interactive
+    description: Генеральная уборка — кампус
+    on_enter:
+      - action: load_group_defender_cleanup_campus_options
+    interface:
+      text:
+        ru: |
+          🧹 *Выкинуть из кампуса*
+
+          Выбранный кампус: `{defender_cleanup_target_campus_label_ru}`
+
+          Выбери кампус, затем открой предпросмотр. Запуск очищения теперь в разделе предпросмотра.
+
+          {defender_last_run_notice_ru}
+        en: |
+          🧹 *Remove by campus*
+
+          Selected campus: `{defender_cleanup_target_campus_label_en}`
+
+          Pick a campus, then open preview. Run button is now in preview.
+
+          {defender_last_run_notice_en}
+      buttons:
+        - id: "{defender_campus_button_id_1}"
+          label: "{defender_campus_button_label_1}"
+          action: set_group_defender_cleanup_campus_target
+          condition: "defender_campus_button_id_1 != ''"
+          next_state: GROUP_DEFENDER_RUN_CAMPUS
+          row: 1
+        - id: "{defender_campus_button_id_2}"
+          label: "{defender_campus_button_label_2}"
+          action: set_group_defender_cleanup_campus_target
+          condition: "defender_campus_button_id_2 != ''"
+          next_state: GROUP_DEFENDER_RUN_CAMPUS
+          row: 2
+        - id: "{defender_campus_button_id_3}"
+          label: "{defender_campus_button_label_3}"
+          action: set_group_defender_cleanup_campus_target
+          condition: "defender_campus_button_id_3 != ''"
+          next_state: GROUP_DEFENDER_RUN_CAMPUS
+          row: 3
+        - id: "{defender_campus_button_id_4}"
+          label: "{defender_campus_button_label_4}"
+          action: set_group_defender_cleanup_campus_target
+          condition: "defender_campus_button_id_4 != ''"
+          next_state: GROUP_DEFENDER_RUN_CAMPUS
+          row: 4
+        - id: "{defender_campus_button_id_5}"
+          label: "{defender_campus_button_label_5}"
+          action: set_group_defender_cleanup_campus_target
+          condition: "defender_campus_button_id_5 != ''"
+          next_state: GROUP_DEFENDER_RUN_CAMPUS
+          row: 5
+        - id: "{defender_campus_button_id_6}"
+          label: "{defender_campus_button_label_6}"
+          action: set_group_defender_cleanup_campus_target
+          condition: "defender_campus_button_id_6 != ''"
+          next_state: GROUP_DEFENDER_RUN_CAMPUS
+          row: 6
+        - id: "{defender_campus_button_id_7}"
+          label: "{defender_campus_button_label_7}"
+          action: set_group_defender_cleanup_campus_target
+          condition: "defender_campus_button_id_7 != ''"
+          next_state: GROUP_DEFENDER_RUN_CAMPUS
+          row: 7
+        - id: "{defender_campus_button_id_8}"
+          label: "{defender_campus_button_label_8}"
+          action: set_group_defender_cleanup_campus_target
+          condition: "defender_campus_button_id_8 != ''"
+          next_state: GROUP_DEFENDER_RUN_CAMPUS
+          row: 8
+        - id: def_cleanup_campus_prev
+          label:
+            ru: ◀️ Назад
+            en: ◀️ Back
+          action: defender_cleanup_campus_prev_page
+          next_state: GROUP_DEFENDER_RUN_CAMPUS
+          row: 9
+        - id: def_cleanup_campus_page
+          label:
+            ru: "{defender_campus_page_caption_ru}"
+            en: "{defender_campus_page_caption_en}"
+          action: load_group_defender_cleanup_campus_options
+          next_state: GROUP_DEFENDER_RUN_CAMPUS
+          row: 9
+        - id: def_cleanup_campus_next
+          label:
+            ru: Вперёд ▶️
+            en: Next ▶️
+          action: defender_cleanup_campus_next_page
+          next_state: GROUP_DEFENDER_RUN_CAMPUS
+          row: 9
+        - id: def_preview_campus
+          label:
+            ru: 🔎 Предпросмотр списка
+            en: 🔎 Preview list
+          action: preview_group_defender_violations
+          condition: "can_manage_selected_group == true && defender_cleanup_target_campus_id != ''"
+          next_state: GROUP_DEFENDER_PREVIEW
+          row: 10
+        - id: def_back_run_campus
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back to cleanup menu
+          row: 99
+          next_state: GROUP_DEFENDER_RUN
+
+  GROUP_DEFENDER_RUN_TRIBE:
+    type: interactive
+    description: Генеральная уборка — трайб
+    on_enter:
+      - action: load_group_defender_cleanup_tribe_options
+    interface:
+      text:
+        ru: |
+          🧹 *Выкинуть участников трайба*
+
+          Кампус: `{defender_filter_tribe_scope_ru}`
+          Выбранный трайб: `{defender_cleanup_target_tribe_label_ru}`
+
+          Выбери трайб, затем открой предпросмотр. Запуск очищения теперь в разделе предпросмотра.
+
+          {defender_last_run_notice_ru}
+        en: |
+          🧹 *Remove by tribe*
+
+          Campus: `{defender_filter_tribe_scope_en}`
+          Selected tribe: `{defender_cleanup_target_tribe_label_en}`
+
+          Pick a tribe, then open preview. Run button is now in preview.
+
+          {defender_last_run_notice_en}
+      buttons:
+        - id: "{defender_tribe_button_id_1}"
+          label: "{defender_tribe_button_label_1}"
+          action: set_group_defender_cleanup_tribe_target
+          condition: "defender_tribe_button_id_1 != ''"
+          next_state: GROUP_DEFENDER_RUN_TRIBE
+          row: 1
+        - id: "{defender_tribe_button_id_2}"
+          label: "{defender_tribe_button_label_2}"
+          action: set_group_defender_cleanup_tribe_target
+          condition: "defender_tribe_button_id_2 != ''"
+          next_state: GROUP_DEFENDER_RUN_TRIBE
+          row: 2
+        - id: "{defender_tribe_button_id_3}"
+          label: "{defender_tribe_button_label_3}"
+          action: set_group_defender_cleanup_tribe_target
+          condition: "defender_tribe_button_id_3 != ''"
+          next_state: GROUP_DEFENDER_RUN_TRIBE
+          row: 3
+        - id: "{defender_tribe_button_id_4}"
+          label: "{defender_tribe_button_label_4}"
+          action: set_group_defender_cleanup_tribe_target
+          condition: "defender_tribe_button_id_4 != ''"
+          next_state: GROUP_DEFENDER_RUN_TRIBE
+          row: 4
+        - id: "{defender_tribe_button_id_5}"
+          label: "{defender_tribe_button_label_5}"
+          action: set_group_defender_cleanup_tribe_target
+          condition: "defender_tribe_button_id_5 != ''"
+          next_state: GROUP_DEFENDER_RUN_TRIBE
+          row: 5
+        - id: "{defender_tribe_button_id_6}"
+          label: "{defender_tribe_button_label_6}"
+          action: set_group_defender_cleanup_tribe_target
+          condition: "defender_tribe_button_id_6 != ''"
+          next_state: GROUP_DEFENDER_RUN_TRIBE
+          row: 6
+        - id: "{defender_tribe_button_id_7}"
+          label: "{defender_tribe_button_label_7}"
+          action: set_group_defender_cleanup_tribe_target
+          condition: "defender_tribe_button_id_7 != ''"
+          next_state: GROUP_DEFENDER_RUN_TRIBE
+          row: 7
+        - id: "{defender_tribe_button_id_8}"
+          label: "{defender_tribe_button_label_8}"
+          action: set_group_defender_cleanup_tribe_target
+          condition: "defender_tribe_button_id_8 != ''"
+          next_state: GROUP_DEFENDER_RUN_TRIBE
+          row: 8
+        - id: "{defender_tribe_button_id_9}"
+          label: "{defender_tribe_button_label_9}"
+          action: set_group_defender_cleanup_tribe_target
+          condition: "defender_tribe_button_id_9 != ''"
+          next_state: GROUP_DEFENDER_RUN_TRIBE
+          row: 9
+        - id: "{defender_tribe_button_id_10}"
+          label: "{defender_tribe_button_label_10}"
+          action: set_group_defender_cleanup_tribe_target
+          condition: "defender_tribe_button_id_10 != ''"
+          next_state: GROUP_DEFENDER_RUN_TRIBE
+          row: 10
+        - id: def_cleanup_tribe_prev
+          label:
+            ru: ◀️ Назад
+            en: ◀️ Back
+          action: defender_cleanup_tribe_prev_page
+          next_state: GROUP_DEFENDER_RUN_TRIBE
+          row: 11
+        - id: def_cleanup_tribe_page
+          label:
+            ru: "{defender_tribe_page_caption_ru}"
+            en: "{defender_tribe_page_caption_en}"
+          action: load_group_defender_cleanup_tribe_options
+          next_state: GROUP_DEFENDER_RUN_TRIBE
+          row: 11
+        - id: def_cleanup_tribe_next
+          label:
+            ru: Вперёд ▶️
+            en: Next ▶️
+          action: defender_cleanup_tribe_next_page
+          next_state: GROUP_DEFENDER_RUN_TRIBE
+          row: 11
+        - id: def_preview_tribe
+          label:
+            ru: 🔎 Предпросмотр списка
+            en: 🔎 Preview list
+          action: preview_group_defender_violations
+          condition: "can_manage_selected_group == true && defender_cleanup_target_tribe_id > 0"
+          next_state: GROUP_DEFENDER_PREVIEW
+          row: 12
+        - id: def_back_run_tribe
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back to cleanup menu
+          row: 99
+          next_state: GROUP_DEFENDER_RUN
 
   GROUP_DEFENDER_PREVIEW:
     type: interactive
@@ -767,6 +1067,14 @@ states:
           condition: "can_manage_selected_group == true"
           next_state: GROUP_DEFENDER_PREVIEW
           row: 2
+        - id: def_preview_run
+          label:
+            ru: ▶️ Запустить очищение по списку
+            en: ▶️ Start cleaning according to the list
+          action: run_group_defender
+          condition: "can_manage_selected_group == true && defender_preview_candidate_ids != ''"
+          next_state: GROUP_DEFENDER_PREVIEW
+          row: 3
         - id: def_back_run
           label:
             ru: 🔙 Назад

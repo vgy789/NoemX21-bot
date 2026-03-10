@@ -82,6 +82,8 @@ const (
 	ContextKeyMemberTagRunner ContextKey = "member_tag_runner"
 	// ContextKeyDefenderRunner is used to store transport-level defender runner.
 	ContextKeyDefenderRunner ContextKey = "defender_runner"
+	// ContextKeyDefenderManualFilter is used to override defender run/preview scope for manual cleanup.
+	ContextKeyDefenderManualFilter ContextKey = "defender_manual_filter"
 )
 
 // UserInfo represents basic user metadata from the transport layer
@@ -146,6 +148,24 @@ type DefenderPreviewItem struct {
 	Reason         string
 }
 
+// DefenderManualScope defines optional manual cleanup scopes for defender run/preview.
+type DefenderManualScope string
+
+const (
+	DefenderManualScopeConfigured   DefenderManualScope = "configured"
+	DefenderManualScopeUnregistered DefenderManualScope = "unregistered"
+	DefenderManualScopeBlocked      DefenderManualScope = "blocked"
+	DefenderManualScopeCampus       DefenderManualScope = "campus"
+	DefenderManualScopeTribe        DefenderManualScope = "tribe"
+)
+
+// DefenderManualFilter overrides defender evaluation rules in manual cleanup screens.
+type DefenderManualFilter struct {
+	Scope    DefenderManualScope
+	CampusID string
+	TribeID  int16
+}
+
 // DefenderRunner executes defender operations bound to transport capabilities.
 type DefenderRunner interface {
 	RunGroupDefender(ctx context.Context, ownerTelegramUserID, chatID int64) (DefenderRunResult, error)
@@ -187,4 +207,23 @@ func DefenderRunnerFromContext(ctx context.Context) (DefenderRunner, bool) {
 	}
 	r, ok := ctx.Value(ContextKeyDefenderRunner).(DefenderRunner)
 	return r, ok && r != nil
+}
+
+// DefenderManualFilterFromContext extracts manual defender filter override from context.
+func DefenderManualFilterFromContext(ctx context.Context) (DefenderManualFilter, bool) {
+	if ctx == nil {
+		return DefenderManualFilter{}, false
+	}
+	v := ctx.Value(ContextKeyDefenderManualFilter)
+	switch x := v.(type) {
+	case DefenderManualFilter:
+		return x, true
+	case *DefenderManualFilter:
+		if x == nil {
+			return DefenderManualFilter{}, false
+		}
+		return *x, true
+	default:
+		return DefenderManualFilter{}, false
+	}
 }

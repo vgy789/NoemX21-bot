@@ -31,6 +31,8 @@ const (
 	defenderReasonNotMember    = "not_member"
 	defenderReasonCampusFilter = "campus_filter"
 	defenderReasonTribeFilter  = "tribe_filter"
+	defenderReasonCampusTarget = "campus_selected"
+	defenderReasonTribeTarget  = "tribe_selected"
 )
 
 type defenderDecision struct {
@@ -98,6 +100,7 @@ func (s *telegramService) runGroupDefender(ctx context.Context, b *gotgbot.Bot, 
 	if err != nil {
 		return result, err
 	}
+	manualFilter, hasManualFilter := fsm.DefenderManualFilterFromContext(ctx)
 
 	knownMembers, err := s.queries.ListTelegramGroupKnownMembers(ctx, chatID)
 	if err != nil {
@@ -149,7 +152,7 @@ func (s *telegramService) runGroupDefender(ctx context.Context, b *gotgbot.Bot, 
 			continue
 		}
 
-		decision, err := s.evaluateDefenderDecision(ctx, known.TelegramUserID, group, filters)
+		decision, err := s.evaluateDefenderDecision(ctx, known.TelegramUserID, group, filters, manualFilter, hasManualFilter)
 		if err != nil {
 			result.Errors++
 			continue
@@ -199,6 +202,7 @@ func (s *telegramService) previewGroupDefenderCandidates(ctx context.Context, b 
 	if err != nil {
 		return nil, err
 	}
+	manualFilter, hasManualFilter := fsm.DefenderManualFilterFromContext(ctx)
 
 	knownMembers, err := s.queries.ListTelegramGroupKnownMembers(ctx, chatID)
 	if err != nil {
@@ -227,7 +231,7 @@ func (s *telegramService) previewGroupDefenderCandidates(ctx context.Context, b 
 			continue
 		}
 
-		decision, err := s.evaluateDefenderDecision(ctx, known.TelegramUserID, group, filters)
+		decision, err := s.evaluateDefenderDecision(ctx, known.TelegramUserID, group, filters, manualFilter, hasManualFilter)
 		if err != nil || !decision.ShouldRemove {
 			continue
 		}
@@ -312,7 +316,7 @@ func (s *telegramService) tryAutoDefenderForKnownGroup(ctx context.Context, b *g
 	if err != nil {
 		return
 	}
-	decision, err := s.evaluateDefenderDecision(ctx, telegramUserID, group, filters)
+	decision, err := s.evaluateDefenderDecision(ctx, telegramUserID, group, filters, fsm.DefenderManualFilter{}, false)
 	if err != nil {
 		return
 	}
@@ -337,10 +341,20 @@ func (s *telegramService) tryAutoDefenderForKnownGroup(ctx context.Context, b *g
 	s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoin, telegramUserID, defenderActionRemoved, decision.Reason, "")
 }
 
-func (s *telegramService) evaluateDefenderDecision(ctx context.Context, telegramUserID int64, group db.TelegramGroup, filters defenderFilterConfig) (defenderDecision, error) {
+func (s *telegramService) evaluateDefenderDecision(
+	ctx context.Context,
+	telegramUserID int64,
+	group db.TelegramGroup,
+	filters defenderFilterConfig,
+	manualFilter fsm.DefenderManualFilter,
+	hasManualFilter bool,
+) (defenderDecision, error) {
 	profile, err := s.userSvc.GetProfileByTelegramID(ctx, telegramUserID)
 	if err != nil {
 		if isUnregisteredProfileErr(err) {
+			if hasManualFilter && manualFilter.Scope != fsm.DefenderManualScopeUnregistered {
+				return defenderDecision{}, nil
+			}
 			return defenderDecision{ShouldRemove: true, Reason: defenderReasonUnregistered, RemovedAs: defenderReasonUnregistered}, nil
 		}
 		return defenderDecision{}, err
@@ -351,6 +365,47 @@ func (s *telegramService) evaluateDefenderDecision(ctx context.Context, telegram
 		profileCampus = pgtype.UUID{}
 	}
 	profileCampusKey := uuidToString(profileCampus)
+
+	if hasManualFilter {
+		switch manualFilter.Scope {
+		case fsm.DefenderManualScopeUnregistered:
+			return defenderDecision{}, nil
+		case fsm.DefenderManualScopeBlocked:
+			switch profile.Status {
+			case db.EnumStudentStatusBLOCKED:
+				return defenderDecision{ShouldRemove: true, Reason: defenderReasonBlocked, RemovedAs: defenderReasonBlocked}, nil
+			case db.EnumStudentStatusEXPELLED:
+				return defenderDecision{ShouldRemove: true, Reason: defenderReasonExpelled, RemovedAs: defenderReasonExpelled}, nil
+			default:
+				return defenderDecision{}, nil
+			}
+		case fsm.DefenderManualScopeCampus:
+			targetCampus := pgtype.UUID{}
+			if err := targetCampus.Scan(strings.TrimSpace(manualFilter.CampusID)); err != nil || !targetCampus.Valid {
+				return defenderDecision{}, nil
+			}
+			if profileCampus.Valid && profileCampus == targetCampus {
+				return defenderDecision{ShouldRemove: true, Reason: defenderReasonCampusTarget, RemovedAs: defenderReasonCampusTarget}, nil
+			}
+			return defenderDecision{}, nil
+		case fsm.DefenderManualScopeTribe:
+			targetCampus := pgtype.UUID{}
+			if err := targetCampus.Scan(strings.TrimSpace(manualFilter.CampusID)); err != nil || !targetCampus.Valid {
+				return defenderDecision{}, nil
+			}
+			if !profileCampus.Valid || profileCampus != targetCampus {
+				return defenderDecision{}, nil
+			}
+			targetName := strings.TrimSpace(filters.TribeNames[uuidToString(targetCampus)][manualFilter.TribeID])
+			if targetName == "" {
+				return defenderDecision{}, nil
+			}
+			if strings.EqualFold(strings.TrimSpace(profile.CoalitionName), targetName) {
+				return defenderDecision{ShouldRemove: true, Reason: defenderReasonTribeTarget, RemovedAs: defenderReasonTribeTarget}, nil
+			}
+			return defenderDecision{}, nil
+		}
+	}
 
 	if filters.HasCampusRule {
 		if !profileCampus.Valid {
