@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 
 	"github.com/vgy789/noemx21-bot/internal/pkg/netretry"
 )
@@ -19,6 +20,15 @@ type CampusV1DTO struct {
 
 type CampusesResponse struct {
 	Campuses []CampusV1DTO `json:"campuses"`
+}
+
+type CoalitionV1DTO struct {
+	CoalitionID int64  `json:"coalitionId"`
+	Name        string `json:"name"`
+}
+
+type CoalitionsResponse struct {
+	Coalitions []CoalitionV1DTO `json:"coalitions"`
 }
 
 func (c *Client) GetCampuses(ctx context.Context, token string) ([]CampusV1DTO, error) {
@@ -68,4 +78,31 @@ func (c *Client) GetCampuses(ctx context.Context, token string) ([]CampusV1DTO, 
 	}
 
 	return wrapper.Campuses, nil
+}
+
+func (c *Client) GetCampusCoalitions(ctx context.Context, token, campusID string) ([]CoalitionV1DTO, error) {
+	const pageSize = 1000
+
+	all := make([]CoalitionV1DTO, 0, pageSize)
+	for offset := 0; ; offset += pageSize {
+		query := url.Values{}
+		query.Set("limit", fmt.Sprintf("%d", pageSize))
+		query.Set("offset", fmt.Sprintf("%d", offset))
+
+		apiURL := fmt.Sprintf("%s/campuses/%s/coalitions?%s", c.baseURL, url.PathEscape(campusID), query.Encode())
+		resp, err := getJSON[CoalitionsResponse](ctx, c.httpClient, apiURL, token)
+		if err != nil {
+			return nil, err
+		}
+		if resp == nil || len(resp.Coalitions) == 0 {
+			break
+		}
+
+		all = append(all, resp.Coalitions...)
+		if len(resp.Coalitions) < pageSize {
+			break
+		}
+	}
+
+	return all, nil
 }

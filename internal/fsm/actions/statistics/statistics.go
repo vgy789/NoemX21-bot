@@ -254,7 +254,7 @@ func Register(
 			}
 			if coalition != nil && coalition.CoalitionID != 0 {
 				cacheParams.CoalitionID = pgtype.Int2{Int16: int16(coalition.CoalitionID), Valid: true}
-				if err := service.EnsureCoalitionPresent(ctx, queries, coalition, log); err != nil {
+				if err := service.EnsureCoalitionPresent(ctx, queries, s21Client, token, coalition, participant.Campus.ID, log); err != nil {
 					log.Error("failed to ensure coalition present during stats update", "login", acc.S21Login, "coalition_id", coalition.CoalitionID, "error", err)
 				}
 			}

@@ -134,6 +134,39 @@ func TestClient_GetCampuses_apiError(t *testing.T) {
 	assert.Contains(t, err.Error(), "500")
 }
 
+func TestClient_GetCampusCoalitions(t *testing.T) {
+	campusID := "ff19a3a7-12f5-4332-9582-624519c3eaea"
+	client := newMockClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "GET", r.Method)
+		assert.Contains(t, r.URL.Path, "/campuses/"+campusID+"/coalitions")
+		assert.Equal(t, "1000", r.URL.Query().Get("limit"))
+		assert.Equal(t, "0", r.URL.Query().Get("offset"))
+		assert.Equal(t, "Bearer tok", r.Header.Get("Authorization"))
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(CoalitionsResponse{
+			Coalitions: []CoalitionV1DTO{
+				{CoalitionID: 1, Name: "Blue"},
+				{CoalitionID: 2, Name: "Red"},
+			},
+		})
+	}))
+	got, err := client.GetCampusCoalitions(context.Background(), "tok", campusID)
+	require.NoError(t, err)
+	require.Len(t, got, 2)
+	assert.Equal(t, int64(1), got[0].CoalitionID)
+	assert.Equal(t, "Red", got[1].Name)
+}
+
+func TestClient_GetCampusCoalitions_apiError(t *testing.T) {
+	client := newMockClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	got, err := client.GetCampusCoalitions(context.Background(), "tok", "ff19a3a7-12f5-4332-9582-624519c3eaea")
+	assert.Error(t, err)
+	assert.Nil(t, got)
+	assert.Contains(t, err.Error(), "500")
+}
+
 func newMockClient(handler http.Handler) *Client {
 	httpClient := &http.Client{
 		Transport: mockRoundTripper{handler: handler},

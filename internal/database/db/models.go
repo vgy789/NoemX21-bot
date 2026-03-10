@@ -261,6 +261,7 @@ type ClubCategory struct {
 }
 
 type Coalition struct {
+	CampusID  pgtype.UUID        `json:"campus_id"`
 	ID        int16              `json:"id"`
 	Name      string             `json:"name"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`

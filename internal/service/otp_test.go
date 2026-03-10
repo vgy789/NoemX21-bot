@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"log/slog"
+	"net/http"
 	"os"
 	"testing"
 	"time"
@@ -186,34 +188,89 @@ func TestEnsureCoalitionPresent(t *testing.T) {
 	mockQ := mock.NewMockQuerier(ctrl)
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	ctx := context.Background()
+	campusID := "ff19a3a7-12f5-4332-9582-624519c3eaea"
+	var campusUUID pgtype.UUID
+	require.NoError(t, campusUUID.Scan(campusID))
 
 	t.Run("nil coalition", func(t *testing.T) {
-		err := EnsureCoalitionPresent(ctx, mockQ, nil, log)
+		err := EnsureCoalitionPresent(ctx, mockQ, nil, "", nil, "", log)
 		assert.NoError(t, err)
 	})
 
 	t.Run("zero coalition ID", func(t *testing.T) {
 		coalition := &s21.ParticipantCoalitionV1DTO{CoalitionID: 0, CoalitionName: "Test"}
-		err := EnsureCoalitionPresent(ctx, mockQ, coalition, log)
+		err := EnsureCoalitionPresent(ctx, mockQ, nil, "", coalition, "", log)
 		assert.NoError(t, err)
 	})
 
-	t.Run("upsert success", func(t *testing.T) {
+	t.Run("already exists", func(t *testing.T) {
 		coalition := &s21.ParticipantCoalitionV1DTO{CoalitionID: 5, CoalitionName: "Test Coalition"}
-		mockQ.EXPECT().UpsertCoalition(ctx, db.UpsertCoalitionParams{
-			ID:   5,
-			Name: "Test Coalition",
-		}).Return(nil)
+		mockQ.EXPECT().ExistsCoalitionByID(ctx, db.ExistsCoalitionByIDParams{
+			CampusID: campusUUID,
+			ID:       5,
+		}).Return(true, nil)
 
-		err := EnsureCoalitionPresent(ctx, mockQ, coalition, log)
+		err := EnsureCoalitionPresent(ctx, mockQ, nil, "", coalition, campusID, log)
 		assert.NoError(t, err)
 	})
 
-	t.Run("upsert error", func(t *testing.T) {
+	t.Run("missing in db -> fetch campus coalitions and upsert all", func(t *testing.T) {
 		coalition := &s21.ParticipantCoalitionV1DTO{CoalitionID: 5, CoalitionName: "Test Coalition"}
-		mockQ.EXPECT().UpsertCoalition(ctx, gomock.Any()).Return(assert.AnError)
 
-		err := EnsureCoalitionPresent(ctx, mockQ, coalition, log)
+		gomock.InOrder(
+			mockQ.EXPECT().ExistsCoalitionByID(ctx, db.ExistsCoalitionByIDParams{
+				CampusID: campusUUID,
+				ID:       5,
+			}).Return(false, nil),
+			mockQ.EXPECT().UpsertCoalition(ctx, db.UpsertCoalitionParams{CampusID: campusUUID, ID: 5, Name: "Blue"}).Return(nil),
+			mockQ.EXPECT().UpsertCoalition(ctx, db.UpsertCoalitionParams{CampusID: campusUUID, ID: 7, Name: "Red"}).Return(nil),
+		)
+
+		mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.Header().Set("Content-Type", "application/json")
+			_ = json.NewEncoder(w).Encode(s21.CoalitionsResponse{
+				Coalitions: []s21.CoalitionV1DTO{
+					{CoalitionID: 5, Name: "Blue"},
+					{CoalitionID: 7, Name: "Red"},
+				},
+			})
+		})
+		client := newMockS21Client(mockHandler)
+
+		err := EnsureCoalitionPresent(ctx, mockQ, client, "token", coalition, campusID, log)
+		assert.NoError(t, err)
+	})
+
+	t.Run("fetch error -> fallback to participant coalition upsert", func(t *testing.T) {
+		coalition := &s21.ParticipantCoalitionV1DTO{CoalitionID: 5, CoalitionName: "Test Coalition"}
+		gomock.InOrder(
+			mockQ.EXPECT().ExistsCoalitionByID(ctx, db.ExistsCoalitionByIDParams{
+				CampusID: campusUUID,
+				ID:       5,
+			}).Return(false, nil),
+			mockQ.EXPECT().UpsertCoalition(ctx, db.UpsertCoalitionParams{CampusID: campusUUID, ID: 5, Name: "Test Coalition"}).Return(nil),
+		)
+
+		mockHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusInternalServerError)
+		})
+		client := newMockS21Client(mockHandler)
+
+		err := EnsureCoalitionPresent(ctx, mockQ, client, "token", coalition, campusID, log)
+		assert.NoError(t, err)
+	})
+
+	t.Run("fallback upsert error", func(t *testing.T) {
+		coalition := &s21.ParticipantCoalitionV1DTO{CoalitionID: 5, CoalitionName: "Test Coalition"}
+		gomock.InOrder(
+			mockQ.EXPECT().ExistsCoalitionByID(ctx, db.ExistsCoalitionByIDParams{
+				CampusID: campusUUID,
+				ID:       5,
+			}).Return(false, nil),
+			mockQ.EXPECT().UpsertCoalition(ctx, db.UpsertCoalitionParams{CampusID: campusUUID, ID: 5, Name: "Test Coalition"}).Return(assert.AnError),
+		)
+
+		err := EnsureCoalitionPresent(ctx, mockQ, nil, "", coalition, campusID, log)
 		assert.Error(t, err)
 	})
 }

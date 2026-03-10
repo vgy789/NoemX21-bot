@@ -580,6 +580,26 @@ func (q *Queries) DeleteUserAccountByExternalId(ctx context.Context, arg DeleteU
 	return err
 }
 
+const existsCoalitionByID = `-- name: ExistsCoalitionByID :one
+SELECT EXISTS (
+    SELECT 1
+    FROM coalitions
+    WHERE campus_id = $1 AND id = $2
+)
+`
+
+type ExistsCoalitionByIDParams struct {
+	CampusID pgtype.UUID `json:"campus_id"`
+	ID       int16       `json:"id"`
+}
+
+func (q *Queries) ExistsCoalitionByID(ctx context.Context, arg ExistsCoalitionByIDParams) (bool, error) {
+	row := q.db.QueryRow(ctx, existsCoalitionByID, arg.CampusID, arg.ID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const existsOpenReviewRequestByUserAndProject = `-- name: ExistsOpenReviewRequestByUserAndProject :one
 SELECT EXISTS (
     SELECT 1
@@ -1615,7 +1635,7 @@ SELECT
 FROM registered_users r
 LEFT JOIN participant_stats_cache c ON r.s21_login = c.s21_login
 LEFT JOIN campuses camp ON c.campus_id = camp.id
-LEFT JOIN coalitions co ON c.coalition_id = co.id
+LEFT JOIN coalitions co ON c.campus_id = co.campus_id AND c.coalition_id = co.id
 WHERE r.s21_login = $1
 `
 
@@ -1930,7 +1950,7 @@ SELECT
     c.lat_synced_at
 FROM participant_stats_cache c
 LEFT JOIN campuses camp ON c.campus_id = camp.id
-LEFT JOIN coalitions co ON c.coalition_id = co.id
+LEFT JOIN coalitions co ON c.campus_id = co.campus_id AND c.coalition_id = co.id
 WHERE c.s21_login = $1
 `
 
@@ -2001,7 +2021,7 @@ SELECT
     c.thoroughness
 FROM participant_stats_cache c
 LEFT JOIN campuses camp ON c.campus_id = camp.id
-LEFT JOIN coalitions co ON c.coalition_id = co.id
+LEFT JOIN coalitions co ON c.campus_id = co.campus_id AND c.coalition_id = co.id
 LEFT JOIN user_accounts ua ON c.s21_login = ua.s21_login AND ua.platform = 'telegram'
 WHERE c.s21_login = $1
 `
@@ -3708,18 +3728,19 @@ func (q *Queries) UpsertClubCategory(ctx context.Context, name string) (ClubCate
 }
 
 const upsertCoalition = `-- name: UpsertCoalition :exec
-INSERT INTO coalitions (id, name)
-VALUES ($1, $2)
-ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name
+INSERT INTO coalitions (campus_id, id, name)
+VALUES ($1, $2, $3)
+ON CONFLICT (campus_id, id) DO UPDATE SET name = EXCLUDED.name
 `
 
 type UpsertCoalitionParams struct {
-	ID   int16  `json:"id"`
-	Name string `json:"name"`
+	CampusID pgtype.UUID `json:"campus_id"`
+	ID       int16       `json:"id"`
+	Name     string      `json:"name"`
 }
 
 func (q *Queries) UpsertCoalition(ctx context.Context, arg UpsertCoalitionParams) error {
-	_, err := q.db.Exec(ctx, upsertCoalition, arg.ID, arg.Name)
+	_, err := q.db.Exec(ctx, upsertCoalition, arg.CampusID, arg.ID, arg.Name)
 	return err
 }
 

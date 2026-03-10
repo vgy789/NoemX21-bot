@@ -447,6 +447,21 @@ func (mr *MockQuerierMockRecorder) DeleteUserAccountByExternalId(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserAccountByExternalId", reflect.TypeOf((*MockQuerier)(nil).DeleteUserAccountByExternalId), ctx, arg)
 }
 
+// ExistsCoalitionByID mocks base method.
+func (m *MockQuerier) ExistsCoalitionByID(ctx context.Context, arg db.ExistsCoalitionByIDParams) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExistsCoalitionByID", ctx, arg)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExistsCoalitionByID indicates an expected call of ExistsCoalitionByID.
+func (mr *MockQuerierMockRecorder) ExistsCoalitionByID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExistsCoalitionByID", reflect.TypeOf((*MockQuerier)(nil).ExistsCoalitionByID), ctx, arg)
+}
+
 // ExistsOpenReviewRequestByUserAndProject mocks base method.
 func (m *MockQuerier) ExistsOpenReviewRequestByUserAndProject(ctx context.Context, arg db.ExistsOpenReviewRequestByUserAndProjectParams) (bool, error) {
 	m.ctrl.T.Helper()
