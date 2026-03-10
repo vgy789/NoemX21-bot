@@ -163,7 +163,7 @@ states:
 
           Напиши честно, в какое время ты на связи и готов:а отвечать.
 
-          💡 _Совет Утки: Пиши конкретно, например:_
+          🦆 _Совет Утк: Пиши конкретно, например:_
           • «1 мая до 20:00, 2-го с утра»
           • «Прямо сейчас и ближайшие 2 часа»
           • «Завтра с 10:00 до 15:00 по МСК»
@@ -172,7 +172,7 @@ states:
 
           Be honest about when you're online and ready to respond.
 
-          💡 _Duck's Tip: Be specific, e.g.:_
+          🦆 _Duc's Tip: Be specific, e.g.:_
           • "May 1st until 8 PM, May 2nd in the morning"
           • "Right now and for the next 2 hours"
           • "Tomorrow from 10 AM – 3 PM (UTC+3)"
@@ -242,13 +242,13 @@ states:
     interface:
       text:
         ru: |
-          🚀 *Полетела утка!*
+          🚀 *Полетела Утк!*
 
           Твой запрос на общей доске. Как только кто-то откликнется, я мигом пришлю уведомление.
 
           _А пока можно выпить кофе или самому спасти чьё-нибудь ревью._ ☕️
         en: |
-          🚀 *The Duck has taken flight!*
+          🚀 *The Duc has taken flight!*
 
           Your request is now on the board. I'll notify you the moment someone responds.
 
@@ -377,14 +377,14 @@ states:
           📁 *Проект: {selected_project_name_md}*
           Тип: `{selected_project_type}`
 
-          _Выбери пира, которому готов помочь. Утка одобряет взаимовыручку!_ 🦆
+          _Выбери пира, которому готов помочь. Утк одобряет взаимовыручку!_ 🦆
 
           {project_prr_list_formatted}
         en: |
           📁 *Project: {selected_project_name_md}*
           Type: `{selected_project_type}`
 
-          _Pick a peer you're ready to help. Duck approves of peer-to-peer!_ 🦆
+          _Pick a peer you're ready to help. Duc approves of peer-to-peer!_ 🦆
 
           {project_prr_list_formatted}
       buttons:
@@ -1053,13 +1053,13 @@ states:
         ru: |
           ⚠️ *Дубликат сигнала!*
 
-          На этот проект уже заведена активная заявка. Утка не может плыть в две стороны сразу.
+          На этот проект уже заведена активная заявка. Утк не может плыть в две стороны сразу.
 
           _Закрой старый запрос в «Моих запросах», если хочешь создать новый._
         en: |
           ⚠️ *Signal overlap!*
 
-          There's already an active request for this project. A duck can't swim in two directions at once.
+          There's already an active request for this project. A Duc can't swim in two directions at once.
 
           _Close the old request in “My requests” before creating a new one._
       buttons:
@@ -1080,8 +1080,8 @@ states:
     type: interactive
     interface:
       text:
-        ru: "Эй, ты не можешь поревьюить самого себя. Утка видит всё! 🦆☝️"
-        en: "Hey, you can't review your own request. Duck sees everything! 🦆☝️"
+        ru: "Эй, ты не можешь поревьюить самого себя. Утк видит всё! 🦆☝️"
+        en: "Hey, you can't review your own request. Duc sees everything! 🦆☝️"
       buttons:
         - id: back
           label:
@@ -1143,7 +1143,7 @@ notifications:
     interface:
       text:
         ru: |
-          🔥 *Утка принесла благую весть!*
+          🔥 *Утк принесла благую весть!*
 
           На твой запрос по *{project_name}* откликнулся пир **@{reviewer_username}** (lvl {reviewer_level}).
 
@@ -1157,7 +1157,7 @@ notifications:
 
           🧊 Я *скрыла твою заявку*, чтобы тебя не завалили лишними сообщениями.
         en: |
-          🔥 *The Duck has great news!*
+          🔥 *The Duc has great news!*
 
           User @{reviewer_username} (level {reviewer_level}) has responded to your request for *{project_name}*.
 

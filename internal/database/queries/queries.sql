@@ -105,6 +105,60 @@ SET owner_telegram_user_id = 0,
 WHERE chat_id = $1
   AND owner_telegram_user_id = $2;
 
+-- name: UpdateTelegramGroupMemberTagsEnabledByOwner :execrows
+UPDATE telegram_groups
+SET member_tags_enabled = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2;
+
+-- name: UpdateTelegramGroupMemberTagFormatByOwner :execrows
+UPDATE telegram_groups
+SET member_tag_format = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2;
+
+-- name: UpsertTelegramGroupMember :one
+INSERT INTO telegram_group_members (
+    chat_id, telegram_user_id, is_member, is_bot, last_status, last_seen_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6
+)
+ON CONFLICT (chat_id, telegram_user_id) DO UPDATE SET
+    is_member = EXCLUDED.is_member,
+    is_bot = EXCLUDED.is_bot,
+    last_status = EXCLUDED.last_status,
+    last_seen_at = EXCLUDED.last_seen_at,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING *;
+
+-- name: MarkTelegramGroupMemberLeft :exec
+UPDATE telegram_group_members
+SET is_member = false,
+    last_status = $3,
+    last_seen_at = $4,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND telegram_user_id = $2;
+
+-- name: ListTelegramGroupKnownMembers :many
+SELECT * FROM telegram_group_members
+WHERE chat_id = $1
+  AND is_member = true
+ORDER BY telegram_user_id;
+
+-- name: ListMemberTagGroupsByTelegramUser :many
+SELECT g.*
+FROM telegram_groups g
+JOIN telegram_group_members m ON m.chat_id = g.chat_id
+WHERE m.telegram_user_id = $1
+  AND m.is_member = true
+  AND g.is_active = true
+  AND g.is_initialized = true
+  AND g.member_tags_enabled = true
+ORDER BY g.chat_title;
+
 -- name: GetUserBotSettings :one
 SELECT * FROM user_bot_settings 
 WHERE user_account_id = $1;

@@ -35,6 +35,21 @@ func (f *fakeUserSvc) GetProfileByExternalID(ctx context.Context, platform db.En
 	return &service.UserProfile{Login: "testlogin"}, nil
 }
 
+type captureMemberTagRunner struct {
+	called     bool
+	lastUserID int64
+}
+
+func (r *captureMemberTagRunner) RunGroupMemberTags(_ context.Context, _, _ int64, _ fsm.MemberTagRunMode) (fsm.MemberTagRunResult, error) {
+	return fsm.MemberTagRunResult{}, nil
+}
+
+func (r *captureMemberTagRunner) SyncMemberTagsForRegisteredUser(_ context.Context, telegramUserID int64) error {
+	r.called = true
+	r.lastUserID = telegramUserID
+	return nil
+}
+
 type mockRoundTripper struct {
 	handler http.Handler
 }
@@ -248,5 +263,42 @@ func TestFindAndVerifyRocketUser_AlreadyRegisteredResetsSuccessFlags(t *testing.
 	}
 	if updates["rocket_user_found"] != false || updates["email_verified"] != false {
 		t.Fatalf("expected stale success flags to be reset, got: %#v", updates)
+	}
+}
+
+func TestLoadUserProfile_TriggersMemberTagsSyncForTelegram(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockQ := dbmock.NewMockQuerier(ctrl)
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	registry := fsm.NewLogicRegistry()
+	cfg := &config.Config{}
+
+	mockQ.EXPECT().GetUserAccountByExternalId(gomock.Any(), db.GetUserAccountByExternalIdParams{
+		Platform:   db.EnumPlatformTelegram,
+		ExternalID: "1234",
+	}).Return(db.UserAccount{S21Login: "testlogin"}, nil)
+
+	otpProvider := service.NewMockOTPProvider(logger)
+	Register(registry, cfg, logger, mockQ, &fakeUserSvc{}, nil, nil, nil, otpProvider, nil)
+
+	action, ok := registry.Get("load_user_profile")
+	if !ok {
+		t.Fatalf("load_user_profile action not registered")
+	}
+
+	runner := &captureMemberTagRunner{}
+	ctx := context.WithValue(context.Background(), fsm.ContextKeyMemberTagRunner, runner)
+	_, updates, err := action(ctx, 1234, map[string]any{})
+	if err != nil {
+		t.Fatalf("action returned error: %v", err)
+	}
+
+	if updates["profile_loaded"] != true {
+		t.Fatalf("expected profile_loaded=true, got: %#v", updates)
+	}
+	if !runner.called || runner.lastUserID != 1234 {
+		t.Fatalf("expected member tags sync to be called for 1234, got called=%v user=%d", runner.called, runner.lastUserID)
 	}
 }

@@ -265,6 +265,7 @@ func TestHandleChatMember_AutoUnlinkWhenStoredOwnerLosesCreator(t *testing.T) {
 		IsInitialized:       true,
 		IsActive:            true,
 	}, nil)
+	queries.EXPECT().UpsertTelegramGroupMember(gomock.Any(), gomock.Any()).Return(db.TelegramGroupMember{}, nil)
 	queries.EXPECT().UnlinkTelegramGroupOwner(gomock.Any(), chatID).Return(nil)
 
 	err := s.handleChatMember(nil, ctx)
@@ -298,6 +299,7 @@ func TestHandleChatMember_AutoUnlinkWhenAnotherUserBecomesCreator(t *testing.T) 
 		IsInitialized:       true,
 		IsActive:            true,
 	}, nil)
+	queries.EXPECT().UpsertTelegramGroupMember(gomock.Any(), gomock.Any()).Return(db.TelegramGroupMember{}, nil)
 	queries.EXPECT().UnlinkTelegramGroupOwner(gomock.Any(), chatID).Return(nil)
 
 	err := s.handleChatMember(nil, ctx)

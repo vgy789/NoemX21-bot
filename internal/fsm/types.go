@@ -78,6 +78,8 @@ const (
 	ContextKeyUserInfo ContextKey = "user_info"
 	// ContextKeyNotifier is used to store transport notifier implementation.
 	ContextKeyNotifier ContextKey = "notifier"
+	// ContextKeyMemberTagRunner is used to store transport-level member tags runner.
+	ContextKeyMemberTagRunner ContextKey = "member_tag_runner"
 )
 
 // UserInfo represents basic user metadata from the transport layer
@@ -99,6 +101,30 @@ type RenderNotifier interface {
 	NotifyUserRender(ctx context.Context, userID int64, render *RenderObject) error
 }
 
+// MemberTagRunMode defines manual member tags run behavior.
+type MemberTagRunMode string
+
+const (
+	MemberTagRunModeKeepExisting  MemberTagRunMode = "keep_existing"
+	MemberTagRunModeClearAndApply MemberTagRunMode = "clear_then_apply"
+)
+
+// MemberTagRunResult contains aggregated counters for a manual run.
+type MemberTagRunResult struct {
+	Updated             int
+	SkippedExisting     int
+	SkippedUnregistered int
+	SkippedNotMember    int
+	SkippedNoRights     int
+	Errors              int
+}
+
+// MemberTagRunner executes member-tags operations bound to transport capabilities.
+type MemberTagRunner interface {
+	RunGroupMemberTags(ctx context.Context, ownerTelegramUserID, chatID int64, mode MemberTagRunMode) (MemberTagRunResult, error)
+	SyncMemberTagsForRegisteredUser(ctx context.Context, telegramUserID int64) error
+}
+
 // NotifierFromContext extracts a Notifier from context.
 func NotifierFromContext(ctx context.Context) (Notifier, bool) {
 	if ctx == nil {
@@ -115,4 +141,13 @@ func RenderNotifierFromContext(ctx context.Context) (RenderNotifier, bool) {
 	}
 	n, ok := ctx.Value(ContextKeyNotifier).(RenderNotifier)
 	return n, ok && n != nil
+}
+
+// MemberTagRunnerFromContext extracts a MemberTagRunner from context.
+func MemberTagRunnerFromContext(ctx context.Context) (MemberTagRunner, bool) {
+	if ctx == nil {
+		return nil, false
+	}
+	r, ok := ctx.Value(ContextKeyMemberTagRunner).(MemberTagRunner)
+	return r, ok && r != nil
 }

@@ -208,6 +208,7 @@ func Register(
 			// Check if XP changed (through stats cache)
 			oldCache, _ := queries.GetParticipantStatsCache(ctx, acc.S21Login)
 			xpChanged := oldCache.S21Login == "" || oldCache.ExpValue != int32(participant.ExpValue)
+			levelChanged := oldCache.S21Login == "" || oldCache.Level != participant.Level
 
 			// Save stats to participant_stats_cache (единое хранилище статистики)
 			points, errPoints := s21Client.GetParticipantPoints(ctx, token, acc.S21Login)
@@ -344,6 +345,10 @@ func Register(
 
 			// Save final state
 			_ = repo.SetState(ctx, state)
+
+			if levelChanged {
+				triggerMemberTagSyncOnLevelChange(ctx, log, userID, oldCache.Level, participant.Level)
+			}
 
 			// Update dbVars to return them immediately to the user
 			maps.Copy(dbVars, state.Context)
@@ -667,6 +672,21 @@ func Register(
 			"radar_comparison_path": chartPath,
 		}, nil
 	})
+}
+
+func triggerMemberTagSyncOnLevelChange(ctx context.Context, log *slog.Logger, telegramUserID int64, oldLevel, newLevel int32) {
+	if telegramUserID == 0 || oldLevel == newLevel {
+		return
+	}
+	runner, ok := fsm.MemberTagRunnerFromContext(ctx)
+	if !ok {
+		return
+	}
+	if err := runner.SyncMemberTagsForRegisteredUser(ctx, telegramUserID); err != nil {
+		if log != nil {
+			log.Warn("failed to sync member tags on level change", "telegram_user_id", telegramUserID, "old_level", oldLevel, "new_level", newLevel, "error", err)
+		}
+	}
 }
 
 // getStatsFromDB загружает статистику зарегистрированного пользователя через GetMyProfile

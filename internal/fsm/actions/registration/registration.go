@@ -620,6 +620,14 @@ func Register(
 			return "", map[string]any{"profile_loaded": false}, nil
 		}
 
+		if platform == db.EnumPlatformTelegram {
+			if runner, ok := fsm.MemberTagRunnerFromContext(ctx); ok {
+				if err := runner.SyncMemberTagsForRegisteredUser(ctx, ui.ID); err != nil {
+					log.Warn("failed to sync member tags for newly registered user", "telegram_user_id", ui.ID, "error", err)
+				}
+			}
+		}
+
 		log.Info("user profile loaded", "user_id", userID, "login", profile.Login)
 
 		return "", map[string]any{

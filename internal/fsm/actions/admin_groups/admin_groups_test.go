@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 	"log/slog"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -14,6 +15,25 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 	"go.uber.org/mock/gomock"
 )
+
+type fakeMemberTagRunner struct {
+	lastMode   fsm.MemberTagRunMode
+	lastUserID int64
+	lastChatID int64
+	result     fsm.MemberTagRunResult
+	err        error
+}
+
+func (f *fakeMemberTagRunner) RunGroupMemberTags(_ context.Context, ownerTelegramUserID, chatID int64, mode fsm.MemberTagRunMode) (fsm.MemberTagRunResult, error) {
+	f.lastMode = mode
+	f.lastUserID = ownerTelegramUserID
+	f.lastChatID = chatID
+	return f.result, f.err
+}
+
+func (f *fakeMemberTagRunner) SyncMemberTagsForRegisteredUser(_ context.Context, _ int64) error {
+	return nil
+}
 
 func TestLoadAdminContext(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -120,4 +140,148 @@ func TestLoadAdminContext_OwnerTransferVisibility(t *testing.T) {
 	require.Equal(t, true, updatesNew["is_group_owner"])
 	require.Equal(t, "-100500", updatesNew["group_chat_id_1"])
 	require.Equal(t, "Transferred Group", updatesNew["group_title_1"])
+}
+
+func TestLoadGroupMemberTagsContext_Owner(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	reg := fsm.NewLogicRegistry()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	Register(reg, &config.Config{}, logger, q, nil)
+
+	action, ok := reg.Get("load_group_member_tags_context")
+	require.True(t, ok)
+
+	chatID := int64(-100777)
+	q.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
+		ChatID:              chatID,
+		ChatTitle:           "Alpha",
+		OwnerTelegramUserID: 42,
+		IsInitialized:       true,
+		IsActive:            true,
+		MemberTagsEnabled:   true,
+		MemberTagFormat:     memberTagFormatLoginLevel,
+	}, nil)
+
+	_, updates, err := action(context.Background(), 42, map[string]any{
+		"selected_group_chat_id": "-100777",
+	})
+	require.NoError(t, err)
+	require.Equal(t, true, updates["can_manage_selected_group"])
+	require.Equal(t, true, updates["member_tags_enabled"])
+	require.Equal(t, "✅ Включено", updates["member_tags_enabled_label_ru"])
+	require.Equal(t, "login [lvl]", updates["member_tag_format_label_ru"])
+}
+
+func TestSetGroupMemberTagsEnabled_ByOwner(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	reg := fsm.NewLogicRegistry()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	Register(reg, &config.Config{}, logger, q, nil)
+
+	action, ok := reg.Get("set_group_member_tags_enabled")
+	require.True(t, ok)
+
+	chatID := int64(-100555)
+	q.EXPECT().UpdateTelegramGroupMemberTagsEnabledByOwner(gomock.Any(), db.UpdateTelegramGroupMemberTagsEnabledByOwnerParams{
+		ChatID:              chatID,
+		OwnerTelegramUserID: 42,
+		MemberTagsEnabled:   true,
+	}).Return(int64(1), nil)
+	q.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
+		ChatID:              chatID,
+		OwnerTelegramUserID: 42,
+		IsInitialized:       true,
+		IsActive:            true,
+		MemberTagsEnabled:   true,
+		MemberTagFormat:     memberTagFormatLogin,
+	}, nil)
+
+	_, updates, err := action(context.Background(), 42, map[string]any{
+		"selected_group_chat_id": "-100555",
+		"id":                     "tags_enable_on",
+	})
+	require.NoError(t, err)
+	require.Equal(t, true, updates["member_tags_enabled"])
+	require.Equal(t, "✅ Включено", updates["member_tags_enabled_label_ru"])
+}
+
+func TestRunGroupMemberTags_UsesRunner(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	reg := fsm.NewLogicRegistry()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	Register(reg, &config.Config{}, logger, q, nil)
+
+	action, ok := reg.Get("run_group_member_tags")
+	require.True(t, ok)
+
+	chatID := int64(-100909)
+	q.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
+		ChatID:              chatID,
+		OwnerTelegramUserID: 42,
+		IsInitialized:       true,
+		IsActive:            true,
+	}, nil)
+
+	runner := &fakeMemberTagRunner{
+		result: fsm.MemberTagRunResult{
+			Updated:             3,
+			SkippedExisting:     2,
+			SkippedUnregistered: 1,
+		},
+	}
+	ctx := context.WithValue(context.Background(), fsm.ContextKeyMemberTagRunner, runner)
+
+	_, updates, err := action(ctx, 42, map[string]any{
+		"selected_group_chat_id": "-100909",
+		"id":                     "tags_run_keep",
+	})
+	require.NoError(t, err)
+	require.Equal(t, fsm.MemberTagRunModeKeepExisting, runner.lastMode)
+	require.Equal(t, int64(42), runner.lastUserID)
+	require.Equal(t, chatID, runner.lastChatID)
+	require.True(t, strings.Contains(updates["member_tags_last_run_summary_ru"].(string), "updated=3"))
+}
+
+func TestRunGroupMemberTags_ShowsAlertWhenNoRights(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	reg := fsm.NewLogicRegistry()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	Register(reg, &config.Config{}, logger, q, nil)
+
+	action, ok := reg.Get("run_group_member_tags")
+	require.True(t, ok)
+
+	chatID := int64(-100707)
+	q.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
+		ChatID:              chatID,
+		OwnerTelegramUserID: 42,
+		IsInitialized:       true,
+		IsActive:            true,
+	}, nil)
+
+	runner := &fakeMemberTagRunner{
+		result: fsm.MemberTagRunResult{
+			SkippedNoRights: 5,
+		},
+	}
+	ctx := context.WithValue(context.Background(), fsm.ContextKeyMemberTagRunner, runner)
+
+	_, updates, err := action(ctx, 42, map[string]any{
+		"selected_group_chat_id": "-100707",
+		"id":                     "tags_run_keep",
+	})
+	require.NoError(t, err)
+	require.Equal(t, alertMemberTagNoRightsRU, updates["_alert"])
 }

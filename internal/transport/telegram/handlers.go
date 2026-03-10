@@ -312,7 +312,7 @@ func registrationRequiredGroupInitText(b *gotgbot.Bot) string {
 	return base + "\n\nБыстрый переход: " + link
 }
 
-func (s *telegramService) handleChatMember(_ *gotgbot.Bot, ctx *ext.Context) error {
+func (s *telegramService) handleChatMember(b *gotgbot.Bot, ctx *ext.Context) error {
 	if ctx.ChatMember == nil || s.queries == nil {
 		return nil
 	}
@@ -322,28 +322,32 @@ func (s *telegramService) handleChatMember(_ *gotgbot.Bot, ctx *ext.Context) err
 		return nil
 	}
 
+	updated := ctx.ChatMember.NewChatMember.GetUser()
+	if updated.Id != 0 {
+		isMember := isChatMemberActive(ctx.ChatMember.NewChatMember)
+		if isMember {
+			s.upsertKnownGroupMember(context.Background(), chat.Id, updated.Id, updated.IsBot, ctx.ChatMember.NewChatMember.GetStatus(), true)
+			if b != nil && !updated.IsBot {
+				s.tryAutoAssignMemberTag(context.Background(), b, chat.Id, updated.Id)
+			}
+		} else {
+			s.markKnownGroupMemberLeft(context.Background(), chat.Id, updated.Id, ctx.ChatMember.NewChatMember.GetStatus())
+		}
+	}
+
 	group, err := s.queries.GetTelegramGroupByChatID(context.Background(), chat.Id)
 	if err != nil {
 		// Group is not initialized in DB yet or failed to load: nothing to revoke.
 		return nil
 	}
-	if !group.IsActive || !group.IsInitialized {
+	if !group.IsActive || !group.IsInitialized || updated.Id == 0 {
 		return nil
 	}
 
-	updatedUserID := ctx.ChatMember.NewChatMember.GetUser().Id
+	updatedUserID := updated.Id
 	newStatus := ctx.ChatMember.NewChatMember.GetStatus()
-
-	shouldDeactivate := false
-	if updatedUserID == group.OwnerTelegramUserID && newStatus != gotgbot.ChatMemberStatusOwner {
-		// Stored owner lost creator status.
-		shouldDeactivate = true
-	}
-	if updatedUserID != group.OwnerTelegramUserID && newStatus == gotgbot.ChatMemberStatusOwner {
-		// Another user became creator -> ownership changed.
-		shouldDeactivate = true
-	}
-
+	shouldDeactivate := (updatedUserID == group.OwnerTelegramUserID && newStatus != gotgbot.ChatMemberStatusOwner) ||
+		(updatedUserID != group.OwnerTelegramUserID && newStatus == gotgbot.ChatMemberStatusOwner)
 	if !shouldDeactivate {
 		return nil
 	}
@@ -400,6 +404,9 @@ func (s *telegramService) handleMyChatMember(b *gotgbot.Bot, ctx *ext.Context) e
 // handleTextMessage handles text messages (e.g., OTP code input).
 func (s *telegramService) handleTextMessage(b *gotgbot.Bot, ctx *ext.Context) error {
 	if !isPrivateChat(ctx.EffectiveChat) {
+		if ctx.Message != nil {
+			s.captureKnownMembersFromGroupMessage(context.Background(), b, ctx.Message)
+		}
 		return nil
 	}
 
@@ -415,6 +422,9 @@ func (s *telegramService) handleTextMessage(b *gotgbot.Bot, ctx *ext.Context) er
 		Platform:  "Telegram",
 	})
 	bgCtx = context.WithValue(bgCtx, fsm.ContextKeyNotifier, &telegramNotifier{sender: s.getSender(b)})
+	if runner := s.newMemberTagRunner(b); runner != nil {
+		bgCtx = context.WithValue(bgCtx, fsm.ContextKeyMemberTagRunner, runner)
+	}
 
 	s.log.Debug("text message received", "user_id", userID, "text", text)
 
@@ -486,6 +496,9 @@ func (s *telegramService) handleCallback(b *gotgbot.Bot, ctx *ext.Context) error
 		Platform:  "Telegram",
 	})
 	bgCtx = context.WithValue(bgCtx, fsm.ContextKeyNotifier, &telegramNotifier{sender: s.getSender(b)})
+	if runner := s.newMemberTagRunner(b); runner != nil {
+		bgCtx = context.WithValue(bgCtx, fsm.ContextKeyMemberTagRunner, runner)
+	}
 
 	s.log.Debug("callback received", "user_id", userID, "data", cb.Data)
 

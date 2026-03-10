@@ -441,6 +441,18 @@ type TelegramGroup struct {
 	IsActive              bool               `json:"is_active"`
 	CreatedAt             pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
+	MemberTagsEnabled     bool               `json:"member_tags_enabled"`
+	MemberTagFormat       string             `json:"member_tag_format"`
+}
+
+type TelegramGroupMember struct {
+	ChatID         int64              `json:"chat_id"`
+	TelegramUserID int64              `json:"telegram_user_id"`
+	IsMember       bool               `json:"is_member"`
+	IsBot          bool               `json:"is_bot"`
+	LastStatus     string             `json:"last_status"`
+	LastSeenAt     pgtype.Timestamptz `json:"last_seen_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
 type UserAccount struct {

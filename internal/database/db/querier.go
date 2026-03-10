@@ -92,8 +92,11 @@ type Querier interface {
 	HasActiveBooks(ctx context.Context, campusID pgtype.UUID) (bool, error)
 	HasActiveRooms(ctx context.Context, campusID pgtype.UUID) (bool, error)
 	IncrementReviewRequestViewCount(ctx context.Context, id int64) (int32, error)
+	ListMemberTagGroupsByTelegramUser(ctx context.Context, telegramUserID int64) ([]TelegramGroup, error)
+	ListTelegramGroupKnownMembers(ctx context.Context, chatID int64) ([]TelegramGroupMember, error)
 	ListTelegramGroupsByOwner(ctx context.Context, ownerTelegramUserID int64) ([]TelegramGroup, error)
 	MarkReviewRequestNegotiatingAndIncrementResponses(ctx context.Context, arg MarkReviewRequestNegotiatingAndIncrementResponsesParams) (MarkReviewRequestNegotiatingAndIncrementResponsesRow, error)
+	MarkTelegramGroupMemberLeft(ctx context.Context, arg MarkTelegramGroupMemberLeftParams) error
 	ReturnBookLoan(ctx context.Context, arg ReturnBookLoanParams) error
 	RevokeOldApiKeys(ctx context.Context, userAccountID int64) error
 	SearchBooks(ctx context.Context, arg SearchBooksParams) ([]SearchBooksRow, error)
@@ -105,6 +108,8 @@ type Querier interface {
 	UnlinkTelegramGroupOwner(ctx context.Context, chatID int64) error
 	UnlinkTelegramGroupOwnerIfOwner(ctx context.Context, arg UnlinkTelegramGroupOwnerIfOwnerParams) (int64, error)
 	UpdateRoomBookingDuration(ctx context.Context, arg UpdateRoomBookingDurationParams) error
+	UpdateTelegramGroupMemberTagFormatByOwner(ctx context.Context, arg UpdateTelegramGroupMemberTagFormatByOwnerParams) (int64, error)
+	UpdateTelegramGroupMemberTagsEnabledByOwner(ctx context.Context, arg UpdateTelegramGroupMemberTagsEnabledByOwnerParams) (int64, error)
 	UpdateUserAccountSearchableByExternalId(ctx context.Context, arg UpdateUserAccountSearchableByExternalIdParams) (UserAccount, error)
 	UpsertBook(ctx context.Context, arg UpsertBookParams) (Book, error)
 	UpsertCampus(ctx context.Context, arg UpsertCampusParams) (Campuse, error)
@@ -124,6 +129,7 @@ type Querier interface {
 	UpsertRoom(ctx context.Context, arg UpsertRoomParams) (Room, error)
 	UpsertSkill(ctx context.Context, arg UpsertSkillParams) (Skill, error)
 	UpsertTelegramGroup(ctx context.Context, arg UpsertTelegramGroupParams) (TelegramGroup, error)
+	UpsertTelegramGroupMember(ctx context.Context, arg UpsertTelegramGroupMemberParams) (TelegramGroupMember, error)
 	UpsertUserBotSettings(ctx context.Context, arg UpsertUserBotSettingsParams) (UserBotSetting, error)
 }
 
