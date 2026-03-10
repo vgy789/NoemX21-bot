@@ -133,6 +133,63 @@ SET defender_remove_blocked = $3,
 WHERE chat_id = $1
   AND owner_telegram_user_id = $2;
 
+-- name: ListTelegramGroupDefenderCampusFilters :many
+SELECT * FROM telegram_group_defender_campus_filters
+WHERE chat_id = $1
+ORDER BY created_at ASC, campus_id;
+
+-- name: UpsertTelegramGroupDefenderCampusFilterByOwner :execrows
+INSERT INTO telegram_group_defender_campus_filters (chat_id, campus_id)
+SELECT g.chat_id, $3
+FROM telegram_groups g
+WHERE g.chat_id = $1
+  AND g.owner_telegram_user_id = $2
+ON CONFLICT (chat_id, campus_id) DO NOTHING;
+
+-- name: DeleteTelegramGroupDefenderCampusFilterByOwner :execrows
+DELETE FROM telegram_group_defender_campus_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND f.campus_id = $3
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2;
+
+-- name: ClearTelegramGroupDefenderCampusFiltersByOwner :execrows
+DELETE FROM telegram_group_defender_campus_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2;
+
+-- name: ListTelegramGroupDefenderTribeFilters :many
+SELECT * FROM telegram_group_defender_tribe_filters
+WHERE chat_id = $1
+ORDER BY created_at ASC, coalition_id;
+
+-- name: UpsertTelegramGroupDefenderTribeFilterByOwner :execrows
+INSERT INTO telegram_group_defender_tribe_filters (chat_id, campus_id, coalition_id)
+SELECT g.chat_id, $3, $4
+FROM telegram_groups g
+WHERE g.chat_id = $1
+  AND g.owner_telegram_user_id = $2
+ON CONFLICT (chat_id, campus_id, coalition_id) DO NOTHING;
+
+-- name: DeleteTelegramGroupDefenderTribeFilterByOwner :execrows
+DELETE FROM telegram_group_defender_tribe_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND f.campus_id = $3
+  AND f.coalition_id = $4
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2;
+
+-- name: ClearTelegramGroupDefenderTribeFiltersByOwner :execrows
+DELETE FROM telegram_group_defender_tribe_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2;
+
 -- name: UpsertTelegramGroupMember :one
 INSERT INTO telegram_group_members (
     chat_id, telegram_user_id, is_member, is_bot, last_status, last_seen_at
@@ -371,6 +428,11 @@ SELECT EXISTS (
     FROM coalitions
     WHERE campus_id = $1 AND id = $2
 );
+
+-- name: ListCoalitionsByCampus :many
+SELECT * FROM coalitions
+WHERE campus_id = $1
+ORDER BY name;
 
 -- name: UpsertClub :one
 INSERT INTO clubs (

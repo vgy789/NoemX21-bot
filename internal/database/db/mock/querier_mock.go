@@ -56,6 +56,36 @@ func (mr *MockQuerierMockRecorder) CancelRoomBooking(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CancelRoomBooking", reflect.TypeOf((*MockQuerier)(nil).CancelRoomBooking), ctx, arg)
 }
 
+// ClearTelegramGroupDefenderCampusFiltersByOwner mocks base method.
+func (m *MockQuerier) ClearTelegramGroupDefenderCampusFiltersByOwner(ctx context.Context, arg db.ClearTelegramGroupDefenderCampusFiltersByOwnerParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClearTelegramGroupDefenderCampusFiltersByOwner", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClearTelegramGroupDefenderCampusFiltersByOwner indicates an expected call of ClearTelegramGroupDefenderCampusFiltersByOwner.
+func (mr *MockQuerierMockRecorder) ClearTelegramGroupDefenderCampusFiltersByOwner(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearTelegramGroupDefenderCampusFiltersByOwner", reflect.TypeOf((*MockQuerier)(nil).ClearTelegramGroupDefenderCampusFiltersByOwner), ctx, arg)
+}
+
+// ClearTelegramGroupDefenderTribeFiltersByOwner mocks base method.
+func (m *MockQuerier) ClearTelegramGroupDefenderTribeFiltersByOwner(ctx context.Context, arg db.ClearTelegramGroupDefenderTribeFiltersByOwnerParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClearTelegramGroupDefenderTribeFiltersByOwner", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClearTelegramGroupDefenderTribeFiltersByOwner indicates an expected call of ClearTelegramGroupDefenderTribeFiltersByOwner.
+func (mr *MockQuerierMockRecorder) ClearTelegramGroupDefenderTribeFiltersByOwner(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClearTelegramGroupDefenderTribeFiltersByOwner", reflect.TypeOf((*MockQuerier)(nil).ClearTelegramGroupDefenderTribeFiltersByOwner), ctx, arg)
+}
+
 // CloseReviewRequestByID mocks base method.
 func (m *MockQuerier) CloseReviewRequestByID(ctx context.Context, id int64) error {
 	m.ctrl.T.Helper()
@@ -416,6 +446,36 @@ func (m *MockQuerier) DeleteStaleProjectsCatalog(ctx context.Context, syncBatchI
 func (mr *MockQuerierMockRecorder) DeleteStaleProjectsCatalog(ctx, syncBatchID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteStaleProjectsCatalog", reflect.TypeOf((*MockQuerier)(nil).DeleteStaleProjectsCatalog), ctx, syncBatchID)
+}
+
+// DeleteTelegramGroupDefenderCampusFilterByOwner mocks base method.
+func (m *MockQuerier) DeleteTelegramGroupDefenderCampusFilterByOwner(ctx context.Context, arg db.DeleteTelegramGroupDefenderCampusFilterByOwnerParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteTelegramGroupDefenderCampusFilterByOwner", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteTelegramGroupDefenderCampusFilterByOwner indicates an expected call of DeleteTelegramGroupDefenderCampusFilterByOwner.
+func (mr *MockQuerierMockRecorder) DeleteTelegramGroupDefenderCampusFilterByOwner(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTelegramGroupDefenderCampusFilterByOwner", reflect.TypeOf((*MockQuerier)(nil).DeleteTelegramGroupDefenderCampusFilterByOwner), ctx, arg)
+}
+
+// DeleteTelegramGroupDefenderTribeFilterByOwner mocks base method.
+func (m *MockQuerier) DeleteTelegramGroupDefenderTribeFilterByOwner(ctx context.Context, arg db.DeleteTelegramGroupDefenderTribeFilterByOwnerParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteTelegramGroupDefenderTribeFilterByOwner", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteTelegramGroupDefenderTribeFilterByOwner indicates an expected call of DeleteTelegramGroupDefenderTribeFilterByOwner.
+func (mr *MockQuerierMockRecorder) DeleteTelegramGroupDefenderTribeFilterByOwner(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTelegramGroupDefenderTribeFilterByOwner", reflect.TypeOf((*MockQuerier)(nil).DeleteTelegramGroupDefenderTribeFilterByOwner), ctx, arg)
 }
 
 // DeleteTelegramGroupWhitelistByOwner mocks base method.
@@ -1271,6 +1331,21 @@ func (mr *MockQuerierMockRecorder) InsertTelegramGroupLog(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTelegramGroupLog", reflect.TypeOf((*MockQuerier)(nil).InsertTelegramGroupLog), ctx, arg)
 }
 
+// ListCoalitionsByCampus mocks base method.
+func (m *MockQuerier) ListCoalitionsByCampus(ctx context.Context, campusID pgtype.UUID) ([]db.Coalition, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListCoalitionsByCampus", ctx, campusID)
+	ret0, _ := ret[0].([]db.Coalition)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListCoalitionsByCampus indicates an expected call of ListCoalitionsByCampus.
+func (mr *MockQuerierMockRecorder) ListCoalitionsByCampus(ctx, campusID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCoalitionsByCampus", reflect.TypeOf((*MockQuerier)(nil).ListCoalitionsByCampus), ctx, campusID)
+}
+
 // ListMemberTagGroupsByTelegramUser mocks base method.
 func (m *MockQuerier) ListMemberTagGroupsByTelegramUser(ctx context.Context, telegramUserID int64) ([]db.TelegramGroup, error) {
 	m.ctrl.T.Helper()
@@ -1284,6 +1359,36 @@ func (m *MockQuerier) ListMemberTagGroupsByTelegramUser(ctx context.Context, tel
 func (mr *MockQuerierMockRecorder) ListMemberTagGroupsByTelegramUser(ctx, telegramUserID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMemberTagGroupsByTelegramUser", reflect.TypeOf((*MockQuerier)(nil).ListMemberTagGroupsByTelegramUser), ctx, telegramUserID)
+}
+
+// ListTelegramGroupDefenderCampusFilters mocks base method.
+func (m *MockQuerier) ListTelegramGroupDefenderCampusFilters(ctx context.Context, chatID int64) ([]db.TelegramGroupDefenderCampusFilter, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListTelegramGroupDefenderCampusFilters", ctx, chatID)
+	ret0, _ := ret[0].([]db.TelegramGroupDefenderCampusFilter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListTelegramGroupDefenderCampusFilters indicates an expected call of ListTelegramGroupDefenderCampusFilters.
+func (mr *MockQuerierMockRecorder) ListTelegramGroupDefenderCampusFilters(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTelegramGroupDefenderCampusFilters", reflect.TypeOf((*MockQuerier)(nil).ListTelegramGroupDefenderCampusFilters), ctx, chatID)
+}
+
+// ListTelegramGroupDefenderTribeFilters mocks base method.
+func (m *MockQuerier) ListTelegramGroupDefenderTribeFilters(ctx context.Context, chatID int64) ([]db.TelegramGroupDefenderTribeFilter, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListTelegramGroupDefenderTribeFilters", ctx, chatID)
+	ret0, _ := ret[0].([]db.TelegramGroupDefenderTribeFilter)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListTelegramGroupDefenderTribeFilters indicates an expected call of ListTelegramGroupDefenderTribeFilters.
+func (mr *MockQuerierMockRecorder) ListTelegramGroupDefenderTribeFilters(ctx, chatID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTelegramGroupDefenderTribeFilters", reflect.TypeOf((*MockQuerier)(nil).ListTelegramGroupDefenderTribeFilters), ctx, chatID)
 }
 
 // ListTelegramGroupKnownMembers mocks base method.
@@ -1870,6 +1975,36 @@ func (m *MockQuerier) UpsertTelegramGroup(ctx context.Context, arg db.UpsertTele
 func (mr *MockQuerierMockRecorder) UpsertTelegramGroup(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTelegramGroup", reflect.TypeOf((*MockQuerier)(nil).UpsertTelegramGroup), ctx, arg)
+}
+
+// UpsertTelegramGroupDefenderCampusFilterByOwner mocks base method.
+func (m *MockQuerier) UpsertTelegramGroupDefenderCampusFilterByOwner(ctx context.Context, arg db.UpsertTelegramGroupDefenderCampusFilterByOwnerParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertTelegramGroupDefenderCampusFilterByOwner", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertTelegramGroupDefenderCampusFilterByOwner indicates an expected call of UpsertTelegramGroupDefenderCampusFilterByOwner.
+func (mr *MockQuerierMockRecorder) UpsertTelegramGroupDefenderCampusFilterByOwner(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTelegramGroupDefenderCampusFilterByOwner", reflect.TypeOf((*MockQuerier)(nil).UpsertTelegramGroupDefenderCampusFilterByOwner), ctx, arg)
+}
+
+// UpsertTelegramGroupDefenderTribeFilterByOwner mocks base method.
+func (m *MockQuerier) UpsertTelegramGroupDefenderTribeFilterByOwner(ctx context.Context, arg db.UpsertTelegramGroupDefenderTribeFilterByOwnerParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertTelegramGroupDefenderTribeFilterByOwner", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpsertTelegramGroupDefenderTribeFilterByOwner indicates an expected call of UpsertTelegramGroupDefenderTribeFilterByOwner.
+func (mr *MockQuerierMockRecorder) UpsertTelegramGroupDefenderTribeFilterByOwner(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTelegramGroupDefenderTribeFilterByOwner", reflect.TypeOf((*MockQuerier)(nil).UpsertTelegramGroupDefenderTribeFilterByOwner), ctx, arg)
 }
 
 // UpsertTelegramGroupMember mocks base method.

@@ -26,6 +26,48 @@ func (q *Queries) CancelRoomBooking(ctx context.Context, arg CancelRoomBookingPa
 	return err
 }
 
+const clearTelegramGroupDefenderCampusFiltersByOwner = `-- name: ClearTelegramGroupDefenderCampusFiltersByOwner :execrows
+DELETE FROM telegram_group_defender_campus_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2
+`
+
+type ClearTelegramGroupDefenderCampusFiltersByOwnerParams struct {
+	ChatID              int64 `json:"chat_id"`
+	OwnerTelegramUserID int64 `json:"owner_telegram_user_id"`
+}
+
+func (q *Queries) ClearTelegramGroupDefenderCampusFiltersByOwner(ctx context.Context, arg ClearTelegramGroupDefenderCampusFiltersByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, clearTelegramGroupDefenderCampusFiltersByOwner, arg.ChatID, arg.OwnerTelegramUserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const clearTelegramGroupDefenderTribeFiltersByOwner = `-- name: ClearTelegramGroupDefenderTribeFiltersByOwner :execrows
+DELETE FROM telegram_group_defender_tribe_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2
+`
+
+type ClearTelegramGroupDefenderTribeFiltersByOwnerParams struct {
+	ChatID              int64 `json:"chat_id"`
+	OwnerTelegramUserID int64 `json:"owner_telegram_user_id"`
+}
+
+func (q *Queries) ClearTelegramGroupDefenderTribeFiltersByOwner(ctx context.Context, arg ClearTelegramGroupDefenderTribeFiltersByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, clearTelegramGroupDefenderTribeFiltersByOwner, arg.ChatID, arg.OwnerTelegramUserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const closeReviewRequestByID = `-- name: CloseReviewRequestByID :exec
 UPDATE review_requests
 SET status = 'CLOSED',
@@ -540,6 +582,59 @@ WHERE sync_batch_id <> $1
 func (q *Queries) DeleteStaleProjectsCatalog(ctx context.Context, syncBatchID int64) error {
 	_, err := q.db.Exec(ctx, deleteStaleProjectsCatalog, syncBatchID)
 	return err
+}
+
+const deleteTelegramGroupDefenderCampusFilterByOwner = `-- name: DeleteTelegramGroupDefenderCampusFilterByOwner :execrows
+DELETE FROM telegram_group_defender_campus_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND f.campus_id = $3
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2
+`
+
+type DeleteTelegramGroupDefenderCampusFilterByOwnerParams struct {
+	ChatID              int64       `json:"chat_id"`
+	OwnerTelegramUserID int64       `json:"owner_telegram_user_id"`
+	CampusID            pgtype.UUID `json:"campus_id"`
+}
+
+func (q *Queries) DeleteTelegramGroupDefenderCampusFilterByOwner(ctx context.Context, arg DeleteTelegramGroupDefenderCampusFilterByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTelegramGroupDefenderCampusFilterByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.CampusID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteTelegramGroupDefenderTribeFilterByOwner = `-- name: DeleteTelegramGroupDefenderTribeFilterByOwner :execrows
+DELETE FROM telegram_group_defender_tribe_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND f.campus_id = $3
+  AND f.coalition_id = $4
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2
+`
+
+type DeleteTelegramGroupDefenderTribeFilterByOwnerParams struct {
+	ChatID              int64       `json:"chat_id"`
+	OwnerTelegramUserID int64       `json:"owner_telegram_user_id"`
+	CampusID            pgtype.UUID `json:"campus_id"`
+	CoalitionID         int16       `json:"coalition_id"`
+}
+
+func (q *Queries) DeleteTelegramGroupDefenderTribeFilterByOwner(ctx context.Context, arg DeleteTelegramGroupDefenderTribeFilterByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTelegramGroupDefenderTribeFilterByOwner,
+		arg.ChatID,
+		arg.OwnerTelegramUserID,
+		arg.CampusID,
+		arg.CoalitionID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const deleteTelegramGroupWhitelistByOwner = `-- name: DeleteTelegramGroupWhitelistByOwner :execrows
@@ -2703,6 +2798,37 @@ func (q *Queries) InsertTelegramGroupLog(ctx context.Context, arg InsertTelegram
 	return err
 }
 
+const listCoalitionsByCampus = `-- name: ListCoalitionsByCampus :many
+SELECT campus_id, id, name, created_at FROM coalitions
+WHERE campus_id = $1
+ORDER BY name
+`
+
+func (q *Queries) ListCoalitionsByCampus(ctx context.Context, campusID pgtype.UUID) ([]Coalition, error) {
+	rows, err := q.db.Query(ctx, listCoalitionsByCampus, campusID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []Coalition
+	for rows.Next() {
+		var i Coalition
+		if err := rows.Scan(
+			&i.CampusID,
+			&i.ID,
+			&i.Name,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMemberTagGroupsByTelegramUser = `-- name: ListMemberTagGroupsByTelegramUser :many
 SELECT g.chat_id, g.chat_title, g.owner_telegram_user_id, g.owner_telegram_username, g.is_initialized, g.is_active, g.created_at, g.updated_at, g.member_tags_enabled, g.member_tag_format, g.defender_enabled, g.defender_remove_blocked
 FROM telegram_groups g
@@ -2737,6 +2863,69 @@ func (q *Queries) ListMemberTagGroupsByTelegramUser(ctx context.Context, telegra
 			&i.MemberTagFormat,
 			&i.DefenderEnabled,
 			&i.DefenderRemoveBlocked,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTelegramGroupDefenderCampusFilters = `-- name: ListTelegramGroupDefenderCampusFilters :many
+SELECT id, chat_id, campus_id, created_at FROM telegram_group_defender_campus_filters
+WHERE chat_id = $1
+ORDER BY created_at ASC, campus_id
+`
+
+func (q *Queries) ListTelegramGroupDefenderCampusFilters(ctx context.Context, chatID int64) ([]TelegramGroupDefenderCampusFilter, error) {
+	rows, err := q.db.Query(ctx, listTelegramGroupDefenderCampusFilters, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TelegramGroupDefenderCampusFilter
+	for rows.Next() {
+		var i TelegramGroupDefenderCampusFilter
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.CampusID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTelegramGroupDefenderTribeFilters = `-- name: ListTelegramGroupDefenderTribeFilters :many
+SELECT id, chat_id, campus_id, coalition_id, created_at FROM telegram_group_defender_tribe_filters
+WHERE chat_id = $1
+ORDER BY created_at ASC, coalition_id
+`
+
+func (q *Queries) ListTelegramGroupDefenderTribeFilters(ctx context.Context, chatID int64) ([]TelegramGroupDefenderTribeFilter, error) {
+	rows, err := q.db.Query(ctx, listTelegramGroupDefenderTribeFilters, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TelegramGroupDefenderTribeFilter
+	for rows.Next() {
+		var i TelegramGroupDefenderTribeFilter
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.CampusID,
+			&i.CoalitionID,
+			&i.CreatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -4235,6 +4424,58 @@ func (q *Queries) UpsertTelegramGroup(ctx context.Context, arg UpsertTelegramGro
 		&i.DefenderRemoveBlocked,
 	)
 	return i, err
+}
+
+const upsertTelegramGroupDefenderCampusFilterByOwner = `-- name: UpsertTelegramGroupDefenderCampusFilterByOwner :execrows
+INSERT INTO telegram_group_defender_campus_filters (chat_id, campus_id)
+SELECT g.chat_id, $3
+FROM telegram_groups g
+WHERE g.chat_id = $1
+  AND g.owner_telegram_user_id = $2
+ON CONFLICT (chat_id, campus_id) DO NOTHING
+`
+
+type UpsertTelegramGroupDefenderCampusFilterByOwnerParams struct {
+	ChatID              int64       `json:"chat_id"`
+	OwnerTelegramUserID int64       `json:"owner_telegram_user_id"`
+	CampusID            pgtype.UUID `json:"campus_id"`
+}
+
+func (q *Queries) UpsertTelegramGroupDefenderCampusFilterByOwner(ctx context.Context, arg UpsertTelegramGroupDefenderCampusFilterByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, upsertTelegramGroupDefenderCampusFilterByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.CampusID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const upsertTelegramGroupDefenderTribeFilterByOwner = `-- name: UpsertTelegramGroupDefenderTribeFilterByOwner :execrows
+INSERT INTO telegram_group_defender_tribe_filters (chat_id, campus_id, coalition_id)
+SELECT g.chat_id, $3, $4
+FROM telegram_groups g
+WHERE g.chat_id = $1
+  AND g.owner_telegram_user_id = $2
+ON CONFLICT (chat_id, campus_id, coalition_id) DO NOTHING
+`
+
+type UpsertTelegramGroupDefenderTribeFilterByOwnerParams struct {
+	ChatID              int64       `json:"chat_id"`
+	OwnerTelegramUserID int64       `json:"owner_telegram_user_id"`
+	CampusID            pgtype.UUID `json:"campus_id"`
+	CoalitionID         int16       `json:"coalition_id"`
+}
+
+func (q *Queries) UpsertTelegramGroupDefenderTribeFilterByOwner(ctx context.Context, arg UpsertTelegramGroupDefenderTribeFilterByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, upsertTelegramGroupDefenderTribeFilterByOwner,
+		arg.ChatID,
+		arg.OwnerTelegramUserID,
+		arg.CampusID,
+		arg.CoalitionID,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const upsertTelegramGroupMember = `-- name: UpsertTelegramGroupMember :one

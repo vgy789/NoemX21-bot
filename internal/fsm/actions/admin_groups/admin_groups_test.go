@@ -324,6 +324,7 @@ func TestLoadGroupDefenderContext_Owner(t *testing.T) {
 	require.True(t, ok)
 
 	chatID := int64(-100808)
+	expectEmptyDefenderFilterLists(q, chatID)
 	q.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
 		ChatID:                chatID,
 		OwnerTelegramUserID:   42,
@@ -388,6 +389,7 @@ func TestSetGroupDefenderEnabled_ByOwner(t *testing.T) {
 	require.True(t, ok)
 
 	chatID := int64(-100809)
+	expectEmptyDefenderFilterLists(q, chatID)
 	q.EXPECT().UpdateTelegramGroupDefenderEnabledByOwner(gomock.Any(), db.UpdateTelegramGroupDefenderEnabledByOwnerParams{
 		ChatID:              chatID,
 		OwnerTelegramUserID: 42,
@@ -426,6 +428,7 @@ func TestSetGroupDefenderEnabled_OffAutoDisablesRemoveBlocked(t *testing.T) {
 	require.True(t, ok)
 
 	chatID := int64(-100811)
+	expectEmptyDefenderFilterLists(q, chatID)
 	q.EXPECT().UpdateTelegramGroupDefenderEnabledByOwner(gomock.Any(), db.UpdateTelegramGroupDefenderEnabledByOwnerParams{
 		ChatID:              chatID,
 		OwnerTelegramUserID: 42,
@@ -469,6 +472,7 @@ func TestSetGroupDefenderRemoveBlocked_AutoEnablesDefender(t *testing.T) {
 	require.True(t, ok)
 
 	chatID := int64(-100812)
+	expectEmptyDefenderFilterLists(q, chatID)
 	q.EXPECT().UpdateTelegramGroupDefenderRemoveBlockedByOwner(gomock.Any(), db.UpdateTelegramGroupDefenderRemoveBlockedByOwnerParams{
 		ChatID:                chatID,
 		OwnerTelegramUserID:   42,
@@ -512,6 +516,7 @@ func TestSetGroupDefenderRemoveBlocked_OffKeepsDefenderEnabled(t *testing.T) {
 	require.True(t, ok)
 
 	chatID := int64(-100813)
+	expectEmptyDefenderFilterLists(q, chatID)
 	q.EXPECT().UpdateTelegramGroupDefenderRemoveBlockedByOwner(gomock.Any(), db.UpdateTelegramGroupDefenderRemoveBlockedByOwnerParams{
 		ChatID:                chatID,
 		OwnerTelegramUserID:   42,
@@ -550,6 +555,7 @@ func TestRunGroupDefender_UsesRunner(t *testing.T) {
 	require.True(t, ok)
 
 	chatID := int64(-100810)
+	expectEmptyDefenderFilterLists(q, chatID)
 	q.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
 		ChatID:              chatID,
 		OwnerTelegramUserID: 42,
@@ -579,4 +585,9 @@ func TestRunGroupDefender_UsesRunner(t *testing.T) {
 
 func timeNowUTC() time.Time {
 	return time.Now().UTC()
+}
+
+func expectEmptyDefenderFilterLists(q *mock.MockQuerier, chatID int64) {
+	q.EXPECT().ListTelegramGroupDefenderCampusFilters(gomock.Any(), chatID).Return([]db.TelegramGroupDefenderCampusFilter{}, nil).AnyTimes()
+	q.EXPECT().ListTelegramGroupDefenderTribeFilters(gomock.Any(), chatID).Return([]db.TelegramGroupDefenderTribeFilter{}, nil).AnyTimes()
 }

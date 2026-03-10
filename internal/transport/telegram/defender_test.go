@@ -85,6 +85,7 @@ func TestHandleChatMember_AutoDefenderRemovesUnregistered(t *testing.T) {
 
 	chatID := int64(-100901)
 	userID := int64(1901)
+	expectEmptyDefenderFilters(queries, chatID)
 	group := db.TelegramGroup{
 		ChatID:              chatID,
 		OwnerTelegramUserID: 7007,
@@ -146,6 +147,7 @@ func TestHandleChatMember_AutoDefenderSkipsWhitelisted(t *testing.T) {
 
 	chatID := int64(-100902)
 	userID := int64(1902)
+	expectEmptyDefenderFilters(queries, chatID)
 	group := db.TelegramGroup{ChatID: chatID, OwnerTelegramUserID: 7007, IsInitialized: true, IsActive: true, DefenderEnabled: true}
 
 	queries.EXPECT().UpsertTelegramGroupMember(gomock.Any(), gomock.Any()).Return(db.TelegramGroupMember{}, nil)
@@ -188,6 +190,7 @@ func TestDefenderRunner_ManualRunBlockedUser(t *testing.T) {
 	ownerID := int64(5001)
 	chatID := int64(-100903)
 	userID := int64(1903)
+	expectEmptyDefenderFilters(queries, chatID)
 
 	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
 		ChatID:                chatID,
@@ -233,4 +236,9 @@ func TestDefenderRunner_ManualRunBlockedUser(t *testing.T) {
 	assert.Equal(t, 1, result.SkippedBlocked)
 	require.Len(t, client.banCalls, 1)
 	require.Len(t, client.unbanCalls, 1)
+}
+
+func expectEmptyDefenderFilters(queries *dbmock.MockQuerier, chatID int64) {
+	queries.EXPECT().ListTelegramGroupDefenderCampusFilters(gomock.Any(), chatID).Return([]db.TelegramGroupDefenderCampusFilter{}, nil).AnyTimes()
+	queries.EXPECT().ListTelegramGroupDefenderTribeFilters(gomock.Any(), chatID).Return([]db.TelegramGroupDefenderTribeFilter{}, nil).AnyTimes()
 }

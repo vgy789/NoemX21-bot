@@ -1,0 +1,2 @@
+DROP TABLE IF EXISTS telegram_group_defender_tribe_filters;
+DROP TABLE IF EXISTS telegram_group_defender_campus_filters;

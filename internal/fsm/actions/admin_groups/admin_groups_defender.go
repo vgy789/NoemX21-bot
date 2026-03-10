@@ -9,16 +9,18 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 )
 
 const (
 	maxDefenderWhitelistButtons = 10
+	maxDefenderCampusButtons    = 8
+	maxDefenderTribeButtons     = 10
+	maxDefenderTribePageSize    = 10
 	defenderWhitelistLoadLimit  = 100
 	defenderLogsLoadLimit       = 10
-
-	alertDefenderNoRightsRU = "Нужно право на бан участников. Включите для бота разрешение ban users и повторите запуск."
 
 	defenderReasonUnregistered = "unregistered"
 	defenderReasonBlocked      = "blocked"
@@ -85,6 +87,239 @@ func registerDefenderActions(registry *fsm.LogicRegistry, log logger, queries db
 			}
 		}
 		return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
+	})
+
+	registry.Register("load_group_defender_campus_filter_options", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		updates := buildDefenderContextUpdates(ctx, userID, payload, log, queries)
+		chatID, err := parseSelectedGroupChatID(payload)
+		if err != nil {
+			return "", updates, nil
+		}
+		if _, err := requireOwnedGroup(ctx, queries, userID, chatID); err != nil {
+			return "", updates, nil
+		}
+
+		campuses, err := queries.GetAllActiveCampuses(ctx)
+		if err != nil {
+			return "", updates, nil
+		}
+		selectedRows, err := queries.ListTelegramGroupDefenderCampusFilters(ctx, chatID)
+		if err != nil {
+			return "", updates, nil
+		}
+		page := parsePositiveInt(payload["defender_campus_page"], 1)
+		applyDefenderCampusButtons(updates, campuses, campusFilterSet(selectedRows), page)
+		return "", updates, nil
+	})
+
+	registry.Register("defender_campus_prev_page", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
+		page := parsePositiveInt(payload["defender_campus_page"], 1)
+		if page > 1 {
+			page--
+		}
+		return "", map[string]any{"defender_campus_page": page}, nil
+	})
+
+	registry.Register("defender_campus_next_page", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
+		page := parsePositiveInt(payload["defender_campus_page"], 1)
+		total := parsePositiveInt(payload["defender_campus_total_pages"], 1)
+		if page < total {
+			page++
+		}
+		return "", map[string]any{"defender_campus_page": page}, nil
+	})
+
+	registry.Register("set_group_defender_filter_campus", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		chatID, err := parseSelectedGroupChatID(payload)
+		if err != nil {
+			return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
+		}
+		if _, err := requireOwnedGroup(ctx, queries, userID, chatID); err != nil {
+			return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
+		}
+		adminCampusID, hasAdminCampus := parseUUIDFromPayload(payload, "campus_id")
+
+		rawID := strings.TrimSpace(fmt.Sprintf("%v", payload["id"]))
+		campusID, hasCampus := parseDefenderCampusButtonID(rawID)
+
+		switch {
+		case rawID == "def_fc_none":
+			_, _ = queries.ClearTelegramGroupDefenderCampusFiltersByOwner(ctx, db.ClearTelegramGroupDefenderCampusFiltersByOwnerParams{
+				ChatID:              chatID,
+				OwnerTelegramUserID: userID,
+			})
+			_, _ = queries.ClearTelegramGroupDefenderTribeFiltersByOwner(ctx, db.ClearTelegramGroupDefenderTribeFiltersByOwnerParams{
+				ChatID:              chatID,
+				OwnerTelegramUserID: userID,
+			})
+		case hasCampus:
+			selectedRows, err := queries.ListTelegramGroupDefenderCampusFilters(ctx, chatID)
+			if err == nil && campusSetHas(campusFilterSet(selectedRows), campusID) {
+				_, _ = queries.DeleteTelegramGroupDefenderCampusFilterByOwner(ctx, db.DeleteTelegramGroupDefenderCampusFilterByOwnerParams{
+					ChatID:              chatID,
+					OwnerTelegramUserID: userID,
+					CampusID:            campusID,
+				})
+			} else {
+				_, _ = queries.UpsertTelegramGroupDefenderCampusFilterByOwner(ctx, db.UpsertTelegramGroupDefenderCampusFilterByOwnerParams{
+					ChatID:              chatID,
+					OwnerTelegramUserID: userID,
+					CampusID:            campusID,
+				})
+				_, _ = queries.UpdateTelegramGroupDefenderEnabledByOwner(ctx, db.UpdateTelegramGroupDefenderEnabledByOwnerParams{
+					ChatID:              chatID,
+					OwnerTelegramUserID: userID,
+					DefenderEnabled:     true,
+				})
+			}
+
+			selectedRowsAfter, err := queries.ListTelegramGroupDefenderCampusFilters(ctx, chatID)
+			if err == nil && shouldClearTribeFiltersForCampusSelection(campusFilterSet(selectedRowsAfter), adminCampusID, hasAdminCampus) {
+				_, _ = queries.ClearTelegramGroupDefenderTribeFiltersByOwner(ctx, db.ClearTelegramGroupDefenderTribeFiltersByOwnerParams{
+					ChatID:              chatID,
+					OwnerTelegramUserID: userID,
+				})
+			}
+		}
+
+		updates := buildDefenderContextUpdates(ctx, userID, payload, log, queries)
+		campuses, err := queries.GetAllActiveCampuses(ctx)
+		if err == nil {
+			selectedRows, err := queries.ListTelegramGroupDefenderCampusFilters(ctx, chatID)
+			if err == nil {
+				page := parsePositiveInt(payload["defender_campus_page"], 1)
+				applyDefenderCampusButtons(updates, campuses, campusFilterSet(selectedRows), page)
+			}
+		}
+		return "", updates, nil
+	})
+
+	registry.Register("load_group_defender_tribe_filter_options", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		updates := buildDefenderContextUpdates(ctx, userID, payload, log, queries)
+		chatID, err := parseSelectedGroupChatID(payload)
+		if err != nil {
+			return "", updates, nil
+		}
+		if _, err := requireOwnedGroup(ctx, queries, userID, chatID); err != nil {
+			return "", updates, nil
+		}
+
+		adminCampusID, ok := parseUUIDFromPayload(payload, "campus_id")
+		if !ok {
+			updates["defender_filter_tribe_scope_ru"] = "Кампус администратора не определён."
+			updates["defender_filter_tribe_scope_en"] = "Admin campus is unavailable."
+			return "", updates, nil
+		}
+		updates["defender_filter_tribe_scope_ru"] = strings.TrimSpace(fmt.Sprintf("%v", payload["my_campus"]))
+		updates["defender_filter_tribe_scope_en"] = updates["defender_filter_tribe_scope_ru"]
+
+		tribes, err := queries.ListCoalitionsByCampus(ctx, adminCampusID)
+		if err != nil {
+			return "", updates, nil
+		}
+		selectedRows, err := queries.ListTelegramGroupDefenderTribeFilters(ctx, chatID)
+		if err != nil {
+			return "", updates, nil
+		}
+		page := parsePositiveInt(payload["defender_tribe_page"], 1)
+		applyDefenderTribeButtons(updates, tribes, tribeFilterSet(selectedRows, adminCampusID), page)
+		return "", updates, nil
+	})
+
+	registry.Register("defender_tribe_prev_page", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
+		page := parsePositiveInt(payload["defender_tribe_page"], 1)
+		if page > 1 {
+			page--
+		}
+		return "", map[string]any{"defender_tribe_page": page}, nil
+	})
+
+	registry.Register("defender_tribe_next_page", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
+		page := parsePositiveInt(payload["defender_tribe_page"], 1)
+		total := parsePositiveInt(payload["defender_tribe_total_pages"], 1)
+		if page < total {
+			page++
+		}
+		return "", map[string]any{"defender_tribe_page": page}, nil
+	})
+
+	registry.Register("set_group_defender_filter_tribe", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		chatID, err := parseSelectedGroupChatID(payload)
+		if err != nil {
+			return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
+		}
+		if _, err := requireOwnedGroup(ctx, queries, userID, chatID); err != nil {
+			return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
+		}
+
+		adminCampusID, ok := parseUUIDFromPayload(payload, "campus_id")
+		if !ok {
+			return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
+		}
+
+		rawID := strings.TrimSpace(fmt.Sprintf("%v", payload["id"]))
+		tribeID, hasTribe := parseDefenderTribeButtonID(rawID)
+
+		if rawID == "def_ft_none" {
+			_, _ = queries.ClearTelegramGroupDefenderTribeFiltersByOwner(ctx, db.ClearTelegramGroupDefenderTribeFiltersByOwnerParams{
+				ChatID:              chatID,
+				OwnerTelegramUserID: userID,
+			})
+		}
+		if hasTribe {
+			exists, err := queries.ExistsCoalitionByID(ctx, db.ExistsCoalitionByIDParams{
+				CampusID: adminCampusID,
+				ID:       tribeID,
+			})
+			if err != nil || !exists {
+				return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
+			}
+
+			_, _ = queries.ClearTelegramGroupDefenderCampusFiltersByOwner(ctx, db.ClearTelegramGroupDefenderCampusFiltersByOwnerParams{
+				ChatID:              chatID,
+				OwnerTelegramUserID: userID,
+			})
+			_, _ = queries.UpsertTelegramGroupDefenderCampusFilterByOwner(ctx, db.UpsertTelegramGroupDefenderCampusFilterByOwnerParams{
+				ChatID:              chatID,
+				OwnerTelegramUserID: userID,
+				CampusID:            adminCampusID,
+			})
+
+			selectedRows, err := queries.ListTelegramGroupDefenderTribeFilters(ctx, chatID)
+			if err == nil && tribeSetHas(tribeFilterSet(selectedRows, adminCampusID), tribeID) {
+				_, _ = queries.DeleteTelegramGroupDefenderTribeFilterByOwner(ctx, db.DeleteTelegramGroupDefenderTribeFilterByOwnerParams{
+					ChatID:              chatID,
+					OwnerTelegramUserID: userID,
+					CampusID:            adminCampusID,
+					CoalitionID:         tribeID,
+				})
+			} else {
+				_, _ = queries.UpsertTelegramGroupDefenderTribeFilterByOwner(ctx, db.UpsertTelegramGroupDefenderTribeFilterByOwnerParams{
+					ChatID:              chatID,
+					OwnerTelegramUserID: userID,
+					CampusID:            adminCampusID,
+					CoalitionID:         tribeID,
+				})
+				_, _ = queries.UpdateTelegramGroupDefenderEnabledByOwner(ctx, db.UpdateTelegramGroupDefenderEnabledByOwnerParams{
+					ChatID:              chatID,
+					OwnerTelegramUserID: userID,
+					DefenderEnabled:     true,
+				})
+			}
+		}
+
+		updates := buildDefenderContextUpdates(ctx, userID, payload, log, queries)
+		updates["defender_filter_tribe_scope_ru"] = strings.TrimSpace(fmt.Sprintf("%v", payload["my_campus"]))
+		updates["defender_filter_tribe_scope_en"] = updates["defender_filter_tribe_scope_ru"]
+		tribes, err := queries.ListCoalitionsByCampus(ctx, adminCampusID)
+		if err == nil {
+			selectedRows, err := queries.ListTelegramGroupDefenderTribeFilters(ctx, chatID)
+			if err == nil {
+				page := parsePositiveInt(payload["defender_tribe_page"], 1)
+				applyDefenderTribeButtons(updates, tribes, tribeFilterSet(selectedRows, adminCampusID), page)
+			}
+		}
+		return "", updates, nil
 	})
 
 	registry.Register("run_group_defender", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
@@ -406,6 +641,20 @@ func buildDefenderContextUpdates(ctx context.Context, userID int64, payload map[
 	}
 	maps.Copy(updates, buildDefenderSettingsUpdates(group))
 
+	campusFilters := make([]db.TelegramGroupDefenderCampusFilter, 0)
+	if rows, err := queries.ListTelegramGroupDefenderCampusFilters(ctx, chatID); err == nil {
+		campusFilters = rows
+	} else if log != nil {
+		log.Warn("admin groups: failed to load defender campus filters", "chat_id", chatID, "error", err)
+	}
+	tribeFilters := make([]db.TelegramGroupDefenderTribeFilter, 0)
+	if rows, err := queries.ListTelegramGroupDefenderTribeFilters(ctx, chatID); err == nil {
+		tribeFilters = rows
+	} else if log != nil {
+		log.Warn("admin groups: failed to load defender tribe filters", "chat_id", chatID, "error", err)
+	}
+	applyDefenderFilterLabels(ctx, queries, updates, campusFilters, tribeFilters)
+
 	whitelistRows, err := queries.ListTelegramGroupWhitelists(ctx, db.ListTelegramGroupWhitelistsParams{
 		ChatID:   chatID,
 		RowLimit: defenderWhitelistLoadLimit,
@@ -446,6 +695,24 @@ func mergeDefenderDefaults(updates map[string]any, payload map[string]any) {
 	updates["defender_whitelist_list_en"] = "Empty"
 	updates["defender_logs_list_ru"] = "Лог пуст."
 	updates["defender_logs_list_en"] = "Log is empty."
+	updates["defender_filter_campus_label_ru"] = "Все кампусы"
+	updates["defender_filter_campus_label_en"] = "All campuses"
+	updates["defender_filter_tribe_label_ru"] = "Все трайбы"
+	updates["defender_filter_tribe_label_en"] = "All tribes"
+	updates["defender_filter_tribe_scope_ru"] = ""
+	updates["defender_filter_tribe_scope_en"] = ""
+	updates["defender_campus_page"] = 1
+	updates["defender_campus_total_pages"] = 1
+	updates["defender_campus_has_prev_page"] = false
+	updates["defender_campus_has_next_page"] = false
+	updates["defender_campus_page_caption_ru"] = "1/1"
+	updates["defender_campus_page_caption_en"] = "1/1"
+	updates["defender_tribe_page"] = 1
+	updates["defender_tribe_total_pages"] = 1
+	updates["defender_tribe_has_prev_page"] = false
+	updates["defender_tribe_has_next_page"] = false
+	updates["defender_tribe_page_caption_ru"] = "1/1"
+	updates["defender_tribe_page_caption_en"] = "1/1"
 
 	runSummaryRU := "—"
 	runSummaryEN := "—"
@@ -489,6 +756,8 @@ func mergeDefenderDefaults(updates map[string]any, payload map[string]any) {
 	updates["defender_preview_summary_en"] = previewEN
 
 	resetDefenderWhitelistSlots(updates)
+	resetDefenderCampusSlots(updates)
+	resetDefenderTribeSlots(updates)
 }
 
 func buildDefenderSettingsUpdates(group db.TelegramGroup) map[string]any {
@@ -520,6 +789,20 @@ func resetDefenderWhitelistSlots(updates map[string]any) {
 	for i := 1; i <= maxDefenderWhitelistButtons; i++ {
 		updates[fmt.Sprintf("defender_whitelist_remove_button_id_%d", i)] = ""
 		updates[fmt.Sprintf("defender_whitelist_remove_label_%d", i)] = ""
+	}
+}
+
+func resetDefenderCampusSlots(updates map[string]any) {
+	for i := 1; i <= maxDefenderCampusButtons; i++ {
+		updates[fmt.Sprintf("defender_campus_button_id_%d", i)] = ""
+		updates[fmt.Sprintf("defender_campus_button_label_%d", i)] = ""
+	}
+}
+
+func resetDefenderTribeSlots(updates map[string]any) {
+	for i := 1; i <= maxDefenderTribeButtons; i++ {
+		updates[fmt.Sprintf("defender_tribe_button_id_%d", i)] = ""
+		updates[fmt.Sprintf("defender_tribe_button_label_%d", i)] = ""
 	}
 }
 
@@ -661,6 +944,16 @@ func defenderLogResultLabel(action, reason, language string) string {
 			return "✅ Removed: student status EXPELLED"
 		}
 		return "✅ Удалён: статус студента EXPELLED"
+	case "removed/campus_filter":
+		if language == fsm.LangEn {
+			return "✅ Removed: campus filter mismatch"
+		}
+		return "✅ Удалён: не прошёл фильтр кампуса"
+	case "removed/tribe_filter":
+		if language == fsm.LangEn {
+			return "✅ Removed: tribe filter mismatch"
+		}
+		return "✅ Удалён: не прошёл фильтр трайба"
 	case "skipped_whitelist/whitelist":
 		if language == fsm.LangEn {
 			return "⏭ Skipped: in whitelist"
@@ -679,6 +972,285 @@ func defenderLogResultLabel(action, reason, language string) string {
 	default:
 		return fsm.EscapeMarkdown(action) + "/" + fsm.EscapeMarkdown(reason)
 	}
+}
+
+func applyDefenderFilterLabels(
+	ctx context.Context,
+	queries db.Querier,
+	updates map[string]any,
+	campusFilters []db.TelegramGroupDefenderCampusFilter,
+	tribeFilters []db.TelegramGroupDefenderTribeFilter,
+) {
+	campusLabels := make([]string, 0, len(campusFilters))
+	for _, row := range campusFilters {
+		label := uuidToString(row.CampusID)
+		if campus, err := queries.GetCampusByID(ctx, row.CampusID); err == nil {
+			name := strings.TrimSpace(campus.ShortName)
+			if name == "" {
+				name = strings.TrimSpace(campus.FullName)
+			}
+			if name != "" {
+				label = name
+			}
+		}
+		campusLabels = append(campusLabels, label)
+	}
+	sort.Strings(campusLabels)
+
+	campusLabelRU := "Все кампусы"
+	campusLabelEN := "All campuses"
+	if len(campusLabels) > 0 {
+		campusLabelRU = strings.Join(campusLabels, ", ")
+		campusLabelEN = campusLabelRU
+	}
+
+	type coalitionMap map[int16]string
+	coalitionsByCampus := map[string]coalitionMap{}
+	tribeLabels := make([]string, 0, len(tribeFilters))
+	for _, row := range tribeFilters {
+		campusKey := uuidToString(row.CampusID)
+		if _, ok := coalitionsByCampus[campusKey]; !ok {
+			coalitionsByCampus[campusKey] = coalitionMap{}
+			if coalitions, err := queries.ListCoalitionsByCampus(ctx, row.CampusID); err == nil {
+				for _, c := range coalitions {
+					coalitionsByCampus[campusKey][c.ID] = strings.TrimSpace(c.Name)
+				}
+			}
+		}
+		label := strings.TrimSpace(coalitionsByCampus[campusKey][row.CoalitionID])
+		if label == "" {
+			label = strconv.FormatInt(int64(row.CoalitionID), 10)
+		}
+		tribeLabels = append(tribeLabels, label)
+	}
+	sort.Strings(tribeLabels)
+
+	tribeLabelRU := "Все трайбы"
+	tribeLabelEN := "All tribes"
+	if len(tribeLabels) > 0 {
+		tribeLabelRU = strings.Join(tribeLabels, ", ")
+		tribeLabelEN = tribeLabelRU
+	}
+
+	updates["defender_filter_campus_label_ru"] = campusLabelRU
+	updates["defender_filter_campus_label_en"] = campusLabelEN
+	updates["defender_filter_tribe_label_ru"] = tribeLabelRU
+	updates["defender_filter_tribe_label_en"] = tribeLabelEN
+}
+
+func applyDefenderCampusButtons(updates map[string]any, campuses []db.GetAllActiveCampusesRow, selectedCampuses map[string]struct{}, page int) {
+	resetDefenderCampusSlots(updates)
+	orderedCampuses := orderCampusesSelectedFirst(campuses, selectedCampuses)
+	totalPages := 1
+	if len(orderedCampuses) > 0 {
+		totalPages = (len(orderedCampuses) + maxDefenderCampusButtons - 1) / maxDefenderCampusButtons
+	}
+	if page < 1 {
+		page = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+	start := (page - 1) * maxDefenderCampusButtons
+	end := min(start+maxDefenderCampusButtons, len(orderedCampuses))
+
+	updates["defender_campus_page"] = page
+	updates["defender_campus_total_pages"] = totalPages
+	updates["defender_campus_has_prev_page"] = page > 1
+	updates["defender_campus_has_next_page"] = page < totalPages
+	updates["defender_campus_page_caption_ru"] = fmt.Sprintf("%d/%d", page, totalPages)
+	updates["defender_campus_page_caption_en"] = updates["defender_campus_page_caption_ru"]
+
+	for i, row := range orderedCampuses[start:end] {
+		check := "▫️"
+		if row.ID.Valid && campusSetHas(selectedCampuses, row.ID) {
+			check = "✅"
+		}
+		label := strings.TrimSpace(row.ShortName)
+		if label == "" {
+			label = strings.TrimSpace(row.FullName)
+		}
+		if label == "" {
+			label = uuidToString(row.ID)
+		}
+		updates[fmt.Sprintf("defender_campus_button_id_%d", i+1)] = "def_fc_" + uuidToString(row.ID)
+		updates[fmt.Sprintf("defender_campus_button_label_%d", i+1)] = fmt.Sprintf("%s %s", check, label)
+	}
+}
+
+func applyDefenderTribeButtons(updates map[string]any, tribes []db.Coalition, selectedTribes map[int16]struct{}, page int) {
+	resetDefenderTribeSlots(updates)
+	orderedTribes := orderTribesSelectedFirst(tribes, selectedTribes)
+
+	totalPages := 1
+	if len(orderedTribes) > 0 {
+		totalPages = (len(orderedTribes) + maxDefenderTribePageSize - 1) / maxDefenderTribePageSize
+	}
+	if page < 1 {
+		page = 1
+	}
+	if page > totalPages {
+		page = totalPages
+	}
+	start := (page - 1) * maxDefenderTribePageSize
+	end := min(start+maxDefenderTribePageSize, len(orderedTribes))
+
+	updates["defender_tribe_page"] = page
+	updates["defender_tribe_total_pages"] = totalPages
+	updates["defender_tribe_has_prev_page"] = page > 1
+	updates["defender_tribe_has_next_page"] = page < totalPages
+	updates["defender_tribe_page_caption_ru"] = fmt.Sprintf("%d/%d", page, totalPages)
+	updates["defender_tribe_page_caption_en"] = updates["defender_tribe_page_caption_ru"]
+
+	for i, row := range orderedTribes[start:end] {
+		check := "▫️"
+		if tribeSetHas(selectedTribes, row.ID) {
+			check = "✅"
+		}
+		label := strings.TrimSpace(row.Name)
+		if label == "" {
+			label = strconv.FormatInt(int64(row.ID), 10)
+		}
+		updates[fmt.Sprintf("defender_tribe_button_id_%d", i+1)] = fmt.Sprintf("def_ft_%d", row.ID)
+		updates[fmt.Sprintf("defender_tribe_button_label_%d", i+1)] = fmt.Sprintf("%s %s", check, label)
+	}
+}
+
+func orderCampusesSelectedFirst(campuses []db.GetAllActiveCampusesRow, selectedCampuses map[string]struct{}) []db.GetAllActiveCampusesRow {
+	if len(campuses) == 0 || len(selectedCampuses) == 0 {
+		return campuses
+	}
+	selected := make([]db.GetAllActiveCampusesRow, 0, len(campuses))
+	rest := make([]db.GetAllActiveCampusesRow, 0, len(campuses))
+	for _, row := range campuses {
+		if row.ID.Valid && campusSetHas(selectedCampuses, row.ID) {
+			selected = append(selected, row)
+			continue
+		}
+		rest = append(rest, row)
+	}
+	return append(selected, rest...)
+}
+
+func orderTribesSelectedFirst(tribes []db.Coalition, selectedTribes map[int16]struct{}) []db.Coalition {
+	if len(tribes) == 0 || len(selectedTribes) == 0 {
+		return tribes
+	}
+	selected := make([]db.Coalition, 0, len(tribes))
+	rest := make([]db.Coalition, 0, len(tribes))
+	for _, row := range tribes {
+		if tribeSetHas(selectedTribes, row.ID) {
+			selected = append(selected, row)
+			continue
+		}
+		rest = append(rest, row)
+	}
+	return append(selected, rest...)
+}
+
+func campusFilterSet(rows []db.TelegramGroupDefenderCampusFilter) map[string]struct{} {
+	set := make(map[string]struct{}, len(rows))
+	for _, row := range rows {
+		if !row.CampusID.Valid {
+			continue
+		}
+		set[uuidToString(row.CampusID)] = struct{}{}
+	}
+	return set
+}
+
+func tribeFilterSet(rows []db.TelegramGroupDefenderTribeFilter, campusID pgtype.UUID) map[int16]struct{} {
+	set := map[int16]struct{}{}
+	for _, row := range rows {
+		if campusID.Valid && row.CampusID != campusID {
+			continue
+		}
+		set[row.CoalitionID] = struct{}{}
+	}
+	return set
+}
+
+func campusSetHas(set map[string]struct{}, campusID pgtype.UUID) bool {
+	if !campusID.Valid || len(set) == 0 {
+		return false
+	}
+	_, ok := set[uuidToString(campusID)]
+	return ok
+}
+
+func tribeSetHas(set map[int16]struct{}, tribeID int16) bool {
+	if len(set) == 0 {
+		return false
+	}
+	_, ok := set[tribeID]
+	return ok
+}
+
+func shouldClearTribeFiltersForCampusSelection(selectedCampuses map[string]struct{}, adminCampus pgtype.UUID, hasAdminCampus bool) bool {
+	if !hasAdminCampus || !adminCampus.Valid {
+		return true
+	}
+	if len(selectedCampuses) != 1 {
+		return true
+	}
+	_, ok := selectedCampuses[uuidToString(adminCampus)]
+	return !ok
+}
+
+func parseDefenderCampusButtonID(buttonID string) (pgtype.UUID, bool) {
+	raw, ok := strings.CutPrefix(strings.TrimSpace(buttonID), "def_fc_")
+	if !ok || strings.TrimSpace(raw) == "" || raw == "none" {
+		return pgtype.UUID{}, false
+	}
+	id := pgtype.UUID{}
+	if err := id.Scan(raw); err != nil || !id.Valid {
+		return pgtype.UUID{}, false
+	}
+	return id, true
+}
+
+func parseDefenderTribeButtonID(buttonID string) (int16, bool) {
+	raw, ok := strings.CutPrefix(strings.TrimSpace(buttonID), "def_ft_")
+	if !ok || strings.TrimSpace(raw) == "" || raw == "none" {
+		return 0, false
+	}
+	n, err := strconv.ParseInt(raw, 10, 16)
+	if err != nil || n <= 0 {
+		return 0, false
+	}
+	return int16(n), true
+}
+
+func parseUUIDFromPayload(payload map[string]any, key string) (pgtype.UUID, bool) {
+	raw := strings.TrimSpace(fmt.Sprintf("%v", payload[key]))
+	if raw == "" || raw == "<nil>" {
+		return pgtype.UUID{}, false
+	}
+	id := pgtype.UUID{}
+	if err := id.Scan(raw); err != nil || !id.Valid {
+		return pgtype.UUID{}, false
+	}
+	return id, true
+}
+
+func uuidToString(v pgtype.UUID) string {
+	if !v.Valid {
+		return ""
+	}
+	b := v.Bytes
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
+}
+
+func parsePositiveInt(v any, fallback int) int {
+	raw := strings.TrimSpace(fmt.Sprintf("%v", v))
+	if raw == "" || raw == "<nil>" {
+		return fallback
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n <= 0 {
+		return fallback
+	}
+	return n
 }
 
 func parseWhitelistRemoveID(buttonID string) (int64, bool) {

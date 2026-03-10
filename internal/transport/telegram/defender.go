@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 )
@@ -28,12 +29,22 @@ const (
 	defenderReasonWhitelist    = "whitelist"
 	defenderReasonBotRights    = "bot_rights"
 	defenderReasonNotMember    = "not_member"
+	defenderReasonCampusFilter = "campus_filter"
+	defenderReasonTribeFilter  = "tribe_filter"
 )
 
 type defenderDecision struct {
 	ShouldRemove bool
 	Reason       string
 	RemovedAs    string
+}
+
+type defenderFilterConfig struct {
+	CampusIDs     map[string]struct{}
+	TribeIDs      map[string]map[int16]struct{}
+	TribeNames    map[string]map[int16]string
+	HasCampusRule bool
+	HasTribeRule  bool
 }
 
 type telegramDefenderRunner struct {
@@ -82,6 +93,10 @@ func (s *telegramService) runGroupDefender(ctx context.Context, b *gotgbot.Bot, 
 	}
 	if group.OwnerTelegramUserID != ownerTelegramUserID || !group.IsActive || !group.IsInitialized {
 		return result, errors.New("group access denied")
+	}
+	filters, err := s.loadDefenderFilterConfig(ctx, group.ChatID)
+	if err != nil {
+		return result, err
 	}
 
 	knownMembers, err := s.queries.ListTelegramGroupKnownMembers(ctx, chatID)
@@ -134,7 +149,7 @@ func (s *telegramService) runGroupDefender(ctx context.Context, b *gotgbot.Bot, 
 			continue
 		}
 
-		decision, err := s.evaluateDefenderDecision(ctx, known.TelegramUserID, group.DefenderRemoveBlocked)
+		decision, err := s.evaluateDefenderDecision(ctx, known.TelegramUserID, group, filters)
 		if err != nil {
 			result.Errors++
 			continue
@@ -180,6 +195,10 @@ func (s *telegramService) previewGroupDefenderCandidates(ctx context.Context, b 
 	if group.OwnerTelegramUserID != ownerTelegramUserID || !group.IsActive || !group.IsInitialized {
 		return nil, errors.New("group access denied")
 	}
+	filters, err := s.loadDefenderFilterConfig(ctx, group.ChatID)
+	if err != nil {
+		return nil, err
+	}
 
 	knownMembers, err := s.queries.ListTelegramGroupKnownMembers(ctx, chatID)
 	if err != nil {
@@ -208,7 +227,7 @@ func (s *telegramService) previewGroupDefenderCandidates(ctx context.Context, b 
 			continue
 		}
 
-		decision, err := s.evaluateDefenderDecision(ctx, known.TelegramUserID, group.DefenderRemoveBlocked)
+		decision, err := s.evaluateDefenderDecision(ctx, known.TelegramUserID, group, filters)
 		if err != nil || !decision.ShouldRemove {
 			continue
 		}
@@ -289,7 +308,11 @@ func (s *telegramService) tryAutoDefenderForKnownGroup(ctx context.Context, b *g
 		return
 	}
 
-	decision, err := s.evaluateDefenderDecision(ctx, telegramUserID, group.DefenderRemoveBlocked)
+	filters, err := s.loadDefenderFilterConfig(ctx, group.ChatID)
+	if err != nil {
+		return
+	}
+	decision, err := s.evaluateDefenderDecision(ctx, telegramUserID, group, filters)
 	if err != nil {
 		return
 	}
@@ -314,7 +337,7 @@ func (s *telegramService) tryAutoDefenderForKnownGroup(ctx context.Context, b *g
 	s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoin, telegramUserID, defenderActionRemoved, decision.Reason, "")
 }
 
-func (s *telegramService) evaluateDefenderDecision(ctx context.Context, telegramUserID int64, removeBlocked bool) (defenderDecision, error) {
+func (s *telegramService) evaluateDefenderDecision(ctx context.Context, telegramUserID int64, group db.TelegramGroup, filters defenderFilterConfig) (defenderDecision, error) {
 	profile, err := s.userSvc.GetProfileByTelegramID(ctx, telegramUserID)
 	if err != nil {
 		if isUnregisteredProfileErr(err) {
@@ -322,7 +345,45 @@ func (s *telegramService) evaluateDefenderDecision(ctx context.Context, telegram
 		}
 		return defenderDecision{}, err
 	}
-	if removeBlocked {
+
+	profileCampus := pgtype.UUID{}
+	if err := profileCampus.Scan(strings.TrimSpace(profile.CampusID)); err != nil {
+		profileCampus = pgtype.UUID{}
+	}
+	profileCampusKey := uuidToString(profileCampus)
+
+	if filters.HasCampusRule {
+		if !profileCampus.Valid {
+			return defenderDecision{ShouldRemove: true, Reason: defenderReasonCampusFilter, RemovedAs: defenderReasonCampusFilter}, nil
+		}
+		if _, ok := filters.CampusIDs[profileCampusKey]; !ok {
+			return defenderDecision{ShouldRemove: true, Reason: defenderReasonCampusFilter, RemovedAs: defenderReasonCampusFilter}, nil
+		}
+	}
+
+	if filters.HasTribeRule {
+		if !profileCampus.Valid {
+			return defenderDecision{ShouldRemove: true, Reason: defenderReasonTribeFilter, RemovedAs: defenderReasonTribeFilter}, nil
+		}
+		selectedTribes := filters.TribeIDs[profileCampusKey]
+		if len(selectedTribes) == 0 {
+			return defenderDecision{ShouldRemove: true, Reason: defenderReasonTribeFilter, RemovedAs: defenderReasonTribeFilter}, nil
+		}
+		coalitionName := strings.TrimSpace(profile.CoalitionName)
+		match := false
+		for tribeID := range selectedTribes {
+			targetName := strings.TrimSpace(filters.TribeNames[profileCampusKey][tribeID])
+			if targetName != "" && strings.EqualFold(coalitionName, targetName) {
+				match = true
+				break
+			}
+		}
+		if !match {
+			return defenderDecision{ShouldRemove: true, Reason: defenderReasonTribeFilter, RemovedAs: defenderReasonTribeFilter}, nil
+		}
+	}
+
+	if group.DefenderRemoveBlocked {
 		switch profile.Status {
 		case db.EnumStudentStatusBLOCKED:
 			return defenderDecision{ShouldRemove: true, Reason: defenderReasonBlocked, RemovedAs: defenderReasonBlocked}, nil
@@ -331,6 +392,70 @@ func (s *telegramService) evaluateDefenderDecision(ctx context.Context, telegram
 		}
 	}
 	return defenderDecision{}, nil
+}
+
+func (s *telegramService) loadDefenderFilterConfig(ctx context.Context, chatID int64) (defenderFilterConfig, error) {
+	cfg := defenderFilterConfig{
+		CampusIDs:  map[string]struct{}{},
+		TribeIDs:   map[string]map[int16]struct{}{},
+		TribeNames: map[string]map[int16]string{},
+	}
+
+	campusRows, err := s.queries.ListTelegramGroupDefenderCampusFilters(ctx, chatID)
+	if err != nil {
+		return cfg, fmt.Errorf("failed to load defender campus filters: %w", err)
+	}
+	for _, row := range campusRows {
+		key := uuidToString(row.CampusID)
+		if key == "" {
+			continue
+		}
+		cfg.CampusIDs[key] = struct{}{}
+	}
+	cfg.HasCampusRule = len(cfg.CampusIDs) > 0
+
+	tribeRows, err := s.queries.ListTelegramGroupDefenderTribeFilters(ctx, chatID)
+	if err != nil {
+		return cfg, fmt.Errorf("failed to load defender tribe filters: %w", err)
+	}
+	for _, row := range tribeRows {
+		key := uuidToString(row.CampusID)
+		if key == "" {
+			continue
+		}
+		if _, ok := cfg.TribeIDs[key]; !ok {
+			cfg.TribeIDs[key] = map[int16]struct{}{}
+		}
+		cfg.TribeIDs[key][row.CoalitionID] = struct{}{}
+	}
+	cfg.HasTribeRule = len(tribeRows) > 0
+
+	for campusKey := range cfg.TribeIDs {
+		campusID := pgtype.UUID{}
+		if err := campusID.Scan(campusKey); err != nil || !campusID.Valid {
+			continue
+		}
+		coalitions, err := s.queries.ListCoalitionsByCampus(ctx, campusID)
+		if err != nil {
+			return cfg, fmt.Errorf("failed to load coalitions by campus: %w", err)
+		}
+		if _, ok := cfg.TribeNames[campusKey]; !ok {
+			cfg.TribeNames[campusKey] = map[int16]string{}
+		}
+		for _, row := range coalitions {
+			cfg.TribeNames[campusKey][row.ID] = strings.TrimSpace(row.Name)
+		}
+	}
+
+	return cfg, nil
+}
+
+func uuidToString(v pgtype.UUID) string {
+	if !v.Valid {
+		return ""
+	}
+	b := v.Bytes
+	return fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 }
 
 func isUnregisteredProfileErr(err error) bool {

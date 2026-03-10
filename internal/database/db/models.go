@@ -448,6 +448,21 @@ type TelegramGroup struct {
 	DefenderRemoveBlocked bool               `json:"defender_remove_blocked"`
 }
 
+type TelegramGroupDefenderCampusFilter struct {
+	ID        int64              `json:"id"`
+	ChatID    int64              `json:"chat_id"`
+	CampusID  pgtype.UUID        `json:"campus_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type TelegramGroupDefenderTribeFilter struct {
+	ID          int64              `json:"id"`
+	ChatID      int64              `json:"chat_id"`
+	CampusID    pgtype.UUID        `json:"campus_id"`
+	CoalitionID int16              `json:"coalition_id"`
+	CreatedAt   pgtype.Timestamptz `json:"created_at"`
+}
+
 type TelegramGroupLog struct {
 	ID             int64              `json:"id"`
 	ChatID         int64              `json:"chat_id"`

@@ -12,6 +12,8 @@ import (
 
 type Querier interface {
 	CancelRoomBooking(ctx context.Context, arg CancelRoomBookingParams) error
+	ClearTelegramGroupDefenderCampusFiltersByOwner(ctx context.Context, arg ClearTelegramGroupDefenderCampusFiltersByOwnerParams) (int64, error)
+	ClearTelegramGroupDefenderTribeFiltersByOwner(ctx context.Context, arg ClearTelegramGroupDefenderTribeFiltersByOwnerParams) (int64, error)
 	CloseReviewRequestByID(ctx context.Context, id int64) error
 	CountBooksByCampus(ctx context.Context, campusID pgtype.UUID) (CountBooksByCampusRow, error)
 	CountBooksByCategory(ctx context.Context, arg CountBooksByCategoryParams) (int32, error)
@@ -37,6 +39,8 @@ type Querier interface {
 	DeleteStaleProjectNodesCatalog(ctx context.Context, syncBatchID int64) error
 	DeleteStaleProjectSearchCatalog(ctx context.Context, syncBatchID int64) error
 	DeleteStaleProjectsCatalog(ctx context.Context, syncBatchID int64) error
+	DeleteTelegramGroupDefenderCampusFilterByOwner(ctx context.Context, arg DeleteTelegramGroupDefenderCampusFilterByOwnerParams) (int64, error)
+	DeleteTelegramGroupDefenderTribeFilterByOwner(ctx context.Context, arg DeleteTelegramGroupDefenderTribeFilterByOwnerParams) (int64, error)
 	DeleteTelegramGroupWhitelistByOwner(ctx context.Context, arg DeleteTelegramGroupWhitelistByOwnerParams) (int64, error)
 	DeleteUserAccountByExternalId(ctx context.Context, arg DeleteUserAccountByExternalIdParams) error
 	ExistsCoalitionByID(ctx context.Context, arg ExistsCoalitionByIDParams) (bool, error)
@@ -97,7 +101,10 @@ type Querier interface {
 	HasActiveRooms(ctx context.Context, campusID pgtype.UUID) (bool, error)
 	IncrementReviewRequestViewCount(ctx context.Context, id int64) (int32, error)
 	InsertTelegramGroupLog(ctx context.Context, arg InsertTelegramGroupLogParams) error
+	ListCoalitionsByCampus(ctx context.Context, campusID pgtype.UUID) ([]Coalition, error)
 	ListMemberTagGroupsByTelegramUser(ctx context.Context, telegramUserID int64) ([]TelegramGroup, error)
+	ListTelegramGroupDefenderCampusFilters(ctx context.Context, chatID int64) ([]TelegramGroupDefenderCampusFilter, error)
+	ListTelegramGroupDefenderTribeFilters(ctx context.Context, chatID int64) ([]TelegramGroupDefenderTribeFilter, error)
 	ListTelegramGroupKnownMembers(ctx context.Context, chatID int64) ([]TelegramGroupMember, error)
 	ListTelegramGroupLogs(ctx context.Context, arg ListTelegramGroupLogsParams) ([]TelegramGroupLog, error)
 	ListTelegramGroupWhitelists(ctx context.Context, arg ListTelegramGroupWhitelistsParams) ([]TelegramGroupWhitelist, error)
@@ -138,6 +145,8 @@ type Querier interface {
 	UpsertRoom(ctx context.Context, arg UpsertRoomParams) (Room, error)
 	UpsertSkill(ctx context.Context, arg UpsertSkillParams) (Skill, error)
 	UpsertTelegramGroup(ctx context.Context, arg UpsertTelegramGroupParams) (TelegramGroup, error)
+	UpsertTelegramGroupDefenderCampusFilterByOwner(ctx context.Context, arg UpsertTelegramGroupDefenderCampusFilterByOwnerParams) (int64, error)
+	UpsertTelegramGroupDefenderTribeFilterByOwner(ctx context.Context, arg UpsertTelegramGroupDefenderTribeFilterByOwnerParams) (int64, error)
 	UpsertTelegramGroupMember(ctx context.Context, arg UpsertTelegramGroupMemberParams) (TelegramGroupMember, error)
 	UpsertTelegramGroupWhitelist(ctx context.Context, arg UpsertTelegramGroupWhitelistParams) (TelegramGroupWhitelist, error)
 	UpsertUserBotSettings(ctx context.Context, arg UpsertUserBotSettingsParams) (UserBotSetting, error)

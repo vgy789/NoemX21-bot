@@ -298,6 +298,8 @@ states:
 
           - Автоматический фейс-контроль: `{defender_enabled_label_ru}`
           - Удалять BLOCKED/EXPELLED: `{defender_remove_blocked_label_ru}`
+          - Фильтр по кампусу: `{defender_filter_campus_label_ru}`
+          - Фильтр по трайбу: `{defender_filter_tribe_label_ru}`
           - Whitelist: `{defender_whitelist_count}`
         en: |
           🛡 *Security* / {selected_group_title}
@@ -307,6 +309,8 @@ states:
 
           - **Automatic gatekeeper:** `{defender_enabled_label_en}`
           - **Expelled filter:** `{defender_remove_blocked_label_en}`
+          - **Campus filter:** `{defender_filter_campus_label_en}`
+          - **Tribe filter:** `{defender_filter_tribe_label_en}`
           - **Whitelist:** `{defender_whitelist_count}`
       buttons:
         - id: def_open_toggle
@@ -359,10 +363,18 @@ states:
           _Важно: авто-режим не влияет на старых участников._
 
           🦆 *Мои фильтры:*
-          1. Незарегистрированные в боте:
+
+          *1. Незарегистрированные в боте:*
           `{defender_enabled_label_ru}` _(Когда включено – не пускаю, не залогинился в боте пользователей.)_
-          2. Отчисленные (BLOCKED/EXPELLED):
-          `{defender_remove_blocked_label_ru}` _(Когда включено – не пускаю отчисленных студентов.)_
+
+          *2. Отчисленные (BLOCKED/EXPELLED):*
+          `{defender_remove_blocked_label_ru}` _(Когда включено – не пускаю отчисленных, но ранее зарегистрированных студентов.)_
+
+          *3. Кампус:*
+          `{defender_filter_campus_label_ru}` _(Можно выбрать несколько. Если есть выбор — пускаю только из этих кампусов.)_
+
+          *4. Трайб:*
+          `{defender_filter_tribe_label_ru}` _(Можно выбрать несколько, но только из твоего кампуса. При выборе трайбов кампус фиксируется на твоём.)_
         en: |
           ⚙️ *Gatekeeper Settings*
 
@@ -370,10 +382,18 @@ states:
           _Note: auto-mode does not affect existing members._
 
           🦆 *My filters:*
-          1. Unregistered in the bot:
+
+          *1. Unregistered in the bot:*
           `{defender_enabled_label_en}` _(When enabled – I won't allow users who haven't logged into the bot.)_
-          2. Expelled (BLOCKED/EXPELLED):
-          `{defender_remove_blocked_label_en}` _(When enabled – I won't allow expelled students.)_
+
+          *2. Expelled (BLOCKED/EXPELLED):*
+          `{defender_remove_blocked_label_en}` _(When enabled – I won't allow expelled students, even if they are previously registered.)_
+
+          *3. Campus:*
+          `{defender_filter_campus_label_en}` _(Multi-select. If set — allow only these campuses.)_
+
+          *4. Tribe:*
+          `{defender_filter_tribe_label_en}` _(Multi-select, but only from your campus. Enabling tribe filters locks campus to yours.)_
       buttons:
         - id: def_enable_on
           label:
@@ -407,12 +427,252 @@ states:
           condition: "can_manage_selected_group == true && defender_remove_blocked == true"
           next_state: GROUP_DEFENDER_AUTOMODE
           row: 2
+        - id: def_open_filter_campus
+          label:
+            ru: 3. Настроить фильтр по кампусу
+            en: 3. Configure campus filter
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_DEFENDER_FILTER_CAMPUS
+          row: 3
+        - id: def_open_filter_tribe
+          label:
+            ru: 4. Настроить фильтр по трайбу
+            en: 4. Configure tribe filter
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_DEFENDER_FILTER_TRIBE
+          row: 4
         - id: def_back_menu
           label:
             ru: 🔙 Назад
             en: 🔙 Back
           row: 99
           next_state: GROUP_DEFENDER_MENU
+
+  GROUP_DEFENDER_FILTER_CAMPUS:
+    type: interactive
+    description: Настройка фильтра по кампусу
+    on_enter:
+      - action: load_group_defender_campus_filter_options
+    interface:
+      text:
+        ru: |
+          🏫 *Фильтр по кампусу*
+
+          Текущий фильтр: `{defender_filter_campus_label_ru}`
+
+          Мультивыбор: нажми по кампусу, чтобы включить/выключить.
+          Если выбрать любой "чужой" кампус, фильтр по трайбам будет автоматически сброшен.
+        en: |
+          🏫 *Campus filter*
+
+          Current filter: `{defender_filter_campus_label_en}`
+
+          Multi-select: tap campus to toggle on/off.
+          If any external campus is selected, tribe filters are reset automatically.
+      buttons:
+        - id: "{defender_campus_button_id_1}"
+          label: "{defender_campus_button_label_1}"
+          action: set_group_defender_filter_campus
+          condition: "defender_campus_button_id_1 != ''"
+          next_state: GROUP_DEFENDER_FILTER_CAMPUS
+          row: 2
+        - id: "{defender_campus_button_id_2}"
+          label: "{defender_campus_button_label_2}"
+          action: set_group_defender_filter_campus
+          condition: "defender_campus_button_id_2 != ''"
+          next_state: GROUP_DEFENDER_FILTER_CAMPUS
+          row: 3
+        - id: "{defender_campus_button_id_3}"
+          label: "{defender_campus_button_label_3}"
+          action: set_group_defender_filter_campus
+          condition: "defender_campus_button_id_3 != ''"
+          next_state: GROUP_DEFENDER_FILTER_CAMPUS
+          row: 4
+        - id: "{defender_campus_button_id_4}"
+          label: "{defender_campus_button_label_4}"
+          action: set_group_defender_filter_campus
+          condition: "defender_campus_button_id_4 != ''"
+          next_state: GROUP_DEFENDER_FILTER_CAMPUS
+          row: 5
+        - id: "{defender_campus_button_id_5}"
+          label: "{defender_campus_button_label_5}"
+          action: set_group_defender_filter_campus
+          condition: "defender_campus_button_id_5 != ''"
+          next_state: GROUP_DEFENDER_FILTER_CAMPUS
+          row: 6
+        - id: "{defender_campus_button_id_6}"
+          label: "{defender_campus_button_label_6}"
+          action: set_group_defender_filter_campus
+          condition: "defender_campus_button_id_6 != ''"
+          next_state: GROUP_DEFENDER_FILTER_CAMPUS
+          row: 7
+        - id: "{defender_campus_button_id_7}"
+          label: "{defender_campus_button_label_7}"
+          action: set_group_defender_filter_campus
+          condition: "defender_campus_button_id_7 != ''"
+          next_state: GROUP_DEFENDER_FILTER_CAMPUS
+          row: 8
+        - id: "{defender_campus_button_id_8}"
+          label: "{defender_campus_button_label_8}"
+          action: set_group_defender_filter_campus
+          condition: "defender_campus_button_id_8 != ''"
+          next_state: GROUP_DEFENDER_FILTER_CAMPUS
+          row: 9
+        - id: def_fc_prev
+          label:
+            ru: ◀️ Назад
+            en: ◀️ Back
+          action: defender_campus_prev_page
+          next_state: GROUP_DEFENDER_FILTER_CAMPUS
+          row: 10
+        - id: def_fc_page
+          label:
+            ru: "{defender_campus_page_caption_ru}"
+            en: "{defender_campus_page_caption_en}"
+          action: load_group_defender_campus_filter_options
+          next_state: GROUP_DEFENDER_FILTER_CAMPUS
+          row: 10
+        - id: def_fc_next
+          label:
+            ru: Вперёд ▶️
+            en: Next ▶️
+          action: defender_campus_next_page
+          next_state: GROUP_DEFENDER_FILTER_CAMPUS
+          row: 10
+        - id: def_fc_none
+          label:
+            ru: ♻️ Сбросить
+            en: ♻️ Clear filter
+          action: set_group_defender_filter_campus
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_DEFENDER_FILTER_CAMPUS
+          row: 99
+        - id: def_back_automode
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          row: 99
+          next_state: GROUP_DEFENDER_AUTOMODE
+
+  GROUP_DEFENDER_FILTER_TRIBE:
+    type: interactive
+    description: Настройка фильтра по трайбу
+    on_enter:
+      - action: load_group_defender_tribe_filter_options
+    interface:
+      text:
+        ru: |
+          🛡 *Фильтр по трайбу*
+
+          Текущий фильтр: `{defender_filter_tribe_label_ru}`
+          Доступные трайбы кампуса: `{defender_filter_tribe_scope_ru}`
+
+          Мультивыбор: нажми по трайбу, чтобы включить/выключить.
+          При выборе трайба кампус автоматически фиксируется на твоём.
+        en: |
+          🛡 *Tribe filter*
+
+          Current filter: `{defender_filter_tribe_label_en}`
+          Available tribes for your campus: `{defender_filter_tribe_scope_en}`
+
+          Multi-select: tap tribe to toggle on/off.
+          Selecting a tribe automatically locks campus filter to your campus.
+      buttons:
+        - id: "{defender_tribe_button_id_1}"
+          label: "{defender_tribe_button_label_1}"
+          action: set_group_defender_filter_tribe
+          condition: "defender_tribe_button_id_1 != ''"
+          next_state: GROUP_DEFENDER_FILTER_TRIBE
+          row: 2
+        - id: "{defender_tribe_button_id_2}"
+          label: "{defender_tribe_button_label_2}"
+          action: set_group_defender_filter_tribe
+          condition: "defender_tribe_button_id_2 != ''"
+          next_state: GROUP_DEFENDER_FILTER_TRIBE
+          row: 3
+        - id: "{defender_tribe_button_id_3}"
+          label: "{defender_tribe_button_label_3}"
+          action: set_group_defender_filter_tribe
+          condition: "defender_tribe_button_id_3 != ''"
+          next_state: GROUP_DEFENDER_FILTER_TRIBE
+          row: 4
+        - id: "{defender_tribe_button_id_4}"
+          label: "{defender_tribe_button_label_4}"
+          action: set_group_defender_filter_tribe
+          condition: "defender_tribe_button_id_4 != ''"
+          next_state: GROUP_DEFENDER_FILTER_TRIBE
+          row: 5
+        - id: "{defender_tribe_button_id_5}"
+          label: "{defender_tribe_button_label_5}"
+          action: set_group_defender_filter_tribe
+          condition: "defender_tribe_button_id_5 != ''"
+          next_state: GROUP_DEFENDER_FILTER_TRIBE
+          row: 6
+        - id: "{defender_tribe_button_id_6}"
+          label: "{defender_tribe_button_label_6}"
+          action: set_group_defender_filter_tribe
+          condition: "defender_tribe_button_id_6 != ''"
+          next_state: GROUP_DEFENDER_FILTER_TRIBE
+          row: 7
+        - id: "{defender_tribe_button_id_7}"
+          label: "{defender_tribe_button_label_7}"
+          action: set_group_defender_filter_tribe
+          condition: "defender_tribe_button_id_7 != ''"
+          next_state: GROUP_DEFENDER_FILTER_TRIBE
+          row: 8
+        - id: "{defender_tribe_button_id_8}"
+          label: "{defender_tribe_button_label_8}"
+          action: set_group_defender_filter_tribe
+          condition: "defender_tribe_button_id_8 != ''"
+          next_state: GROUP_DEFENDER_FILTER_TRIBE
+          row: 9
+        - id: "{defender_tribe_button_id_9}"
+          label: "{defender_tribe_button_label_9}"
+          action: set_group_defender_filter_tribe
+          condition: "defender_tribe_button_id_9 != ''"
+          next_state: GROUP_DEFENDER_FILTER_TRIBE
+          row: 10
+        - id: "{defender_tribe_button_id_10}"
+          label: "{defender_tribe_button_label_10}"
+          action: set_group_defender_filter_tribe
+          condition: "defender_tribe_button_id_10 != ''"
+          next_state: GROUP_DEFENDER_FILTER_TRIBE
+          row: 11
+        - id: def_ft_prev
+          label:
+            ru: ◀️ Назад
+            en: ◀️ Back
+          action: defender_tribe_prev_page
+          next_state: GROUP_DEFENDER_FILTER_TRIBE
+          row: 12
+        - id: def_ft_page
+          label:
+            ru: "{defender_tribe_page_caption_ru}"
+            en: "{defender_tribe_page_caption_en}"
+          action: load_group_defender_tribe_filter_options
+          next_state: GROUP_DEFENDER_FILTER_TRIBE
+          row: 12
+        - id: def_ft_next
+          label:
+            ru: Вперёд ▶️
+            en: Next ▶️
+          action: defender_tribe_next_page
+          next_state: GROUP_DEFENDER_FILTER_TRIBE
+          row: 12
+        - id: def_ft_none
+          label:
+            ru: ♻️ Сбросить
+            en: ♻️ Clear filter
+          action: set_group_defender_filter_tribe
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_DEFENDER_FILTER_TRIBE
+          row: 99
+        - id: def_back_automode
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          row: 99
+          next_state: GROUP_DEFENDER_AUTOMODE
 
   GROUP_DEFENDER_RUN:
     type: interactive
