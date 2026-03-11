@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
@@ -21,6 +22,24 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/database/db/mock"
 	"go.uber.org/mock/gomock"
 )
+
+type prrStatusSyncStub struct {
+	calls []prrStatusSyncCall
+	err   error
+}
+
+type prrStatusSyncCall struct {
+	reviewRequestID int64
+	status          string
+}
+
+func (s *prrStatusSyncStub) SyncReviewRequestStatus(_ context.Context, reviewRequestID int64, status string) error {
+	s.calls = append(s.calls, prrStatusSyncCall{
+		reviewRequestID: reviewRequestID,
+		status:          status,
+	})
+	return s.err
+}
 
 func TestNewCampusService(t *testing.T) {
 	ctrl := gomock.NewController(t)
@@ -209,6 +228,101 @@ func TestCampusService_Stop(t *testing.T) {
 	assert.NoError(t, err)
 	svc.Stop()
 	// Should not panic
+}
+
+func TestCampusService_CleanupOutdatedReviewRequests_SyncClosedStatus(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	log := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	hexKey := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+	crypter, err := crypto.NewCrypter(hexKey)
+	require.NoError(t, err)
+
+	tokenEnc, tokenNonce, err := crypter.Encrypt([]byte("cleanup-token"), []byte("school"))
+	require.NoError(t, err)
+
+	q.EXPECT().GetPlatformCredentials(gomock.Any(), "school").Return(db.PlatformCredential{
+		S21Login:        "school",
+		AccessTokenEnc:  tokenEnc,
+		AccessNonce:     tokenNonce,
+		AccessExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(2 * time.Hour), Valid: true},
+	}, nil)
+	q.EXPECT().GetReviewRequestsForCleanup(gomock.Any(), gomock.Any()).Return([]db.GetReviewRequestsForCleanupRow{
+		{ID: 901, RequesterS21Login: "alice", ProjectID: 111},
+	}, nil)
+	q.EXPECT().CloseReviewRequestByID(gomock.Any(), int64(901)).Return(nil)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := s21.ParticipantProjectsV1DTO{
+			Projects: []s21.ParticipantProjectV1DTO{
+				{ID: 222, Status: "IN_REVIEWS"},
+			},
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+
+	cfg := &config.Config{}
+	cfg.Init.SchoolLogin = "school"
+
+	credSvc := NewCredentialService(q, crypter, nil, log)
+	svc := NewCampusService(q, newMockS21Client(handler), cfg, log, credSvc)
+	syncer := &prrStatusSyncStub{}
+	svc.SetPRRStatusBroadcaster(syncer)
+
+	err = svc.CleanupOutdatedReviewRequests(context.Background())
+	require.NoError(t, err)
+	require.Len(t, syncer.calls, 1)
+	assert.Equal(t, int64(901), syncer.calls[0].reviewRequestID)
+	assert.Equal(t, "CLOSED", syncer.calls[0].status)
+}
+
+func TestCampusService_CleanupOutdatedReviewRequests_ProjectStillInReviews(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	log := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	hexKey := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+	crypter, err := crypto.NewCrypter(hexKey)
+	require.NoError(t, err)
+
+	tokenEnc, tokenNonce, err := crypter.Encrypt([]byte("cleanup-token"), []byte("school"))
+	require.NoError(t, err)
+
+	q.EXPECT().GetPlatformCredentials(gomock.Any(), "school").Return(db.PlatformCredential{
+		S21Login:        "school",
+		AccessTokenEnc:  tokenEnc,
+		AccessNonce:     tokenNonce,
+		AccessExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(2 * time.Hour), Valid: true},
+	}, nil)
+	q.EXPECT().GetReviewRequestsForCleanup(gomock.Any(), gomock.Any()).Return([]db.GetReviewRequestsForCleanupRow{
+		{ID: 902, RequesterS21Login: "bob", ProjectID: 333},
+	}, nil)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		resp := s21.ParticipantProjectsV1DTO{
+			Projects: []s21.ParticipantProjectV1DTO{
+				{ID: 333, Status: "IN_REVIEWS"},
+			},
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+
+	cfg := &config.Config{}
+	cfg.Init.SchoolLogin = "school"
+
+	credSvc := NewCredentialService(q, crypter, nil, log)
+	svc := NewCampusService(q, newMockS21Client(handler), cfg, log, credSvc)
+	syncer := &prrStatusSyncStub{}
+	svc.SetPRRStatusBroadcaster(syncer)
+
+	err = svc.CleanupOutdatedReviewRequests(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, syncer.calls)
 }
 
 func TestEnsureCampusPresent_InvalidUUID(t *testing.T) {

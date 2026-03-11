@@ -64,6 +64,12 @@ func New(cfg *config.Config, log *slog.Logger, repo *db.DBWrapper, rcClient *roc
 
 	tgService := telegram.NewTelegramService(cfg, log, userSvc, repo.Queries, engine, cache)
 
+	if setter, ok := campusSvc.(interface {
+		SetPRRStatusBroadcaster(service.PRRStatusBroadcaster)
+	}); ok {
+		setter.SetPRRStatusBroadcaster(tgService)
+	}
+
 	// Set invalidator for schedule generator to clear cached file_ids on regeneration.
 	if setter, ok := scheduleGen.(interface {
 		SetInvalidator(schedule_generator.ScheduleInvalidator)

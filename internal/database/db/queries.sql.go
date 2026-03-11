@@ -68,13 +68,55 @@ func (q *Queries) ClearTelegramGroupDefenderTribeFiltersByOwner(ctx context.Cont
 	return result.RowsAffected(), nil
 }
 
+const clearTelegramGroupPRRCampusFiltersByOwner = `-- name: ClearTelegramGroupPRRCampusFiltersByOwner :execrows
+DELETE FROM telegram_group_prr_campus_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2
+`
+
+type ClearTelegramGroupPRRCampusFiltersByOwnerParams struct {
+	ChatID              int64 `json:"chat_id"`
+	OwnerTelegramUserID int64 `json:"owner_telegram_user_id"`
+}
+
+func (q *Queries) ClearTelegramGroupPRRCampusFiltersByOwner(ctx context.Context, arg ClearTelegramGroupPRRCampusFiltersByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, clearTelegramGroupPRRCampusFiltersByOwner, arg.ChatID, arg.OwnerTelegramUserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const clearTelegramGroupPRRProjectFiltersByOwner = `-- name: ClearTelegramGroupPRRProjectFiltersByOwner :execrows
+DELETE FROM telegram_group_prr_project_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2
+`
+
+type ClearTelegramGroupPRRProjectFiltersByOwnerParams struct {
+	ChatID              int64 `json:"chat_id"`
+	OwnerTelegramUserID int64 `json:"owner_telegram_user_id"`
+}
+
+func (q *Queries) ClearTelegramGroupPRRProjectFiltersByOwner(ctx context.Context, arg ClearTelegramGroupPRRProjectFiltersByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, clearTelegramGroupPRRProjectFiltersByOwner, arg.ChatID, arg.OwnerTelegramUserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const closeReviewRequestByID = `-- name: CloseReviewRequestByID :exec
 UPDATE review_requests
 SET status = 'CLOSED',
     updated_at = CURRENT_TIMESTAMP,
     closed_at = CURRENT_TIMESTAMP
 WHERE id = $1
-  AND status <> 'CLOSED'
+  AND status NOT IN ('CLOSED', 'WITHDRAWN')
 `
 
 func (q *Queries) CloseReviewRequestByID(ctx context.Context, id int64) error {
@@ -124,7 +166,7 @@ const countOpenReviewRequestsByUser = `-- name: CountOpenReviewRequestsByUser :o
 SELECT count(*)::int
 FROM review_requests
 WHERE requester_user_id = $1
-  AND status <> 'CLOSED'
+  AND status NOT IN ('CLOSED', 'WITHDRAWN')
 `
 
 func (q *Queries) CountOpenReviewRequestsByUser(ctx context.Context, requesterUserID int64) (int32, error) {
@@ -637,6 +679,81 @@ func (q *Queries) DeleteTelegramGroupDefenderTribeFilterByOwner(ctx context.Cont
 	return result.RowsAffected(), nil
 }
 
+const deleteTelegramGroupPRRCampusFilterByOwner = `-- name: DeleteTelegramGroupPRRCampusFilterByOwner :execrows
+DELETE FROM telegram_group_prr_campus_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND f.campus_id = $3
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2
+`
+
+type DeleteTelegramGroupPRRCampusFilterByOwnerParams struct {
+	ChatID              int64       `json:"chat_id"`
+	OwnerTelegramUserID int64       `json:"owner_telegram_user_id"`
+	CampusID            pgtype.UUID `json:"campus_id"`
+}
+
+func (q *Queries) DeleteTelegramGroupPRRCampusFilterByOwner(ctx context.Context, arg DeleteTelegramGroupPRRCampusFilterByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTelegramGroupPRRCampusFilterByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.CampusID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteTelegramGroupPRRMessageByReviewRequestAndChat = `-- name: DeleteTelegramGroupPRRMessageByReviewRequestAndChat :execrows
+DELETE FROM telegram_group_prr_messages
+WHERE review_request_id = $1
+  AND chat_id = $2
+`
+
+type DeleteTelegramGroupPRRMessageByReviewRequestAndChatParams struct {
+	ReviewRequestID int64 `json:"review_request_id"`
+	ChatID          int64 `json:"chat_id"`
+}
+
+func (q *Queries) DeleteTelegramGroupPRRMessageByReviewRequestAndChat(ctx context.Context, arg DeleteTelegramGroupPRRMessageByReviewRequestAndChatParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTelegramGroupPRRMessageByReviewRequestAndChat, arg.ReviewRequestID, arg.ChatID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteTelegramGroupPRRMessagesByReviewRequest = `-- name: DeleteTelegramGroupPRRMessagesByReviewRequest :exec
+DELETE FROM telegram_group_prr_messages
+WHERE review_request_id = $1
+`
+
+func (q *Queries) DeleteTelegramGroupPRRMessagesByReviewRequest(ctx context.Context, reviewRequestID int64) error {
+	_, err := q.db.Exec(ctx, deleteTelegramGroupPRRMessagesByReviewRequest, reviewRequestID)
+	return err
+}
+
+const deleteTelegramGroupPRRProjectFilterByOwner = `-- name: DeleteTelegramGroupPRRProjectFilterByOwner :execrows
+DELETE FROM telegram_group_prr_project_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND f.project_id = $3
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2
+`
+
+type DeleteTelegramGroupPRRProjectFilterByOwnerParams struct {
+	ChatID              int64 `json:"chat_id"`
+	OwnerTelegramUserID int64 `json:"owner_telegram_user_id"`
+	ProjectID           int64 `json:"project_id"`
+}
+
+func (q *Queries) DeleteTelegramGroupPRRProjectFilterByOwner(ctx context.Context, arg DeleteTelegramGroupPRRProjectFilterByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTelegramGroupPRRProjectFilterByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.ProjectID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteTelegramGroupWhitelistByOwner = `-- name: DeleteTelegramGroupWhitelistByOwner :execrows
 DELETE FROM telegram_group_whitelists w
 USING telegram_groups g
@@ -701,7 +818,7 @@ SELECT EXISTS (
     FROM review_requests
     WHERE requester_user_id = $1
       AND project_id = $2
-      AND status <> 'CLOSED'
+      AND status NOT IN ('CLOSED', 'WITHDRAWN')
 )
 `
 
@@ -1639,7 +1756,7 @@ LEFT JOIN campuses c ON rr.requester_campus_id = c.id
 LEFT JOIN participant_stats_cache psc ON rr.requester_s21_login = psc.s21_login
 LEFT JOIN user_accounts ua ON rr.requester_user_id = ua.id AND ua.platform = 'telegram'
 WHERE rr.requester_user_id = $1
-  AND rr.status <> 'CLOSED'
+  AND rr.status NOT IN ('CLOSED', 'WITHDRAWN')
 ORDER BY rr.created_at DESC
 `
 
@@ -2321,7 +2438,7 @@ SELECT
     requester_s21_login,
     project_id
 FROM review_requests
-WHERE status <> 'CLOSED'
+WHERE status NOT IN ('CLOSED', 'WITHDRAWN')
   AND updated_at < $1
 ORDER BY updated_at ASC
 LIMIT $2
@@ -2460,7 +2577,7 @@ func (q *Queries) GetRoomByID(ctx context.Context, arg GetRoomByIDParams) (Room,
 }
 
 const getTelegramGroupByChatID = `-- name: GetTelegramGroupByChatID :one
-SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec FROM telegram_groups
+SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior FROM telegram_groups
 WHERE chat_id = $1
 `
 
@@ -2481,6 +2598,11 @@ func (q *Queries) GetTelegramGroupByChatID(ctx context.Context, chatID int64) (T
 		&i.DefenderEnabled,
 		&i.DefenderRemoveBlocked,
 		&i.DefenderBanDurationSec,
+		&i.IsForum,
+		&i.PrrNotificationsEnabled,
+		&i.PrrNotificationsThreadID,
+		&i.PrrNotificationsThreadLabel,
+		&i.PrrWithdrawnBehavior,
 	)
 	return i, err
 }
@@ -2831,7 +2953,7 @@ func (q *Queries) ListCoalitionsByCampus(ctx context.Context, campusID pgtype.UU
 }
 
 const listMemberTagGroupsByTelegramUser = `-- name: ListMemberTagGroupsByTelegramUser :many
-SELECT g.chat_id, g.chat_title, g.owner_telegram_user_id, g.owner_telegram_username, g.is_initialized, g.is_active, g.created_at, g.updated_at, g.member_tags_enabled, g.member_tag_format, g.defender_enabled, g.defender_remove_blocked, g.defender_ban_duration_sec
+SELECT g.chat_id, g.chat_title, g.owner_telegram_user_id, g.owner_telegram_username, g.is_initialized, g.is_active, g.created_at, g.updated_at, g.member_tags_enabled, g.member_tag_format, g.defender_enabled, g.defender_remove_blocked, g.defender_ban_duration_sec, g.is_forum, g.prr_notifications_enabled, g.prr_notifications_thread_id, g.prr_notifications_thread_label, g.prr_withdrawn_behavior
 FROM telegram_groups g
 JOIN telegram_group_members m ON m.chat_id = g.chat_id
 WHERE m.telegram_user_id = $1
@@ -2865,6 +2987,11 @@ func (q *Queries) ListMemberTagGroupsByTelegramUser(ctx context.Context, telegra
 			&i.DefenderEnabled,
 			&i.DefenderRemoveBlocked,
 			&i.DefenderBanDurationSec,
+			&i.IsForum,
+			&i.PrrNotificationsEnabled,
+			&i.PrrNotificationsThreadID,
+			&i.PrrNotificationsThreadLabel,
+			&i.PrrWithdrawnBehavior,
 		); err != nil {
 			return nil, err
 		}
@@ -3015,6 +3142,104 @@ func (q *Queries) ListTelegramGroupLogs(ctx context.Context, arg ListTelegramGro
 	return items, nil
 }
 
+const listTelegramGroupPRRCampusFilters = `-- name: ListTelegramGroupPRRCampusFilters :many
+SELECT id, chat_id, campus_id, created_at FROM telegram_group_prr_campus_filters
+WHERE chat_id = $1
+ORDER BY created_at ASC, campus_id
+`
+
+func (q *Queries) ListTelegramGroupPRRCampusFilters(ctx context.Context, chatID int64) ([]TelegramGroupPrrCampusFilter, error) {
+	rows, err := q.db.Query(ctx, listTelegramGroupPRRCampusFilters, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TelegramGroupPrrCampusFilter
+	for rows.Next() {
+		var i TelegramGroupPrrCampusFilter
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.CampusID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTelegramGroupPRRMessagesByReviewRequest = `-- name: ListTelegramGroupPRRMessagesByReviewRequest :many
+SELECT id, review_request_id, chat_id, message_id, message_thread_id, last_rendered_status, last_rendered_at, created_at, updated_at FROM telegram_group_prr_messages
+WHERE review_request_id = $1
+ORDER BY created_at ASC
+`
+
+func (q *Queries) ListTelegramGroupPRRMessagesByReviewRequest(ctx context.Context, reviewRequestID int64) ([]TelegramGroupPrrMessage, error) {
+	rows, err := q.db.Query(ctx, listTelegramGroupPRRMessagesByReviewRequest, reviewRequestID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TelegramGroupPrrMessage
+	for rows.Next() {
+		var i TelegramGroupPrrMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.ReviewRequestID,
+			&i.ChatID,
+			&i.MessageID,
+			&i.MessageThreadID,
+			&i.LastRenderedStatus,
+			&i.LastRenderedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTelegramGroupPRRProjectFilters = `-- name: ListTelegramGroupPRRProjectFilters :many
+SELECT id, chat_id, project_id, created_at FROM telegram_group_prr_project_filters
+WHERE chat_id = $1
+ORDER BY created_at ASC, project_id
+`
+
+func (q *Queries) ListTelegramGroupPRRProjectFilters(ctx context.Context, chatID int64) ([]TelegramGroupPrrProjectFilter, error) {
+	rows, err := q.db.Query(ctx, listTelegramGroupPRRProjectFilters, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TelegramGroupPrrProjectFilter
+	for rows.Next() {
+		var i TelegramGroupPrrProjectFilter
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.ProjectID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTelegramGroupWhitelists = `-- name: ListTelegramGroupWhitelists :many
 SELECT id, chat_id, telegram_user_id, added_by_account_id, created_at FROM telegram_group_whitelists
 WHERE chat_id = $1
@@ -3054,7 +3279,7 @@ func (q *Queries) ListTelegramGroupWhitelists(ctx context.Context, arg ListTeleg
 }
 
 const listTelegramGroupsByOwner = `-- name: ListTelegramGroupsByOwner :many
-SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec FROM telegram_groups
+SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior FROM telegram_groups
 WHERE owner_telegram_user_id = $1
   AND is_active = true
   AND is_initialized = true
@@ -3084,6 +3309,58 @@ func (q *Queries) ListTelegramGroupsByOwner(ctx context.Context, ownerTelegramUs
 			&i.DefenderEnabled,
 			&i.DefenderRemoveBlocked,
 			&i.DefenderBanDurationSec,
+			&i.IsForum,
+			&i.PrrNotificationsEnabled,
+			&i.PrrNotificationsThreadID,
+			&i.PrrNotificationsThreadLabel,
+			&i.PrrWithdrawnBehavior,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTelegramGroupsWithPRRNotifications = `-- name: ListTelegramGroupsWithPRRNotifications :many
+SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior FROM telegram_groups
+WHERE is_active = true
+  AND is_initialized = true
+  AND prr_notifications_enabled = true
+ORDER BY chat_title
+`
+
+func (q *Queries) ListTelegramGroupsWithPRRNotifications(ctx context.Context) ([]TelegramGroup, error) {
+	rows, err := q.db.Query(ctx, listTelegramGroupsWithPRRNotifications)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TelegramGroup
+	for rows.Next() {
+		var i TelegramGroup
+		if err := rows.Scan(
+			&i.ChatID,
+			&i.ChatTitle,
+			&i.OwnerTelegramUserID,
+			&i.OwnerTelegramUsername,
+			&i.IsInitialized,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.MemberTagsEnabled,
+			&i.MemberTagFormat,
+			&i.DefenderEnabled,
+			&i.DefenderRemoveBlocked,
+			&i.DefenderBanDurationSec,
+			&i.IsForum,
+			&i.PrrNotificationsEnabled,
+			&i.PrrNotificationsThreadID,
+			&i.PrrNotificationsThreadLabel,
+			&i.PrrWithdrawnBehavior,
 		); err != nil {
 			return nil, err
 		}
@@ -3541,7 +3818,10 @@ const setReviewRequestStatus = `-- name: SetReviewRequestStatus :one
 UPDATE review_requests
 SET status = $3::enum_review_status,
     updated_at = CURRENT_TIMESTAMP,
-    closed_at = CASE WHEN $3::enum_review_status = 'CLOSED' THEN CURRENT_TIMESTAMP ELSE NULL END,
+    closed_at = CASE
+        WHEN $3::enum_review_status IN ('CLOSED', 'WITHDRAWN') THEN CURRENT_TIMESTAMP
+        ELSE NULL
+    END,
     negotiating_reviewer_user_id = CASE WHEN $3::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_reviewer_user_id END,
     negotiating_reviewer_s21_login = CASE WHEN $3::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_reviewer_s21_login END,
     negotiating_reviewer_telegram_username = CASE WHEN $3::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_reviewer_telegram_username END,
@@ -3689,6 +3969,26 @@ func (q *Queries) UpdateTelegramGroupDefenderRemoveBlockedByOwner(ctx context.Co
 	return result.RowsAffected(), nil
 }
 
+const updateTelegramGroupForumFlagsByChatID = `-- name: UpdateTelegramGroupForumFlagsByChatID :execrows
+UPDATE telegram_groups
+SET is_forum = $2,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+`
+
+type UpdateTelegramGroupForumFlagsByChatIDParams struct {
+	ChatID  int64 `json:"chat_id"`
+	IsForum bool  `json:"is_forum"`
+}
+
+func (q *Queries) UpdateTelegramGroupForumFlagsByChatID(ctx context.Context, arg UpdateTelegramGroupForumFlagsByChatIDParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateTelegramGroupForumFlagsByChatID, arg.ChatID, arg.IsForum)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const updateTelegramGroupMemberTagFormatByOwner = `-- name: UpdateTelegramGroupMemberTagFormatByOwner :execrows
 UPDATE telegram_groups
 SET member_tag_format = $3,
@@ -3727,6 +4027,99 @@ type UpdateTelegramGroupMemberTagsEnabledByOwnerParams struct {
 
 func (q *Queries) UpdateTelegramGroupMemberTagsEnabledByOwner(ctx context.Context, arg UpdateTelegramGroupMemberTagsEnabledByOwnerParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateTelegramGroupMemberTagsEnabledByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.MemberTagsEnabled)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateTelegramGroupPRRMessageStatus = `-- name: UpdateTelegramGroupPRRMessageStatus :exec
+UPDATE telegram_group_prr_messages
+SET last_rendered_status = $3,
+    last_rendered_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+WHERE review_request_id = $1
+  AND chat_id = $2
+`
+
+type UpdateTelegramGroupPRRMessageStatusParams struct {
+	ReviewRequestID    int64            `json:"review_request_id"`
+	ChatID             int64            `json:"chat_id"`
+	LastRenderedStatus EnumReviewStatus `json:"last_rendered_status"`
+}
+
+func (q *Queries) UpdateTelegramGroupPRRMessageStatus(ctx context.Context, arg UpdateTelegramGroupPRRMessageStatusParams) error {
+	_, err := q.db.Exec(ctx, updateTelegramGroupPRRMessageStatus, arg.ReviewRequestID, arg.ChatID, arg.LastRenderedStatus)
+	return err
+}
+
+const updateTelegramGroupPRRNotificationDestinationByOwner = `-- name: UpdateTelegramGroupPRRNotificationDestinationByOwner :execrows
+UPDATE telegram_groups
+SET prr_notifications_thread_id = $3,
+    prr_notifications_thread_label = $4,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2
+`
+
+type UpdateTelegramGroupPRRNotificationDestinationByOwnerParams struct {
+	ChatID                      int64  `json:"chat_id"`
+	OwnerTelegramUserID         int64  `json:"owner_telegram_user_id"`
+	PrrNotificationsThreadID    int64  `json:"prr_notifications_thread_id"`
+	PrrNotificationsThreadLabel string `json:"prr_notifications_thread_label"`
+}
+
+func (q *Queries) UpdateTelegramGroupPRRNotificationDestinationByOwner(ctx context.Context, arg UpdateTelegramGroupPRRNotificationDestinationByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateTelegramGroupPRRNotificationDestinationByOwner,
+		arg.ChatID,
+		arg.OwnerTelegramUserID,
+		arg.PrrNotificationsThreadID,
+		arg.PrrNotificationsThreadLabel,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateTelegramGroupPRRNotificationsEnabledByOwner = `-- name: UpdateTelegramGroupPRRNotificationsEnabledByOwner :execrows
+UPDATE telegram_groups
+SET prr_notifications_enabled = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2
+`
+
+type UpdateTelegramGroupPRRNotificationsEnabledByOwnerParams struct {
+	ChatID                  int64 `json:"chat_id"`
+	OwnerTelegramUserID     int64 `json:"owner_telegram_user_id"`
+	PrrNotificationsEnabled bool  `json:"prr_notifications_enabled"`
+}
+
+func (q *Queries) UpdateTelegramGroupPRRNotificationsEnabledByOwner(ctx context.Context, arg UpdateTelegramGroupPRRNotificationsEnabledByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateTelegramGroupPRRNotificationsEnabledByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.PrrNotificationsEnabled)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateTelegramGroupPRRWithdrawnBehaviorByOwner = `-- name: UpdateTelegramGroupPRRWithdrawnBehaviorByOwner :execrows
+UPDATE telegram_groups
+SET prr_withdrawn_behavior = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2
+`
+
+type UpdateTelegramGroupPRRWithdrawnBehaviorByOwnerParams struct {
+	ChatID               int64  `json:"chat_id"`
+	OwnerTelegramUserID  int64  `json:"owner_telegram_user_id"`
+	PrrWithdrawnBehavior string `json:"prr_withdrawn_behavior"`
+}
+
+func (q *Queries) UpdateTelegramGroupPRRWithdrawnBehaviorByOwner(ctx context.Context, arg UpdateTelegramGroupPRRWithdrawnBehaviorByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateTelegramGroupPRRWithdrawnBehaviorByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.PrrWithdrawnBehavior)
 	if err != nil {
 		return 0, err
 	}
@@ -4412,7 +4805,7 @@ ON CONFLICT (chat_id) DO UPDATE SET
     is_initialized = EXCLUDED.is_initialized,
     is_active = EXCLUDED.is_active,
     updated_at = CURRENT_TIMESTAMP
-RETURNING chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec
+RETURNING chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior
 `
 
 type UpsertTelegramGroupParams struct {
@@ -4448,6 +4841,11 @@ func (q *Queries) UpsertTelegramGroup(ctx context.Context, arg UpsertTelegramGro
 		&i.DefenderEnabled,
 		&i.DefenderRemoveBlocked,
 		&i.DefenderBanDurationSec,
+		&i.IsForum,
+		&i.PrrNotificationsEnabled,
+		&i.PrrNotificationsThreadID,
+		&i.PrrNotificationsThreadLabel,
+		&i.PrrWithdrawnBehavior,
 	)
 	return i, err
 }
@@ -4548,6 +4946,89 @@ func (q *Queries) UpsertTelegramGroupMember(ctx context.Context, arg UpsertTeleg
 		&i.UpdatedAt,
 	)
 	return i, err
+}
+
+const upsertTelegramGroupPRRCampusFilterByOwner = `-- name: UpsertTelegramGroupPRRCampusFilterByOwner :execrows
+INSERT INTO telegram_group_prr_campus_filters (chat_id, campus_id)
+SELECT g.chat_id, $3
+FROM telegram_groups g
+WHERE g.chat_id = $1
+  AND g.owner_telegram_user_id = $2
+ON CONFLICT (chat_id, campus_id) DO NOTHING
+`
+
+type UpsertTelegramGroupPRRCampusFilterByOwnerParams struct {
+	ChatID              int64       `json:"chat_id"`
+	OwnerTelegramUserID int64       `json:"owner_telegram_user_id"`
+	CampusID            pgtype.UUID `json:"campus_id"`
+}
+
+func (q *Queries) UpsertTelegramGroupPRRCampusFilterByOwner(ctx context.Context, arg UpsertTelegramGroupPRRCampusFilterByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, upsertTelegramGroupPRRCampusFilterByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.CampusID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const upsertTelegramGroupPRRMessage = `-- name: UpsertTelegramGroupPRRMessage :exec
+INSERT INTO telegram_group_prr_messages (
+    review_request_id,
+    chat_id,
+    message_id,
+    message_thread_id,
+    last_rendered_status
+) VALUES (
+    $1, $2, $3, $4, $5
+)
+ON CONFLICT (review_request_id, chat_id) DO UPDATE SET
+    message_id = EXCLUDED.message_id,
+    message_thread_id = EXCLUDED.message_thread_id,
+    last_rendered_status = EXCLUDED.last_rendered_status,
+    last_rendered_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertTelegramGroupPRRMessageParams struct {
+	ReviewRequestID    int64            `json:"review_request_id"`
+	ChatID             int64            `json:"chat_id"`
+	MessageID          int64            `json:"message_id"`
+	MessageThreadID    int64            `json:"message_thread_id"`
+	LastRenderedStatus EnumReviewStatus `json:"last_rendered_status"`
+}
+
+func (q *Queries) UpsertTelegramGroupPRRMessage(ctx context.Context, arg UpsertTelegramGroupPRRMessageParams) error {
+	_, err := q.db.Exec(ctx, upsertTelegramGroupPRRMessage,
+		arg.ReviewRequestID,
+		arg.ChatID,
+		arg.MessageID,
+		arg.MessageThreadID,
+		arg.LastRenderedStatus,
+	)
+	return err
+}
+
+const upsertTelegramGroupPRRProjectFilterByOwner = `-- name: UpsertTelegramGroupPRRProjectFilterByOwner :execrows
+INSERT INTO telegram_group_prr_project_filters (chat_id, project_id)
+SELECT g.chat_id, $3
+FROM telegram_groups g
+WHERE g.chat_id = $1
+  AND g.owner_telegram_user_id = $2
+ON CONFLICT (chat_id, project_id) DO NOTHING
+`
+
+type UpsertTelegramGroupPRRProjectFilterByOwnerParams struct {
+	ChatID              int64 `json:"chat_id"`
+	OwnerTelegramUserID int64 `json:"owner_telegram_user_id"`
+	ProjectID           int64 `json:"project_id"`
+}
+
+func (q *Queries) UpsertTelegramGroupPRRProjectFilterByOwner(ctx context.Context, arg UpsertTelegramGroupPRRProjectFilterByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, upsertTelegramGroupPRRProjectFilterByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.ProjectID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const upsertTelegramGroupWhitelist = `-- name: UpsertTelegramGroupWhitelist :one

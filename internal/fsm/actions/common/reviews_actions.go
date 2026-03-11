@@ -317,7 +317,7 @@ func registerReviewActions(
 		}
 		availability = nonEmpty(TrimRunes(availability, 250), "Flexible")
 
-		_, err = queries.CreateReviewRequest(ctx, db.CreateReviewRequestParams{
+		created, err := queries.CreateReviewRequest(ctx, db.CreateReviewRequestParams{
 			RequesterUserID:         acc.ID,
 			RequesterS21Login:       acc.S21Login,
 			RequesterCampusID:       campusID,
@@ -337,6 +337,11 @@ func registerReviewActions(
 		}
 
 		count, _ := queries.CountOpenReviewRequestsByUser(ctx, acc.ID)
+		if broadcaster, ok := fsm.PRRGroupBroadcasterFromContext(ctx); ok {
+			if notifyErr := broadcaster.PublishReviewRequest(ctx, created.ID); notifyErr != nil {
+				log.Warn("reviews: failed to publish PRR in groups", "prr_id", created.ID, "error", notifyErr)
+			}
+		}
 		return "", map[string]any{
 			"save_conflict_same_project": false,
 			"my_prr_count":               int(count),
@@ -584,7 +589,10 @@ func registerReviewActions(
 
 		isOwn := row.RequesterUserID == acc.ID
 		status := strings.TrimSpace(string(row.Status))
-		prrClosed := status == string(db.EnumReviewStatusCLOSED) || status == string(db.EnumReviewStatusPAUSED) || status == string(db.EnumReviewStatusNEGOTIATING)
+		prrClosed := status == string(db.EnumReviewStatusCLOSED) ||
+			status == string(db.EnumReviewStatusWITHDRAWN) ||
+			status == string(db.EnumReviewStatusPAUSED) ||
+			status == string(db.EnumReviewStatusNEGOTIATING)
 		projectStillInReviews := true
 		reviewerUsername := ""
 		reviewerLevel := strings.TrimSpace(ToString(payload["my_level"]))
@@ -653,6 +661,11 @@ func registerReviewActions(
 
 		if !isOwn && !prrClosed && !projectStillInReviews {
 			_ = queries.CloseReviewRequestByID(ctx, id)
+			if broadcaster, ok := fsm.PRRGroupBroadcasterFromContext(ctx); ok {
+				if syncErr := broadcaster.SyncReviewRequestStatus(ctx, id, string(db.EnumReviewStatusCLOSED)); syncErr != nil {
+					log.Warn("reviews: failed to sync PRR status after lazy close", "prr_id", id, "status", db.EnumReviewStatusCLOSED, "error", syncErr)
+				}
+			}
 			return "", updates, nil
 		}
 
@@ -682,6 +695,11 @@ func registerReviewActions(
 				updates["response_count"] = int(resp.ResponseCount)
 				updates["selected_prr_status"] = string(resp.Status)
 				updates["prr_status_label"] = statusLabel(string(resp.Status), ToString(payload["language"]))
+				if broadcaster, ok := fsm.PRRGroupBroadcasterFromContext(ctx); ok {
+					if syncErr := broadcaster.SyncReviewRequestStatus(ctx, id, string(resp.Status)); syncErr != nil {
+						log.Warn("reviews: failed to sync PRR status in groups", "prr_id", id, "status", resp.Status, "error", syncErr)
+					}
+				}
 				notifyReviewRequestOwner(
 					ctx,
 					queries,
@@ -848,6 +866,10 @@ func registerReviewActions(
 
 	registry.Register("close_my_prr", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		return "", setMyRequestStatus(ctx, queries, userID, payload, db.EnumReviewStatusCLOSED, log), nil
+	})
+
+	registry.Register("withdraw_my_prr", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		return "", setMyRequestStatus(ctx, queries, userID, payload, db.EnumReviewStatusWITHDRAWN, log), nil
 	})
 
 	registry.Register("prepare_prr_project_filters", func(ctx context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
@@ -1694,6 +1716,11 @@ func setMyRequestStatus(
 	}
 
 	count, _ := queries.CountOpenReviewRequestsByUser(ctx, acc.ID)
+	if broadcaster, ok := fsm.PRRGroupBroadcasterFromContext(ctx); ok {
+		if syncErr := broadcaster.SyncReviewRequestStatus(ctx, row.ID, string(row.Status)); syncErr != nil {
+			log.Warn("reviews: failed to sync PRR status in groups", "prr_id", row.ID, "status", row.Status, "error", syncErr)
+		}
+	}
 	return map[string]any{
 		"selected_my_prr_id":       strconv.FormatInt(row.ID, 10),
 		"my_selected_status":       string(row.Status),
@@ -1712,6 +1739,8 @@ func statusEmoji(status db.EnumReviewStatus) string {
 		return "⏸"
 	case db.EnumReviewStatusCLOSED:
 		return "⚫"
+	case db.EnumReviewStatusWITHDRAWN:
+		return "⚪"
 	default:
 		return "🟢"
 	}
@@ -1739,6 +1768,11 @@ func statusLabel(status, lang string) string {
 			return "⚫ Closed"
 		}
 		return "⚫ Закрыт"
+	case "WITHDRAWN":
+		if lang == fsm.LangEn {
+			return "⚪ Withdrawn"
+		}
+		return "⚪ Отозван"
 	default:
 		if lang == fsm.LangEn {
 			return "🟢 Searching"

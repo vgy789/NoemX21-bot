@@ -21,6 +21,7 @@ type CampusService struct {
 	log      *slog.Logger
 	cron     *cron.Cron
 	credsSvc *CredentialService
+	prrSync  PRRStatusBroadcaster
 }
 
 const (
@@ -28,6 +29,11 @@ const (
 	reviewRequestCleanupBatch    = int32(500)
 	reviewRequestCleanupStaleFor = time.Hour
 )
+
+// PRRStatusBroadcaster syncs review request status to external channels.
+type PRRStatusBroadcaster interface {
+	SyncReviewRequestStatus(ctx context.Context, reviewRequestID int64, status string) error
+}
 
 func NewCampusService(queries db.Querier, s21Client *s21.Client, cfg *config.Config, log *slog.Logger, credsSvc *CredentialService) *CampusService {
 	return &CampusService{
@@ -77,6 +83,14 @@ func (s *CampusService) Start() error {
 
 func (s *CampusService) Stop() {
 	s.cron.Stop()
+}
+
+// SetPRRStatusBroadcaster configures optional group notifications sync.
+func (s *CampusService) SetPRRStatusBroadcaster(syncer PRRStatusBroadcaster) {
+	if s == nil {
+		return
+	}
+	s.prrSync = syncer
 }
 
 func (s *CampusService) scheduleReviewCleanup() error {
@@ -161,6 +175,11 @@ func (s *CampusService) CleanupOutdatedReviewRequests(ctx context.Context) error
 		if err := s.queries.CloseReviewRequestByID(ctx, row.ID); err != nil {
 			s.log.Warn("review cleanup: failed to close outdated request", "request_id", row.ID, "login", login, "project_id", row.ProjectID, "error", err)
 			continue
+		}
+		if s.prrSync != nil {
+			if syncErr := s.prrSync.SyncReviewRequestStatus(ctx, row.ID, "CLOSED"); syncErr != nil {
+				s.log.Warn("review cleanup: failed to sync closed status to PRR groups", "request_id", row.ID, "error", syncErr)
+			}
 		}
 		closed++
 	}

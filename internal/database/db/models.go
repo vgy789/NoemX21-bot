@@ -60,6 +60,7 @@ const (
 	EnumReviewStatusNEGOTIATING EnumReviewStatus = "NEGOTIATING"
 	EnumReviewStatusPAUSED      EnumReviewStatus = "PAUSED"
 	EnumReviewStatusCLOSED      EnumReviewStatus = "CLOSED"
+	EnumReviewStatusWITHDRAWN   EnumReviewStatus = "WITHDRAWN"
 )
 
 func (e *EnumReviewStatus) Scan(src interface{}) error {
@@ -434,19 +435,24 @@ type Skill struct {
 }
 
 type TelegramGroup struct {
-	ChatID                 int64              `json:"chat_id"`
-	ChatTitle              string             `json:"chat_title"`
-	OwnerTelegramUserID    int64              `json:"owner_telegram_user_id"`
-	OwnerTelegramUsername  string             `json:"owner_telegram_username"`
-	IsInitialized          bool               `json:"is_initialized"`
-	IsActive               bool               `json:"is_active"`
-	CreatedAt              pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
-	MemberTagsEnabled      bool               `json:"member_tags_enabled"`
-	MemberTagFormat        string             `json:"member_tag_format"`
-	DefenderEnabled        bool               `json:"defender_enabled"`
-	DefenderRemoveBlocked  bool               `json:"defender_remove_blocked"`
-	DefenderBanDurationSec int32              `json:"defender_ban_duration_sec"`
+	ChatID                      int64              `json:"chat_id"`
+	ChatTitle                   string             `json:"chat_title"`
+	OwnerTelegramUserID         int64              `json:"owner_telegram_user_id"`
+	OwnerTelegramUsername       string             `json:"owner_telegram_username"`
+	IsInitialized               bool               `json:"is_initialized"`
+	IsActive                    bool               `json:"is_active"`
+	CreatedAt                   pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                   pgtype.Timestamptz `json:"updated_at"`
+	MemberTagsEnabled           bool               `json:"member_tags_enabled"`
+	MemberTagFormat             string             `json:"member_tag_format"`
+	DefenderEnabled             bool               `json:"defender_enabled"`
+	DefenderRemoveBlocked       bool               `json:"defender_remove_blocked"`
+	DefenderBanDurationSec      int32              `json:"defender_ban_duration_sec"`
+	IsForum                     bool               `json:"is_forum"`
+	PrrNotificationsEnabled     bool               `json:"prr_notifications_enabled"`
+	PrrNotificationsThreadID    int64              `json:"prr_notifications_thread_id"`
+	PrrNotificationsThreadLabel string             `json:"prr_notifications_thread_label"`
+	PrrWithdrawnBehavior        string             `json:"prr_withdrawn_behavior"`
 }
 
 type TelegramGroupDefenderCampusFilter struct {
@@ -483,6 +489,32 @@ type TelegramGroupMember struct {
 	LastStatus     string             `json:"last_status"`
 	LastSeenAt     pgtype.Timestamptz `json:"last_seen_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type TelegramGroupPrrCampusFilter struct {
+	ID        int64              `json:"id"`
+	ChatID    int64              `json:"chat_id"`
+	CampusID  pgtype.UUID        `json:"campus_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type TelegramGroupPrrMessage struct {
+	ID                 int64              `json:"id"`
+	ReviewRequestID    int64              `json:"review_request_id"`
+	ChatID             int64              `json:"chat_id"`
+	MessageID          int64              `json:"message_id"`
+	MessageThreadID    int64              `json:"message_thread_id"`
+	LastRenderedStatus EnumReviewStatus   `json:"last_rendered_status"`
+	LastRenderedAt     pgtype.Timestamptz `json:"last_rendered_at"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+type TelegramGroupPrrProjectFilter struct {
+	ID        int64              `json:"id"`
+	ChatID    int64              `json:"chat_id"`
+	ProjectID int64              `json:"project_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }
 
 type TelegramGroupWhitelist struct {

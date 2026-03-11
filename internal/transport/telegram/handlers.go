@@ -54,6 +54,7 @@ func (s *telegramService) registerHandlers(d *ext.Dispatcher) {
 	d.AddHandler(handlers.NewCommand("start", s.handleStart))
 	d.AddHandler(handlers.NewCommand("init", s.handleGroupInit))
 	d.AddHandler(handlers.NewCommand("group_init", s.handleGroupInit))
+	d.AddHandler(handlers.NewCommand("prr_here", s.handlePRRHere))
 	d.AddHandler(handlers.NewMyChatMember(chatmemberfilters.All, s.handleMyChatMember))
 	d.AddHandler(handlers.NewChatMember(chatmemberfilters.All, s.handleChatMember))
 	d.AddHandler(handlers.NewCallback(func(cq *gotgbot.CallbackQuery) bool { return true }, s.withCallbackDebugMiddleware(s.handleCallback)))
@@ -292,6 +293,53 @@ func (s *telegramService) handleGroupInit(b *gotgbot.Bot, ctx *ext.Context) erro
 	return err
 }
 
+func (s *telegramService) handlePRRHere(b *gotgbot.Bot, ctx *ext.Context) error {
+	if !isGroupChat(ctx.EffectiveChat) {
+		_, _ = s.getSender(b).SendMessage(ctx.EffectiveChat.Id, "Эта команда доступна только в группе.", nil)
+		return nil
+	}
+	if b == nil || ctx.EffectiveUser == nil || ctx.EffectiveChat == nil || ctx.EffectiveMessage == nil || s.queries == nil {
+		return nil
+	}
+
+	chatID := ctx.EffectiveChat.Id
+	userID := ctx.EffectiveUser.Id
+
+	group, err := s.queries.GetTelegramGroupByChatID(context.Background(), chatID)
+	if err != nil || !group.IsActive || !group.IsInitialized {
+		_, _ = s.getSender(b).SendMessage(chatID, "Группа не инициализирована. Сначала выполни /init.", nil)
+		return nil
+	}
+	if group.OwnerTelegramUserID != userID {
+		_, _ = s.getSender(b).SendMessage(chatID, "Только владелец группы может настраивать PRR-радар.", nil)
+		return nil
+	}
+
+	_, _ = s.queries.UpdateTelegramGroupForumFlagsByChatID(context.Background(), db.UpdateTelegramGroupForumFlagsByChatIDParams{
+		ChatID:  chatID,
+		IsForum: ctx.EffectiveChat.IsForum,
+	})
+
+	threadID := int64(ctx.EffectiveMessage.MessageThreadId)
+	threadLabel := normalizeThreadLabel(threadID)
+
+	_, updateErr := s.queries.UpdateTelegramGroupPRRNotificationDestinationByOwner(context.Background(), db.UpdateTelegramGroupPRRNotificationDestinationByOwnerParams{
+		ChatID:                      chatID,
+		OwnerTelegramUserID:         userID,
+		PrrNotificationsThreadID:    threadID,
+		PrrNotificationsThreadLabel: threadLabel,
+	})
+	if updateErr != nil {
+		s.log.Warn("failed to store PRR topic", "chat_id", chatID, "thread_id", threadID, "error", updateErr)
+		_, _ = s.getSender(b).SendMessage(chatID, "Не удалось сохранить тред для PRR-уведомлений.", nil)
+		return nil
+	}
+
+	text := fmt.Sprintf("Цель PRR-радара сохранена: `%s`.", fsm.EscapeMarkdown(threadLabel))
+	_, _ = s.getSender(b).SendMessage(chatID, text, &gotgbot.SendMessageOpts{ParseMode: "Markdown"})
+	return nil
+}
+
 func registrationRequiredGroupInitText(b *gotgbot.Bot) string {
 	base := "Для инициализации владелец группы должен быть зарегистрирован в боте.\n\n" +
 		"1) Открой личный чат с ботом\n" +
@@ -422,6 +470,7 @@ func (s *telegramService) handleTextMessage(b *gotgbot.Bot, ctx *ext.Context) er
 		Platform:  "Telegram",
 	})
 	bgCtx = context.WithValue(bgCtx, fsm.ContextKeyNotifier, &telegramNotifier{sender: s.getSender(b)})
+	bgCtx = context.WithValue(bgCtx, fsm.ContextKeyPRRGroupBroadcaster, s)
 	if runner := s.newMemberTagRunner(b); runner != nil {
 		bgCtx = context.WithValue(bgCtx, fsm.ContextKeyMemberTagRunner, runner)
 	}
@@ -499,6 +548,7 @@ func (s *telegramService) handleCallback(b *gotgbot.Bot, ctx *ext.Context) error
 		Platform:  "Telegram",
 	})
 	bgCtx = context.WithValue(bgCtx, fsm.ContextKeyNotifier, &telegramNotifier{sender: s.getSender(b)})
+	bgCtx = context.WithValue(bgCtx, fsm.ContextKeyPRRGroupBroadcaster, s)
 	if runner := s.newMemberTagRunner(b); runner != nil {
 		bgCtx = context.WithValue(bgCtx, fsm.ContextKeyMemberTagRunner, runner)
 	}

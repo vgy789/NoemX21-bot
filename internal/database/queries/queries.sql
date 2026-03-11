@@ -140,6 +140,136 @@ SET defender_ban_duration_sec = $3,
 WHERE chat_id = $1
   AND owner_telegram_user_id = $2;
 
+-- name: UpdateTelegramGroupForumFlagsByChatID :execrows
+UPDATE telegram_groups
+SET is_forum = $2,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1;
+
+-- name: UpdateTelegramGroupPRRNotificationsEnabledByOwner :execrows
+UPDATE telegram_groups
+SET prr_notifications_enabled = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2;
+
+-- name: UpdateTelegramGroupPRRNotificationDestinationByOwner :execrows
+UPDATE telegram_groups
+SET prr_notifications_thread_id = $3,
+    prr_notifications_thread_label = $4,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2;
+
+-- name: UpdateTelegramGroupPRRWithdrawnBehaviorByOwner :execrows
+UPDATE telegram_groups
+SET prr_withdrawn_behavior = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2;
+
+-- name: ListTelegramGroupsWithPRRNotifications :many
+SELECT * FROM telegram_groups
+WHERE is_active = true
+  AND is_initialized = true
+  AND prr_notifications_enabled = true
+ORDER BY chat_title;
+
+-- name: ListTelegramGroupPRRProjectFilters :many
+SELECT * FROM telegram_group_prr_project_filters
+WHERE chat_id = $1
+ORDER BY created_at ASC, project_id;
+
+-- name: UpsertTelegramGroupPRRProjectFilterByOwner :execrows
+INSERT INTO telegram_group_prr_project_filters (chat_id, project_id)
+SELECT g.chat_id, $3
+FROM telegram_groups g
+WHERE g.chat_id = $1
+  AND g.owner_telegram_user_id = $2
+ON CONFLICT (chat_id, project_id) DO NOTHING;
+
+-- name: DeleteTelegramGroupPRRProjectFilterByOwner :execrows
+DELETE FROM telegram_group_prr_project_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND f.project_id = $3
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2;
+
+-- name: ClearTelegramGroupPRRProjectFiltersByOwner :execrows
+DELETE FROM telegram_group_prr_project_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2;
+
+-- name: ListTelegramGroupPRRCampusFilters :many
+SELECT * FROM telegram_group_prr_campus_filters
+WHERE chat_id = $1
+ORDER BY created_at ASC, campus_id;
+
+-- name: UpsertTelegramGroupPRRCampusFilterByOwner :execrows
+INSERT INTO telegram_group_prr_campus_filters (chat_id, campus_id)
+SELECT g.chat_id, $3
+FROM telegram_groups g
+WHERE g.chat_id = $1
+  AND g.owner_telegram_user_id = $2
+ON CONFLICT (chat_id, campus_id) DO NOTHING;
+
+-- name: DeleteTelegramGroupPRRCampusFilterByOwner :execrows
+DELETE FROM telegram_group_prr_campus_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND f.campus_id = $3
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2;
+
+-- name: ClearTelegramGroupPRRCampusFiltersByOwner :execrows
+DELETE FROM telegram_group_prr_campus_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2;
+
+-- name: UpsertTelegramGroupPRRMessage :exec
+INSERT INTO telegram_group_prr_messages (
+    review_request_id,
+    chat_id,
+    message_id,
+    message_thread_id,
+    last_rendered_status
+) VALUES (
+    $1, $2, $3, $4, $5
+)
+ON CONFLICT (review_request_id, chat_id) DO UPDATE SET
+    message_id = EXCLUDED.message_id,
+    message_thread_id = EXCLUDED.message_thread_id,
+    last_rendered_status = EXCLUDED.last_rendered_status,
+    last_rendered_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP;
+
+-- name: UpdateTelegramGroupPRRMessageStatus :exec
+UPDATE telegram_group_prr_messages
+SET last_rendered_status = $3,
+    last_rendered_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+WHERE review_request_id = $1
+  AND chat_id = $2;
+
+-- name: ListTelegramGroupPRRMessagesByReviewRequest :many
+SELECT * FROM telegram_group_prr_messages
+WHERE review_request_id = $1
+ORDER BY created_at ASC;
+
+-- name: DeleteTelegramGroupPRRMessageByReviewRequestAndChat :execrows
+DELETE FROM telegram_group_prr_messages
+WHERE review_request_id = $1
+  AND chat_id = $2;
+
+-- name: DeleteTelegramGroupPRRMessagesByReviewRequest :exec
+DELETE FROM telegram_group_prr_messages
+WHERE review_request_id = $1;
+
 -- name: ListTelegramGroupDefenderCampusFilters :many
 SELECT * FROM telegram_group_defender_campus_filters
 WHERE chat_id = $1
@@ -876,7 +1006,7 @@ ORDER BY short_name;
 SELECT count(*)::int
 FROM review_requests
 WHERE requester_user_id = $1
-  AND status <> 'CLOSED';
+  AND status NOT IN ('CLOSED', 'WITHDRAWN');
 
 -- name: ExistsOpenReviewRequestByUserAndProject :one
 SELECT EXISTS (
@@ -884,7 +1014,7 @@ SELECT EXISTS (
     FROM review_requests
     WHERE requester_user_id = $1
       AND project_id = $2
-      AND status <> 'CLOSED'
+      AND status NOT IN ('CLOSED', 'WITHDRAWN')
 );
 
 -- name: CreateReviewRequest :one
@@ -956,7 +1086,7 @@ SELECT
     requester_s21_login,
     project_id
 FROM review_requests
-WHERE status <> 'CLOSED'
+WHERE status NOT IN ('CLOSED', 'WITHDRAWN')
   AND updated_at < $1
 ORDER BY updated_at ASC
 LIMIT $2;
@@ -993,7 +1123,7 @@ LEFT JOIN campuses c ON rr.requester_campus_id = c.id
 LEFT JOIN participant_stats_cache psc ON rr.requester_s21_login = psc.s21_login
 LEFT JOIN user_accounts ua ON rr.requester_user_id = ua.id AND ua.platform = 'telegram'
 WHERE rr.requester_user_id = $1
-  AND rr.status <> 'CLOSED'
+  AND rr.status NOT IN ('CLOSED', 'WITHDRAWN')
 ORDER BY rr.created_at DESC;
 
 -- name: GetMyReviewRequestByID :one
@@ -1095,7 +1225,10 @@ RETURNING response_count, status;
 UPDATE review_requests
 SET status = sqlc.arg(status)::enum_review_status,
     updated_at = CURRENT_TIMESTAMP,
-    closed_at = CASE WHEN sqlc.arg(status)::enum_review_status = 'CLOSED' THEN CURRENT_TIMESTAMP ELSE NULL END,
+    closed_at = CASE
+        WHEN sqlc.arg(status)::enum_review_status IN ('CLOSED', 'WITHDRAWN') THEN CURRENT_TIMESTAMP
+        ELSE NULL
+    END,
     negotiating_reviewer_user_id = CASE WHEN sqlc.arg(status)::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_reviewer_user_id END,
     negotiating_reviewer_s21_login = CASE WHEN sqlc.arg(status)::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_reviewer_s21_login END,
     negotiating_reviewer_telegram_username = CASE WHEN sqlc.arg(status)::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_reviewer_telegram_username END,
@@ -1112,7 +1245,7 @@ SET status = 'CLOSED',
     updated_at = CURRENT_TIMESTAMP,
     closed_at = CURRENT_TIMESTAMP
 WHERE id = $1
-  AND status <> 'CLOSED';
+  AND status NOT IN ('CLOSED', 'WITHDRAWN');
 
 -- name: UpsertCourseCatalog :exec
 INSERT INTO courses (

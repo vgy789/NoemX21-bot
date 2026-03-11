@@ -84,6 +84,8 @@ const (
 	ContextKeyDefenderRunner ContextKey = "defender_runner"
 	// ContextKeyDefenderManualFilter is used to override defender run/preview scope for manual cleanup.
 	ContextKeyDefenderManualFilter ContextKey = "defender_manual_filter"
+	// ContextKeyPRRGroupBroadcaster is used for group PRR notifications transport.
+	ContextKeyPRRGroupBroadcaster ContextKey = "prr_group_broadcaster"
 )
 
 // UserInfo represents basic user metadata from the transport layer
@@ -103,6 +105,12 @@ type Notifier interface {
 // RenderNotifier sends out-of-band notifications with buttons.
 type RenderNotifier interface {
 	NotifyUserRender(ctx context.Context, userID int64, render *RenderObject) error
+}
+
+// PRRGroupBroadcaster publishes and syncs PRR cards in Telegram groups.
+type PRRGroupBroadcaster interface {
+	PublishReviewRequest(ctx context.Context, reviewRequestID int64) error
+	SyncReviewRequestStatus(ctx context.Context, reviewRequestID int64, status string) error
 }
 
 // MemberTagRunMode defines manual member tags run behavior.
@@ -188,6 +196,15 @@ func RenderNotifierFromContext(ctx context.Context) (RenderNotifier, bool) {
 		return nil, false
 	}
 	n, ok := ctx.Value(ContextKeyNotifier).(RenderNotifier)
+	return n, ok && n != nil
+}
+
+// PRRGroupBroadcasterFromContext extracts a PRRGroupBroadcaster from context.
+func PRRGroupBroadcasterFromContext(ctx context.Context) (PRRGroupBroadcaster, bool) {
+	if ctx == nil {
+		return nil, false
+	}
+	n, ok := ctx.Value(ContextKeyPRRGroupBroadcaster).(PRRGroupBroadcaster)
 	return n, ok && n != nil
 }
 

@@ -739,8 +739,16 @@ states:
           label:
             ru: ❌ Закрыть запрос
             en: ❌ Close request
-          condition: "my_selected_status != 'CLOSED'"
+          condition: "my_selected_status != 'CLOSED' && my_selected_status != 'WITHDRAWN'"
           action: close_my_prr
+          next_state: MY_PRR_LIST
+          row: 2
+        - id: withdraw_prr
+          label:
+            ru: 🧹 Отозвать запрос
+            en: 🧹 Withdraw request
+          condition: "my_selected_status != 'CLOSED' && my_selected_status != 'WITHDRAWN'"
+          action: withdraw_my_prr
           next_state: MY_PRR_LIST
           row: 2
         - id: back
