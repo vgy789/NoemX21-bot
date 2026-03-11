@@ -18,27 +18,27 @@ states:
         ru: |
           🦆 *Утиная админка / Клубы*
 
-          Чтобы я могла наводить порядок в твоем комьюнити, меня нужно позвать в чат.
+          Чтобы я могла наводить порядок в твоем комьюнити, меня нужно пригласить в чат.
 
           *Твой план действий:*
           1. Добавь меня в свою группу Telegram.
           2. Выдай права администратора.
-          3. Возвращайся сюда – и мы все настроим!
+          3. Возвращайся сюда – и мы всё настроим!
 
           *Что я возьму на себя:*
           🛡 *Защита:* выгоняю «левых» и отчисленных.
-          📨 *PRR-радар:* пересылаю свежие запросы на ревью.
+          📨 *PRR-радар:* транслирую свежие запросы на ревью.
           🏷 *Авто-теги:* ставлю логин и уровень рядом с именем.
           👋 *Onboarding:* встречаю новичков по-человечески.
         en: |
           🦆 *Duck Admin / Clubs*
 
-          To let me manage your community, I need an invite to the pond.
+          To let me manage your community, I need an invite to your Telegram group.
 
           *Your plan:*
           1. Add me to your Telegram group.
           2. Grant me administrator rights.
-          3. Come back here and we'll set everything up!
+          3. Come back here, and we'll set everything up!
 
           *What I'll handle:*
           🛡 *Defender:* kicks outsiders and expelled users.
@@ -62,13 +62,13 @@ states:
         ru: |
           🦆 *Твои группы*
 
-          Выбери группу, в которой мне предстоит поработать клювом. Настроим безопасность, уведомления и теги.
+          Выбери группу, в которой мне предстоит поработать. Настроим безопасность, уведомления и теги.
 
-          Где будем настраивать? 👇
+          Где наводим порядок? 👇
         en: |
           🦆 *Your Groups*
 
-          Select a group where I will work. We'll set up security, notifications, and tags.
+          Select a group where I’ll be working. We'll set up security, notifications, and tags.
 
           Which one are we configuring? 👇
       buttons:
@@ -135,15 +135,17 @@ states:
     interface:
       text:
         ru: |
-          🛠 *Управление* / {selected_group_title}
+          🛠 *Управление чатом*
+          📌 Группа: `{selected_group_title}`
           🆔 Chat ID: `{selected_group_chat_id}`
 
-          Выбирай нужный раздел.
+          Выбери нужный раздел для настройки:
         en: |
-          🛠 *Management* / {selected_group_title}
+          🛠 *Management*
+          📌 Group: `{selected_group_title}`
           🆔 Chat ID: `{selected_group_chat_id}`
 
-          Pick a section.
+          Pick a section to configure:
       buttons:
         - id: open_prr_notifications_settings
           label:
@@ -183,30 +185,30 @@ states:
       text:
         ru: |
           📨 *PRR-радар* / {selected_group_title}
-          🆔 Chat ID: `{selected_group_chat_id}`
 
-          Тут настраивается публикация новых PRR-запросов в эту группу.
+          Здесь настраивается автоматическая публикация новых PRR-запросов.
 
-          - Статус: `{prr_notifications_enabled_label_ru}`
-          - Куда отправлять: `{prr_notifications_destination_label}`
-          - Поведение при отзыве: `{prr_withdrawn_behavior_label_ru}`
-          - Проекты: `{group_prr_project_filters_label_ru}`
-          - Кампусы: `{group_prr_campus_filters_label_ru}`
+          *Текущие настройки:*
+          • Статус: `{prr_notifications_enabled_label_ru}`
+          • Куда: `{prr_notifications_destination_label}`
+          • При отзыве: `{prr_withdrawn_behavior_label_ru}`
+          • Проекты: `{group_prr_project_filters_label_ru}`
+          • Кампусы: `{group_prr_campus_filters_label_ru}`
 
-          Чтобы выбрать тред: запусти команду `/prr_here` в нужном треде группы.
+          💡 *Чтобы выбрать конкретный тред, отправь команду* `/prr_here` *в нужную тему внутри группы.*
         en: |
           📨 *PRR Radar* / {selected_group_title}
-          🆔 Chat ID: `{selected_group_chat_id}`
 
-          Configure publishing of new PRR requests to this group.
+          Configure automatic publishing of new PRR requests to this group.
 
-          - Status: `{prr_notifications_enabled_label_en}`
-          - Destination: `{prr_notifications_destination_label_en}`
-          - Withdraw behavior: `{prr_withdrawn_behavior_label_en}`
-          - Projects: `{group_prr_project_filters_label_en}`
-          - Campuses: `{group_prr_campus_filters_label_en}`
+          *Current settings:*
+          • Status: `{prr_notifications_enabled_label_en}`
+          • Destination: `{prr_notifications_destination_label_en}`
+          • On withdraw: `{prr_withdrawn_behavior_label_en}`
+          • Projects: `{group_prr_project_filters_label_en}`
+          • Campuses: `{group_prr_campus_filters_label_en}`
 
-          To choose a thread run `/prr_here` in that group topic.
+          💡 *To select a specific thread, run `/prr_here` in that topic inside the group.*
       buttons:
         - id: prr_enable_on
           label:
@@ -613,30 +615,28 @@ states:
       text:
         ru: |
           🛠 *Теги пользователей* / {selected_group_title}
-          🆔 Chat ID: `{selected_group_chat_id}`
 
-          Я могу вешать пирам «плашки» (Member Tags) с их логином и уровнем. Это помогает сразу понять, кто есть кто в чате.
+          Я могу вешать участникам «плашки» (Member Tags) с их логином и уровнем. Это помогает сразу понять, кто есть кто.
 
-          🦆 _Совет Утк: это работает только для тех, кто хотя бы раз запускал этого бота._
-
-          - *Авто-режим:* `{member_tags_enabled_label_ru}`
-          - *Формат:* `{member_tag_format_label_ru}`
+          • *Авто-режим:* `{member_tags_enabled_label_ru}`
+          • *Формат:* `{member_tag_format_label_ru}`
 
           📊 *Последний запуск:*
           `{member_tags_last_run_summary_ru}`
+
+          🦆 _Совет Утк: это работает только для тех, кто хотя бы раз запускал этого бота._
         en: |
           🛠 *Member Tags* / {selected_group_title}
-          🆔 Chat ID: `{selected_group_chat_id}`
 
-          I can assign Member Tags with logins and levels. It helps to identify who's who in the chat instantly.
-
-          🦆 _Duc's Tip: this only works for users who have started this bot at least once._
+          I can assign tags with logins and levels. It helps to identify who's who in the chat instantly.
 
           • *Auto mode:* `{member_tags_enabled_label_en}`
           • *Format:* `{member_tag_format_label_en}`
 
           📊 *Last run:*
           `{member_tags_last_run_summary_en}`
+
+          🦆 *Tip: this only works for users who have started this bot at least once.*
       buttons:
         - id: tags_autotag_settings
           label:
@@ -795,47 +795,47 @@ states:
         ru: |
           ⚙️ *Настройки фейс-контроля*
 
-          Если режим включён, я проверяю *каждого новичка* прямо на пороге.
-          _Важно: авто-режим не влияет на старых участников._
+          Если режим включён, я проверяю каждого новичка прямо «на пороге».
+          ⚠️ *Авто-режим не затрагивает тех, кто уже в чате.*
 
-          🦆 *Мои фильтры:*
+          🛡 *Мои фильтры:*
 
-          *1. Незарегистрированные в боте:*
-          `{defender_enabled_label_ru}` _(Когда включено – не пускаю, не залогинился в боте пользователей.)_
+          *1. Регистрация в боте:*
+          `{defender_enabled_label_ru}` _(Не пускаю тех, кто не залогинился в боте)_
 
-          *2. Отчисленные (BLOCKED/EXPELLED):*
-          `{defender_remove_blocked_label_ru}` _(Когда включено – не пускаю отчисленных, но ранее зарегистрированных студентов.)_
+          *2. Статус (Blocked/Expelled):*
+          `{defender_remove_blocked_label_ru}` _(Не пускаю отчисленных студентов)_
 
-          *3. Кампус:*
+          *3. Фильтр по кампусам:*
           `{defender_filter_campus_label_ru}` _(Можно выбрать несколько. Если есть выбор — пускаю только из этих кампусов.)_
 
-          *4. Трайб:*
+          *4. Фильтр по трайбам:*
           `{defender_filter_tribe_label_ru}` _(Можно выбрать несколько, но только из твоего кампуса. При выборе трайбов кампус фиксируется на твоём.)_
 
-          *5. Срок временной блокировки:*
-          `{defender_ban_duration_label_ru}` _(Бан действует ограниченное время, разбан произойдёт автоматически.)_
+          *5. Срок блокировки:*
+          `{defender_ban_duration_label_ru}` _(После истечения срока Telegram разбанит пользователя автоматически)_
         en: |
           ⚙️ *Gatekeeper Settings*
 
-          When enabled, I check *every newcomer* right at the gate.
-          _Note: auto-mode does not affect existing members._
+          When enabled, I check every newcomer at the "gate".
+          ⚠️ *Auto-mode does not affect existing group members.*
 
-          🦆 *My filters:*
+          🛡 *Filters:*
 
-          *1. Unregistered in the bot:*
-          `{defender_enabled_label_en}` _(When enabled – I won't allow users who haven't logged into the bot.)_
+          *1. Bot Registration:*
+          `{defender_enabled_label_en}` _(Keep out users who haven't logged into the bot)_
 
-          *2. Expelled (BLOCKED/EXPELLED):*
-          `{defender_remove_blocked_label_en}` _(When enabled – I won't allow expelled students, even if they are previously registered.)_
+          *2. Status (Blocked/Expelled):*
+          `{defender_remove_blocked_label_en}` _(Keep out expelled students)_
 
-          *3. Campus:*
+          *3. Campus Filter:*
           `{defender_filter_campus_label_en}` _(Multi-select. If set — allow only these campuses.)_
 
-          *4. Tribe:*
+          *4. Tribe Filter:*
           `{defender_filter_tribe_label_en}` _(Multi-select, but only from your campus. Enabling tribe filters locks campus to yours.)_
 
-          *5. Temporary ban duration:*
-          `{defender_ban_duration_label_en}` _(Ban is time-limited, Telegram unbans automatically after expiry.)_
+          *5. Ban Duration:*
+          `{defender_ban_duration_label_en}` _(User will be automatically unbanned by Telegram after this time)_
       buttons:
         - id: def_enable_on
           label:
@@ -1133,11 +1133,11 @@ states:
         ru: |
           🚀 *Генеральная уборка*
 
-          Выбери тип очищения. Для каждого режима отдельный предпросмотр и запуск.
+          Выбери режим очистки. В каждом режиме доступен предпросмотр списка «на вылет» перед запуском.
         en: |
           🚀 *Full Cleanup*
 
-          Pick a cleanup type. Each mode has its own preview and run buttons.
+          Select a cleanup mode. You will be able to preview the list of users to be removed before starting.
       buttons:
         - id: def_clean_unreg
           label:
@@ -1183,13 +1183,13 @@ states:
     interface:
       text:
         ru: |
-          🧹 *Выкинуть незарегистрированных*
+          🧹 *Генеральная уборка: Незарегистрированные*
 
           Удаляются только пользователи, которые не зарегистрированы в боте.
 
           {defender_last_run_notice_ru}
         en: |
-          🧹 *Remove unregistered*
+          🧹 *General Cleanup: Unregistered*
 
           Removes only users not registered in the bot.
 
@@ -1219,13 +1219,13 @@ states:
     interface:
       text:
         ru: |
-          🧹 *Выкинуть отчисленных*
+          🧹 *Генеральная уборка: Отчисленные*
 
           Удаляются только участники со статусом BLOCKED/EXPELLED.
 
           {defender_last_run_notice_ru}
         en: |
-          🧹 *Remove expelled*
+          🧹 *General Cleanup: Expelled*
 
           Removes only participants with BLOCKED/EXPELLED status.
 
@@ -1254,19 +1254,19 @@ states:
     interface:
       text:
         ru: |
-          🧹 *Выкинуть из кампуса*
+          🧹 *Генеральная уборка: Кампус*
 
           Выбранный кампус: `{defender_cleanup_target_campus_label_ru}`
 
-          Выбери кампус, затем открой предпросмотр. Запуск очищения теперь в разделе предпросмотра.
+          Сначала выбери нужный кампус, а затем перейди в предпросмотр. Кнопка запуска очистки находится именно там.
 
           {defender_last_run_notice_ru}
         en: |
-          🧹 *Remove by campus*
+          🧹 *General Cleanup: Campus*
 
           Selected campus: `{defender_cleanup_target_campus_label_en}`
 
-          Pick a campus, then open preview. Run button is now in preview.
+          Pick a campus first, then open the preview. The "Run" button is there.
 
           {defender_last_run_notice_en}
       buttons:
@@ -1349,8 +1349,8 @@ states:
           row: 10
         - id: def_back_run_campus
           label:
-            ru: 🔙 Назад
-            en: 🔙 Back to cleanup menu
+            ru: 🔙 Назад в меню
+            en: 🔙 Back to menu
           row: 99
           next_state: GROUP_DEFENDER_RUN
 
@@ -1362,21 +1362,21 @@ states:
     interface:
       text:
         ru: |
-          🧹 *Выкинуть участников трайба*
+          🧹 *Генеральная уборка: Трайб*
 
           Кампус: `{defender_filter_tribe_scope_ru}`
           Выбранный трайб: `{defender_cleanup_target_tribe_label_ru}`
 
-          Выбери трайб, затем открой предпросмотр. Запуск очищения теперь в разделе предпросмотра.
+          Выбери трайб из списка ниже. После этого обязательно проверь список участников в предпросмотре перед запуском.
 
           {defender_last_run_notice_ru}
         en: |
-          🧹 *Remove by tribe*
+          🧹 *General Cleanup: Tribe*
 
           Campus: `{defender_filter_tribe_scope_en}`
           Selected tribe: `{defender_cleanup_target_tribe_label_en}`
 
-          Pick a tribe, then open preview. Run button is now in preview.
+          Select a tribe from the list below. Make sure to double-check the member list in the preview before starting.
 
           {defender_last_run_notice_en}
       buttons:
@@ -1471,8 +1471,8 @@ states:
           row: 12
         - id: def_back_run_tribe
           label:
-            ru: 🔙 Назад
-            en: 🔙 Back to cleanup menu
+            ru: 🔙 Назад в меню
+            en: 🔙 Back to menu
           row: 99
           next_state: GROUP_DEFENDER_RUN
 
@@ -1484,21 +1484,21 @@ states:
     interface:
       text:
         ru: |
-          🔎 *Список на вылет*
+          🔎 *Предпросмотр списка*
 
-          Вот те, кто не прошел фильтр по текущим правилам:
+          Вот пользователи, которые не соответствуют правилам и будут исключены:
 
           {defender_preview_summary_ru}
 
-          _Если нажать «Добавить всех в Whitelist», чистка их не тронет._
+          💡 _Совет: Если в списке есть те, кого нужно оставить, нажми «Помиловать всех» — они попадут в Whitelist и я их не трону._
         en: |
-          🔎 *Preview*
+          🔎 *Preview List*
 
-          Here are those who didn't pass the filter under current rules:
+          The following users do not meet the criteria and are flagged for removal:
 
           {defender_preview_summary_en}
 
-          _If you "Add all to whitelist," the cleanup won't touch them._
+          💡 _Tip: If you see someone who should stay, click "Spare All" to add them to the Whitelist._
       buttons:
         - id: def_preview_whitelist_all
           label:
@@ -1510,16 +1510,16 @@ states:
           row: 1
         - id: def_preview_refresh
           label:
-            ru: 🔄 Обновить
-            en: 🔄 Refresh
+            ru: 🔄 Обновить список
+            en: 🔄 Refresh list
           action: preview_group_defender_violations
           condition: "can_manage_selected_group == true"
           next_state: GROUP_DEFENDER_PREVIEW
           row: 2
         - id: def_preview_run
           label:
-            ru: ▶️ Запустить очищение по списку
-            en: ▶️ Start cleaning according to the list
+            ru: ▶️ Запустить очистку
+            en: ▶️ Start cleaning
           action: run_group_defender
           condition: "can_manage_selected_group == true && defender_preview_candidate_ids != ''"
           next_state: GROUP_DEFENDER_PREVIEW
@@ -1527,7 +1527,7 @@ states:
         - id: def_back_run
           label:
             ru: 🔙 Назад
-            en: 🔙 Back to run
+            en: 🔙 Back
           row: 99
           next_state: GROUP_DEFENDER_RUN
 
@@ -1539,24 +1539,24 @@ states:
     interface:
       text:
         ru: |
-          ✅ *Белый список*
+          ✅ *Белый список (Whitelist)*
 
-          Этих людей я не трону ни при каких обстоятельствах, даже если они не залогинены в боте.
+          Пользователи из этого списка обладают полным иммунитетом. Я не исключу их, даже если они не авторизованы в боте.
 
           *Текущий список:*
           {defender_whitelist_list_ru}
         en: |
-          ✅ *Whitelist*
+          ✅ *Whitelist (Immunity)*
 
-          I won't touch these people under any circumstances, even if they aren't logged into the bot.
+          Users on this list have full immunity. I won't touch them under any circumstances, even if they aren't logged into the bot.
 
           *Current list:*
           {defender_whitelist_list_en}
       buttons:
         - id: def_wl_add
           label:
-            ru: ➕ Добавить ID
-            en: ➕ Add ID
+            ru: ➕ Добавить по ID
+            en: ➕ Add by ID
           condition: "can_manage_selected_group == true"
           next_state: GROUP_DEFENDER_WHITELIST_ADD_INPUT
           row: 1
@@ -1622,8 +1622,8 @@ states:
           row: 11
         - id: def_back_menu
           label:
-            ru: 🔙 Назад
-            en: 🔙 Back
+            ru: 🔙 Назад в меню
+            en: 🔙 Back to menu
           row: 99
           next_state: GROUP_DEFENDER_MENU
 
@@ -1729,23 +1729,25 @@ states:
     interface:
       text:
         ru: |
-          🚀 *Ручной запуск тегирования*
+          🚀 *Ручное обновление тегов*
 
-          Хочешь прогнать теги по всем участникам прямо сейчас?
+          Запустить обновление подписей (админ-тегов) для всех участников чата?
 
-          🙅‍♂️ _Важно: я не могу менять теги другим админам – Telegram не разрешает ботам трогать «боссов»._
+          ⚠️ *Важно:* Я не могу изменять теги другим администраторам – Telegram запрещает ботам редактировать профили владельцев и коллег-админов.
 
-          ▶️ *Без замены* — тегирую только тех, у кого пусто.
-          🧹 *С заменой* — обновлю теги вообще всем «своим» людям в чате.
+          *Варианты*
+          • *Без замены* — добавлю теги только тем, у кого их сейчас нет.
+          • *С заменой* — полностью обновлю подписи у всех «своих» пользователей.
         en: |
-          🚀 *Manual Tagging Run*
+          🚀 *Manual Tag Update*
 
-          Want to process all members right now?
+          Would you like to process admin tags for all group members right now?
 
-          🙅‍♂️ _Note: I cannot edit tags for other admins – Telegram forbids bots from touching the "bosses"._
+          ⚠️ *Note:* I cannot edit tags for other admins. Telegram restrictions prevent bots from modifying the profiles of owners or other administrators.
 
-          ▶️ *Keep existing* — only tag those who have none.
-          🧹 *Full refresh* — update tags for all registered users.
+          *Options:*
+          • *Keep existing* — only tag users who currently have no tag.
+          • *Full refresh* — force update tags for all registered users.
       buttons:
         - id: tags_run_keep
           label:
