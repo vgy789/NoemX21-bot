@@ -2460,7 +2460,7 @@ func (q *Queries) GetRoomByID(ctx context.Context, arg GetRoomByIDParams) (Room,
 }
 
 const getTelegramGroupByChatID = `-- name: GetTelegramGroupByChatID :one
-SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked FROM telegram_groups
+SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec FROM telegram_groups
 WHERE chat_id = $1
 `
 
@@ -2480,6 +2480,7 @@ func (q *Queries) GetTelegramGroupByChatID(ctx context.Context, chatID int64) (T
 		&i.MemberTagFormat,
 		&i.DefenderEnabled,
 		&i.DefenderRemoveBlocked,
+		&i.DefenderBanDurationSec,
 	)
 	return i, err
 }
@@ -2830,7 +2831,7 @@ func (q *Queries) ListCoalitionsByCampus(ctx context.Context, campusID pgtype.UU
 }
 
 const listMemberTagGroupsByTelegramUser = `-- name: ListMemberTagGroupsByTelegramUser :many
-SELECT g.chat_id, g.chat_title, g.owner_telegram_user_id, g.owner_telegram_username, g.is_initialized, g.is_active, g.created_at, g.updated_at, g.member_tags_enabled, g.member_tag_format, g.defender_enabled, g.defender_remove_blocked
+SELECT g.chat_id, g.chat_title, g.owner_telegram_user_id, g.owner_telegram_username, g.is_initialized, g.is_active, g.created_at, g.updated_at, g.member_tags_enabled, g.member_tag_format, g.defender_enabled, g.defender_remove_blocked, g.defender_ban_duration_sec
 FROM telegram_groups g
 JOIN telegram_group_members m ON m.chat_id = g.chat_id
 WHERE m.telegram_user_id = $1
@@ -2863,6 +2864,7 @@ func (q *Queries) ListMemberTagGroupsByTelegramUser(ctx context.Context, telegra
 			&i.MemberTagFormat,
 			&i.DefenderEnabled,
 			&i.DefenderRemoveBlocked,
+			&i.DefenderBanDurationSec,
 		); err != nil {
 			return nil, err
 		}
@@ -3052,7 +3054,7 @@ func (q *Queries) ListTelegramGroupWhitelists(ctx context.Context, arg ListTeleg
 }
 
 const listTelegramGroupsByOwner = `-- name: ListTelegramGroupsByOwner :many
-SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked FROM telegram_groups
+SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec FROM telegram_groups
 WHERE owner_telegram_user_id = $1
   AND is_active = true
   AND is_initialized = true
@@ -3081,6 +3083,7 @@ func (q *Queries) ListTelegramGroupsByOwner(ctx context.Context, ownerTelegramUs
 			&i.MemberTagFormat,
 			&i.DefenderEnabled,
 			&i.DefenderRemoveBlocked,
+			&i.DefenderBanDurationSec,
 		); err != nil {
 			return nil, err
 		}
@@ -3618,6 +3621,28 @@ type UpdateRoomBookingDurationParams struct {
 func (q *Queries) UpdateRoomBookingDuration(ctx context.Context, arg UpdateRoomBookingDurationParams) error {
 	_, err := q.db.Exec(ctx, updateRoomBookingDuration, arg.ID, arg.UserID, arg.DurationMinutes)
 	return err
+}
+
+const updateTelegramGroupDefenderBanDurationSecByOwner = `-- name: UpdateTelegramGroupDefenderBanDurationSecByOwner :execrows
+UPDATE telegram_groups
+SET defender_ban_duration_sec = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2
+`
+
+type UpdateTelegramGroupDefenderBanDurationSecByOwnerParams struct {
+	ChatID                 int64 `json:"chat_id"`
+	OwnerTelegramUserID    int64 `json:"owner_telegram_user_id"`
+	DefenderBanDurationSec int32 `json:"defender_ban_duration_sec"`
+}
+
+func (q *Queries) UpdateTelegramGroupDefenderBanDurationSecByOwner(ctx context.Context, arg UpdateTelegramGroupDefenderBanDurationSecByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateTelegramGroupDefenderBanDurationSecByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.DefenderBanDurationSec)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const updateTelegramGroupDefenderEnabledByOwner = `-- name: UpdateTelegramGroupDefenderEnabledByOwner :execrows
@@ -4387,7 +4412,7 @@ ON CONFLICT (chat_id) DO UPDATE SET
     is_initialized = EXCLUDED.is_initialized,
     is_active = EXCLUDED.is_active,
     updated_at = CURRENT_TIMESTAMP
-RETURNING chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked
+RETURNING chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec
 `
 
 type UpsertTelegramGroupParams struct {
@@ -4422,6 +4447,7 @@ func (q *Queries) UpsertTelegramGroup(ctx context.Context, arg UpsertTelegramGro
 		&i.MemberTagFormat,
 		&i.DefenderEnabled,
 		&i.DefenderRemoveBlocked,
+		&i.DefenderBanDurationSec,
 	)
 	return i, err
 }

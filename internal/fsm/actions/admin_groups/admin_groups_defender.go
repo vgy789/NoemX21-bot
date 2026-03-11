@@ -21,6 +21,9 @@ const (
 	maxDefenderTribePageSize    = 10
 	defenderWhitelistLoadLimit  = 100
 	defenderLogsLoadLimit       = 10
+	defenderBanDefaultSec       = int32(24 * 60 * 60)
+	defenderBanMinSec           = int32(5 * 60)
+	defenderBanMaxSec           = int32(30 * 24 * 60 * 60)
 
 	defenderReasonUnregistered = "unregistered"
 	defenderReasonBlocked      = "blocked"
@@ -85,6 +88,53 @@ func registerDefenderActions(registry *fsm.LogicRegistry, log logger, queries db
 			}); err != nil {
 				log.Warn("admin groups: failed to auto-enable defender", "chat_id", chatID, "user_id", userID, "error", err)
 			}
+		}
+		return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
+	})
+
+	registry.Register("set_group_defender_ban_duration", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		chatID, err := parseSelectedGroupChatID(payload)
+		if err != nil {
+			return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
+		}
+
+		durationSec, ok := parseDefenderBanDurationButtonID(fmt.Sprintf("%v", payload["id"]))
+		if !ok {
+			return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
+		}
+
+		if _, err := queries.UpdateTelegramGroupDefenderBanDurationSecByOwner(ctx, db.UpdateTelegramGroupDefenderBanDurationSecByOwnerParams{
+			ChatID:                 chatID,
+			OwnerTelegramUserID:    userID,
+			DefenderBanDurationSec: normalizeDefenderBanDurationSec(durationSec),
+		}); err != nil {
+			log.Warn("admin groups: failed to update defender_ban_duration_sec", "chat_id", chatID, "user_id", userID, "error", err)
+		}
+		return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
+	})
+
+	registry.Register("set_group_defender_ban_duration_from_input", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		chatID, err := parseSelectedGroupChatID(payload)
+		if err != nil {
+			return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
+		}
+
+		raw := strings.TrimSpace(fmt.Sprintf("%v", payload["id"]))
+		durationSec, errRU, errEN := parseDefenderBanDurationInput(raw)
+		if errRU != "" {
+			alert := errRU
+			if strings.TrimSpace(fmt.Sprintf("%v", payload["language"])) == fsm.LangEn {
+				alert = errEN
+			}
+			return "GROUP_DEFENDER_BAN_DURATION_INPUT", map[string]any{"_alert": alert}, nil
+		}
+
+		if _, err := queries.UpdateTelegramGroupDefenderBanDurationSecByOwner(ctx, db.UpdateTelegramGroupDefenderBanDurationSecByOwnerParams{
+			ChatID:                 chatID,
+			OwnerTelegramUserID:    userID,
+			DefenderBanDurationSec: normalizeDefenderBanDurationSec(durationSec),
+		}); err != nil {
+			log.Warn("admin groups: failed to update defender_ban_duration_sec from input", "chat_id", chatID, "user_id", userID, "error", err)
 		}
 		return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
 	})
@@ -880,6 +930,8 @@ func buildDefenderContextUpdates(ctx context.Context, userID int64, payload map[
 		if log != nil {
 			log.Warn("admin groups: failed to load defender logs", "chat_id", chatID, "error", err)
 		}
+		updates["defender_logs_list_ru"] = "⚠️ Не удалось загрузить лог. Проверьте миграции и доступ к таблице telegram_group_logs."
+		updates["defender_logs_list_en"] = "⚠️ Failed to load logs. Check migrations and access to telegram_group_logs."
 	} else {
 		updates["defender_logs_list_ru"] = formatDefenderLogs(logRows, fsm.LangRu)
 		updates["defender_logs_list_en"] = formatDefenderLogs(logRows, fsm.LangEn)
@@ -895,6 +947,9 @@ func mergeDefenderDefaults(updates map[string]any, payload map[string]any) {
 	updates["defender_remove_blocked"] = false
 	updates["defender_remove_blocked_label_ru"] = "❌ Выключено"
 	updates["defender_remove_blocked_label_en"] = "❌ Disabled"
+	updates["defender_ban_duration_sec"] = defenderBanDefaultSec
+	updates["defender_ban_duration_label_ru"] = formatDefenderBanDurationLabel(defenderBanDefaultSec, fsm.LangRu)
+	updates["defender_ban_duration_label_en"] = formatDefenderBanDurationLabel(defenderBanDefaultSec, fsm.LangEn)
 	updates["defender_whitelist_count"] = 0
 	updates["defender_whitelist_list_ru"] = "Пусто"
 	updates["defender_whitelist_list_en"] = "Empty"
@@ -1019,6 +1074,8 @@ func buildDefenderSettingsUpdates(group db.TelegramGroup) map[string]any {
 		blockedEN = "✅ Enabled"
 	}
 
+	banDurationSec := normalizeDefenderBanDurationSec(group.DefenderBanDurationSec)
+
 	return map[string]any{
 		"defender_enabled":                 group.DefenderEnabled,
 		"defender_enabled_label_ru":        enabledRU,
@@ -1026,6 +1083,9 @@ func buildDefenderSettingsUpdates(group db.TelegramGroup) map[string]any {
 		"defender_remove_blocked":          group.DefenderRemoveBlocked,
 		"defender_remove_blocked_label_ru": blockedRU,
 		"defender_remove_blocked_label_en": blockedEN,
+		"defender_ban_duration_sec":        banDurationSec,
+		"defender_ban_duration_label_ru":   formatDefenderBanDurationLabel(banDurationSec, fsm.LangRu),
+		"defender_ban_duration_label_en":   formatDefenderBanDurationLabel(banDurationSec, fsm.LangEn),
 	}
 }
 
@@ -1130,12 +1190,12 @@ func formatDefenderLogs(rows []db.TelegramGroupLog, language string) string {
 	for _, row := range rows {
 		ts := "—"
 		if row.CreatedAt.Valid {
-			ts = row.CreatedAt.Time.In(time.Local).Format("02.01 15:04")
+			ts = row.CreatedAt.Time.In(time.Local).Format("02.01 15:04:05")
 		}
 
 		sourceLabel := defenderLogSourceLabel(row.Source, language)
 		resultLabel := defenderLogResultLabel(row.Action, row.Reason, language)
-		line := fmt.Sprintf("• %s · %s\n  👤 `%d` · %s", ts, sourceLabel, row.TelegramUserID, resultLabel)
+		line := fmt.Sprintf("• #%d · %s · %s\n  👤 `%d` · %s", row.ID, ts, sourceLabel, row.TelegramUserID, resultLabel)
 		if strings.TrimSpace(row.Details) != "" {
 			if language == fsm.LangEn {
 				line += "\n  ℹ️ " + "Details: " + fsm.EscapeMarkdown(row.Details)
@@ -1175,39 +1235,39 @@ func defenderLogResultLabel(action, reason, language string) string {
 	switch action + "/" + reason {
 	case "removed/unregistered":
 		if language == fsm.LangEn {
-			return "✅ Removed: not registered in bot"
+			return "🚫 Temporarily banned: not registered in bot"
 		}
-		return "✅ Удалён: не зарегистрирован в боте"
+		return "🚫 Временный бан: не зарегистрирован в боте"
 	case "removed/blocked":
 		if language == fsm.LangEn {
-			return "✅ Removed: student status BLOCKED"
+			return "🚫 Temporarily banned: student status BLOCKED"
 		}
-		return "✅ Удалён: статус студента BLOCKED"
+		return "🚫 Временный бан: статус студента BLOCKED"
 	case "removed/expelled":
 		if language == fsm.LangEn {
-			return "✅ Removed: student status EXPELLED"
+			return "🚫 Temporarily banned: student status EXPELLED"
 		}
-		return "✅ Удалён: статус студента EXPELLED"
+		return "🚫 Временный бан: статус студента EXPELLED"
 	case "removed/campus_filter":
 		if language == fsm.LangEn {
-			return "✅ Removed: campus filter mismatch"
+			return "🚫 Temporarily banned: campus filter mismatch"
 		}
-		return "✅ Удалён: не прошёл фильтр кампуса"
+		return "🚫 Временный бан: не прошёл фильтр кампуса"
 	case "removed/tribe_filter":
 		if language == fsm.LangEn {
-			return "✅ Removed: tribe filter mismatch"
+			return "🚫 Temporarily banned: tribe filter mismatch"
 		}
-		return "✅ Удалён: не прошёл фильтр трайба"
+		return "🚫 Временный бан: не прошёл фильтр трайба"
 	case "removed/campus_selected":
 		if language == fsm.LangEn {
-			return "✅ Removed: matched selected campus"
+			return "🚫 Temporarily banned: matched selected campus"
 		}
-		return "✅ Удалён: из выбранного кампуса"
+		return "🚫 Временный бан: из выбранного кампуса"
 	case "removed/tribe_selected":
 		if language == fsm.LangEn {
-			return "✅ Removed: matched selected tribe"
+			return "🚫 Temporarily banned: matched selected tribe"
 		}
-		return "✅ Удалён: из выбранного трайба"
+		return "🚫 Временный бан: из выбранного трайба"
 	case "skipped_whitelist/whitelist":
 		if language == fsm.LangEn {
 			return "⏭ Skipped: in whitelist"
@@ -1505,6 +1565,86 @@ func parsePositiveInt(v any, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func normalizeDefenderBanDurationSec(sec int32) int32 {
+	if sec < defenderBanMinSec || sec > defenderBanMaxSec {
+		return defenderBanDefaultSec
+	}
+	return sec
+}
+
+func parseDefenderBanDurationButtonID(buttonID string) (int32, bool) {
+	switch strings.TrimSpace(buttonID) {
+	case "def_ban_1h":
+		return 60 * 60, true
+	case "def_ban_6h":
+		return 6 * 60 * 60, true
+	case "def_ban_24h":
+		return 24 * 60 * 60, true
+	case "def_ban_3d":
+		return 3 * 24 * 60 * 60, true
+	case "def_ban_7d":
+		return 7 * 24 * 60 * 60, true
+	case "def_ban_30d":
+		return 30 * 24 * 60 * 60, true
+	default:
+		return 0, false
+	}
+}
+
+func parseDefenderBanDurationInput(raw string) (int32, string, string) {
+	normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(raw), " ", ""))
+	if len(normalized) < 2 {
+		return 0, "Неверный формат. Используй, например: `5m`, `24h`, `3d`.", "Invalid format. Use for example: `5m`, `24h`, `3d`."
+	}
+
+	unit := normalized[len(normalized)-1]
+	valueRaw := normalized[:len(normalized)-1]
+	value, err := strconv.Atoi(valueRaw)
+	if err != nil || value <= 0 {
+		return 0, "Неверный формат. Используй, например: `5m`, `24h`, `3d`.", "Invalid format. Use for example: `5m`, `24h`, `3d`."
+	}
+
+	var sec int32
+	switch unit {
+	case 'm':
+		sec = int32(value * 60)
+	case 'h':
+		sec = int32(value * 60 * 60)
+	case 'd':
+		sec = int32(value * 24 * 60 * 60)
+	default:
+		return 0, "Неверная единица. Разрешено: `m`, `h`, `d`.", "Invalid unit. Allowed: `m`, `h`, `d`."
+	}
+
+	if sec < defenderBanMinSec || sec > defenderBanMaxSec {
+		return 0, "Срок должен быть в диапазоне от `5m` до `30d`.", "Duration must be between `5m` and `30d`."
+	}
+	return sec, "", ""
+}
+
+func formatDefenderBanDurationLabel(sec int32, language string) string {
+	safe := normalizeDefenderBanDurationSec(sec)
+	if safe%(24*60*60) == 0 {
+		value := safe / (24 * 60 * 60)
+		if language == fsm.LangEn {
+			return fmt.Sprintf("%dd", value)
+		}
+		return fmt.Sprintf("%dд", value)
+	}
+	if safe%(60*60) == 0 {
+		value := safe / (60 * 60)
+		if language == fsm.LangEn {
+			return fmt.Sprintf("%dh", value)
+		}
+		return fmt.Sprintf("%dч", value)
+	}
+	value := safe / 60
+	if language == fsm.LangEn {
+		return fmt.Sprintf("%dm", value)
+	}
+	return fmt.Sprintf("%dм", value)
 }
 
 func buildDefenderManualFilterFromPayload(payload map[string]any) (fsm.DefenderManualFilter, bool, string, string) {

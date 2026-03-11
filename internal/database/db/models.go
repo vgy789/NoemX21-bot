@@ -434,18 +434,19 @@ type Skill struct {
 }
 
 type TelegramGroup struct {
-	ChatID                int64              `json:"chat_id"`
-	ChatTitle             string             `json:"chat_title"`
-	OwnerTelegramUserID   int64              `json:"owner_telegram_user_id"`
-	OwnerTelegramUsername string             `json:"owner_telegram_username"`
-	IsInitialized         bool               `json:"is_initialized"`
-	IsActive              bool               `json:"is_active"`
-	CreatedAt             pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt             pgtype.Timestamptz `json:"updated_at"`
-	MemberTagsEnabled     bool               `json:"member_tags_enabled"`
-	MemberTagFormat       string             `json:"member_tag_format"`
-	DefenderEnabled       bool               `json:"defender_enabled"`
-	DefenderRemoveBlocked bool               `json:"defender_remove_blocked"`
+	ChatID                 int64              `json:"chat_id"`
+	ChatTitle              string             `json:"chat_title"`
+	OwnerTelegramUserID    int64              `json:"owner_telegram_user_id"`
+	OwnerTelegramUsername  string             `json:"owner_telegram_username"`
+	IsInitialized          bool               `json:"is_initialized"`
+	IsActive               bool               `json:"is_active"`
+	CreatedAt              pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt              pgtype.Timestamptz `json:"updated_at"`
+	MemberTagsEnabled      bool               `json:"member_tags_enabled"`
+	MemberTagFormat        string             `json:"member_tag_format"`
+	DefenderEnabled        bool               `json:"defender_enabled"`
+	DefenderRemoveBlocked  bool               `json:"defender_remove_blocked"`
+	DefenderBanDurationSec int32              `json:"defender_ban_duration_sec"`
 }
 
 type TelegramGroupDefenderCampusFilter struct {

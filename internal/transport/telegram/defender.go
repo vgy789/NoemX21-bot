@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -17,6 +18,10 @@ const (
 	defenderSourceAutoJoin  = "auto_join"
 	defenderSourceManualRun = "manual_run"
 	defenderSourcePreview   = "preview"
+
+	defenderBanDefaultSec = int32(24 * 60 * 60)
+	defenderBanMinSec     = int32(5 * 60)
+	defenderBanMaxSec     = int32(30 * 24 * 60 * 60)
 
 	defenderActionRemoved          = "removed"
 	defenderActionSkippedWhitelist = "skipped_whitelist"
@@ -98,7 +103,10 @@ func (s *telegramService) runGroupDefender(ctx context.Context, b *gotgbot.Bot, 
 	}
 	filters, err := s.loadDefenderFilterConfig(ctx, group.ChatID)
 	if err != nil {
-		return result, err
+		if s.log != nil {
+			s.log.Warn("defender: failed to load filter config, fallback to base rules", "chat_id", group.ChatID, "error", err)
+		}
+		filters = emptyDefenderFilterConfig()
 	}
 	manualFilter, hasManualFilter := fsm.DefenderManualFilterFromContext(ctx)
 
@@ -167,13 +175,15 @@ func (s *telegramService) runGroupDefender(ctx context.Context, b *gotgbot.Bot, 
 			continue
 		}
 
-		if err := s.kickChatMember(ctx, b, chatID, known.TelegramUserID); err != nil {
+		banDurationSec := normalizeDefenderBanDurationSec(group.DefenderBanDurationSec)
+		untilUTC, err := s.banChatMemberForDuration(ctx, b, chatID, known.TelegramUserID, banDurationSec)
+		if err != nil {
 			result.Errors++
 			s.logDefenderAction(ctx, chatID, defenderSourceManualRun, known.TelegramUserID, defenderActionSkippedNoRights, defenderReasonBotRights, err.Error())
 			continue
 		}
-		s.markKnownGroupMemberLeft(ctx, chatID, known.TelegramUserID, gotgbot.ChatMemberStatusLeft)
-		s.logDefenderAction(ctx, chatID, defenderSourceManualRun, known.TelegramUserID, defenderActionRemoved, decision.Reason, "")
+		s.markKnownGroupMemberLeft(ctx, chatID, known.TelegramUserID, gotgbot.ChatMemberStatusBanned)
+		s.logDefenderAction(ctx, chatID, defenderSourceManualRun, known.TelegramUserID, defenderActionRemoved, decision.Reason, formatDefenderBanDetails(banDurationSec, untilUTC))
 		result.Removed++
 		if decision.RemovedAs == defenderReasonUnregistered {
 			result.SkippedUnregistered++
@@ -200,7 +210,10 @@ func (s *telegramService) previewGroupDefenderCandidates(ctx context.Context, b 
 	}
 	filters, err := s.loadDefenderFilterConfig(ctx, group.ChatID)
 	if err != nil {
-		return nil, err
+		if s.log != nil {
+			s.log.Warn("defender: failed to load filter config for preview, fallback to base rules", "chat_id", group.ChatID, "error", err)
+		}
+		filters = emptyDefenderFilterConfig()
 	}
 	manualFilter, hasManualFilter := fsm.DefenderManualFilterFromContext(ctx)
 
@@ -314,10 +327,16 @@ func (s *telegramService) tryAutoDefenderForKnownGroup(ctx context.Context, b *g
 
 	filters, err := s.loadDefenderFilterConfig(ctx, group.ChatID)
 	if err != nil {
-		return
+		if s.log != nil {
+			s.log.Warn("defender: failed to load filter config for auto join, fallback to base rules", "chat_id", group.ChatID, "error", err)
+		}
+		filters = emptyDefenderFilterConfig()
 	}
 	decision, err := s.evaluateDefenderDecision(ctx, telegramUserID, group, filters, fsm.DefenderManualFilter{}, false)
 	if err != nil {
+		if s.log != nil {
+			s.log.Warn("defender: failed to evaluate auto decision", "chat_id", group.ChatID, "user_id", telegramUserID, "error", err)
+		}
 		return
 	}
 	if !decision.ShouldRemove {
@@ -333,12 +352,14 @@ func (s *telegramService) tryAutoDefenderForKnownGroup(ctx context.Context, b *g
 		return
 	}
 
-	if err := s.kickChatMember(ctx, b, group.ChatID, telegramUserID); err != nil {
+	banDurationSec := normalizeDefenderBanDurationSec(group.DefenderBanDurationSec)
+	untilUTC, err := s.banChatMemberForDuration(ctx, b, group.ChatID, telegramUserID, banDurationSec)
+	if err != nil {
 		s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoin, telegramUserID, defenderActionSkippedNoRights, defenderReasonBotRights, err.Error())
 		return
 	}
-	s.markKnownGroupMemberLeft(ctx, group.ChatID, telegramUserID, gotgbot.ChatMemberStatusLeft)
-	s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoin, telegramUserID, defenderActionRemoved, decision.Reason, "")
+	s.markKnownGroupMemberLeft(ctx, group.ChatID, telegramUserID, gotgbot.ChatMemberStatusBanned)
+	s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoin, telegramUserID, defenderActionRemoved, decision.Reason, formatDefenderBanDetails(banDurationSec, untilUTC))
 }
 
 func (s *telegramService) evaluateDefenderDecision(
@@ -505,6 +526,14 @@ func (s *telegramService) loadDefenderFilterConfig(ctx context.Context, chatID i
 	return cfg, nil
 }
 
+func emptyDefenderFilterConfig() defenderFilterConfig {
+	return defenderFilterConfig{
+		CampusIDs:  map[string]struct{}{},
+		TribeIDs:   map[string]map[int16]struct{}{},
+		TribeNames: map[string]map[int16]string{},
+	}
+}
+
 func uuidToString(v pgtype.UUID) string {
 	if !v.Valid {
 		return ""
@@ -545,57 +574,79 @@ func canRestrictMembers(member rawChatMember) bool {
 	}
 }
 
-func (s *telegramService) kickChatMember(ctx context.Context, b *gotgbot.Bot, chatID, userID int64) error {
-	if b == nil {
-		return errors.New("bot is nil")
+func normalizeDefenderBanDurationSec(sec int32) int32 {
+	if sec < defenderBanMinSec || sec > defenderBanMaxSec {
+		return defenderBanDefaultSec
 	}
+	return sec
+}
+
+func formatDefenderBanDetails(durationSec int32, untilUTC time.Time) string {
+	return fmt.Sprintf("duration_sec=%d; until_utc=%s", durationSec, untilUTC.UTC().Format(time.RFC3339))
+}
+
+func (s *telegramService) banChatMemberForDuration(ctx context.Context, b *gotgbot.Bot, chatID, userID int64, durationSec int32) (time.Time, error) {
+	if b == nil {
+		return time.Time{}, errors.New("bot is nil")
+	}
+	safeDuration := normalizeDefenderBanDurationSec(durationSec)
+	untilUTC := time.Now().UTC().Add(time.Duration(safeDuration) * time.Second)
 
 	banResp, err := b.RequestWithContext(ctx, "banChatMember", map[string]any{
 		"chat_id":         chatID,
 		"user_id":         userID,
 		"revoke_messages": true,
+		"until_date":      untilUTC.Unix(),
 	}, nil)
 	if err != nil {
-		return err
+		return time.Time{}, err
 	}
 	var banned bool
 	if err := json.Unmarshal(banResp, &banned); err != nil {
-		return fmt.Errorf("failed to decode banChatMember response: %w", err)
+		return time.Time{}, fmt.Errorf("failed to decode banChatMember response: %w", err)
 	}
 	if !banned {
-		return errors.New("banChatMember returned false")
+		return time.Time{}, errors.New("banChatMember returned false")
 	}
-
-	unbanResp, err := b.RequestWithContext(ctx, "unbanChatMember", map[string]any{
-		"chat_id":        chatID,
-		"user_id":        userID,
-		"only_if_banned": true,
-	}, nil)
-	if err != nil {
-		return err
-	}
-	var unbanned bool
-	if err := json.Unmarshal(unbanResp, &unbanned); err != nil {
-		return fmt.Errorf("failed to decode unbanChatMember response: %w", err)
-	}
-	if !unbanned {
-		return errors.New("unbanChatMember returned false")
-	}
-	return nil
+	return untilUTC, nil
 }
 
 func (s *telegramService) logDefenderAction(ctx context.Context, chatID int64, actionSource string, telegramUserID int64, action, reason, details string) {
 	if s == nil || s.queries == nil || chatID == 0 {
 		return
 	}
-	if err := s.queries.InsertTelegramGroupLog(ctx, db.InsertTelegramGroupLogParams{
+	_ = ctx // Defender logs must not depend on update/request context cancellation.
+	params := db.InsertTelegramGroupLogParams{
 		ChatID:         chatID,
 		Source:         strings.TrimSpace(actionSource),
 		TelegramUserID: telegramUserID,
 		Action:         strings.TrimSpace(action),
 		Reason:         strings.TrimSpace(reason),
 		Details:        strings.TrimSpace(details),
-	}); err != nil {
-		s.log.Debug("failed to save telegram group log", "chat_id", chatID, "telegram_user_id", telegramUserID, "action", action, "error", err)
+	}
+
+	tryInsert := func() error {
+		writeCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		return s.queries.InsertTelegramGroupLog(writeCtx, params)
+	}
+
+	err := tryInsert()
+	if err != nil {
+		// One retry helps in transient DB/network hiccups, especially for update handlers.
+		time.Sleep(100 * time.Millisecond)
+		err = tryInsert()
+	}
+	if err != nil {
+		if s.log != nil {
+			s.log.Warn("defender: failed to save telegram group log",
+				"chat_id", chatID,
+				"telegram_user_id", telegramUserID,
+				"source", actionSource,
+				"action", action,
+				"reason", reason,
+				"error", err,
+			)
+		}
 	}
 }

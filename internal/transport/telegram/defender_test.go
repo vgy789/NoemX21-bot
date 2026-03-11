@@ -21,8 +21,13 @@ import (
 
 type fakeDefenderBotClient struct {
 	members    map[int64]rawChatMember
-	banCalls   []int64
+	banCalls   []fakeDefenderBanCall
 	unbanCalls []int64
+}
+
+type fakeDefenderBanCall struct {
+	userID    int64
+	untilDate int64
 }
 
 func (f *fakeDefenderBotClient) RequestWithContext(_ context.Context, _ string, method string, params map[string]any, _ *gotgbot.RequestOpts) (json.RawMessage, error) {
@@ -46,7 +51,11 @@ func (f *fakeDefenderBotClient) RequestWithContext(_ context.Context, _ string, 
 		if !ok {
 			return nil, fmt.Errorf("invalid user_id param type: %T", params["user_id"])
 		}
-		f.banCalls = append(f.banCalls, userID)
+		untilDate, ok := toInt64(params["until_date"])
+		if !ok || untilDate <= 0 {
+			return nil, fmt.Errorf("missing or invalid until_date: %#v", params["until_date"])
+		}
+		f.banCalls = append(f.banCalls, fakeDefenderBanCall{userID: userID, untilDate: untilDate})
 		member := f.members[userID]
 		member.Status = gotgbot.ChatMemberStatusBanned
 		f.members[userID] = member
@@ -101,7 +110,11 @@ func TestHandleChatMember_AutoDefenderRemovesUnregistered(t *testing.T) {
 		TelegramUserID: userID,
 	}).Return(false, nil)
 	queries.EXPECT().MarkTelegramGroupMemberLeft(gomock.Any(), gomock.Any()).Return(nil)
-	queries.EXPECT().InsertTelegramGroupLog(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	logRows := make([]db.InsertTelegramGroupLogParams, 0)
+	queries.EXPECT().InsertTelegramGroupLog(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, arg db.InsertTelegramGroupLogParams) error {
+		logRows = append(logRows, arg)
+		return nil
+	}).AnyTimes()
 	userSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), userID).Return(nil, fmt.Errorf("user account not found"))
 
 	client := &fakeDefenderBotClient{members: map[int64]rawChatMember{
@@ -132,8 +145,19 @@ func TestHandleChatMember_AutoDefenderRemovesUnregistered(t *testing.T) {
 	err := s.handleChatMember(bot, ctx)
 	require.NoError(t, err)
 	require.Len(t, client.banCalls, 1)
-	require.Len(t, client.unbanCalls, 1)
-	assert.Equal(t, userID, client.banCalls[0])
+	require.Len(t, client.unbanCalls, 0)
+	assert.Equal(t, userID, client.banCalls[0].userID)
+	assert.NotZero(t, client.banCalls[0].untilDate)
+	require.NotEmpty(t, logRows)
+	foundRemoved := false
+	for _, row := range logRows {
+		if row.Action == "removed" && row.Reason == "unregistered" {
+			foundRemoved = true
+			assert.Contains(t, row.Details, "duration_sec=")
+			assert.Contains(t, row.Details, "until_utc=")
+		}
+	}
+	assert.True(t, foundRemoved)
 }
 
 func TestHandleChatMember_AutoDefenderSkipsWhitelisted(t *testing.T) {
@@ -176,6 +200,7 @@ func TestHandleChatMember_AutoDefenderSkipsWhitelisted(t *testing.T) {
 	err := s.handleChatMember(bot, ctx)
 	require.NoError(t, err)
 	require.Len(t, client.banCalls, 0)
+	require.Len(t, client.unbanCalls, 0)
 }
 
 func TestDefenderRunner_ManualRunBlockedUser(t *testing.T) {
@@ -209,7 +234,11 @@ func TestDefenderRunner_ManualRunBlockedUser(t *testing.T) {
 	}).Return(false, nil)
 	queries.EXPECT().MarkTelegramGroupMemberLeft(gomock.Any(), gomock.Any()).Return(nil)
 	queries.EXPECT().UpsertTelegramGroupMember(gomock.Any(), gomock.Any()).Return(db.TelegramGroupMember{}, nil).AnyTimes()
-	queries.EXPECT().InsertTelegramGroupLog(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	logRows := make([]db.InsertTelegramGroupLogParams, 0)
+	queries.EXPECT().InsertTelegramGroupLog(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, arg db.InsertTelegramGroupLogParams) error {
+		logRows = append(logRows, arg)
+		return nil
+	}).AnyTimes()
 
 	userSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), userID).Return(&service.UserProfile{
 		Login:  "blocked_user",
@@ -235,7 +264,17 @@ func TestDefenderRunner_ManualRunBlockedUser(t *testing.T) {
 	assert.Equal(t, 1, result.Removed)
 	assert.Equal(t, 1, result.SkippedBlocked)
 	require.Len(t, client.banCalls, 1)
-	require.Len(t, client.unbanCalls, 1)
+	require.Len(t, client.unbanCalls, 0)
+	require.NotEmpty(t, logRows)
+	foundRemoved := false
+	for _, row := range logRows {
+		if row.Action == "removed" && row.Reason == "blocked" {
+			foundRemoved = true
+			assert.Contains(t, row.Details, "duration_sec=")
+			assert.Contains(t, row.Details, "until_utc=")
+		}
+	}
+	assert.True(t, foundRemoved)
 }
 
 func expectEmptyDefenderFilters(queries *dbmock.MockQuerier, chatID int64) {

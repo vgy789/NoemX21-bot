@@ -375,6 +375,9 @@ states:
 
           *4. Трайб:*
           `{defender_filter_tribe_label_ru}` _(Можно выбрать несколько, но только из твоего кампуса. При выборе трайбов кампус фиксируется на твоём.)_
+
+          *5. Срок временной блокировки:*
+          `{defender_ban_duration_label_ru}` _(Бан действует ограниченное время, разбан произойдёт автоматически.)_
         en: |
           ⚙️ *Gatekeeper Settings*
 
@@ -394,6 +397,9 @@ states:
 
           *4. Tribe:*
           `{defender_filter_tribe_label_en}` _(Multi-select, but only from your campus. Enabling tribe filters locks campus to yours.)_
+
+          *5. Temporary ban duration:*
+          `{defender_ban_duration_label_en}` _(Ban is time-limited, Telegram unbans automatically after expiry.)_
       buttons:
         - id: def_enable_on
           label:
@@ -441,6 +447,13 @@ states:
           condition: "can_manage_selected_group == true"
           next_state: GROUP_DEFENDER_FILTER_TRIBE
           row: 4
+        - id: def_ban_custom
+          label:
+            ru: 5. Ввести срок блокировки
+            en: 5. Enter ban duration
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_DEFENDER_BAN_DURATION_INPUT
+          row: 5
         - id: def_back_menu
           label:
             ru: 🔙 Назад
@@ -1206,6 +1219,37 @@ states:
       - trigger: on_valid_input
         action: add_group_defender_whitelist_from_input
         next_state: GROUP_DEFENDER_WHITELIST
+
+  GROUP_DEFENDER_BAN_DURATION_INPUT:
+    type: input
+    description: Ввод длительности временного бана Defender
+    interface:
+      text:
+        ru: |
+          ⏳ *Срок временной блокировки*
+
+          Введи срок в формате: `5m`, `24h`, `3d`.
+          Допустимый диапазон: от `5m` до `30d`.
+        en: |
+          ⏳ *Temporary ban duration*
+
+          Enter duration in format: `5m`, `24h`, `3d`.
+          Allowed range: from `5m` to `30d`.
+      error_invalid:
+        ru: "Неверный формат. Примеры: 5m, 24h, 3d."
+        en: "Invalid format. Examples: 5m, 24h, 3d."
+      buttons:
+        - id: def_ban_duration_cancel
+          label:
+            ru: 🔙 Отмена
+            en: 🔙 Cancel
+          next_state: GROUP_DEFENDER_AUTOMODE
+    validation:
+      regex: (?i)^\s*[0-9]{1,4}\s*[mhd]\s*$
+    transitions:
+      - trigger: on_valid_input
+        action: set_group_defender_ban_duration_from_input
+        next_state: GROUP_DEFENDER_AUTOMODE
 
   GROUP_DEFENDER_LOGS:
     type: interactive

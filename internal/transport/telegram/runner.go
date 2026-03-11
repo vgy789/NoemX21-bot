@@ -87,6 +87,15 @@ type telegramService struct {
 	fileIDsMu sync.RWMutex
 }
 
+func telegramAllowedUpdates() []string {
+	return []string{
+		"message",
+		"callback_query",
+		"chat_member",
+		"my_chat_member",
+	}
+}
+
 func (s *telegramService) getSender(b *gotgbot.Bot) Sender {
 	if s.sender != nil {
 		return s.sender
@@ -140,7 +149,8 @@ func (s *telegramService) Run(ctx context.Context) error {
 	err = updater.StartPolling(tgBot, &ext.PollingOpts{
 		DropPendingUpdates: s.cfg.Telegram.Polling.DropPendingUpdates,
 		GetUpdatesOpts: &gotgbot.GetUpdatesOpts{
-			Timeout: s.cfg.Telegram.Polling.Timeout,
+			AllowedUpdates: telegramAllowedUpdates(),
+			Timeout:        s.cfg.Telegram.Polling.Timeout,
 			RequestOpts: &gotgbot.RequestOpts{
 				Timeout: s.cfg.Telegram.Polling.RequestTimeout,
 			},
@@ -203,7 +213,8 @@ func (s *telegramService) RunWebhook(ctx context.Context) error {
 	}
 
 	_, err = tgBot.SetWebhook(webhookURL, &gotgbot.SetWebhookOpts{
-		SecretToken: secretToken,
+		SecretToken:    secretToken,
+		AllowedUpdates: telegramAllowedUpdates(),
 	})
 	if err != nil {
 		errMsg := config.RedactString(err.Error(), s.cfg.Telegram.Token, s.cfg.Telegram.Webhook.Secret)

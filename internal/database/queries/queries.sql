@@ -133,6 +133,13 @@ SET defender_remove_blocked = $3,
 WHERE chat_id = $1
   AND owner_telegram_user_id = $2;
 
+-- name: UpdateTelegramGroupDefenderBanDurationSecByOwner :execrows
+UPDATE telegram_groups
+SET defender_ban_duration_sec = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2;
+
 -- name: ListTelegramGroupDefenderCampusFilters :many
 SELECT * FROM telegram_group_defender_campus_filters
 WHERE chat_id = $1
