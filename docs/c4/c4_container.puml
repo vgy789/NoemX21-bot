@@ -6,10 +6,10 @@ LAYOUT_WITH_LEGEND()
 title Контейнеры NoemX21 Bot
 
 Person(student, "Студент")
-Person_Ext(integrator, "Внешняя интеграция")
+Person_Ext(integrator, "Внутренняя интеграция")
 
 System_Boundary(noemx, "Система NoemX21 Bot") {
-    Container(app, "Основной runtime", "Go", "Единый процесс: Telegram transport, FSM, HTTP endpoint, фоновые sync-зачи и генерация расписаний.")
+    Container(app, "Основной runtime", "Go", "Единый процесс: Telegram transport, FSM, internal HTTP endpoint, фоновые sync-задачи и генерация расписаний.")
     ContainerDb(db, "PostgreSQL", "PostgreSQL", "Пользователи, FSM state, кампусы, credentials, API keys, bookings, review requests, каталоги и кэш статистики.")
     Container(fs, "Локальная файловая система", "Mounted volume / local disk", "Локальный checkout git-контента и временные PNG расписаний.")
 }
@@ -23,7 +23,7 @@ Rel(student, telegram, "Использует")
 Rel(telegram, app, "Обновления", "Long polling или webhook")
 Rel(app, telegram, "Сообщения и фото")
 
-Rel(integrator, app, "POST /api/v1/webhook/register", "HTTP/JSON")
+Rel(integrator, app, "POST /api/v1/webhook/register", "Internal HTTP/JSON")
 
 Rel(app, db, "CRUD", "pgx / SQL")
 Rel(app, fs, "Читает YAML и пишет PNG расписаний")

@@ -20,9 +20,10 @@
 
 ### HTTP API auth
 
-- Публичный endpoint требует заголовок `X-Secret`
+- Internal endpoint требует заголовок `X-Secret`
 - Значение проверяется через `ApiKeyService`
 - В БД хранится только SHA-256 hash ключа, не raw secret
+- Endpoint не должен публиковаться напрямую через `Dokku`/`Caddy`
 
 ## Внешние интеграции
 
@@ -81,6 +82,7 @@ Redis в текущей реализации не используется.
 - При `TEST_MODE_NO_OTP=true` и `PRODUCTION=true` приложение завершает запуск
 - Raw API keys не сохраняются, только hash
 - School 21 credentials не логируются
+- В production webhook ingress должен идти только на `TELEGRAM_WEBHOOK_PORT=8080`
 
 ## Известные границы
 

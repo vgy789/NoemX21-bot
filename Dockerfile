@@ -26,9 +26,11 @@ RUN apk --no-cache add ca-certificates tzdata
 # Create a non-root user
 RUN adduser -D -g '' appuser
 
-COPY --from=builder /app/noemx21-bot .
-# COPY --from=builder /app/migrations ./migrations 
-# Uncomment existing migration copy if you have migration files
+# Prepare runtime directories for non-root execution.
+RUN mkdir -p /app/docs/specs /app/tmp /app/data_repo && chown -R appuser:appuser /app
+
+COPY --from=builder --chown=appuser:appuser /app/noemx21-bot .
+COPY --from=builder --chown=appuser:appuser /app/docs/specs/flows ./docs/specs/flows
 
 USER appuser
 

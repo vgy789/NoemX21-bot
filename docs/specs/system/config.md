@@ -22,6 +22,16 @@
 | `SCHOOL21_USER_PASSWORD` | secret | School 21 |
 | `AEAD_KEY` | secret | crypto |
 
+## Optional без default
+
+| Variable | Подсистема |
+|---|---|
+| `TELEGRAM_API_URL` | Telegram |
+| `TELEGRAM_WEBHOOK_URL` | Telegram webhook |
+| `TELEGRAM_WEBHOOK_SECRET` | Telegram webhook |
+| `GIT_REPO_URL` | Git sync |
+| `SSH_KEY_BASE64` | Git sync |
+
 ## Optional с defaults
 
 | Variable | Default |
@@ -47,19 +57,29 @@
 | `SCHEDULE_IMAGES_INTERVAL` | `5m` |
 | `SCHEDULE_IMAGES_TEMP_DIR` | `tmp/schedules` |
 
+## Deployment note
+
+- `API_SERVER_PORT` — внутренний HTTP runtime порт.
+- В схеме `Dokku + Caddy` этот порт не должен проксироваться наружу.
+- В webhook mode публичный ingress должен идти только на `TELEGRAM_WEBHOOK_PORT`.
+
 ## Режимы Telegram
 
 ### Polling
 
 - `TELEGRAM_WEBHOOK_ENABLED=false`
 - используются `POLLING_TIMEOUT`, `REQUEST_TIMEOUT`, `MAX_ROUTINES`, `DROP_PENDING_UPDATES`
+- в Dokku deployment обычно сопровождается `domains:disable` и `ports:clear`
 
 ### Webhook
 
 - `TELEGRAM_WEBHOOK_ENABLED=true`
 - обязательно задать `TELEGRAM_WEBHOOK_URL`
 - опционально `TELEGRAM_WEBHOOK_SECRET`
+- `TELEGRAM_WEBHOOK_SECRET` рекомендуется генерировать локально, например `openssl rand -hex 32`
 - listener gotgbot стартует на `TELEGRAM_WEBHOOK_PORT`
+- в Dokku deployment публикуется только `TELEGRAM_WEBHOOK_PORT=8080` через `ports:set ... 80:8080 443:8080`
+- достаточно `A`-записи домена на IPv4 адрес сервера; `AAAA` необязателен
 
 ## Git Sync
 

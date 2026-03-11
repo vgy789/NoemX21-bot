@@ -1,6 +1,12 @@
-# Public HTTP API
+# Internal HTTP API
 
-Текущий публичный HTTP API минимален и состоит из одного endpoint.
+Текущий HTTP API минимален и состоит из одного endpoint.
+
+Этот API не входит в публичный deployment-контракт `Dokku + Caddy`:
+
+- в production он должен оставаться internal-only;
+- наружу публикуется только Telegram webhook;
+- в будущем этот сценарий планируется вынести в `PostgREST`.
 
 ## Auth
 
@@ -59,3 +65,4 @@
 - server: `net/http`
 - default port: `API_SERVER_PORT=8081`
 - request/response format: JSON
+- не публиковать напрямую через Dokku/Caddy

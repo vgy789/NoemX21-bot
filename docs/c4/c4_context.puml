@@ -7,15 +7,15 @@ title Контекст системы NoemX21 Bot
 
 Person(student, "Студент", "Основной пользователь Telegram-бота.")
 Person(admin, "Администратор", "Сопровождает деплой и управляет конфигурацией.")
-Person_Ext(integrator, "Внешняя интеграция", "Проверяет привязку external_id к School 21 login через HTTP API.")
+Person_Ext(integrator, "Внутренняя интеграция", "Временный internal client для проверки привязки external_id к School 21 login.")
 
-System(bot_system, "NoemX21 Bot", "Go-приложение: Telegram-бот, FSM, HTTP endpoint и фоновые синхронизации.")
+System(bot_system, "NoemX21 Bot", "Go-приложение: Telegram-бот, FSM, internal HTTP endpoint и фоновые синхронизации.")
 
 System_Ext(telegram, "Telegram Bot API", "Доставка обновлений и отправка сообщений пользователям.")
 System_Ext(rocket, "Rocket.Chat API", "Проверка пользователя и доставка OTP.")
 System_Ext(s21, "School 21 API", "Профиль, кампусы, проекты, навыки, коалиция и review-данные.")
 System_Ext(git_repo, "Git-репозиторий контента", "YAML-контент кампусов и каталог проектов для локальной синхронизации.")
-System_Ext(dokku, "Dokku / окружение", "Поставка env-конфига и запуск приложения.")
+System_Ext(dokku, "Dokku + Caddy", "Поставка env-конфига, TLS и запуск приложения.")
 
 Rel(student, telegram, "Общается через")
 Rel(telegram, bot_system, "Обновления / webhook")
@@ -25,8 +25,8 @@ Rel(bot_system, rocket, "OTP и проверка username/email", "HTTPS/REST")
 Rel(bot_system, s21, "Аутентификация и запросы данных", "HTTPS/REST")
 Rel(bot_system, git_repo, "Читает и синхронизирует YAML-контент", "git / filesystem")
 
-Rel(integrator, bot_system, "POST /api/v1/webhook/register", "HTTP/JSON + X-Secret")
-Rel(admin, dokku, "Настраивает переменные окружения и deploy")
+Rel(integrator, bot_system, "POST /api/v1/webhook/register", "Internal HTTP/JSON + X-Secret")
+Rel(admin, dokku, "Настраивает env, domains, ports и deploy")
 Rel(dokku, bot_system, "Запускает контейнер приложения")
 
 @enduml

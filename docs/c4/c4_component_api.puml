@@ -3,9 +3,9 @@
 
 LAYOUT_WITH_LEGEND()
 
-title Компоненты HTTP API
+title Компоненты internal HTTP API
 
-Person_Ext(integrator, "Внешняя интеграция", "Вызывает endpoint регистрации вебхука.")
+Person_Ext(integrator, "Внутренняя интеграция", "Вызывает временный internal endpoint регистрации вебхука.")
 ContainerDb(db, "PostgreSQL", "PostgreSQL")
 
 Container_Boundary(api_runtime, "HTTP server (внутри Go-приложения)") {
@@ -15,7 +15,7 @@ Container_Boundary(api_runtime, "HTTP server (внутри Go-приложени
     Component(repo, "Репозитории", "sqlc + pgx", "Читает api_keys и user_accounts.")
 }
 
-Rel(integrator, server, "POST /api/v1/webhook/register", "HTTP/JSON")
+Rel(integrator, server, "POST /api/v1/webhook/register", "Internal HTTP/JSON")
 Rel(server, handler, "Маршрутизация")
 Rel(handler, api_keys, "ValidateApiKey(X-Secret)")
 Rel(handler, repo, "GetUserAccountByExternalId")

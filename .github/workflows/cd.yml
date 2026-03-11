@@ -1,6 +1,9 @@
 ---
 name: CD
 
+env:
+  SOURCE_SHA: ${{ github.event_name == 'workflow_run' && github.event.workflow_run.head_sha || github.sha }}
+
 on:
   workflow_run:
     workflows: ["CI"]
@@ -20,6 +23,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SOURCE_SHA }}
 
       - name: Downcase Image Name
         run: echo "IMAGE_NAME=${GITHUB_REPOSITORY,,}" >> $GITHUB_ENV
@@ -27,7 +32,7 @@ jobs:
       - name: Log in to the Container registry
         uses: docker/login-action@v3
         with:
-          registry: ${{ variables.REGISTRY }}
+          registry: ${{ vars.REGISTRY }}
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
@@ -35,7 +40,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ variables.REGISTRY }}/${{ env.IMAGE_NAME }}
+          images: ${{ vars.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
             type=sha,format=long
             type=ref,event=branch
@@ -60,20 +65,35 @@ jobs:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
-          port: ${{ variables.VPS_PORT }}
+          port: ${{ vars.VPS_PORT }}
           script: |
             set -e
             REPO_NAME="${{ github.repository }}"
             IMAGE_NAME=${REPO_NAME,,}
-            REGISTRY=${{ variables.REGISTRY }}
-            TAG="${{ github.sha }}"
+            REGISTRY=${{ vars.REGISTRY }}
+            TAG="sha-${{ env.SOURCE_SHA }}"
             FULL_IMAGE="$REGISTRY/$IMAGE_NAME:$TAG"
-            APP_NAME=${{ variables.DOKKU_APP_NAME }}
+            APP_NAME=${{ vars.DOKKU_APP_NAME }}
             # deploy user runs dokku via sudo (NOPASSWD)
             sudo dokku apps:create $APP_NAME || true
-            sudo dokku git:from-image $APP_NAME $FULL_IMAGE
-            sudo dokku run $APP_NAME ./bot -migrate || echo "Migration failed or not found"
+            # runtime applies migrations during normal startup
+            set +e
+            DEPLOY_OUTPUT="$(sudo dokku git:from-image $APP_NAME $FULL_IMAGE 2>&1)"
+            DEPLOY_STATUS=$?
+            set -e
+            printf '%s\n' "$DEPLOY_OUTPUT"
+            if [ $DEPLOY_STATUS -ne 0 ]; then
+              if printf '%s' "$DEPLOY_OUTPUT" | grep -q "No changes detected"; then
+                sudo dokku ps:rebuild $APP_NAME
+              else
+                exit $DEPLOY_STATUS
+              fi
+            fi
       - name: Dokku cleanup
-        run: |
-          ssh -i ~/.ssh/deploy_key -p ${{ variables.VPS_PORT }} ${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }} \
-          "sudo dokku cleanup"
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          port: ${{ vars.VPS_PORT }}
+          script: sudo dokku cleanup
