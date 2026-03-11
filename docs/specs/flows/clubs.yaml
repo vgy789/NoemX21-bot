@@ -42,12 +42,6 @@ states:
             en: 🧩 Assemble a club
           next_state: CREATE_CLUB_INFO
           row: 2
-        - id: admin_groups_settings
-          label:
-            ru: 🛠️ Настройка групп
-            en: 🛠️ Groups settings
-          next_state: ADMIN_GROUPS_MENU
-          row: 2
         - id: back
           label:
             ru: 🏠 На главную

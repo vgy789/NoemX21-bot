@@ -127,7 +127,7 @@ states:
             ru: 🔙 Назад
             en: 🔙 Back
           row: 99
-          next_state: CLUBS_MAIN
+          next_state: SETTINGS_MENU
 
   GROUP_ADMIN_MENU:
     type: interactive
@@ -166,7 +166,7 @@ states:
             ru: 🔙 Назад
             en: 🔙 Back
           row: 99
-          next_state: CLUBS_MAIN
+          next_state: SETTINGS_MENU
 
   GROUP_MEMBER_TAGS_MENU:
     type: interactive

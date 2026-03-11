@@ -26,6 +26,12 @@ states:
             en: 👨‍💻 My API
           next_state: LOAD_API_TOKEN
           row: 1
+        - id: admin_groups_settings
+          label:
+            ru: 🛠️ Админка групп
+            en: 🛠️ Admin Groups
+          next_state: ADMIN_GROUPS_MENU
+          row: 2
         - id: language
           label:
             ru: "🌐 Язык: {my_lang_emoji}"
