@@ -14,8 +14,6 @@ import (
 
 // New creates a new telegram bot instance.
 func New(cfg *config.TelegramBot) (*gotgbot.Bot, error) {
-	clientTimeout := max(time.Duration(cfg.Polling.Timeout+10)*time.Second, time.Second*60)
-
 	// Set up request opts with default or custom API URL
 	// Use longer timeout for file uploads (photos, documents)
 	requestOpts := &gotgbot.RequestOpts{
@@ -27,6 +25,11 @@ func New(cfg *config.TelegramBot) (*gotgbot.Bot, error) {
 	if cfg.APIURL != "" {
 		requestOpts.APIURL = cfg.APIURL
 	}
+
+	// The HTTP client timeout must not be shorter than the per-request timeout used by gotgbot.
+	// Otherwise webhook/sendMessage/sendPhoto requests get cut off by the client-level timeout first.
+	clientTimeout := max(requestOpts.Timeout+10*time.Second, time.Duration(cfg.Polling.RequestTimeout+10*time.Second))
+	clientTimeout = max(clientTimeout, time.Second*60)
 
 	botOpts := &gotgbot.BotOpts{
 		BotClient: &gotgbot.BaseBotClient{
