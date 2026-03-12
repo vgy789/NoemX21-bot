@@ -11,7 +11,7 @@
 5. Если задан `AEAD_KEY`, инициализируется crypter и `CredentialService`.
 6. Выполняется seed/verify initial School 21 credentials.
 7. Собирается `App` со всеми transport/service компонентами.
-8. Запускаются background services, HTTP server и Telegram mode.
+8. Запускаются background services и Telegram mode.
 
 ## Background Services
 
@@ -38,13 +38,6 @@
 - initial generation выполняется сразу
 - по событиям бронирования может запускаться `ForceRegenerate()`
 
-## HTTP Runtime
-
-- server стартует всегда
-- default port: `API_SERVER_PORT=8081`
-- текущий endpoint: `POST /api/v1/webhook/register`
-- deployment-контракт считает этот endpoint internal-only; его не нужно публиковать напрямую через Dokku/Caddy
-
 ## Telegram Runtime
 
 ### Polling mode
@@ -59,8 +52,6 @@
 - приложение само вызывает `SetWebhook` на `TELEGRAM_WEBHOOK_URL`
 - поднимает listener gotgbot на `TELEGRAM_WEBHOOK_PORT`
 - production ingress должен идти на `TELEGRAM_WEBHOOK_PORT=8080`
-- `App` одновременно держит общий HTTP server на `API_SERVER_PORT=8081`
-- текущая реализация также регистрирует webhook handler на внутреннем HTTP mux, поэтому `8081` нельзя публиковать наружу
 - polling env могут оставаться в конфиге, но в этом режиме не используются
 
 ## Deployment Coupling
@@ -84,8 +75,14 @@
 - `TELEGRAM_WEBHOOK_SECRET=<random hex>`
 - верификация через `getWebhookInfo` должна показать `url=https://<bot-domain>/telegram/webhook`
 
+### External API deployment
+
+- `PostgREST` поднимается отдельным app `bot-api`
+- публикуется отдельный домен вида `https://api.<domain>`
+- использует ту же PostgreSQL базу, но только схемы `api_v1` и `api_private`
+- использует `db-pre-request=api_private.pre_request`
+
 ## Shutdown
 
 - `app.Run` использует `errgroup`
 - при отмене контекста вызывается `Stop()` у background services, которые его реализуют
-- HTTP server останавливается через graceful shutdown

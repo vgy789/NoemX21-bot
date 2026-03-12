@@ -189,13 +189,92 @@ func (ns NullEnumUserRole) Value() (driver.Value, error) {
 }
 
 type ApiKey struct {
-	ID            int64              `json:"id"`
-	UserAccountID int64              `json:"user_account_id"`
-	KeyHash       string             `json:"key_hash"`
-	Prefix        string             `json:"prefix"`
-	CreatedAt     pgtype.Timestamptz `json:"created_at"`
-	RevokedAt     pgtype.Timestamptz `json:"revoked_at"`
-	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
+	ID             int64              `json:"id"`
+	ApiPrincipalID int64              `json:"api_principal_id"`
+	KeyHash        string             `json:"key_hash"`
+	Prefix         string             `json:"prefix"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	RevokedAt      pgtype.Timestamptz `json:"revoked_at"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
+	LastUsedAt     pgtype.Timestamptz `json:"last_used_at"`
+}
+
+type ApiPrincipal struct {
+	ID                 int64              `json:"id"`
+	Kind               interface{}        `json:"kind"`
+	DisplayName        string             `json:"display_name"`
+	TelegramUserID     pgtype.Int8        `json:"telegram_user_id"`
+	UserAccountID      pgtype.Int8        `json:"user_account_id"`
+	CampusID           pgtype.UUID        `json:"campus_id"`
+	Scopes             []string           `json:"scopes"`
+	AllowLoginExposure bool               `json:"allow_login_exposure"`
+	IsActive           bool               `json:"is_active"`
+	CreatedAt          pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+type ApiV1CampusBookLoan struct {
+	CampusID        pgtype.UUID        `json:"campus_id"`
+	CampusShortName string             `json:"campus_short_name"`
+	BookID          int16              `json:"book_id"`
+	BookTitle       string             `json:"book_title"`
+	BookAuthor      string             `json:"book_author"`
+	S21Login        string             `json:"s21_login"`
+	BorrowedAt      pgtype.Timestamptz `json:"borrowed_at"`
+	DueAt           pgtype.Timestamptz `json:"due_at"`
+	ReturnedAt      pgtype.Timestamptz `json:"returned_at"`
+}
+
+type ApiV1CampusBookLoanDailyStat struct {
+	CampusID        pgtype.UUID `json:"campus_id"`
+	CampusShortName string      `json:"campus_short_name"`
+	StatDate        pgtype.Date `json:"stat_date"`
+	LoansStarted    int32       `json:"loans_started"`
+	LoansReturned   int32       `json:"loans_returned"`
+	UniqueUsers     int32       `json:"unique_users"`
+}
+
+type ApiV1CampusRoomBooking struct {
+	CampusID        pgtype.UUID `json:"campus_id"`
+	CampusShortName string      `json:"campus_short_name"`
+	RoomID          int16       `json:"room_id"`
+	RoomName        string      `json:"room_name"`
+	BookingDate     pgtype.Date `json:"booking_date"`
+	StartTime       pgtype.Time `json:"start_time"`
+	DurationMinutes int32       `json:"duration_minutes"`
+	S21Login        string      `json:"s21_login"`
+}
+
+type ApiV1CampusRoomBookingDailyStat struct {
+	CampusID             pgtype.UUID `json:"campus_id"`
+	CampusShortName      string      `json:"campus_short_name"`
+	StatDate             pgtype.Date `json:"stat_date"`
+	BookingCount         int32       `json:"booking_count"`
+	UniqueUsers          int32       `json:"unique_users"`
+	UniqueRooms          int32       `json:"unique_rooms"`
+	TotalDurationMinutes int32       `json:"total_duration_minutes"`
+}
+
+type ApiV1MeBookLoan struct {
+	CampusID        pgtype.UUID        `json:"campus_id"`
+	CampusShortName string             `json:"campus_short_name"`
+	BookID          int16              `json:"book_id"`
+	BookTitle       string             `json:"book_title"`
+	BookAuthor      string             `json:"book_author"`
+	BorrowedAt      pgtype.Timestamptz `json:"borrowed_at"`
+	DueAt           pgtype.Timestamptz `json:"due_at"`
+	ReturnedAt      pgtype.Timestamptz `json:"returned_at"`
+}
+
+type ApiV1MeRoomBooking struct {
+	CampusID        pgtype.UUID        `json:"campus_id"`
+	CampusShortName string             `json:"campus_short_name"`
+	RoomID          int16              `json:"room_id"`
+	RoomName        string             `json:"room_name"`
+	BookingDate     pgtype.Date        `json:"booking_date"`
+	StartTime       pgtype.Time        `json:"start_time"`
+	DurationMinutes int32              `json:"duration_minutes"`
+	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
 type AuthVerificationCode struct {

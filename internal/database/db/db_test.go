@@ -208,20 +208,20 @@ func TestQueries_Remaining(t *testing.T) {
 	t.Run("GetActiveApiKey", func(t *testing.T) {
 		mockRow := new(MockRow)
 		mockDB.On("QueryRow", ctx, getActiveApiKey, mock.Anything).Return(mockRow)
-		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
-		_, _ = q.GetActiveApiKey(ctx, 1)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		_, _ = q.GetActiveApiKey(ctx, pgtype.Int8{Int64: 1, Valid: true})
 	})
 
 	t.Run("GetApiKeyByHash", func(t *testing.T) {
 		mockRow := new(MockRow)
 		mockDB.On("QueryRow", ctx, getApiKeyByHash, mock.Anything).Return(mockRow)
-		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		_, _ = q.GetApiKeyByHash(ctx, "hash")
 	})
 
 	t.Run("RevokeOldApiKeys", func(t *testing.T) {
 		mockDB.On("Exec", ctx, revokeOldApiKeys, mock.Anything).Return(pgconn.CommandTag{}, nil)
-		_ = q.RevokeOldApiKeys(ctx, 1)
+		_ = q.RevokeOldApiKeys(ctx, pgtype.Int8{Int64: 1, Valid: true})
 	})
 
 	t.Run("GetUserAccountByS21Login", func(t *testing.T) {
@@ -258,8 +258,15 @@ func TestQueries_Remaining(t *testing.T) {
 	t.Run("CreateApiKey", func(t *testing.T) {
 		mockRow := new(MockRow)
 		mockDB.On("QueryRow", ctx, createApiKey, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(mockRow)
-		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		_, _ = q.CreateApiKey(ctx, CreateApiKeyParams{})
+	})
+
+	t.Run("EnsurePersonalApiPrincipal", func(t *testing.T) {
+		mockRow := new(MockRow)
+		mockDB.On("QueryRow", ctx, ensurePersonalApiPrincipal, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(mockRow)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		_, _ = q.EnsurePersonalApiPrincipal(ctx, EnsurePersonalApiPrincipalParams{})
 	})
 
 	t.Run("CreateAuthVerificationCode", func(t *testing.T) {

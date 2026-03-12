@@ -218,23 +218,23 @@ func (q *Queries) CountSearchCatalogProjects(ctx context.Context, dollar_1 inter
 
 const createApiKey = `-- name: CreateApiKey :one
 INSERT INTO api_keys (
-    user_account_id, key_hash, prefix, expires_at
+    api_principal_id, key_hash, prefix, expires_at
 ) VALUES (
     $1, $2, $3, $4
 )
-RETURNING id, user_account_id, key_hash, prefix, created_at, revoked_at, expires_at
+RETURNING id, api_principal_id, key_hash, prefix, created_at, revoked_at, expires_at, last_used_at
 `
 
 type CreateApiKeyParams struct {
-	UserAccountID int64              `json:"user_account_id"`
-	KeyHash       string             `json:"key_hash"`
-	Prefix        string             `json:"prefix"`
-	ExpiresAt     pgtype.Timestamptz `json:"expires_at"`
+	ApiPrincipalID int64              `json:"api_principal_id"`
+	KeyHash        string             `json:"key_hash"`
+	Prefix         string             `json:"prefix"`
+	ExpiresAt      pgtype.Timestamptz `json:"expires_at"`
 }
 
 func (q *Queries) CreateApiKey(ctx context.Context, arg CreateApiKeyParams) (ApiKey, error) {
 	row := q.db.QueryRow(ctx, createApiKey,
-		arg.UserAccountID,
+		arg.ApiPrincipalID,
 		arg.KeyHash,
 		arg.Prefix,
 		arg.ExpiresAt,
@@ -242,12 +242,13 @@ func (q *Queries) CreateApiKey(ctx context.Context, arg CreateApiKeyParams) (Api
 	var i ApiKey
 	err := row.Scan(
 		&i.ID,
-		&i.UserAccountID,
+		&i.ApiPrincipalID,
 		&i.KeyHash,
 		&i.Prefix,
 		&i.CreatedAt,
 		&i.RevokedAt,
 		&i.ExpiresAt,
+		&i.LastUsedAt,
 	)
 	return i, err
 }
@@ -792,6 +793,64 @@ func (q *Queries) DeleteUserAccountByExternalId(ctx context.Context, arg DeleteU
 	return err
 }
 
+const ensurePersonalApiPrincipal = `-- name: EnsurePersonalApiPrincipal :one
+INSERT INTO api_principals (
+    kind,
+    display_name,
+    telegram_user_id,
+    user_account_id,
+    scopes,
+    allow_login_exposure,
+    is_active
+) VALUES (
+    'personal',
+    $1,
+    $2,
+    $3,
+    $4,
+    false,
+    true
+)
+ON CONFLICT (user_account_id) DO UPDATE SET
+    display_name = EXCLUDED.display_name,
+    telegram_user_id = COALESCE(EXCLUDED.telegram_user_id, api_principals.telegram_user_id),
+    scopes = EXCLUDED.scopes,
+    is_active = true,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING id, kind, display_name, telegram_user_id, user_account_id, campus_id, scopes, allow_login_exposure, is_active, created_at, updated_at
+`
+
+type EnsurePersonalApiPrincipalParams struct {
+	DisplayName    string      `json:"display_name"`
+	TelegramUserID pgtype.Int8 `json:"telegram_user_id"`
+	UserAccountID  pgtype.Int8 `json:"user_account_id"`
+	Scopes         []string    `json:"scopes"`
+}
+
+func (q *Queries) EnsurePersonalApiPrincipal(ctx context.Context, arg EnsurePersonalApiPrincipalParams) (ApiPrincipal, error) {
+	row := q.db.QueryRow(ctx, ensurePersonalApiPrincipal,
+		arg.DisplayName,
+		arg.TelegramUserID,
+		arg.UserAccountID,
+		arg.Scopes,
+	)
+	var i ApiPrincipal
+	err := row.Scan(
+		&i.ID,
+		&i.Kind,
+		&i.DisplayName,
+		&i.TelegramUserID,
+		&i.UserAccountID,
+		&i.CampusID,
+		&i.Scopes,
+		&i.AllowLoginExposure,
+		&i.IsActive,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const existsCoalitionByID = `-- name: ExistsCoalitionByID :one
 SELECT EXISTS (
     SELECT 1
@@ -856,23 +915,29 @@ func (q *Queries) ExistsTelegramGroupWhitelist(ctx context.Context, arg ExistsTe
 }
 
 const getActiveApiKey = `-- name: GetActiveApiKey :one
-SELECT id, user_account_id, key_hash, prefix, created_at, revoked_at, expires_at FROM api_keys
-WHERE user_account_id = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
-ORDER BY created_at DESC
+SELECT ak.id, ak.api_principal_id, ak.key_hash, ak.prefix, ak.created_at, ak.revoked_at, ak.expires_at, ak.last_used_at
+FROM api_keys ak
+JOIN api_principals ap ON ap.id = ak.api_principal_id
+WHERE ap.user_account_id = $1
+  AND ap.kind = 'personal'
+  AND ak.revoked_at IS NULL
+  AND (ak.expires_at IS NULL OR ak.expires_at > CURRENT_TIMESTAMP)
+ORDER BY ak.created_at DESC
 LIMIT 1
 `
 
-func (q *Queries) GetActiveApiKey(ctx context.Context, userAccountID int64) (ApiKey, error) {
+func (q *Queries) GetActiveApiKey(ctx context.Context, userAccountID pgtype.Int8) (ApiKey, error) {
 	row := q.db.QueryRow(ctx, getActiveApiKey, userAccountID)
 	var i ApiKey
 	err := row.Scan(
 		&i.ID,
-		&i.UserAccountID,
+		&i.ApiPrincipalID,
 		&i.KeyHash,
 		&i.Prefix,
 		&i.CreatedAt,
 		&i.RevokedAt,
 		&i.ExpiresAt,
+		&i.LastUsedAt,
 	)
 	return i, err
 }
@@ -954,8 +1019,13 @@ func (q *Queries) GetAllActiveCampuses(ctx context.Context) ([]GetAllActiveCampu
 }
 
 const getApiKeyByHash = `-- name: GetApiKeyByHash :one
-SELECT id, user_account_id, key_hash, prefix, created_at, revoked_at, expires_at FROM api_keys
-WHERE key_hash = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
+SELECT ak.id, ak.api_principal_id, ak.key_hash, ak.prefix, ak.created_at, ak.revoked_at, ak.expires_at, ak.last_used_at
+FROM api_keys ak
+JOIN api_principals ap ON ap.id = ak.api_principal_id
+WHERE ak.key_hash = $1
+  AND ak.revoked_at IS NULL
+  AND (ak.expires_at IS NULL OR ak.expires_at > CURRENT_TIMESTAMP)
+  AND ap.is_active = true
 `
 
 func (q *Queries) GetApiKeyByHash(ctx context.Context, keyHash string) (ApiKey, error) {
@@ -963,12 +1033,13 @@ func (q *Queries) GetApiKeyByHash(ctx context.Context, keyHash string) (ApiKey, 
 	var i ApiKey
 	err := row.Scan(
 		&i.ID,
-		&i.UserAccountID,
+		&i.ApiPrincipalID,
 		&i.KeyHash,
 		&i.Prefix,
 		&i.CreatedAt,
 		&i.RevokedAt,
 		&i.ExpiresAt,
+		&i.LastUsedAt,
 	)
 	return i, err
 }
@@ -3460,12 +3531,16 @@ func (q *Queries) ReturnBookLoan(ctx context.Context, arg ReturnBookLoanParams) 
 }
 
 const revokeOldApiKeys = `-- name: RevokeOldApiKeys :exec
-UPDATE api_keys
+UPDATE api_keys ak
 SET revoked_at = CURRENT_TIMESTAMP
-WHERE user_account_id = $1 AND revoked_at IS NULL
+FROM api_principals ap
+WHERE ak.api_principal_id = ap.id
+  AND ap.user_account_id = $1
+  AND ap.kind = 'personal'
+  AND ak.revoked_at IS NULL
 `
 
-func (q *Queries) RevokeOldApiKeys(ctx context.Context, userAccountID int64) error {
+func (q *Queries) RevokeOldApiKeys(ctx context.Context, userAccountID pgtype.Int8) error {
 	_, err := q.db.Exec(ctx, revokeOldApiKeys, userAccountID)
 	return err
 }

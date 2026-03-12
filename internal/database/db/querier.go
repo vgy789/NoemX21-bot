@@ -49,10 +49,11 @@ type Querier interface {
 	DeleteTelegramGroupPRRProjectFilterByOwner(ctx context.Context, arg DeleteTelegramGroupPRRProjectFilterByOwnerParams) (int64, error)
 	DeleteTelegramGroupWhitelistByOwner(ctx context.Context, arg DeleteTelegramGroupWhitelistByOwnerParams) (int64, error)
 	DeleteUserAccountByExternalId(ctx context.Context, arg DeleteUserAccountByExternalIdParams) error
+	EnsurePersonalApiPrincipal(ctx context.Context, arg EnsurePersonalApiPrincipalParams) (ApiPrincipal, error)
 	ExistsCoalitionByID(ctx context.Context, arg ExistsCoalitionByIDParams) (bool, error)
 	ExistsOpenReviewRequestByUserAndProject(ctx context.Context, arg ExistsOpenReviewRequestByUserAndProjectParams) (bool, error)
 	ExistsTelegramGroupWhitelist(ctx context.Context, arg ExistsTelegramGroupWhitelistParams) (bool, error)
-	GetActiveApiKey(ctx context.Context, userAccountID int64) (ApiKey, error)
+	GetActiveApiKey(ctx context.Context, userAccountID pgtype.Int8) (ApiKey, error)
 	GetActiveRoomsByCampus(ctx context.Context, campusID pgtype.UUID) ([]Room, error)
 	GetAllActiveCampuses(ctx context.Context) ([]GetAllActiveCampusesRow, error)
 	GetApiKeyByHash(ctx context.Context, keyHash string) (ApiKey, error)
@@ -122,7 +123,7 @@ type Querier interface {
 	MarkReviewRequestNegotiatingAndIncrementResponses(ctx context.Context, arg MarkReviewRequestNegotiatingAndIncrementResponsesParams) (MarkReviewRequestNegotiatingAndIncrementResponsesRow, error)
 	MarkTelegramGroupMemberLeft(ctx context.Context, arg MarkTelegramGroupMemberLeftParams) error
 	ReturnBookLoan(ctx context.Context, arg ReturnBookLoanParams) error
-	RevokeOldApiKeys(ctx context.Context, userAccountID int64) error
+	RevokeOldApiKeys(ctx context.Context, userAccountID pgtype.Int8) error
 	SearchBooks(ctx context.Context, arg SearchBooksParams) ([]SearchBooksRow, error)
 	SearchCatalogCourses(ctx context.Context, dollar_1 interface{}) ([]SearchCatalogCoursesRow, error)
 	SearchCatalogNodes(ctx context.Context, dollar_1 interface{}) ([]SearchCatalogNodesRow, error)

@@ -183,7 +183,7 @@ func TestDeleteProfileSuccess(t *testing.T) {
 
 	q.EXPECT().GetUserActiveLoanCount(gomock.Any(), int64(99)).Return(int32(0), nil)
 	q.EXPECT().GetUserRoomBookings(gomock.Any(), int64(99)).Return([]db.GetUserRoomBookingsRow{}, nil)
-	q.EXPECT().RevokeOldApiKeys(gomock.Any(), int64(99)).Return(nil)
+	q.EXPECT().RevokeOldApiKeys(gomock.Any(), pgtype.Int8{Int64: int64(99), Valid: true}).Return(nil)
 
 	q.EXPECT().DeleteUserAccountByExternalId(gomock.Any(), db.DeleteUserAccountByExternalIdParams{
 		Platform:   db.EnumPlatformTelegram,

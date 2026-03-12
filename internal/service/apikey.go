@@ -6,8 +6,10 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"strconv"
 	"strings"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 )
 
@@ -19,11 +21,37 @@ func NewApiKeyService(queries db.Querier) *ApiKeyService {
 	return &ApiKeyService{queries: queries}
 }
 
+func nullableInt8(value int64) pgtype.Int8 {
+	return pgtype.Int8{Int64: value, Valid: true}
+}
+
 // GenerateApiKey generates a new API key for the user, revoking old ones.
 // Returns the raw key (to show to user) and error.
 func (s *ApiKeyService) GenerateApiKey(ctx context.Context, userAccountID int64) (string, error) {
+	ua, err := s.queries.GetUserAccountByID(ctx, userAccountID)
+	if err != nil {
+		return "", fmt.Errorf("failed to load user account: %w", err)
+	}
+
+	var telegramUserID pgtype.Int8
+	if ua.Platform == db.EnumPlatformTelegram {
+		if parsedID, err := strconv.ParseInt(ua.ExternalID, 10, 64); err == nil {
+			telegramUserID = nullableInt8(parsedID)
+		}
+	}
+
+	principal, err := s.queries.EnsurePersonalApiPrincipal(ctx, db.EnsurePersonalApiPrincipalParams{
+		DisplayName:    "Personal key for " + ua.S21Login,
+		TelegramUserID: telegramUserID,
+		UserAccountID:  nullableInt8(userAccountID),
+		Scopes:         []string{"self.read"},
+	})
+	if err != nil {
+		return "", fmt.Errorf("failed to ensure personal api principal: %w", err)
+	}
+
 	// 1. Revoke old keys
-	if err := s.queries.RevokeOldApiKeys(ctx, userAccountID); err != nil {
+	if err := s.queries.RevokeOldApiKeys(ctx, nullableInt8(userAccountID)); err != nil {
 		return "", fmt.Errorf("failed to revoke old keys: %w", err)
 	}
 
@@ -43,10 +71,10 @@ func (s *ApiKeyService) GenerateApiKey(ctx context.Context, userAccountID int64)
 	// Prefix is the first 8 chars of random part for identification (optional, but good for "ends with...")
 	prefix := "noemx_sk_" + randomPart[:4]
 
-	_, err := s.queries.CreateApiKey(ctx, db.CreateApiKeyParams{
-		UserAccountID: userAccountID,
-		KeyHash:       keyHash,
-		Prefix:        prefix,
+	_, err = s.queries.CreateApiKey(ctx, db.CreateApiKeyParams{
+		ApiPrincipalID: principal.ID,
+		KeyHash:        keyHash,
+		Prefix:         prefix,
 		// ExpiresAt is null (indefinite)
 	})
 	if err != nil {
@@ -80,7 +108,7 @@ func (s *ApiKeyService) ValidateApiKey(ctx context.Context, rawKey string) (*db.
 // GetActiveApiKey returns the prefix of the active API key for the user.
 // Returns empty string if no active key.
 func (s *ApiKeyService) GetActiveApiKey(ctx context.Context, userAccountID int64) (string, error) {
-	key, err := s.queries.GetActiveApiKey(ctx, userAccountID)
+	key, err := s.queries.GetActiveApiKey(ctx, nullableInt8(userAccountID))
 	if err != nil {
 		if strings.Contains(err.Error(), "no rows") {
 			return "", nil

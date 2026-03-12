@@ -353,16 +353,22 @@ states:
         ru: |
           👨‍💻 *Настройки / API*
 
-          Используй этот ключ для доступа к моим данным. Не показывай его никому – это только между нами, кря! 🤫🦆
+          Это твой *персональный* ключ для внешнего API.
+          Сначала обменяй его через `POST /rpc/exchange_api_key`, а потом используй короткий Bearer token для чтения своих данных.
 
-          🔑 *Твой ключ:*
+          Сейчас я показываю только маску активного ключа.
+
+          🔑 *Активный ключ:*
           `{my_botapi_token}`
         en: |
           👨‍💻 *Settings / API*
 
-          Use this key to access my data. Don't share it with anyone – it's just between us, quack! 🤫🦆
+          This is your *personal* key for the external API.
+          First exchange it via `POST /rpc/exchange_api_key`, then use the short-lived Bearer token to read your own data.
 
-          🔑 *Your Token:*
+          I only show the mask of the active key here.
+
+          🔑 *Active key:*
           `{my_botapi_token}`
       buttons:
         - id: regenerate
@@ -392,25 +398,29 @@ states:
         ru: |
           ❓ *Что такое?*
 
-          Это персональный ключ для запросов к API бота от твоего имени.
+          Это персональный ключ для внешнего API от твоего имени.
 
-          Метод `/check` позволяет проверить зарегистрирован ли пользователь в боте.
-          - `external_id` (string): ID пользователя в Telegram.
-          - `login` (string): Логин с платформы.
-          - `platform` (string): Название платформы (например, "telegram").
-          Ответ:
-          - registered: true/false
+          Поток такой:
+          1. `POST /rpc/exchange_api_key` с raw ключом.
+          2. Получить короткий `Bearer` token примерно на час.
+          3. Ходить с ним в:
+          - `GET /me_book_loans`
+          - `GET /me_room_bookings`
+
+          Для кампусных экранов и сервисных ключей нужен отдельный админский выпуск.
         en: |
           ❓ *What is this?*
 
-          This is a personal key for making API requests to the bot on your behalf.
+          This is your personal key for the external API.
 
-          The /check method allows you to verify if a user is registered with the bot.
-          - `external_id` (string): User ID in Telegram.
-          - `login` (string): Login from the platform.
-          - `platform` (string): Name of the platform (e.g., "telegram").
-          Response:
-          - registered: true/false
+          Flow:
+          1. `POST /rpc/exchange_api_key` with the raw key.
+          2. Receive a short-lived `Bearer` token for about one hour.
+          3. Use it with:
+          - `GET /me_book_loans`
+          - `GET /me_room_bookings`
+
+          Campus screens and service keys are issued separately by an admin.
       buttons:
         - id: back
           label:
@@ -437,12 +447,12 @@ states:
           ✅ *Новый ключ готов!*
 
           `{my_botapi_token}`
-          Старый ключ теперь превратился в тыкву.
+          Показываю raw ключ только один раз. Старый ключ теперь превратился в тыкву.
         en: |
           ✅ *New Key Ready!*
 
           `{my_botapi_token}`
-          The old one is now useless.
+          I only show the raw key once. The old one is now useless.
       buttons:
         - id: back
           label:

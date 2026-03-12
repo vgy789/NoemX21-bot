@@ -43,6 +43,32 @@ WHERE s21_login = $1;
 SELECT * FROM user_accounts
 WHERE id = $1;
 
+-- name: EnsurePersonalApiPrincipal :one
+INSERT INTO api_principals (
+    kind,
+    display_name,
+    telegram_user_id,
+    user_account_id,
+    scopes,
+    allow_login_exposure,
+    is_active
+) VALUES (
+    'personal',
+    $1,
+    $2,
+    $3,
+    $4,
+    false,
+    true
+)
+ON CONFLICT (user_account_id) DO UPDATE SET
+    display_name = EXCLUDED.display_name,
+    telegram_user_id = COALESCE(EXCLUDED.telegram_user_id, api_principals.telegram_user_id),
+    scopes = EXCLUDED.scopes,
+    is_active = true,
+    updated_at = CURRENT_TIMESTAMP
+RETURNING *;
+
 -- name: CreateUserAccount :one
 INSERT INTO user_accounts (
     s21_login, platform, external_id, username, is_searchable, role
@@ -524,25 +550,39 @@ ON CONFLICT (user_id) DO UPDATE SET
 
 -- name: CreateApiKey :one
 INSERT INTO api_keys (
-    user_account_id, key_hash, prefix, expires_at
+    api_principal_id, key_hash, prefix, expires_at
 ) VALUES (
     $1, $2, $3, $4
 )
 RETURNING *;
 
 -- name: GetApiKeyByHash :one
-SELECT * FROM api_keys
-WHERE key_hash = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP);
+SELECT ak.*
+FROM api_keys ak
+JOIN api_principals ap ON ap.id = ak.api_principal_id
+WHERE ak.key_hash = $1
+  AND ak.revoked_at IS NULL
+  AND (ak.expires_at IS NULL OR ak.expires_at > CURRENT_TIMESTAMP)
+  AND ap.is_active = true;
 
 -- name: RevokeOldApiKeys :exec
-UPDATE api_keys
+UPDATE api_keys ak
 SET revoked_at = CURRENT_TIMESTAMP
-WHERE user_account_id = $1 AND revoked_at IS NULL;
+FROM api_principals ap
+WHERE ak.api_principal_id = ap.id
+  AND ap.user_account_id = $1
+  AND ap.kind = 'personal'
+  AND ak.revoked_at IS NULL;
 
 -- name: GetActiveApiKey :one
-SELECT * FROM api_keys
-WHERE user_account_id = $1 AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
-ORDER BY created_at DESC
+SELECT ak.*
+FROM api_keys ak
+JOIN api_principals ap ON ap.id = ak.api_principal_id
+WHERE ap.user_account_id = $1
+  AND ap.kind = 'personal'
+  AND ak.revoked_at IS NULL
+  AND (ak.expires_at IS NULL OR ak.expires_at > CURRENT_TIMESTAMP)
+ORDER BY ak.created_at DESC
 LIMIT 1;
 
 SELECT * FROM campuses WHERE short_name = $1;

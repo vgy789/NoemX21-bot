@@ -3,7 +3,6 @@ package app
 import (
 	"context"
 	"log/slog"
-	"net/http"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -22,7 +21,6 @@ type mockTelegramService struct {
 	runWebhookCalled   atomic.Bool
 	runCalledCh        chan struct{}
 	runWebhookCalledCh chan struct{}
-	webhookHandlerRet  http.Handler
 }
 
 func (m *mockTelegramService) Run(ctx context.Context) error { //nolint:revive,stylecheck // test helper
@@ -45,10 +43,6 @@ func (m *mockTelegramService) RunWebhook(ctx context.Context) error { //nolint:r
 		}
 	}
 	return nil
-}
-
-func (m *mockTelegramService) GetWebhookHandler() http.Handler {
-	return m.webhookHandlerRet
 }
 
 // mockStarter returns nil from Start()
@@ -80,14 +74,12 @@ func TestApp_Run(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockTG := &mockTelegramService{runCalledCh: make(chan struct{}, 1)}
-	mockHTTPServer := &mockHTTPServer{}
 	mockGitSync := &mockStarter{}
 	mockCampusSvc := &mockStarter{}
 	mockScheduleGen := &mockStarter{}
 
 	a := &App{
 		tg:          mockTG,
-		httpServer:  mockHTTPServer,
 		gitSync:     mockGitSync,
 		campusSvc:   mockCampusSvc,
 		scheduleGen: mockScheduleGen,
@@ -114,7 +106,6 @@ func TestApp_Run(t *testing.T) {
 
 func TestApp_Run_WebhookMode(t *testing.T) {
 	mockTG := &mockTelegramService{runWebhookCalledCh: make(chan struct{}, 1)}
-	mockHTTPServer := &mockHTTPServer{}
 	mockGitSync := &mockStarter{}
 	mockCampusSvc := &mockStarter{}
 	mockScheduleGen := &mockStarter{}
@@ -126,7 +117,6 @@ func TestApp_Run_WebhookMode(t *testing.T) {
 
 	a := &App{
 		tg:          mockTG,
-		httpServer:  mockHTTPServer,
 		gitSync:     mockGitSync,
 		campusSvc:   mockCampusSvc,
 		scheduleGen: mockScheduleGen,
@@ -153,14 +143,12 @@ func TestApp_Run_WebhookMode(t *testing.T) {
 
 func TestApp_Run_GitSyncError(t *testing.T) {
 	mockTG := &mockTelegramService{runCalledCh: make(chan struct{}, 1)}
-	mockHTTPServer := &mockHTTPServer{}
 	mockGitSync := &mockStarterError{}
 	mockCampusSvc := &mockStarter{}
 	mockScheduleGen := &mockStarter{}
 
 	a := &App{
 		tg:          mockTG,
-		httpServer:  mockHTTPServer,
 		gitSync:     mockGitSync,
 		campusSvc:   mockCampusSvc,
 		scheduleGen: mockScheduleGen,
@@ -185,14 +173,12 @@ func TestApp_Run_GitSyncError(t *testing.T) {
 
 func TestApp_Run_CampusSvcError(t *testing.T) {
 	mockTG := &mockTelegramService{runCalledCh: make(chan struct{}, 1)}
-	mockHTTPServer := &mockHTTPServer{}
 	mockGitSync := &mockStarter{}
 	mockCampusSvc := &mockStarterError{}
 	mockScheduleGen := &mockStarter{}
 
 	a := &App{
 		tg:          mockTG,
-		httpServer:  mockHTTPServer,
 		gitSync:     mockGitSync,
 		campusSvc:   mockCampusSvc,
 		scheduleGen: mockScheduleGen,
@@ -220,17 +206,4 @@ type mockStarterError struct{}
 
 func (m *mockStarterError) Start() error {
 	return assert.AnError
-}
-
-// mockHTTPServer is a simple mock for testing
-type mockHTTPServer struct{}
-
-func (m *mockHTTPServer) Start(ctx context.Context) error {
-	// Do nothing in tests
-	<-ctx.Done()
-	return nil
-}
-
-func (m *mockHTTPServer) AddHandler(path string, handler http.Handler) {
-	// Do nothing in tests
 }

@@ -1,0 +1,17 @@
+# The login role from db-uri must be a member of api_anon and api_user.
+# If PostgREST uses a dedicated DB login, grant both roles explicitly:
+#   GRANT api_anon TO postgrest_runtime;
+#   GRANT api_user TO postgrest_runtime;
+db-uri = "postgres://bot:secret@db.internal:5432/bot"
+db-schemas = "api_v1"
+db-extra-search-path = "public,api_private"
+db-anon-role = "api_anon"
+db-pre-request = "api_private.pre_request"
+
+jwt-secret = "replace-with-the-same-secret-as-app.settings.jwt_secret"
+openapi-mode = "follow-privileges"
+openapi-server-proxy-uri = "https://api.mysite.com"
+
+server-host = "!4"
+server-port = 3000
+server-cors-allowed-origins = "https://tv.mysite.com,https://web.mysite.com"

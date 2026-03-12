@@ -5,9 +5,10 @@
 - `Dokku` остаётся платформой deploy/env/runtime.
 - PostgreSQL поднимается через `dokku-postgres`.
 - HTTPS и reverse proxy обслуживаются встроенной `Caddy`-интеграцией Dokku.
-- Один app: `bot`.
+- Два app:
+  - `bot` для Telegram runtime
+  - `bot-api` для `PostgREST`
 - `Polling` и `webhook` переключаются конфигом одного и того же app.
-- `/api/v1/webhook/register` не входит в публичный deployment-контракт и остаётся internal-only до переезда на `PostgREST`.
 
 ## 1. Подготовка сервера
 
@@ -174,8 +175,34 @@ Mode-specific domains, ports и webhook env настраиваются на Dokk
 |---|---|---|
 | `PRODUCTION` | `false` | production mode |
 | `LOG_LEVEL` | `debug` | уровень логирования |
-| `API_SERVER_PORT` | `8081` | internal HTTP runtime port; не публиковать через Dokku/Caddy |
 | `TEST_MODE_NO_OTP` | `false` | mock OTP provider; не включать в production |
+
+### PostgREST app (`bot-api`)
+
+`PostgREST` читает тот же PostgreSQL и получает отдельный конфиг. Базовый файл:
+[deploy/postgrest/postgrest.conf.example](/home/school/qq/noemx21-bot/deploy/postgrest/postgrest.conf.example)
+
+Ключевые параметры:
+
+| Key | Назначение |
+|---|---|
+| `db-uri` | DSN к той же базе, что и у `bot` |
+| `db-schemas` | `api_v1` |
+| `db-extra-search-path` | `public,api_private` |
+| `db-anon-role` | `api_anon` |
+| `db-pre-request` | `api_private.pre_request` |
+| `jwt-secret` | тот же secret, что и `app.settings.jwt_secret` в PostgreSQL |
+| `server-cors-allowed-origins` | список web/TV origins |
+
+Важно для авторизации через `db-anon-role` и JWT role: login role из `db-uri` должна быть member ролей `api_anon` и `api_user`, иначе `PostgREST` не сможет сделать `SET ROLE`.
+
+- Если миграция применялась той же runtime-ролью, membership grants выдаются автоматически в `000034_add_postgrest_external_api`.
+- Если `PostgREST` подключается отдельной DB login role, выдать grants вручную:
+
+```sql
+GRANT api_anon TO postgrest_runtime;
+GRANT api_user TO postgrest_runtime;
+```
 
 ### Telegram webhook mode
 
@@ -229,8 +256,13 @@ sudo dokku config:set bot \
   SCHOOL21_API_URL=... \
   SCHOOL21_USER_LOGIN=... \
   SCHOOL21_USER_PASSWORD=... \
-  AEAD_KEY=... \
-  API_SERVER_PORT=8081
+  AEAD_KEY=...
+```
+
+Для БД нужно один раз синхронизировать JWT secret между `PostgREST` и PostgreSQL:
+
+```sql
+ALTER DATABASE bot_db SET app.settings.jwt_secret = 'replace-me';
 ```
 
 ## 7. Переключение режимов
@@ -249,7 +281,6 @@ sudo dokku ports:clear bot
 Правила:
 
 - бот получает обновления через long polling;
-- `API_SERVER_PORT=8081` остаётся внутренним портом процесса;
 - не используйте `dokku proxy:disable bot`: это обходит proxy-слой Dokku и может открыть app на случайном host port.
 
 ### Webhook mode
@@ -304,13 +335,40 @@ sudo dokku logs bot -t -p web
 - Старые polling env (`POLLING_TIMEOUT`, `REQUEST_TIMEOUT`, `MAX_ROUTINES`, `DROP_PENDING_UPDATES`) можно не удалять: в webhook mode они просто не используются.
 - Если для polling mode ранее выполнялся `dokku checks:disable bot web`, перед переходом на webhook его нужно вернуть через `dokku checks:enable bot web`.
 
+### External `PostgREST` app
+
+```bash
+API_DOMAIN=api.example.com
+
+sudo dokku apps:create bot-api
+sudo dokku postgres:link bot-db bot-api
+sudo dokku checks:enable bot-api web
+sudo dokku domains:enable bot-api
+sudo dokku domains:set bot-api "$API_DOMAIN"
+sudo dokku ports:set bot-api http:80:3000 https:443:3000
+```
+
+Дальше поместите `postgrest.conf` в app `bot-api` и задайте CORS/JWT параметры из примера.
+
+Проверка:
+
+```bash
+sudo dokku proxy:report bot-api
+sudo dokku domains:report bot-api
+sudo dokku ports:list bot-api
+curl -i "https://$API_DOMAIN/"
+```
+
+Должно получиться:
+
+- `https://<api-domain>` отвечает `PostgREST`;
+- `bot` и `bot-api` живут на разных доменах;
+- `db-pre-request` указывает на `api_private.pre_request`.
+
 ## 8. Operational Notes
 
-- Приложение всегда поднимает внутренний HTTP server на `API_SERVER_PORT=8081`.
-- В webhook mode дополнительно стартует отдельный listener gotgbot на `TELEGRAM_WEBHOOK_PORT=8080`.
-- В текущем коде webhook handler также регистрируется на внутреннем mux, поэтому `8081` тем более нельзя публиковать наружу.
+- В webhook mode приложение стартует listener gotgbot на `TELEGRAM_WEBHOOK_PORT=8080`.
 - `TEST_MODE_NO_OTP=true` несовместим с `PRODUCTION=true`.
-- `/api/v1/webhook/register` считается временным internal endpoint до выноса в `PostgREST`.
 
 ## 9. Логи Docker
 

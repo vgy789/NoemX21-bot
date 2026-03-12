@@ -596,6 +596,21 @@ func (mr *MockQuerierMockRecorder) DeleteUserAccountByExternalId(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserAccountByExternalId", reflect.TypeOf((*MockQuerier)(nil).DeleteUserAccountByExternalId), ctx, arg)
 }
 
+// EnsurePersonalApiPrincipal mocks base method.
+func (m *MockQuerier) EnsurePersonalApiPrincipal(ctx context.Context, arg db.EnsurePersonalApiPrincipalParams) (db.ApiPrincipal, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnsurePersonalApiPrincipal", ctx, arg)
+	ret0, _ := ret[0].(db.ApiPrincipal)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EnsurePersonalApiPrincipal indicates an expected call of EnsurePersonalApiPrincipal.
+func (mr *MockQuerierMockRecorder) EnsurePersonalApiPrincipal(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnsurePersonalApiPrincipal", reflect.TypeOf((*MockQuerier)(nil).EnsurePersonalApiPrincipal), ctx, arg)
+}
+
 // ExistsCoalitionByID mocks base method.
 func (m *MockQuerier) ExistsCoalitionByID(ctx context.Context, arg db.ExistsCoalitionByIDParams) (bool, error) {
 	m.ctrl.T.Helper()
@@ -642,7 +657,7 @@ func (mr *MockQuerierMockRecorder) ExistsTelegramGroupWhitelist(ctx, arg any) *g
 }
 
 // GetActiveApiKey mocks base method.
-func (m *MockQuerier) GetActiveApiKey(ctx context.Context, userAccountID int64) (db.ApiKey, error) {
+func (m *MockQuerier) GetActiveApiKey(ctx context.Context, userAccountID pgtype.Int8) (db.ApiKey, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetActiveApiKey", ctx, userAccountID)
 	ret0, _ := ret[0].(db.ApiKey)
@@ -1644,7 +1659,7 @@ func (mr *MockQuerierMockRecorder) ReturnBookLoan(ctx, arg any) *gomock.Call {
 }
 
 // RevokeOldApiKeys mocks base method.
-func (m *MockQuerier) RevokeOldApiKeys(ctx context.Context, userAccountID int64) error {
+func (m *MockQuerier) RevokeOldApiKeys(ctx context.Context, userAccountID pgtype.Int8) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "RevokeOldApiKeys", ctx, userAccountID)
 	ret0, _ := ret[0].(error)

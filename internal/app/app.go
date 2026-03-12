@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"time"
 
 	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
@@ -15,16 +14,9 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/pkg/imgcache"
 	"github.com/vgy789/noemx21-bot/internal/service"
 	"github.com/vgy789/noemx21-bot/internal/service/schedule_generator"
-	transportHttp "github.com/vgy789/noemx21-bot/internal/transport/http"
 	telegram "github.com/vgy789/noemx21-bot/internal/transport/telegram"
 	"golang.org/x/sync/errgroup"
 )
-
-// HTTPServer defines the interface for HTTP server operations
-type HTTPServer interface {
-	Start(ctx context.Context) error
-	AddHandler(path string, handler http.Handler)
-}
 
 // Starter is implemented by services that can be started (git sync, campus).
 type Starter interface {
@@ -44,7 +36,6 @@ type ScheduleRegenerator interface {
 // App is the main application.
 type App struct {
 	tg            telegram.TelegramService
-	httpServer    HTTPServer
 	gitSync       Starter
 	campusSvc     Starter
 	scheduleGen   Starter
@@ -79,7 +70,6 @@ func New(cfg *config.Config, log *slog.Logger, repo *db.DBWrapper, rcClient *roc
 
 	return &App{
 		tg:            tgService,
-		httpServer:    transportHttp.NewServer(cfg, log, repo.Queries),
 		gitSync:       gitSync,
 		campusSvc:     campusSvc,
 		scheduleGen:   scheduleGen,
@@ -115,17 +105,8 @@ func (a *App) Run(ctx context.Context) error {
 	startBackground("campus", a.campusSvc)
 	startBackground("schedule_generator", a.scheduleGen)
 
-	group.Go(func() error {
-		err := a.httpServer.Start(ctx)
-		if err != nil {
-			a.log.Error("http server exited with error", "error", err)
-		}
-		return err
-	})
-
 	if a.cfg.Telegram.Webhook.Enabled {
 		a.log.Info("starting bot in webhook mode", "path", a.cfg.Telegram.Webhook.ListenPath, "port", a.cfg.Telegram.Webhook.ListenPort)
-		a.httpServer.AddHandler(a.cfg.Telegram.Webhook.ListenPath, a.tg.GetWebhookHandler())
 		group.Go(func() error {
 			return a.runTelegramWithRestart(ctx, true)
 		})

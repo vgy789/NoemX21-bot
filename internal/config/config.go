@@ -50,9 +50,6 @@ type Config struct {
 		AEADKey        Secret `env:"AEAD_KEY,notEmpty"` // 32 bytes hex
 		SchoolPassword Secret `env:"SCHOOL21_USER_PASSWORD,notEmpty"`
 	}
-	APIServer struct {
-		Port int `env:"API_SERVER_PORT" envDefault:"8081"`
-	}
 	Charts struct {
 		TempDir string `env:"CHART_TEMP_DIR" envDefault:"tmp/skills_radar"`
 	}

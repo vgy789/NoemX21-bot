@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"strings"
 	"sync"
 	"time"
@@ -22,7 +21,6 @@ import (
 type TelegramService interface {
 	Run(ctx context.Context) error
 	RunWebhook(ctx context.Context) error
-	GetWebhookHandler() http.Handler
 }
 
 // Sender defines interface for sending messages to Telegram.
@@ -107,12 +105,6 @@ func (s *telegramService) setUpdater(updater *ext.Updater) {
 	s.updaterMu.Lock()
 	defer s.updaterMu.Unlock()
 	s.updater = updater
-}
-
-func (s *telegramService) getUpdater() *ext.Updater {
-	s.updaterMu.RLock()
-	defer s.updaterMu.RUnlock()
-	return s.updater
 }
 
 // Run starts the telegram bot using long polling.
@@ -247,37 +239,6 @@ func (s *telegramService) RunWebhook(ctx context.Context) error {
 		return updater.Stop()
 	case <-done:
 		return nil
-	}
-}
-
-// GetWebhookHandler returns the HTTP handler for webhook.
-// Note: When using StartWebhook, the updater handles HTTP directly via ListenAndServe.
-// This method is provided for custom HTTP server integration.
-func (s *telegramService) GetWebhookHandler() http.Handler {
-	return &updaterHandler{service: s, path: s.cfg.Telegram.Webhook.ListenPath}
-}
-
-// updaterHandler wraps ext.Updater to only handle requests at the configured path.
-type updaterHandler struct {
-	service *telegramService
-	path    string
-}
-
-func (h *updaterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != h.path {
-		http.NotFound(w, r)
-		return
-	}
-	updater := h.service.getUpdater()
-	if updater == nil {
-		h.service.log.Warn("webhook request received before updater initialized")
-		http.Error(w, "webhook not initialized", http.StatusServiceUnavailable)
-		return
-	}
-	if handler, ok := any(updater).(http.Handler); ok {
-		handler.ServeHTTP(w, r)
-	} else {
-		http.Error(w, "updater does not implement http.Handler", http.StatusInternalServerError)
 	}
 }
 

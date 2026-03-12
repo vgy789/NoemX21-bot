@@ -4,12 +4,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
-	"net/http/httptest"
 	"os"
 	"testing"
 
-	"github.com/PaulSonOfLars/gotgbot/v2/ext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
@@ -76,60 +73,6 @@ func TestTelegramService_GetSender(t *testing.T) {
 		sender := s.getSender(nil)
 		assert.Equal(t, mockSender, sender)
 	})
-}
-
-func TestUpdaterHandler_ServeHTTP(t *testing.T) {
-	t.Run("correct path", func(t *testing.T) {
-		svc := &telegramService{}
-		svc.setUpdater(ext.NewUpdater(nil, nil))
-		handler := &updaterHandler{
-			service: svc,
-			path:    "/webhook",
-		}
-
-		req := httptest.NewRequest("POST", "/webhook", nil)
-		w := httptest.NewRecorder()
-
-		// Should not 404 since path matches
-		handler.ServeHTTP(w, req)
-		// Will return 400 or similar since no body, but not 404
-		assert.NotEqual(t, http.StatusNotFound, w.Code)
-	})
-
-	t.Run("wrong path", func(t *testing.T) {
-		svc := &telegramService{}
-		svc.setUpdater(ext.NewUpdater(nil, nil))
-		handler := &updaterHandler{
-			service: svc,
-			path:    "/webhook",
-		}
-
-		req := httptest.NewRequest("POST", "/wrong", nil)
-		w := httptest.NewRecorder()
-
-		handler.ServeHTTP(w, req)
-		assert.Equal(t, http.StatusNotFound, w.Code)
-	})
-}
-
-func TestTelegramService_GetWebhookHandler_NotInitialized(t *testing.T) {
-	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	cfg := &config.Config{}
-	cfg.Telegram.Webhook.ListenPath = "/webhook"
-
-	s := &telegramService{
-		log: logger,
-		cfg: cfg,
-	}
-
-	handler := s.GetWebhookHandler()
-	require.NotNil(t, handler)
-
-	req := httptest.NewRequest("GET", "/webhook", nil)
-	w := httptest.NewRecorder()
-
-	handler.ServeHTTP(w, req)
-	assert.Equal(t, http.StatusServiceUnavailable, w.Code)
 }
 
 func TestDefaultSender(t *testing.T) {

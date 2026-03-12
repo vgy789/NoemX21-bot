@@ -18,12 +18,12 @@
 - Наказание: блокировка на 24 часа
 - Сброс: после успешной верификации OTP
 
-### HTTP API auth
+### External API auth
 
-- Internal endpoint требует заголовок `X-Secret`
-- Значение проверяется через `ApiKeyService`
-- В БД хранится только SHA-256 hash ключа, не raw secret
-- Endpoint не должен публиковаться напрямую через `Dokku`/`Caddy`
+- `PostgREST` использует opaque API key только для `POST /rpc/exchange_api_key`
+- После обмена клиент работает с коротким JWT (`Authorization: Bearer ...`)
+- JWT несёт `principal_id`/`principal_kind`, а `api_private.pre_request` сверяет их с `api_principals`
+- Персональные и сервисные ключи разделены на уровне `api_principals`
 
 ## Внешние интеграции
 
@@ -57,6 +57,7 @@
 - `platform_credentials`: зашифрованные School 21 credentials и access token
 - `auth_verification_codes`: одноразовые OTP-коды с TTL 5 минут
 - `participant_stats_cache`: кэш статистики участников
+- `api_principals` и `api_keys`: субъекты внешнего API, scopes и хэши ключей
 - остальные доменные данные: users, accounts, bookings, reviews, catalogs
 
 Redis в текущей реализации не используется.
@@ -81,6 +82,7 @@ Redis в текущей реализации не используется.
 - Секреты редактируются в логах через `config.RedactString`
 - При `TEST_MODE_NO_OTP=true` и `PRODUCTION=true` приложение завершает запуск
 - Raw API keys не сохраняются, только hash
+- JWT для внешнего API имеют TTL 1 час
 - School 21 credentials не логируются
 - В production webhook ingress должен идти только на `TELEGRAM_WEBHOOK_PORT=8080`
 

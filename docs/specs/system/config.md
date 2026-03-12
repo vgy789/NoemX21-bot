@@ -37,7 +37,6 @@
 | Variable | Default |
 |---|---|
 | `LOG_LEVEL` | `debug` |
-| `API_SERVER_PORT` | `8081` |
 | `PRODUCTION` | `false` |
 | `TEST_MODE_NO_OTP` | `false` |
 | `TELEGRAM_WEBHOOK_ENABLED` | `false` |
@@ -59,9 +58,8 @@
 
 ## Deployment note
 
-- `API_SERVER_PORT` — внутренний HTTP runtime порт.
-- В схеме `Dokku + Caddy` этот порт не должен проксироваться наружу.
 - В webhook mode публичный ingress должен идти только на `TELEGRAM_WEBHOOK_PORT`.
+- Внешний `PostgREST` конфигурируется отдельно; пример файла лежит в [deploy/postgrest/postgrest.conf.example](/home/school/qq/noemx21-bot/deploy/postgrest/postgrest.conf.example).
 
 ## Режимы Telegram
 

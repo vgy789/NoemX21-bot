@@ -342,7 +342,7 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 			return "", updates, nil
 		}
 
-		if err := queries.RevokeOldApiKeys(ctx, ua.ID); err != nil {
+		if err := queries.RevokeOldApiKeys(ctx, pgtype.Int8{Int64: ua.ID, Valid: true}); err != nil {
 			log.Warn("failed to revoke api keys during unlink", "error", err, "user_id", userID, "user_account_id", ua.ID)
 		}
 
