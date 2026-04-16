@@ -253,7 +253,13 @@ func (s *OTPService) sendSMTPMail(host string, port int, username, password, fro
 	if err != nil {
 		return fmt.Errorf("dial %s: %w", addr, err)
 	}
-	defer conn.Close()
+	defer func() {
+		if conn != nil {
+			if closeErr := conn.Close(); closeErr != nil {
+				s.log.Warn("failed to close smtp connection", "addr", addr, "error", closeErr)
+			}
+		}
+	}()
 
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 
@@ -261,7 +267,14 @@ func (s *OTPService) sendSMTPMail(host string, port int, username, password, fro
 	if err != nil {
 		return fmt.Errorf("new smtp client: %w", err)
 	}
-	defer client.Close()
+	conn = nil
+	defer func() {
+		if client != nil {
+			if closeErr := client.Close(); closeErr != nil {
+				s.log.Warn("failed to close smtp client", "addr", addr, "error", closeErr)
+			}
+		}
+	}()
 
 	if !implicitTLS {
 		if ok, _ := client.Extension("STARTTLS"); ok {
@@ -313,6 +326,7 @@ func (s *OTPService) sendSMTPMail(host string, port int, username, password, fro
 	if err := client.Quit(); err != nil {
 		return fmt.Errorf("quit: %w", err)
 	}
+	client = nil
 	s.log.Debug("smtp stage", "stage", "done", "elapsed", time.Since(start))
 
 	return nil
@@ -393,9 +407,9 @@ func (s *OTPService) renderOTPEmailBody(code, s21Login, targetEmail string, ui f
 
 func buildHTMLMessage(from, to, subject, body string) string {
 	var msg strings.Builder
-	msg.WriteString(fmt.Sprintf("From: %s\r\n", from))
-	msg.WriteString(fmt.Sprintf("To: %s\r\n", to))
-	msg.WriteString(fmt.Sprintf("Subject: %s\r\n", subject))
+	_, _ = fmt.Fprintf(&msg, "From: %s\r\n", from)
+	_, _ = fmt.Fprintf(&msg, "To: %s\r\n", to)
+	_, _ = fmt.Fprintf(&msg, "Subject: %s\r\n", subject)
 	msg.WriteString("MIME-Version: 1.0\r\n")
 	msg.WriteString("Content-Type: text/html; charset=UTF-8\r\n")
 	msg.WriteString("\r\n")
