@@ -31,8 +31,8 @@ states:
         next_state: INPUT_LOGIN
     interface:
       text:
-        ru: "🦆 *PeerDuck:* Проверяю, свой ты или залетный…"
-        en: "🦆 *PeerDuck:* Checking if you're part of the flock…"
+        ru: "🦆 Проверяю, свой ты или залётный…"
+        en: "🦆 Checking if you're part of the flock…"
 
   INPUT_LOGIN:
     type: input

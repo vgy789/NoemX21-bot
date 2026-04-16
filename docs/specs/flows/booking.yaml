@@ -72,6 +72,15 @@ states:
           4️⃣ *Тишина в камышах*
           Переговорки не герметичны. Старайся не крякать слишком громко, чтобы не пугать пиров в кластерах.
 
+          ⚠️ Взятие переговорок сейчас полноценно не работает: нужен отдельный процесс согласования с администрацией школы.
+          Функция может быть одобрена, если бронирование будет доступно и в Rocket.Chat.
+          Для этого нужен отдельный аккаунт бота в Rocket.Chat, но по запросу на аккаунт уже 2 месяца нет ответа.
+          Сейчас в этом боте можно бронировать/отменять переговорки только в режиме песочницы.
+          Это не влияет на реальное бронирование, которое работает по правилам вашего кампуса.
+
+          🗂 Список переговорок актуализируется через:
+          ~ссылка скрыта~
+
           💡 _Помни: занял переговорку – не забудь прийти, иначе утки заклюют!_
         en: |
           📜 *The Duck Code of Meetings* 🦆
@@ -89,6 +98,15 @@ states:
 
           4️⃣ *Quiet in the reeds*
           Meeting rooms aren't soundproof. Try not to quack too loudly so you don't disturb peers in the clusters.
+
+          ⚠️ Meeting-room booking is currently not fully operational: it requires approval from school administration.
+          This feature may be approved if booking is also available in Rocket.Chat.
+          For that, a dedicated Rocket.Chat bot account is required, but there has been no response to the account request for 2 months.
+          Right now, this bot supports booking/canceling rooms in sandbox mode only.
+          It does not affect real booking, which operates under your campus rules.
+
+          🗂 Meeting rooms list is updated via:
+          ~ссылка скрыта~
 
           💡 _Remember: if you book a room, show up, or the ducks will peck!_
       buttons:

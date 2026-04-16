@@ -48,9 +48,9 @@ states:
       buttons:
         - id: back
           label:
-            ru: 🔙 Назад
-            en: 🔙 Back
-          next_state: CLUBS_MAIN
+            ru: ⚙️ Назад в настройки
+            en: ⚙️ Back to settings
+          next_state: SETTINGS_MENU
 
   SELECT_GROUP_TO_MANAGE:
     type: interactive
@@ -124,8 +124,8 @@ states:
           next_state: GROUP_ADMIN_MENU
         - id: back
           label:
-            ru: 🔙 Назад
-            en: 🔙 Back
+            ru: ⚙️ Назад в настройки
+            en: ⚙️ Back to settings
           row: 99
           next_state: SETTINGS_MENU
 
@@ -170,8 +170,8 @@ states:
           next_state: SELECT_GROUP_TO_MANAGE
         - id: back
           label:
-            ru: 🔙 Назад
-            en: 🔙 Back
+            ru: ⚙️ Назад в настройки
+            en: ⚙️ Back to settings
           row: 99
           next_state: SETTINGS_MENU
 
