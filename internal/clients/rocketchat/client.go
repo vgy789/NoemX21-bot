@@ -25,7 +25,7 @@ type Client struct {
 // NewClient creates a new Rocket.Chat client
 func NewClient(baseURL, authToken, userID string) *Client {
 	return &Client{
-		baseURL:    strings.TrimRight(baseURL, "/"),
+		baseURL:    normalizeBaseURL(baseURL),
 		authToken:  strings.TrimSpace(authToken),
 		userID:     strings.TrimSpace(userID),
 		httpClient: &http.Client{Timeout: 10 * time.Second},
@@ -38,11 +38,15 @@ func NewClientWithHTTPClient(baseURL, authToken, userID string, hc *http.Client)
 		hc = &http.Client{Timeout: 10 * time.Second}
 	}
 	return &Client{
-		baseURL:    baseURL,
-		authToken:  authToken,
-		userID:     userID,
+		baseURL:    normalizeBaseURL(baseURL),
+		authToken:  strings.TrimSpace(authToken),
+		userID:     strings.TrimSpace(userID),
 		httpClient: hc,
 	}
+}
+
+func normalizeBaseURL(rawURL string) string {
+	return strings.TrimRight(strings.TrimSpace(rawURL), "/")
 }
 
 // MessageRequest for sending messages
@@ -134,6 +138,17 @@ type UserInfoResponse struct {
 	Success bool `json:"success"`
 }
 
+// MyProfileResponse from Rocket.Chat me endpoint.
+type MyProfileResponse struct {
+	ID     string `json:"_id"`
+	Emails []struct {
+		Address  string `json:"address"`
+		Verified bool   `json:"verified"`
+	} `json:"emails"`
+	Username string `json:"username"`
+	Success  bool   `json:"success"`
+}
+
 // GetUserInfo gets information about a user
 func (c *Client) GetUserInfo(ctx context.Context, username string) (*UserInfoResponse, error) {
 	// Use url.QueryEscape for safety against injection
@@ -187,4 +202,65 @@ func (c *Client) GetUserInfo(ctx context.Context, username string) (*UserInfoRes
 	}
 
 	return &userInfo, nil
+}
+
+// GetMyProfileWithToken fetches the current user's profile using their own user ID + auth token.
+func (c *Client) GetMyProfileWithToken(ctx context.Context, userID, authToken string) (*MyProfileResponse, error) {
+	requestURL := fmt.Sprintf("%s/me", c.baseURL)
+
+	userID = strings.TrimSpace(userID)
+	authToken = strings.TrimSpace(authToken)
+	if userID == "" || authToken == "" {
+		return nil, fmt.Errorf("user id and auth token are required")
+	}
+
+	var body []byte
+	err := netretry.Do(ctx, func() error {
+		req, reqErr := http.NewRequestWithContext(ctx, http.MethodGet, requestURL, nil)
+		if reqErr != nil {
+			return netretry.Permanent(fmt.Errorf("failed to create request: %w", reqErr))
+		}
+
+		req.Header.Set("X-Auth-Token", authToken)
+		req.Header.Set("X-User-Id", userID)
+
+		resp, doErr := c.httpClient.Do(req)
+		if doErr != nil {
+			return doErr
+		}
+		defer func() { _ = resp.Body.Close() }()
+
+		body, doErr = io.ReadAll(resp.Body)
+		if doErr != nil {
+			return doErr
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			httpErr := &netretry.HTTPStatusError{
+				Method:     http.MethodGet,
+				URL:        requestURL,
+				StatusCode: resp.StatusCode,
+				Body:       string(body),
+			}
+			if netretry.IsRetryableStatusCode(resp.StatusCode) {
+				return httpErr
+			}
+			return netretry.Permanent(httpErr)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, fmt.Errorf("request failed: %w", err)
+	}
+
+	var profile MyProfileResponse
+	if err := json.Unmarshal(body, &profile); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal response: %w", err)
+	}
+
+	if !profile.Success {
+		return nil, fmt.Errorf("API error: success=false, body: %s", string(body))
+	}
+
+	return &profile, nil
 }

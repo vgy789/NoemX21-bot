@@ -86,7 +86,7 @@ func NewClientWithHTTPClient(baseURL string, hc *http.Client) *Client {
 	if hc == nil {
 		hc = &http.Client{Timeout: 10 * time.Second}
 	}
-	return &Client{baseURL: baseURL, authURL: defaultAuthURL, httpClient: hc}
+	return &Client{baseURL: normalizeBaseURL(baseURL), authURL: defaultAuthURL, httpClient: hc}
 }
 
 func NewClientForTest(apiBaseURL, authBaseURL string, hc *http.Client) *Client {
@@ -95,9 +95,9 @@ func NewClientForTest(apiBaseURL, authBaseURL string, hc *http.Client) *Client {
 	}
 	authURL := defaultAuthURL
 	if authBaseURL != "" {
-		authURL = authBaseURL + "/auth/realms/EduPowerKeycloak/protocol/openid-connect/token"
+		authURL = normalizeBaseURL(authBaseURL) + "/auth/realms/EduPowerKeycloak/protocol/openid-connect/token"
 	}
-	return &Client{baseURL: apiBaseURL, authURL: authURL, httpClient: hc}
+	return &Client{baseURL: normalizeBaseURL(apiBaseURL), authURL: authURL, httpClient: hc}
 }
 
 type ParticipantFeedbackV1DTO struct {
@@ -213,6 +213,10 @@ type AuthResponse struct {
 }
 
 var jwtParser = jwt.NewParser(jwt.WithoutClaimsValidation())
+
+func normalizeBaseURL(rawURL string) string {
+	return strings.TrimRight(strings.TrimSpace(rawURL), "/")
+}
 
 func ParseAccessTokenClaims(accessToken string) (*jwt.RegisteredClaims, error) {
 	var claims jwt.RegisteredClaims

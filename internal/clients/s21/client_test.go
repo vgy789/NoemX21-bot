@@ -124,6 +124,48 @@ func TestClient_GetCampuses(t *testing.T) {
 	assert.Equal(t, "Novosibirsk", got[1].FullName)
 }
 
+func TestClient_GetCampuses_BaseURLWithTrailingSlash(t *testing.T) {
+	client := NewClientForTest("http://example.local/services/21-school/api/v1/", "http://example.local", &http.Client{
+		Transport: mockRoundTripper{
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "/services/21-school/api/v1/campuses", r.URL.Path)
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(CampusesResponse{
+					Campuses: []CampusV1DTO{
+						{ID: "1", ShortName: "moscow", FullName: "Moscow", Timezone: "Europe/Moscow"},
+					},
+				})
+			}),
+		},
+	})
+
+	got, err := client.GetCampuses(context.Background(), "tok")
+	require.NoError(t, err)
+	require.Len(t, got, 1)
+	assert.Equal(t, "moscow", got[0].ShortName)
+}
+
+func TestClient_Auth_AuthBaseURLWithTrailingSlash(t *testing.T) {
+	client := NewClientForTest("http://example.local", "http://example.local/", &http.Client{
+		Transport: mockRoundTripper{
+			handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, "/auth/realms/EduPowerKeycloak/protocol/openid-connect/token", r.URL.Path)
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(AuthResponse{
+					AccessToken: "test-token",
+					ExpiresIn:   300,
+					TokenType:   "Bearer",
+				})
+			}),
+		},
+	})
+
+	got, err := client.Auth(context.Background(), "user", "pass")
+	require.NoError(t, err)
+	require.NotNil(t, got)
+	assert.Equal(t, "test-token", got.AccessToken)
+}
+
 func TestClient_GetCampuses_apiError(t *testing.T) {
 	client := newMockClient(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusInternalServerError)
