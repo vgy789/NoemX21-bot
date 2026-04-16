@@ -8,11 +8,11 @@ states:
         ru: |
           ⚙️ *Настройки*
 
-          Здесь можно кастомизировать профиль, настроить связь и получить доступ к API.
+          Здесь можно кастомизировать профиль и управлять своей ТГ-группой.
         en: |
           ⚙️ *Settings*
 
-          Here you can customize your profile, set up contacts, and access the API.
+          Here you can customize your profile and manage your TG-group.
       buttons:
         - id: profile
           label:
@@ -20,28 +20,30 @@ states:
             en: 👤 My Profile
           next_state: PROFILE_SETTINGS
           row: 1
-        - id: api
-          label:
-            ru: 👨‍💻 Мой API
-            en: 👨‍💻 My API
-          next_state: LOAD_API_TOKEN
-          row: 1
+          #        - id: api
+          #          label:
+          #            ru: 👨‍💻 Мой API
+          #            en: 👨‍💻 My API
+          #          next_state: LOAD_API_TOKEN
+          #          row: 1
         - id: admin_groups_settings
           label:
             ru: 🛠️ Админка групп
             en: 🛠️ Admin Groups
           next_state: ADMIN_GROUPS_MENU
-          row: 2
+          row: 1
         - id: language
           label:
             ru: "🌐 Язык: {my_lang_emoji}"
             en: "🌐 Lang: {my_lang_emoji}"
           next_state: SET_LANGUAGE
+          row: 2
         - id: back
           label:
             ru: 🏠 На главную
             en: 🏠 Main menu
           next_state: MAIN_MENU
+          row: 2
 
   PROFILE_SETTINGS:
     type: interactive
