@@ -104,12 +104,6 @@ states:
 
           Choose verification method:
       buttons:
-        - id: auth_rocketchat
-          label:
-            ru: 💬 Rocket.Chat
-            en: 💬 Rocket.Chat
-          next_state: FIND_ROCKET_USER
-          row: 1
         - id: auth_email
           label:
             ru: 📧 Email
@@ -122,6 +116,12 @@ states:
             ru: 🔐 Токен Rocket.Chat
             en: 🔐 Rocket.Chat token
           next_state: INPUT_ROCKET_USER_ID
+          row: 1
+        - id: auth_rocketchat
+          label:
+            ru: ❌ Rocket.Chat (недоступно)
+            en: ❌ Rocket.Chat (unavailable)
+          next_state: ROCKETCHAT_UNAVAILABLE
           row: 2
         - id: back
           label:
@@ -129,6 +129,22 @@ states:
             en: "🔙 Back"
           next_state: INPUT_LOGIN
           row: 3
+
+  ROCKETCHAT_UNAVAILABLE:
+    type: interactive
+    description: Rocket.Chat авторизация временно недоступна
+    interface:
+      text:
+        ru: |
+          Запланированный способ. Будет доступно, как только администрация школы выдаст мне аккаунт для интеграции с Rocket.Chat (хотя сомневаюсь что это возможно, не отвечают на просьбу уже пару месяцев).
+        en: |
+          This method is planned. It will become available once school administration provides an integration account for Rocket.Chat.
+      buttons:
+        - id: back
+          label:
+            ru: "🔙 Назад"
+            en: "🔙 Back"
+          next_state: SELECT_OTP_METHOD
 
   INPUT_ROCKET_USER_ID:
     type: input
@@ -190,6 +206,11 @@ states:
             ru: "🔙 Назад"
             en: "🔙 Back"
           next_state: INPUT_ROCKET_USER_ID
+        - id: help_token
+          label:
+            ru: "ℹ️ Где взять токен?"
+            en: "ℹ️ How to get token?"
+          next_state: ROCKET_TOKEN_HELP
     validation:
       regex: ^[A-Za-z0-9_-]{16,300}$
     transitions:
@@ -313,12 +334,18 @@ states:
           📥 *Лови посылку!*
 
           Я отправила 6-значный код тебе {otp_delivery_label_ru}.
-          Скорее проверяй и пиши его сюда, пока он не протух!
+          Скорее проверяй и пиши его сюда, пока он не истёк!
+
+          Если выбран Email: письмо должно прийти с адреса `{otp_email_from}`.
+          Если письма нет, проверь папку «Спам».
         en: |
           📥 *Catch!*
 
           I've sent a 6-digit code {otp_delivery_label_en}.
           Go check it and enter it here before it expires!
+
+          If you selected Email: the message should come from `{otp_email_from}`.
+          If you don't see it, check your Spam folder.
       error_invalid:
         ru: |
           ❌ *Что-то не сходится.*
@@ -629,11 +656,73 @@ states:
             ru: 🔄 Ввести заново
             en: 🔄 Re-enter
           next_state: INPUT_ROCKET_USER_ID
+        - id: help
+          label:
+            ru: ℹ️ Инструкция по токену
+            en: ℹ️ Token guide
+          next_state: ROCKET_TOKEN_HELP
         - id: back
           label:
             ru: "🔙 Назад"
             en: "🔙 Back"
           next_state: SELECT_OTP_METHOD
+
+  ROCKET_TOKEN_HELP:
+    type: interactive
+    description: Инструкция по получению Rocket.Chat токена
+    interface:
+      text:
+        ru: |
+          🔐 *Как получить Rocket.Chat token*
+
+          1. Открой в браузере:
+          https://rocketchat-student.21-school.ru/account/tokens
+          В мобильном приложении этой функции нет.
+
+          2. Либо открой вручную:
+          `Аватарка → Настройки → Токены для личного доступа`.
+
+          3. В поле имени введи любое случайное название токена.
+
+          4. Рядом с кнопкой добавления переключи выпадающий список на
+          `Игнорировать двухфакторную авторизацию`.
+
+          5. Нажми `Добавить`, затем скопируй `id` и `Token`.
+
+          6. Введи их в боте. После успешного входа токен можно удалить через значок корзины.
+
+          Бот не сохраняет токен у себя: он используется только для подтверждения аккаунта.
+        en: |
+          🔐 *How to create a Rocket.Chat token*
+
+          1. Open in browser:
+          https://rocketchat-student.21-school.ru/account/tokens
+          This is not available in the mobile app.
+
+          2. Or open manually:
+          `Avatar → Settings → Personal Access Tokens`.
+
+          3. Enter any random token name.
+
+          4. Near the Add button, switch dropdown to
+          `Ignore two-factor authentication`.
+
+          5. Click `Add`, then copy both `id` and `Token`.
+
+          6. Enter them in the bot. After successful sign-in, you can delete the token via the trash icon.
+
+          The bot does not store your token; it is used only for account verification.
+      buttons:
+        - id: to_input
+          label:
+            ru: ✍️ Ввести token
+            en: ✍️ Enter token
+          next_state: INPUT_ROCKET_TOKEN
+        - id: back
+          label:
+            ru: "🔙 Назад"
+            en: "🔙 Back"
+          next_state: INPUT_ROCKET_USER_ID
   ERROR_EMAIL_ALREADY_REGISTERED:
     type: interactive
     description: Логин уже зарегистрирован

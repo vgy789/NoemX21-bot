@@ -49,6 +49,13 @@ func Register(
 	if aliasRegistrar != nil {
 		aliasRegistrar("START", "registration.yaml/START")
 	}
+	otpEmailFrom := strings.TrimSpace(cfg.EmailOTP.From)
+	if otpEmailFrom == "" {
+		otpEmailFrom = strings.TrimSpace(cfg.EmailOTP.SMTPUsername)
+	}
+	if otpEmailFrom == "" {
+		otpEmailFrom = "OTP_EMAIL_FROM"
+	}
 	resetRegistrationFlags := func() map[string]any {
 		return map[string]any{
 			"rocket_user_found":        false,
@@ -65,6 +72,7 @@ func Register(
 			"code_correct":             false,
 			"profile_loaded":           false,
 			"otp_email_enabled":        cfg.EmailOTP.Enabled,
+			"otp_email_from":           otpEmailFrom,
 			"otp_delivery_method":      otpDeliveryRocketchat,
 			"otp_delivery_label_ru":    "в Rocket.Chat",
 			"otp_delivery_label_en":    "to Rocket.Chat",
