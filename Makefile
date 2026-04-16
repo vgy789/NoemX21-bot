@@ -5,11 +5,11 @@ LDFLAGS := -s -w
 
 LOCAL_BIN := $(CURDIR)/bin
 
-GOLANGCI_VERSION 	:= v2.9.0
-GOVULN_VERSION		:= v1.1.4
-SQLC_VERSION     	:= v1.30.0
-MIGRATE_VERSION  	:= v4.19.1
-MOCKGEN_VERSION  	:= v0.6.0
+GOLANGCI_VERSION 	:= v2.9.0		## https://github.com/golangci/golangci-lint/releases
+GOVULN_VERSION		:= v1.1.4		## https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck?tab=versions
+SQLC_VERSION     	:= v1.30.0		## https://github.com/sqlc-dev/sqlc/releases
+MIGRATE_VERSION  	:= v4.19.1		## https://github.com/golang-migrate/migrate/releases
+MOCKGEN_VERSION  	:= v0.6.0		## https://github.com/uber-go/mock/releases/tag/v0.6.0
 
 GOLANGCI 	:= $(LOCAL_BIN)/golangci-lint
 GOVULN 		:= $(LOCAL_BIN)/govulncheck
@@ -41,10 +41,10 @@ MIGRATIONS_DIR	:= internal/database/migrations
 # =========================
 # Build & Run
 # =========================
-build: deps ## Build binary
+build: deps		## Build binary
 	go build -ldflags "$(LDFLAGS)" -o $(BINARY) $(BUILD_PKG)
 
-run: build ## Run binary
+run: build		## Run binary
 	./$(BINARY)
 
 # =========================
