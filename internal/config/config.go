@@ -39,6 +39,7 @@ type Config struct {
 	DBURL      Secret `env:"DATABASE_URL,notEmpty"`
 	Telegram   TelegramBot
 	GitSync    GitSync
+	EmailOTP   EmailOTP
 	RocketChat struct {
 		URL       Secret `env:"ROCKETCHAT_API_URL,notEmpty"`
 		UserID    Secret `env:"ROCKETCHAT_USER_ID,notEmpty"`
@@ -63,6 +64,19 @@ type Config struct {
 	}
 	Production    bool `env:"PRODUCTION" envDefault:"false"`
 	TestModeNoOTP bool `env:"TEST_MODE_NO_OTP" envDefault:"false"` // Skip OTP verification for testing
+}
+
+type EmailOTP struct {
+	Enabled      bool          `env:"OTP_EMAIL_ENABLED" envDefault:"false"`
+	SMTPHost     string        `env:"OTP_EMAIL_SMTP_HOST"`
+	SMTPPort     int           `env:"OTP_EMAIL_SMTP_PORT" envDefault:"587"`
+	SMTPTimeout  time.Duration `env:"OTP_EMAIL_SMTP_TIMEOUT" envDefault:"20s"`
+	SMTPUsername string        `env:"OTP_EMAIL_SMTP_USERNAME"`
+	SMTPPassword Secret        `env:"OTP_EMAIL_SMTP_PASSWORD"`
+	From         string        `env:"OTP_EMAIL_FROM"`
+	TestTo       string        `env:"OTP_EMAIL_TEST_TO"`
+	Subject      string        `env:"OTP_EMAIL_SUBJECT" envDefault:"NOEMX21-BOT | Verification code"`
+	TemplatePath string        `env:"OTP_EMAIL_TEMPLATE_PATH" envDefault:"internal/service/templates/otp_email.html.tmpl"`
 }
 
 type GitSync struct {

@@ -93,7 +93,7 @@ app.Run
 |---|---|
 | `transport/telegram` | Приём updates, callback handling, отправка сообщений и фото |
 | `fsm` | Загрузка YAML flows, переходы состояний, state persistence |
-| `service/otp` | Генерация и проверка OTP |
+| `service/otp` | Генерация и проверка OTP, доставка через Rocket.Chat или Email (SMTP) |
 | `service/credentials` | Шифрование School 21 credentials и получение access token |
 | `service/campus` | Синхронизация кампусов и cleanup review requests |
 | `sync/gitsync` | Pull/clone git-контента и синхронизация YAML в БД |

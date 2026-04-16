@@ -83,12 +83,142 @@ states:
       - condition: s21_user.status == 'EXPELLED' || s21_user.status == 'BLOCKED'
         next_state: ERROR_ACCESS_DENIED
       - condition: api_status == 200 && s21_user.status == 'ACTIVE' && s21_user.parallelName == 'Core program'
-        next_state: FIND_ROCKET_USER
+        next_state: SELECT_OTP_METHOD
       - next_state: ERROR_API
     interface:
       text:
         ru: "📡 *Ныряю в базу данных Школы...* `HOLD ON`"
         en: "📡 *Diving into School database...* `HOLD ON`"
+
+  SELECT_OTP_METHOD:
+    type: interactive
+    description: Выбор способа подтверждения
+    interface:
+      text:
+        ru: |
+          ✅ Логин подтверждён.
+
+          Выбери способ подтверждения:
+        en: |
+          ✅ Login verified.
+
+          Choose verification method:
+      buttons:
+        - id: auth_rocketchat
+          label:
+            ru: 💬 Rocket.Chat
+            en: 💬 Rocket.Chat
+          next_state: FIND_ROCKET_USER
+          row: 1
+        - id: auth_email
+          label:
+            ru: 📧 Email
+            en: 📧 Email
+          condition: otp_email_enabled == true
+          next_state: GENERATE_EMAIL_OTP
+          row: 1
+        - id: auth_rocket_token
+          label:
+            ru: 🔐 Токен Rocket.Chat
+            en: 🔐 Rocket.Chat token
+          next_state: INPUT_ROCKET_USER_ID
+          row: 2
+        - id: back
+          label:
+            ru: "🔙 Назад"
+            en: "🔙 Back"
+          next_state: INPUT_LOGIN
+          row: 3
+
+  INPUT_ROCKET_USER_ID:
+    type: input
+    description: Ввод Rocket.Chat user id
+    interface:
+      text:
+        ru: |
+          🔐 Введи свой `Rocket.Chat user id`.
+        en: |
+          🔐 Enter your `Rocket.Chat user id`.
+      error_invalid:
+        ru: |
+          ❌ Неверный формат user id.
+          Используй только латинские буквы и цифры.
+        en: |
+          ❌ Invalid user id format.
+          Use Latin letters and digits only.
+      buttons:
+        - id: back
+          label:
+            ru: "🔙 Назад"
+            en: "🔙 Back"
+          next_state: SELECT_OTP_METHOD
+    validation:
+      regex: ^[A-Za-z0-9]{8,64}$
+    transitions:
+      - trigger: on_valid_input
+        next_state: STORE_ROCKET_USER_ID
+
+  STORE_ROCKET_USER_ID:
+    type: system
+    description: Сохраняет Rocket user id
+    logic:
+      action: store_rocket_user_id
+      payload:
+        rocket_user_id: $context.last_input
+    transitions:
+      - next_state: INPUT_ROCKET_TOKEN
+
+  INPUT_ROCKET_TOKEN:
+    type: input
+    description: Ввод Rocket.Chat auth token
+    interface:
+      text:
+        ru: |
+          🔑 Теперь введи свой `Rocket.Chat auth token`.
+        en: |
+          🔑 Now enter your `Rocket.Chat auth token`.
+      error_invalid:
+        ru: |
+          ❌ Неверный формат токена.
+          Проверь, что вставил его полностью.
+        en: |
+          ❌ Invalid token format.
+          Check that you pasted it fully.
+      buttons:
+        - id: back
+          label:
+            ru: "🔙 Назад"
+            en: "🔙 Back"
+          next_state: INPUT_ROCKET_USER_ID
+    validation:
+      regex: ^[A-Za-z0-9_-]{16,300}$
+    transitions:
+      - trigger: on_valid_input
+        next_state: VERIFY_ROCKET_TOKEN
+
+  VERIFY_ROCKET_TOKEN:
+    type: system
+    description: Проверка Rocket.Chat токена через profile API
+    logic:
+      action: verify_rocketchat_token
+      payload:
+        login: $context.s21_login
+        rocket_user_id: $context.rocket_user_id
+        rocket_auth_token: $context.last_input
+    transitions:
+      - condition: email_already_registered == true
+        next_state: ERROR_EMAIL_ALREADY_REGISTERED
+      - condition: email_mismatch == true
+        next_state: ERROR_EMAIL_MISMATCH
+      - condition: rocket_token_verified == true
+        next_state: LOAD_PROFILE
+      - condition: rocket_token_invalid == true
+        next_state: ERROR_ROCKET_TOKEN_INVALID
+      - next_state: ERROR_ROCKET_TOKEN_INVALID
+    interface:
+      text:
+        ru: "🔎 *Проверяю токен Rocket.Chat...*"
+        en: "🔎 *Verifying Rocket.Chat token...*"
 
   ERROR_NOT_FOUND:
     type: interactive
@@ -116,7 +246,7 @@ states:
     logic:
       action: find_and_verify_rocket_user
       payload:
-        login: $context.last_input
+        login: $context.s21_login
     transitions:
       - condition: email_already_registered == true
         next_state: ERROR_EMAIL_ALREADY_REGISTERED
@@ -143,6 +273,7 @@ states:
       action: generate_otp
       payload:
         login: $context.s21_login
+        delivery_method: rocketchat
     transitions:
       - condition: otp_sent == true
         next_state: AWAITING_OTP
@@ -154,6 +285,25 @@ states:
         ru: "🔐 *Шифрую секретное кря…*"
         en: "🔐 *Encrypting secret quack…*"
 
+  GENERATE_EMAIL_OTP:
+    type: system
+    description: Отправка OTP на почту
+    logic:
+      action: generate_otp
+      payload:
+        login: $context.s21_login
+        delivery_method: email
+    transitions:
+      - condition: otp_sent == true
+        next_state: AWAITING_OTP
+      - condition: otp_rate_limited == true
+        next_state: ERROR_RATE_LIMIT
+      - next_state: ERROR_OTP_SEND_FAILED
+    interface:
+      text:
+        ru: "📧 *Готовлю письмо с кодом…*"
+        en: "📧 *Preparing your code email…*"
+
   AWAITING_OTP:
     type: input
     description: Ввод проверочного кода
@@ -162,12 +312,12 @@ states:
         ru: |
           📥 *Лови посылку!*
 
-          Я отправила 6-значный код тебе в *Rocket.Chat*.
+          Я отправила 6-значный код тебе {otp_delivery_label_ru}.
           Скорее проверяй и пиши его сюда, пока он не протух!
         en: |
           📥 *Catch!*
 
-          I've sent a 6-digit code to your *Rocket.Chat*.
+          I've sent a 6-digit code {otp_delivery_label_en}.
           Go check it and enter it here before it expires!
       error_invalid:
         ru: |
@@ -183,13 +333,13 @@ states:
           label:
             ru: "🔄 Пришли ещё раз"
             en: "🔄 Resend code"
-          next_state: GENERATE_OTP
+          next_state: "{otp_resend_state}"
           row: 1
         - id: back
           label:
             ru: "🔙 Назад"
             en: "🔙 Back"
-          next_state: INPUT_LOGIN
+          next_state: SELECT_OTP_METHOD
           row: 1
     validation:
       regex: ^[0-9]{6}$
@@ -322,24 +472,24 @@ states:
     interface:
       text:
         ru: |
-          🦆 *Двойной PeerDuck!*
+          ⏳ *Слишком часто запрашиваешь код*
 
-          Этот логин уже кем-то занят. Может, ты уже зашёл с другого аккаунта?
+          Новый код можно запросить примерно через *{otp_retry_after_secs} сек.*
         en: |
-          🦆 *Double PeerDuck!*
+          ⏳ *Too many code requests*
 
-          This login is already taken. Maybe you're logged in from another account?
+          You can request a new code in about *{otp_retry_after_secs} sec.*
       buttons:
         - id: retry
           label:
-            ru: 🔄 Попробовать снова
-            en: 🔄 Try again
-          next_state: INPUT_LOGIN
-        - id: help
+            ru: 🔄 Запросить снова
+            en: 🔄 Request again
+          next_state: "{otp_resend_state}"
+        - id: back
           label:
-            ru: ℹ️ Что делать?
-            en: ℹ️ What to do?
-          next_state: HELP
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: SELECT_OTP_METHOD
 
   HELP:
     type: interactive
@@ -389,11 +539,11 @@ states:
         ru: |
           ❌ *Код застрял в камышах.*
 
-          Не смогла отправить тебе сообщение в Рокет. Попробуй через минуту, вдруг отлагает.
+          Не смогла отправить тебе одноразовый код. Попробуй через минуту, вдруг отлагает.
         en: |
           ❌ *The code is stuck in the reeds.*
 
-          Failed to send you a message in Rocket. Try again in a minute, maybe it'll clear up.
+          Failed to send your one-time code. Try again in a minute, maybe it'll clear up.
       buttons:
         - id: retry
           label:
@@ -459,6 +609,31 @@ states:
             ru: 🔄 Повторить попытку
             en: 🔄 Retry
           next_state: START
+
+  ERROR_ROCKET_TOKEN_INVALID:
+    type: interactive
+    description: Токен Rocket.Chat не прошёл проверку
+    interface:
+      text:
+        ru: |
+          ❌ *Токен не подошёл.*
+
+          Проверь `user id` и `auth token` в Rocket.Chat и попробуй снова.
+        en: |
+          ❌ *Token verification failed.*
+
+          Check your Rocket.Chat `user id` and `auth token`, then try again.
+      buttons:
+        - id: retry
+          label:
+            ru: 🔄 Ввести заново
+            en: 🔄 Re-enter
+          next_state: INPUT_ROCKET_USER_ID
+        - id: back
+          label:
+            ru: "🔙 Назад"
+            en: "🔙 Back"
+          next_state: SELECT_OTP_METHOD
   ERROR_EMAIL_ALREADY_REGISTERED:
     type: interactive
     description: Логин уже зарегистрирован

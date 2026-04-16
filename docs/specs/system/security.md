@@ -36,7 +36,14 @@
 ### Rocket.Chat API
 
 - Используется для `users.info` и отправки OTP в direct message
+- Для token-based auth используется `GET /me` с пользовательскими `X-User-Id` + `X-Auth-Token`
 - Сетевые ошибки и retryable HTTP-статусы обрабатываются через `netretry`
+
+### SMTP (Email OTP)
+
+- Используется для отправки OTP на адрес вида `%login%@student.21-school.ru`
+- Тело письма берется из внешнего HTML-шаблона (`OTP_EMAIL_TEMPLATE_PATH`)
+- SMTP-доступ задается через env (`OTP_EMAIL_SMTP_*`)
 
 ### Telegram Bot API
 
@@ -75,6 +82,7 @@ Redis в текущей реализации не используется.
 - Срок жизни: 5 минут
 - Перед созданием нового OTP старые коды для этого login удаляются
 - После успешной проверки использованный код удаляется
+- Канал доставки выбирается в меню регистрации (`Rocket.Chat` или `Email`)
 
 ## Защитные меры
 

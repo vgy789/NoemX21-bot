@@ -70,6 +70,11 @@ func TestConfig_Defaults(t *testing.T) {
 	t.Setenv("GIT_BRANCH", "main")
 	t.Setenv("GIT_SYNC_INTERVAL", "5m")
 	t.Setenv("GIT_LOCAL_PATH", "data")
+	t.Setenv("OTP_EMAIL_ENABLED", "false")
+	t.Setenv("OTP_EMAIL_SMTP_PORT", "587")
+	t.Setenv("OTP_EMAIL_SMTP_TIMEOUT", "20s")
+	t.Setenv("OTP_EMAIL_SUBJECT", "NOEMX21-BOT | Verification code")
+	t.Setenv("OTP_EMAIL_TEMPLATE_PATH", "internal/service/templates/otp_email.html.tmpl")
 
 	cfg := MustLoad()
 
@@ -87,4 +92,10 @@ func TestConfig_Defaults(t *testing.T) {
 	assert.Equal(t, "main", cfg.GitSync.Branch)
 	assert.Equal(t, "5m", cfg.GitSync.Interval)
 	assert.Equal(t, "data", cfg.GitSync.LocalPath)
+	assert.False(t, cfg.EmailOTP.Enabled)
+	assert.Equal(t, 587, cfg.EmailOTP.SMTPPort)
+	assert.Equal(t, 20*time.Second, cfg.EmailOTP.SMTPTimeout)
+	assert.Equal(t, "", cfg.EmailOTP.TestTo)
+	assert.Equal(t, "NOEMX21-BOT | Verification code", cfg.EmailOTP.Subject)
+	assert.Equal(t, "internal/service/templates/otp_email.html.tmpl", cfg.EmailOTP.TemplatePath)
 }

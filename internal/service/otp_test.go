@@ -6,12 +6,14 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"path/filepath"
 	"testing"
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
 	"github.com/vgy789/noemx21-bot/internal/clients/s21"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
@@ -122,13 +124,20 @@ func TestOTPService_GenerateAndSendOTP_studentNotFound(t *testing.T) {
 
 	mockRepo := mock.NewMockQuerier(ctrl)
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	svc := NewOTPService(mockRepo, nil, &config.Config{}, log)
+	rcClient := rocketchat.NewClient("http://example.local/api/v1", "token", "user")
+	svc := NewOTPService(mockRepo, rcClient, &config.Config{}, log)
 	ctx := context.Background()
 
 	// No previous OTP (no rows)
 	mockRepo.EXPECT().
 		GetLastAuthVerificationCode(ctx, gomock.Any()).
 		Return(db.AuthVerificationCode{}, &noRowsErr{})
+	mockRepo.EXPECT().
+		DeleteAllAuthVerificationCodes(ctx, gomock.Any()).
+		Return(nil)
+	mockRepo.EXPECT().
+		CreateAuthVerificationCode(ctx, gomock.Any()).
+		Return(db.AuthVerificationCode{}, nil)
 	// Student lookup fails
 	mockRepo.EXPECT().
 		GetRegisteredUserByS21Login(ctx, "unknown").
@@ -164,13 +173,20 @@ func TestOTPService_GenerateAndSendOTP_MissingRocketChatID(t *testing.T) {
 
 	mockRepo := mock.NewMockQuerier(ctrl)
 	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
-	svc := NewOTPService(mockRepo, nil, &config.Config{}, log)
+	rcClient := rocketchat.NewClient("http://example.local/api/v1", "token", "user")
+	svc := NewOTPService(mockRepo, rcClient, &config.Config{}, log)
 	ctx := context.Background()
 
 	// No previous OTP
 	mockRepo.EXPECT().
 		GetLastAuthVerificationCode(ctx, gomock.Any()).
 		Return(db.AuthVerificationCode{}, &noRowsErr{})
+	mockRepo.EXPECT().
+		DeleteAllAuthVerificationCodes(ctx, gomock.Any()).
+		Return(nil)
+	mockRepo.EXPECT().
+		CreateAuthVerificationCode(ctx, gomock.Any()).
+		Return(db.AuthVerificationCode{}, nil)
 	// User has no RocketChat ID
 	mockRepo.EXPECT().
 		GetRegisteredUserByS21Login(ctx, "student1").
@@ -179,6 +195,58 @@ func TestOTPService_GenerateAndSendOTP_MissingRocketChatID(t *testing.T) {
 	err := svc.generateAndSendOTP(ctx, "student1", fsm.UserInfo{ID: 1, Username: "u", Platform: "Telegram"})
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "rocketchat_id")
+}
+
+func TestOTPService_GenerateAndSendOTP_EmailDisabled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mock.NewMockQuerier(ctrl)
+	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	svc := NewOTPService(mockRepo, nil, &config.Config{}, log)
+	ctx := context.WithValue(context.Background(), fsm.ContextKeyOTPDeliveryMethod, "email")
+
+	mockRepo.EXPECT().
+		GetLastAuthVerificationCode(ctx, gomock.Any()).
+		Return(db.AuthVerificationCode{}, &noRowsErr{})
+	mockRepo.EXPECT().
+		DeleteAllAuthVerificationCodes(ctx, gomock.Any()).
+		Return(nil)
+	mockRepo.EXPECT().
+		CreateAuthVerificationCode(ctx, gomock.Any()).
+		Return(db.AuthVerificationCode{}, nil)
+
+	err := svc.generateAndSendOTP(ctx, "student1", fsm.UserInfo{ID: 1, Username: "u", Platform: "Telegram"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "email otp is disabled")
+}
+
+func TestOTPService_RenderOTPEmailBody(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mock.NewMockQuerier(ctrl)
+	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	tmpDir := t.TempDir()
+	templatePath := filepath.Join(tmpDir, "otp_email.tmpl")
+	err := os.WriteFile(templatePath, []byte("code={{ .Code }} login={{ .S21Login }} user={{ .TelegramUserID }}"), 0o600)
+	require.NoError(t, err)
+
+	cfg := &config.Config{}
+	cfg.EmailOTP.TemplatePath = templatePath
+
+	svc := NewOTPService(mockRepo, nil, cfg, log)
+	body, err := svc.renderOTPEmailBody(
+		"123456",
+		"student1",
+		"student1@student.21-school.ru",
+		fsm.UserInfo{ID: 42, Username: "testuser", Platform: "Telegram"},
+	)
+	require.NoError(t, err)
+	assert.Contains(t, body, "code=123456")
+	assert.Contains(t, body, "login=student1")
+	assert.Contains(t, body, "user=42")
 }
 
 func TestEnsureCoalitionPresent(t *testing.T) {

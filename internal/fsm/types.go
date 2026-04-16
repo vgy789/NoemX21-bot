@@ -74,6 +74,8 @@ type ContextKey string
 const (
 	// ContextKeyS21Login is used to store S21 login in context
 	ContextKeyS21Login ContextKey = "s21_login"
+	// ContextKeyOTPDeliveryMethod stores OTP delivery channel ("rocketchat" or "email").
+	ContextKeyOTPDeliveryMethod ContextKey = "otp_delivery_method"
 	// ContextKeyUserInfo is used to store transport-level user info (e.g. from Telegram)
 	ContextKeyUserInfo ContextKey = "user_info"
 	// ContextKeyNotifier is used to store transport notifier implementation.

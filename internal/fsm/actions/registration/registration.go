@@ -22,6 +22,11 @@ import (
 
 const unlinkedExternalIDPrefix = "unlinked:"
 
+const (
+	otpDeliveryRocketchat = "rocketchat"
+	otpDeliveryEmail      = "email"
+)
+
 var latinLoginRegex = regexp.MustCompile(`[a-z-]+`)
 
 type userAccountRebinder interface {
@@ -59,6 +64,14 @@ func Register(
 			"otp_correct":              false,
 			"code_correct":             false,
 			"profile_loaded":           false,
+			"otp_email_enabled":        cfg.EmailOTP.Enabled,
+			"otp_delivery_method":      otpDeliveryRocketchat,
+			"otp_delivery_label_ru":    "в Rocket.Chat",
+			"otp_delivery_label_en":    "to Rocket.Chat",
+			"otp_resend_state":         "GENERATE_OTP",
+			"rocket_user_id":           "",
+			"rocket_token_verified":    false,
+			"rocket_token_invalid":     false,
 		}
 	}
 
@@ -136,6 +149,23 @@ func Register(
 		return ui
 	}
 
+	upsertInitialSettings := func(ctx context.Context, payload map[string]any, userAccountID int64) {
+		langCode := fsm.LangRu
+		if val, ok := payload["language"].(string); ok {
+			langCode = val
+		}
+
+		_, upsertErr := queries.UpsertUserBotSettings(ctx, db.UpsertUserBotSettingsParams{
+			UserAccountID:        userAccountID,
+			LanguageCode:         pgtype.Text{String: langCode, Valid: true},
+			NotificationsEnabled: pgtype.Bool{Bool: true, Valid: true},
+			ReviewPostCampusIds:  []byte("[]"),
+		})
+		if upsertErr != nil {
+			log.Error("failed to save initial user settings", "error", upsertErr)
+		}
+	}
+
 	// Register System actions for registration flow
 	registry.Register("is_user_registered", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		ui := getUserInfo(ctx, userID, payload)
@@ -199,6 +229,11 @@ func Register(
 				"parallelName": parallelName,
 			},
 		}, nil
+	})
+
+	registry.Register("store_rocket_user_id", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		rocketUserID := strings.TrimSpace(fmt.Sprintf("%v", payload["rocket_user_id"]))
+		return "", map[string]any{"rocket_user_id": rocketUserID}, nil
 	})
 
 	// Find and verify RocketChat user and update ID in DB
@@ -289,9 +324,158 @@ func Register(
 		return "", updates, nil
 	})
 
+	// Verify Rocket.Chat credentials provided by the user (single /me request)
+	registry.Register("verify_rocketchat_token", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		login := strings.ToLower(strings.TrimSpace(fmt.Sprintf("%v", payload["login"])))
+		login = latinLoginRegex.FindString(login)
+		rocketUserID := strings.TrimSpace(fmt.Sprintf("%v", payload["rocket_user_id"]))
+		rocketToken := strings.TrimSpace(fmt.Sprintf("%v", payload["rocket_auth_token"]))
+
+		updates := resetRegistrationFlags()
+		updates["rocket_user_id"] = rocketUserID
+
+		if login == "" || rocketUserID == "" || rocketToken == "" {
+			updates["rocket_token_invalid"] = true
+			return "", updates, nil
+		}
+		if rcClient == nil {
+			updates["rocket_token_invalid"] = true
+			return "", updates, nil
+		}
+
+		// Check if account already registered/linked in our DB
+		ua, err := queries.GetUserAccountByS21Login(ctx, login)
+		accountExists := err == nil
+		isOwnAccount := accountExists && ua.ExternalID == fmt.Sprintf("%d", userID)
+		isUnlinkedAccount := accountExists && strings.HasPrefix(ua.ExternalID, unlinkedExternalIDPrefix)
+		emailUnique := !accountExists || isOwnAccount || isUnlinkedAccount
+		if !emailUnique {
+			updates["email_already_registered"] = true
+			return "", updates, nil
+		}
+
+		profile, err := rcClient.GetMyProfileWithToken(ctx, rocketUserID, rocketToken)
+		if err != nil {
+			log.Warn("rocket token auth failed", "login", login, "rocket_user_id", rocketUserID, "error", err)
+			updates["rocket_token_invalid"] = true
+			return "", updates, nil
+		}
+
+		// Hard check: profile must belong to the same user ID entered by the user.
+		if strings.TrimSpace(profile.ID) != rocketUserID {
+			updates["rocket_token_invalid"] = true
+			return "", updates, nil
+		}
+
+		expectedEmail := fmt.Sprintf("%s@student.21-school.ru", login)
+		emailVerified := false
+		if cfg.TestModeNoOTP {
+			emailVerified = true
+		} else {
+			for _, email := range profile.Emails {
+				if strings.EqualFold(strings.TrimSpace(email.Address), expectedEmail) && email.Verified {
+					emailVerified = true
+					break
+				}
+			}
+		}
+		if !emailVerified {
+			updates["email_mismatch"] = true
+			return "", updates, nil
+		}
+
+		// We only persist minimal linkage required by existing profile loading logic.
+		regUser, err := queries.GetRegisteredUserByS21Login(ctx, login)
+		if err != nil {
+			_, err = queries.UpsertRegisteredUser(ctx, db.UpsertRegisteredUserParams{
+				S21Login:           login,
+				RocketchatID:       rocketUserID,
+				Timezone:           "UTC",
+				AlternativeContact: pgtype.Text{Valid: false},
+				HasCoffeeBan:       pgtype.Bool{Valid: false},
+			})
+			if err != nil {
+				return "", nil, fmt.Errorf("failed to create registered user: %w", err)
+			}
+		} else if regUser.RocketchatID != rocketUserID {
+			_, err = queries.UpsertRegisteredUser(ctx, db.UpsertRegisteredUserParams{
+				S21Login:           regUser.S21Login,
+				RocketchatID:       rocketUserID,
+				Timezone:           regUser.Timezone,
+				AlternativeContact: regUser.AlternativeContact,
+				HasCoffeeBan:       regUser.HasCoffeeBan,
+			})
+			if err != nil {
+				return "", nil, fmt.Errorf("failed to update rocketchat id: %w", err)
+			}
+		}
+
+		// Create/rebind Telegram account after successful Rocket token verification.
+		if !isOwnAccount {
+			ui := getUserInfo(ctx, userID, payload)
+
+			username := pgtype.Text{Valid: false}
+			if ui.Username != "" {
+				username = pgtype.Text{String: ui.Username, Valid: true}
+			}
+
+			platform := db.EnumPlatformTelegram
+			switch strings.ToLower(ui.Platform) {
+			case "rocketchat":
+				platform = db.EnumPlatformRocketchat
+			case "telegram":
+				platform = db.EnumPlatformTelegram
+			}
+
+			if isUnlinkedAccount {
+				rebinder, ok := queries.(userAccountRebinder)
+				if !ok {
+					return "", nil, fmt.Errorf("cannot rebind unlinked account: unsupported querier implementation")
+				}
+				uaRebound, rebindErr := rebinder.RebindUserAccountByS21Login(ctx, db.RebindUserAccountByS21LoginParams{
+					S21Login:   login,
+					Platform:   platform,
+					ExternalID: fmt.Sprintf("%d", ui.ID),
+					Username:   username,
+				})
+				if rebindErr != nil {
+					log.Error("failed to rebind user account", "error", rebindErr, "s21_login", login)
+				} else {
+					upsertInitialSettings(ctx, payload, uaRebound.ID)
+				}
+			} else {
+				uaCreated, createErr := queries.CreateUserAccount(ctx, db.CreateUserAccountParams{
+					S21Login:     login,
+					Platform:     platform,
+					ExternalID:   fmt.Sprintf("%d", ui.ID),
+					Username:     username,
+					IsSearchable: pgtype.Bool{Bool: true, Valid: true},
+					Role:         db.NullEnumUserRole{EnumUserRole: db.EnumUserRoleUser, Valid: true},
+				})
+				if createErr != nil {
+					log.Error("failed to create user account", "error", createErr, "s21_login", login)
+				} else {
+					upsertInitialSettings(ctx, payload, uaCreated.ID)
+				}
+			}
+		}
+
+		updates["s21_login"] = login
+		updates["rocket_token_verified"] = true
+		updates["email_verified"] = true
+		return "", updates, nil
+	})
+
 	// Generate and send OTP
 	registry.Register("generate_otp", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		login := payload["login"].(string)
+		deliveryMethod := otpDeliveryRocketchat
+		if rawMethod, ok := payload["delivery_method"].(string); ok {
+			rawMethod = strings.ToLower(strings.TrimSpace(rawMethod))
+			if rawMethod == otpDeliveryEmail || rawMethod == otpDeliveryRocketchat {
+				deliveryMethod = rawMethod
+			}
+		}
 
 		// 0. Check rate limits
 		rl := service.GetRateLimiter()
@@ -302,6 +486,17 @@ func Register(
 
 		// Set S21 login in context for verification
 		ctx = context.WithValue(ctx, fsm.ContextKeyS21Login, login)
+		ctx = context.WithValue(ctx, fsm.ContextKeyOTPDeliveryMethod, deliveryMethod)
+
+		otpDeliveryLabelRU := "в Rocket.Chat"
+		otpDeliveryLabelEN := "to Rocket.Chat"
+		otpResendState := "GENERATE_OTP"
+		if deliveryMethod == otpDeliveryEmail {
+			targetEmail := fmt.Sprintf("%s@student.21-school.ru", strings.ToLower(login))
+			otpDeliveryLabelRU = fmt.Sprintf("на email %s", targetEmail)
+			otpDeliveryLabelEN = fmt.Sprintf("to email %s", targetEmail)
+			otpResendState = "GENERATE_EMAIL_OTP"
+		}
 
 		ui := getUserInfo(ctx, userID, payload)
 		log.Debug("generating OTP with user info",
@@ -316,9 +511,13 @@ func Register(
 				var remaining int
 				_, _ = fmt.Sscanf(err.Error(), "RATE_LIMIT:%d", &remaining)
 				return "", map[string]any{
-					"otp_sent":             false,
-					"otp_rate_limited":     true,
-					"otp_retry_after_secs": remaining,
+					"otp_sent":              false,
+					"otp_rate_limited":      true,
+					"otp_retry_after_secs":  remaining,
+					"otp_delivery_method":   deliveryMethod,
+					"otp_delivery_label_ru": otpDeliveryLabelRU,
+					"otp_delivery_label_en": otpDeliveryLabelEN,
+					"otp_resend_state":      otpResendState,
 				}, nil
 			}
 			log.Error("failed to generate OTP", "error", err)
@@ -326,8 +525,12 @@ func Register(
 		}
 
 		return "", map[string]any{
-			"otp_sent":  true,
-			"s21_login": strings.ToLower(login),
+			"otp_sent":              true,
+			"s21_login":             strings.ToLower(login),
+			"otp_delivery_method":   deliveryMethod,
+			"otp_delivery_label_ru": otpDeliveryLabelRU,
+			"otp_delivery_label_en": otpDeliveryLabelEN,
+			"otp_resend_state":      otpResendState,
 		}, nil
 	})
 
@@ -373,23 +576,6 @@ func Register(
 			emailUnique = true
 		}
 
-		upsertInitialSettings := func(userAccountID int64) {
-			langCode := fsm.LangRu
-			if val, ok := payload["language"].(string); ok {
-				langCode = val
-			}
-
-			_, upsertErr := queries.UpsertUserBotSettings(ctx, db.UpsertUserBotSettingsParams{
-				UserAccountID:        userAccountID,
-				LanguageCode:         pgtype.Text{String: langCode, Valid: true},
-				NotificationsEnabled: pgtype.Bool{Bool: true, Valid: true},
-				ReviewPostCampusIds:  []byte("[]"),
-			})
-			if upsertErr != nil {
-				log.Error("failed to save initial user settings", "error", upsertErr)
-			}
-		}
-
 		if valid && emailUnique && !isOwnAccount {
 			ui := getUserInfo(ctx, userID, payload)
 
@@ -422,7 +608,7 @@ func Register(
 					log.Error("failed to rebind user account", "error", rebindErr, "s21_login", s21Login)
 				} else {
 					log.Info("rebound user account", "user_account_id", uaRebound.ID, "s21_login", s21Login, "telegram_user_id", ui.ID)
-					upsertInitialSettings(uaRebound.ID)
+					upsertInitialSettings(ctx, payload, uaRebound.ID)
 				}
 			} else {
 				uaCreated, createErr := queries.CreateUserAccount(ctx, db.CreateUserAccountParams{
@@ -437,7 +623,7 @@ func Register(
 					log.Error("failed to create user account", "error", createErr, "s21_login", s21Login)
 				} else {
 					log.Info("created user account", "user_account_id", uaCreated.ID, "s21_login", s21Login)
-					upsertInitialSettings(uaCreated.ID)
+					upsertInitialSettings(ctx, payload, uaCreated.ID)
 				}
 			}
 		}

@@ -266,6 +266,111 @@ func TestFindAndVerifyRocketUser_AlreadyRegisteredResetsSuccessFlags(t *testing.
 	}
 }
 
+func TestVerifyRocketChatToken_SuccessSingleProfileRequest(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockQ := dbmock.NewMockQuerier(ctrl)
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	registry := fsm.NewLogicRegistry()
+	cfg := &config.Config{}
+
+	var profileRequests int
+	rcHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/me" {
+			profileRequests++
+			if r.Header.Get("X-User-Id") != "rc123" || r.Header.Get("X-Auth-Token") != "token1234567890" {
+				w.WriteHeader(http.StatusUnauthorized)
+				_, _ = w.Write([]byte(`{"success":false}`))
+				return
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"success":true,"_id":"rc123","username":"roryraqu","emails":[{"address":"roryraqu@student.21-school.ru","verified":true}]}`))
+			return
+		}
+		http.NotFound(w, r)
+	})
+	rcClient := newMockRocketClient(rcHandler)
+
+	mockQ.EXPECT().GetUserAccountByS21Login(gomock.Any(), "roryraqu").Return(db.UserAccount{}, pgx.ErrNoRows)
+	mockQ.EXPECT().GetRegisteredUserByS21Login(gomock.Any(), "roryraqu").Return(db.RegisteredUser{}, pgx.ErrNoRows)
+	mockQ.EXPECT().UpsertRegisteredUser(gomock.Any(), gomock.Any()).Return(db.RegisteredUser{
+		S21Login:     "roryraqu",
+		RocketchatID: "rc123",
+		Timezone:     "UTC",
+	}, nil)
+	mockQ.EXPECT().CreateUserAccount(gomock.Any(), gomock.Any()).Return(db.UserAccount{ID: 1}, nil)
+	mockQ.EXPECT().UpsertUserBotSettings(gomock.Any(), gomock.Any()).Return(db.UserBotSetting{ID: 1}, nil)
+
+	Register(registry, cfg, logger, mockQ, &fakeUserSvc{}, rcClient, nil, nil, nil, nil)
+
+	action, ok := registry.Get("verify_rocketchat_token")
+	if !ok {
+		t.Fatalf("verify_rocketchat_token action not registered")
+	}
+
+	_, updates, err := action(context.Background(), 42, map[string]any{
+		"login":             "roryraqu",
+		"rocket_user_id":    "rc123",
+		"rocket_auth_token": "token1234567890",
+	})
+	if err != nil {
+		t.Fatalf("action returned error: %v", err)
+	}
+	if updates["rocket_token_verified"] != true {
+		t.Fatalf("expected rocket_token_verified=true, got: %#v", updates)
+	}
+	if profileRequests != 1 {
+		t.Fatalf("expected exactly 1 profile request, got %d", profileRequests)
+	}
+}
+
+func TestVerifyRocketChatToken_InvalidToken(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockQ := dbmock.NewMockQuerier(ctrl)
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	registry := fsm.NewLogicRegistry()
+	cfg := &config.Config{}
+
+	var profileRequests int
+	rcHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/me" {
+			profileRequests++
+			w.WriteHeader(http.StatusUnauthorized)
+			_, _ = w.Write([]byte(`{"success":false}`))
+			return
+		}
+		http.NotFound(w, r)
+	})
+	rcClient := newMockRocketClient(rcHandler)
+
+	mockQ.EXPECT().GetUserAccountByS21Login(gomock.Any(), "roryraqu").Return(db.UserAccount{}, pgx.ErrNoRows)
+
+	Register(registry, cfg, logger, mockQ, &fakeUserSvc{}, rcClient, nil, nil, nil, nil)
+
+	action, ok := registry.Get("verify_rocketchat_token")
+	if !ok {
+		t.Fatalf("verify_rocketchat_token action not registered")
+	}
+
+	_, updates, err := action(context.Background(), 42, map[string]any{
+		"login":             "roryraqu",
+		"rocket_user_id":    "rc123",
+		"rocket_auth_token": "bad-token",
+	})
+	if err != nil {
+		t.Fatalf("action returned error: %v", err)
+	}
+	if updates["rocket_token_invalid"] != true {
+		t.Fatalf("expected rocket_token_invalid=true, got: %#v", updates)
+	}
+	if profileRequests != 1 {
+		t.Fatalf("expected exactly 1 profile request, got %d", profileRequests)
+	}
+}
+
 func TestLoadUserProfile_TriggersMemberTagsSyncForTelegram(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

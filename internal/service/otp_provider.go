@@ -14,7 +14,7 @@ type OTPProvider interface {
 	VerifyOTP(ctx context.Context, telegramUserID int64, code string) (bool, error)
 }
 
-// RealOTPProvider is the production OTP provider using Rocket.Chat
+// RealOTPProvider is the production OTP provider (Rocket.Chat/Email via OTPService).
 type RealOTPProvider struct {
 	*OTPService
 }
@@ -24,7 +24,7 @@ func NewRealOTPProvider(otpService *OTPService) *RealOTPProvider {
 	return &RealOTPProvider{OTPService: otpService}
 }
 
-// GenerateAndSendOTP generates and sends real OTP via Rocket.Chat
+// GenerateAndSendOTP generates and sends OTP via the channel selected in context.
 func (p *RealOTPProvider) GenerateAndSendOTP(ctx context.Context, s21Login string, ui fsm.UserInfo) error {
 	return p.generateAndSendOTP(ctx, s21Login, ui)
 }

@@ -56,6 +56,23 @@
 | `SCHEDULE_IMAGES_ENABLED` | `true` |
 | `SCHEDULE_IMAGES_INTERVAL` | `5m` |
 | `SCHEDULE_IMAGES_TEMP_DIR` | `tmp/schedules` |
+| `OTP_EMAIL_ENABLED` | `false` |
+| `OTP_EMAIL_SMTP_PORT` | `587` |
+| `OTP_EMAIL_SMTP_TIMEOUT` | `20s` |
+| `OTP_EMAIL_SUBJECT` | `NOEMX21-BOT \| Verification code` |
+| `OTP_EMAIL_TEMPLATE_PATH` | `internal/service/templates/otp_email.html.tmpl` |
+
+## Optional для Email OTP (без default)
+
+Используются только если `OTP_EMAIL_ENABLED=true`.
+
+| Variable | Подсистема |
+|---|---|
+| `OTP_EMAIL_SMTP_HOST` | SMTP |
+| `OTP_EMAIL_SMTP_USERNAME` | SMTP |
+| `OTP_EMAIL_SMTP_PASSWORD` | SMTP |
+| `OTP_EMAIL_FROM` | SMTP |
+| `OTP_EMAIL_TEST_TO` | SMTP (override recipient for testing) |
 
 ## Deployment note
 
