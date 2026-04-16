@@ -20,8 +20,10 @@ FROM alpine:3.23
 
 WORKDIR /app
 
-# Install ca-certificates for HTTPS
-RUN apk --no-cache add ca-certificates tzdata
+# Install runtime deps:
+# - ca-certificates/tzdata for HTTPS and timezone support
+# - ttf-dejavu to provide system fonts for schedule image generation
+RUN apk --no-cache add ca-certificates tzdata ttf-dejavu
 
 # Create a non-root user
 RUN adduser -D -g '' appuser
