@@ -17,7 +17,6 @@ import (
 const (
 	defenderSourceAutoJoin  = "auto_join"
 	defenderSourceManualRun = "manual_run"
-	defenderSourcePreview   = "preview"
 
 	defenderBanDefaultSec = int32(24 * 60 * 60)
 	defenderBanMinSec     = int32(5 * 60)
