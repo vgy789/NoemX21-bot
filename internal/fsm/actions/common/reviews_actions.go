@@ -1345,7 +1345,7 @@ func formatProjectGroups(groups []reviewProjectGroup) string {
 	}
 	var b strings.Builder
 	for i, g := range groups {
-		b.WriteString(fmt.Sprintf("%d. %s (%s) - %d заявок\n", i+1, g.Name, g.Type, g.Count))
+		_, _ = fmt.Fprintf(&b, "%d. %s (%s) - %d заявок\n", i+1, g.Name, g.Type, g.Count)
 	}
 	return strings.TrimSpace(b.String())
 }
@@ -1356,7 +1356,7 @@ func formatProjectRequestRows(rows []db.GetOpenReviewRequestsByProjectRow) strin
 	}
 	var b strings.Builder
 	for i, r := range rows {
-		b.WriteString(fmt.Sprintf("%s %d. %s, %s, %s\n", statusEmoji(r.Status), i+1, r.RequesterS21Login, nonEmpty(r.RequesterCampusName, "Unknown campus"), nonEmpty(r.AvailabilityText, "Flexible")))
+		_, _ = fmt.Fprintf(&b, "%s %d. %s, %s, %s\n", statusEmoji(r.Status), i+1, r.RequesterS21Login, nonEmpty(r.RequesterCampusName, "Unknown campus"), nonEmpty(r.AvailabilityText, "Flexible"))
 	}
 	return strings.TrimSpace(b.String())
 }
@@ -1367,7 +1367,7 @@ func formatMyRequestRows(rows []db.GetMyOpenReviewRequestsRow) string {
 	}
 	var b strings.Builder
 	for i, r := range rows {
-		b.WriteString(fmt.Sprintf("%s %d. %s (%s)\n", statusEmoji(r.Status), i+1, r.ProjectName, nonEmpty(r.AvailabilityText, "Flexible")))
+		_, _ = fmt.Fprintf(&b, "%s %d. %s (%s)\n", statusEmoji(r.Status), i+1, r.ProjectName, nonEmpty(r.AvailabilityText, "Flexible"))
 	}
 	return strings.TrimSpace(b.String())
 }
@@ -2266,7 +2266,7 @@ func formatProjectFilterCandidates(items []projectFilterCandidate, selected map[
 		if isFilterCandidateSelected(selected, item.ProjectIDs) {
 			mark = "✅"
 		}
-		b.WriteString(fmt.Sprintf("%s %d. %s\n", mark, i+1, item.Label))
+		_, _ = fmt.Fprintf(&b, "%s %d. %s\n", mark, i+1, item.Label)
 	}
 	return strings.TrimSpace(b.String())
 }
@@ -2375,7 +2375,7 @@ func formatCampusFilterCandidates(items []campusFilterCandidate, selected map[st
 		if selected[item.ID] {
 			mark = "✅"
 		}
-		b.WriteString(fmt.Sprintf("%s %d. %s\n", mark, i+1, item.Label))
+		_, _ = fmt.Fprintf(&b, "%s %d. %s\n", mark, i+1, item.Label)
 	}
 	return strings.TrimSpace(b.String())
 }

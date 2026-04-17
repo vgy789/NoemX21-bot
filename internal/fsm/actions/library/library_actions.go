@@ -300,7 +300,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 					overdueCount++
 				}
 			}
-			sb.WriteString(fmt.Sprintf("%s *%d.* *%s* (%s)\n   🗓 До: `%s`\n\n", stateIcon, i+1, fsm.EscapeMarkdown(loan.BookTitle), fsm.EscapeMarkdown(loan.BookAuthor), dueText))
+			_, _ = fmt.Fprintf(&sb, "%s *%d.* *%s* (%s)\n   🗓 До: `%s`\n\n", stateIcon, i+1, fsm.EscapeMarkdown(loan.BookTitle), fsm.EscapeMarkdown(loan.BookAuthor), dueText)
 			if i < btnCount {
 				vars[fmt.Sprintf("loan_btn_id_%d", i+1)] = fmt.Sprintf("return_%d", loan.ID)
 				vars[fmt.Sprintf("loan_btn_label_%d", i+1)] = common.TrimRunes(strings.TrimSpace(loan.BookTitle), 28)
@@ -642,7 +642,7 @@ func fillSearchView(
 		if b.AvailableStock <= 0 {
 			icon = "🔴"
 		}
-		listBuilder.WriteString(fmt.Sprintf("%s *%d.* *%s* (%s)\n", icon, num, fsm.EscapeMarkdown(b.Title), fsm.EscapeMarkdown(b.Author)))
+		_, _ = fmt.Fprintf(&listBuilder, "%s *%d.* *%s* (%s)\n", icon, num, fsm.EscapeMarkdown(b.Title), fsm.EscapeMarkdown(b.Author))
 		vars[fmt.Sprintf("book_id_%d", num)] = fmt.Sprintf("book_%d", b.ID)
 		vars[fmt.Sprintf("book_btn_label_%d", num)] = fmt.Sprintf("%d. %s", num, b.Title)
 		vars[fmt.Sprintf("result_book_id_%d", num)] = b.ID

@@ -305,15 +305,15 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 func formatLocalClubs(clubs []db.GetLocalClubsRow) string {
 	var sb strings.Builder
 	for _, c := range clubs {
-		sb.WriteString(fmt.Sprintf("*%s* [%s]\n", fsm.EscapeMarkdown(c.Name), fsm.EscapeMarkdown(c.CategoryName)))
+		_, _ = fmt.Fprintf(&sb, "*%s* [%s]\n", fsm.EscapeMarkdown(c.Name), fsm.EscapeMarkdown(c.CategoryName))
 		if c.Description.Valid && c.Description.String != "" {
-			sb.WriteString(fmt.Sprintf("%s\n", fsm.EscapeMarkdown(c.Description.String)))
+			_, _ = fmt.Fprintf(&sb, "%s\n", fsm.EscapeMarkdown(c.Description.String))
 		}
 		if c.LeaderLogin.Valid && c.LeaderLogin.String != "" {
-			sb.WriteString(fmt.Sprintf("👤 Leader: %s\n", fsm.EscapeMarkdown(c.LeaderLogin.String)))
+			_, _ = fmt.Fprintf(&sb, "👤 Leader: %s\n", fsm.EscapeMarkdown(c.LeaderLogin.String))
 		}
 		if c.ExternalLink.Valid && c.ExternalLink.String != "" {
-			sb.WriteString(fmt.Sprintf("🔗 [Join](%s)\n", c.ExternalLink.String))
+			_, _ = fmt.Fprintf(&sb, "🔗 [Join](%s)\n", c.ExternalLink.String)
 		}
 		sb.WriteString("\n")
 	}
@@ -323,15 +323,15 @@ func formatLocalClubs(clubs []db.GetLocalClubsRow) string {
 func formatGlobalClubs(clubs []db.GetGlobalClubsRow) string {
 	var sb strings.Builder
 	for _, c := range clubs {
-		sb.WriteString(fmt.Sprintf("*%s* [%s]\n", fsm.EscapeMarkdown(c.Name), fsm.EscapeMarkdown(c.CategoryName)))
+		_, _ = fmt.Fprintf(&sb, "*%s* [%s]\n", fsm.EscapeMarkdown(c.Name), fsm.EscapeMarkdown(c.CategoryName))
 		if c.Description.Valid && c.Description.String != "" {
-			sb.WriteString(fmt.Sprintf("%s\n", fsm.EscapeMarkdown(c.Description.String)))
+			_, _ = fmt.Fprintf(&sb, "%s\n", fsm.EscapeMarkdown(c.Description.String))
 		}
 		if c.LeaderLogin.Valid && c.LeaderLogin.String != "" {
-			sb.WriteString(fmt.Sprintf("👤 Leader: %s\n", fsm.EscapeMarkdown(c.LeaderLogin.String)))
+			_, _ = fmt.Fprintf(&sb, "👤 Leader: %s\n", fsm.EscapeMarkdown(c.LeaderLogin.String))
 		}
 		if c.ExternalLink.Valid && c.ExternalLink.String != "" {
-			sb.WriteString(fmt.Sprintf("🔗 [Join](%s)\n", c.ExternalLink.String))
+			_, _ = fmt.Fprintf(&sb, "🔗 [Join](%s)\n", c.ExternalLink.String)
 		}
 		sb.WriteString("\n")
 	}
@@ -341,18 +341,18 @@ func formatGlobalClubs(clubs []db.GetGlobalClubsRow) string {
 // formatClubCard formats a global club as a detailed card
 func formatClubCard(c db.GetGlobalClubsRow) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("*%s*\n\n", fsm.EscapeMarkdown(c.Name)))
+	_, _ = fmt.Fprintf(&sb, "*%s*\n\n", fsm.EscapeMarkdown(c.Name))
 
 	if c.Description.Valid && c.Description.String != "" {
 		// Use plain text for description to avoid nested italics issues with underscores
-		sb.WriteString(fmt.Sprintf("%s\n\n", fsm.EscapeMarkdown(c.Description.String)))
+		_, _ = fmt.Fprintf(&sb, "%s\n\n", fsm.EscapeMarkdown(c.Description.String))
 	}
 	if c.LeaderLogin.Valid && c.LeaderLogin.String != "" {
-		sb.WriteString(fmt.Sprintf("👤 *Лидер:* %s\n", fsm.EscapeMarkdown(c.LeaderLogin.String)))
+		_, _ = fmt.Fprintf(&sb, "👤 *Лидер:* %s\n", fsm.EscapeMarkdown(c.LeaderLogin.String))
 	}
-	sb.WriteString(fmt.Sprintf("📂 *Категория:* %s\n", fsm.EscapeMarkdown(c.CategoryName)))
+	_, _ = fmt.Fprintf(&sb, "📂 *Категория:* %s\n", fsm.EscapeMarkdown(c.CategoryName))
 	if c.CampusName != "" {
-		sb.WriteString(fmt.Sprintf("📍 *Кампус:* %s\n", fsm.EscapeMarkdown(c.CampusName)))
+		_, _ = fmt.Fprintf(&sb, "📍 *Кампус:* %s\n", fsm.EscapeMarkdown(c.CampusName))
 	}
 	return sb.String()
 }
@@ -360,17 +360,17 @@ func formatClubCard(c db.GetGlobalClubsRow) string {
 // formatLocalClubCard formats a local club as a detailed card
 func formatLocalClubCard(c db.GetLocalClubsRow) string {
 	var sb strings.Builder
-	sb.WriteString(fmt.Sprintf("*%s*\n\n", fsm.EscapeMarkdown(c.Name)))
+	_, _ = fmt.Fprintf(&sb, "*%s*\n\n", fsm.EscapeMarkdown(c.Name))
 
 	if c.Description.Valid && c.Description.String != "" {
 		// Use plain text for description to avoid nested italics issues with underscores
-		sb.WriteString(fmt.Sprintf("%s\n\n", fsm.EscapeMarkdown(c.Description.String)))
+		_, _ = fmt.Fprintf(&sb, "%s\n\n", fsm.EscapeMarkdown(c.Description.String))
 	}
 	if c.LeaderLogin.Valid && c.LeaderLogin.String != "" {
-		sb.WriteString(fmt.Sprintf("👤 *Лидер:* %s\n", fsm.EscapeMarkdown(c.LeaderLogin.String)))
+		_, _ = fmt.Fprintf(&sb, "👤 *Лидер:* %s\n", fsm.EscapeMarkdown(c.LeaderLogin.String))
 	}
-	sb.WriteString(fmt.Sprintf("📂 *Категория:* %s\n", fsm.EscapeMarkdown(c.CategoryName)))
-	sb.WriteString(fmt.Sprintf("📍 *Организовали в:* %s\n", fsm.EscapeMarkdown(c.CampusName)))
+	_, _ = fmt.Fprintf(&sb, "📂 *Категория:* %s\n", fsm.EscapeMarkdown(c.CategoryName))
+	_, _ = fmt.Fprintf(&sb, "📍 *Организовали в:* %s\n", fsm.EscapeMarkdown(c.CampusName))
 	return sb.String()
 }
 
