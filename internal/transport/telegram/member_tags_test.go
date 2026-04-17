@@ -340,6 +340,63 @@ func TestMemberTagRunner_ManualClearThenApply(t *testing.T) {
 	assert.Equal(t, "gehnaeli [11]", client.setTagCalls[1].Tag)
 }
 
+func TestMemberTagRunner_ManualRollbackRestoresPreviousTag(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	queries := dbmock.NewMockQuerier(ctrl)
+	userSvc := serviceMock.NewMockUserService(ctrl)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	s := &telegramService{log: log, queries: queries, userSvc: userSvc}
+
+	ownerID := int64(304)
+	chatID := int64(-100804)
+	userID := int64(405)
+
+	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
+		ChatID:              chatID,
+		OwnerTelegramUserID: ownerID,
+		IsInitialized:       true,
+		IsActive:            true,
+		MemberTagFormat:     memberTagFormatLoginLevel,
+	}, nil).Times(2)
+	queries.EXPECT().ListTelegramGroupKnownMembers(gomock.Any(), chatID).Return([]db.TelegramGroupMember{{
+		ChatID: chatID, TelegramUserID: userID, IsMember: true,
+	}}, nil)
+	userSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), userID).Return(&service.UserProfile{Login: "gehnaeli", Level: 11}, nil)
+
+	client := &fakeMemberTagsBotClient{members: map[int64]rawChatMember{
+		9000: {Status: gotgbot.ChatMemberStatusAdministrator, CanManageTags: true, User: struct {
+			ID    int64 `json:"id"`
+			IsBot bool  `json:"is_bot"`
+		}{ID: 9000, IsBot: true}},
+		userID: {Status: gotgbot.ChatMemberStatusMember, Tag: "legacy", User: struct {
+			ID    int64 `json:"id"`
+			IsBot bool  `json:"is_bot"`
+		}{ID: userID}},
+	}}
+	bot := &gotgbot.Bot{Token: "test-token", User: gotgbot.User{Id: 9000, IsBot: true}, BotClient: client}
+
+	runner := s.newMemberTagRunner(bot)
+	rollbackRunner, ok := runner.(fsm.MemberTagRollbackRunner)
+	require.True(t, ok)
+
+	runResult, snapshot, err := rollbackRunner.RunGroupMemberTagsWithRollback(context.Background(), ownerID, chatID, fsm.MemberTagRunModeClearAndApply)
+	require.NoError(t, err)
+	assert.Equal(t, 1, runResult.Updated)
+	require.Len(t, snapshot, 1)
+	assert.Equal(t, userID, snapshot[0].TelegramUserID)
+	assert.Equal(t, "legacy", snapshot[0].PreviousTag)
+
+	rollbackResult, err := rollbackRunner.RollbackGroupMemberTags(context.Background(), ownerID, chatID, snapshot)
+	require.NoError(t, err)
+	assert.Equal(t, 1, rollbackResult.Restored)
+	require.Len(t, client.setTagCalls, 3)
+	assert.Equal(t, "", client.setTagCalls[0].Tag)
+	assert.Equal(t, "gehnaeli [11]", client.setTagCalls[1].Tag)
+	assert.Equal(t, "legacy", client.setTagCalls[2].Tag)
+}
+
 func TestMemberTagRunner_ManualRunSkipsAdministrators(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -46,7 +47,16 @@ func (s *telegramService) newMemberTagRunner(bot *gotgbot.Bot) fsm.MemberTagRunn
 }
 
 func (r *telegramMemberTagRunner) RunGroupMemberTags(ctx context.Context, ownerTelegramUserID, chatID int64, mode fsm.MemberTagRunMode) (fsm.MemberTagRunResult, error) {
-	return r.svc.runGroupMemberTags(ctx, r.bot, ownerTelegramUserID, chatID, mode)
+	result, _, err := r.svc.runGroupMemberTagsWithRollback(ctx, r.bot, ownerTelegramUserID, chatID, mode)
+	return result, err
+}
+
+func (r *telegramMemberTagRunner) RunGroupMemberTagsWithRollback(ctx context.Context, ownerTelegramUserID, chatID int64, mode fsm.MemberTagRunMode) (fsm.MemberTagRunResult, []fsm.MemberTagRollbackEntry, error) {
+	return r.svc.runGroupMemberTagsWithRollback(ctx, r.bot, ownerTelegramUserID, chatID, mode)
+}
+
+func (r *telegramMemberTagRunner) RollbackGroupMemberTags(ctx context.Context, ownerTelegramUserID, chatID int64, entries []fsm.MemberTagRollbackEntry) (fsm.MemberTagRollbackResult, error) {
+	return r.svc.rollbackGroupMemberTags(ctx, r.bot, ownerTelegramUserID, chatID, entries)
 }
 
 func (r *telegramMemberTagRunner) SyncMemberTagsForRegisteredUser(ctx context.Context, telegramUserID int64) error {
@@ -119,36 +129,43 @@ func (s *telegramService) markKnownGroupMemberLeft(ctx context.Context, chatID, 
 	s.upsertKnownGroupMember(ctx, chatID, userID, false, status, false)
 }
 
-func (s *telegramService) runGroupMemberTags(ctx context.Context, b *gotgbot.Bot, ownerTelegramUserID, chatID int64, mode fsm.MemberTagRunMode) (fsm.MemberTagRunResult, error) {
+func (s *telegramService) runGroupMemberTagsWithRollback(ctx context.Context, b *gotgbot.Bot, ownerTelegramUserID, chatID int64, mode fsm.MemberTagRunMode) (fsm.MemberTagRunResult, []fsm.MemberTagRollbackEntry, error) {
 	result := fsm.MemberTagRunResult{}
+	rollbackByUser := map[int64]string{}
+	recordRollback := func(userID int64, previousTag string) {
+		if _, exists := rollbackByUser[userID]; exists {
+			return
+		}
+		rollbackByUser[userID] = previousTag
+	}
 
 	if s == nil || s.queries == nil || s.userSvc == nil || b == nil {
-		return result, errors.New("member tags dependencies are not ready")
+		return result, nil, errors.New("member tags dependencies are not ready")
 	}
 
 	group, err := s.queries.GetTelegramGroupByChatID(ctx, chatID)
 	if err != nil {
-		return result, fmt.Errorf("failed to load group: %w", err)
+		return result, nil, fmt.Errorf("failed to load group: %w", err)
 	}
 	if group.OwnerTelegramUserID != ownerTelegramUserID || !group.IsActive || !group.IsInitialized {
-		return result, errors.New("group access denied")
+		return result, nil, errors.New("group access denied")
 	}
 
 	knownMembers, err := s.queries.ListTelegramGroupKnownMembers(ctx, chatID)
 	if err != nil {
-		return result, fmt.Errorf("failed to list known members: %w", err)
+		return result, nil, fmt.Errorf("failed to list known members: %w", err)
 	}
 	if len(knownMembers) == 0 {
-		return result, nil
+		return result, nil, nil
 	}
 
 	botMember, err := s.getRawChatMember(ctx, b, chatID, b.Id)
 	if err != nil {
-		return result, fmt.Errorf("failed to verify bot rights: %w", err)
+		return result, nil, fmt.Errorf("failed to verify bot rights: %w", err)
 	}
 	if !canEditMemberTags(botMember) {
 		result.SkippedNoRights = len(knownMembers)
-		return result, nil
+		return result, nil, nil
 	}
 
 	tagFormat := normalizeMemberTagFormat(group.MemberTagFormat)
@@ -172,7 +189,8 @@ func (s *telegramService) runGroupMemberTags(ctx context.Context, b *gotgbot.Bot
 			continue
 		}
 
-		currentTag := strings.TrimSpace(memberState.Tag)
+		previousTag := memberState.Tag
+		currentTag := strings.TrimSpace(previousTag)
 		if mode == fsm.MemberTagRunModeKeepExisting && currentTag != "" {
 			result.SkippedExisting++
 			continue
@@ -183,6 +201,7 @@ func (s *telegramService) runGroupMemberTags(ctx context.Context, b *gotgbot.Bot
 				result.Errors++
 				continue
 			}
+			recordRollback(known.TelegramUserID, previousTag)
 			currentTag = ""
 		}
 
@@ -207,7 +226,69 @@ func (s *telegramService) runGroupMemberTags(ctx context.Context, b *gotgbot.Bot
 			continue
 		}
 
+		recordRollback(known.TelegramUserID, previousTag)
 		result.Updated++
+	}
+
+	return result, mapToSortedRollbackEntries(rollbackByUser), nil
+}
+
+func (s *telegramService) rollbackGroupMemberTags(ctx context.Context, b *gotgbot.Bot, ownerTelegramUserID, chatID int64, entries []fsm.MemberTagRollbackEntry) (fsm.MemberTagRollbackResult, error) {
+	result := fsm.MemberTagRollbackResult{}
+	if len(entries) == 0 {
+		return result, nil
+	}
+	if s == nil || s.queries == nil || b == nil {
+		return result, errors.New("member tags dependencies are not ready")
+	}
+
+	group, err := s.queries.GetTelegramGroupByChatID(ctx, chatID)
+	if err != nil {
+		return result, fmt.Errorf("failed to load group: %w", err)
+	}
+	if group.OwnerTelegramUserID != ownerTelegramUserID || !group.IsActive || !group.IsInitialized {
+		return result, errors.New("group access denied")
+	}
+
+	botMember, err := s.getRawChatMember(ctx, b, chatID, b.Id)
+	if err != nil {
+		return result, fmt.Errorf("failed to verify bot rights: %w", err)
+	}
+	if !canEditMemberTags(botMember) {
+		result.SkippedNoRights = len(entries)
+		return result, nil
+	}
+
+	for _, entry := range entries {
+		if entry.TelegramUserID <= 0 {
+			continue
+		}
+
+		memberState, err := s.getRawChatMember(ctx, b, chatID, entry.TelegramUserID)
+		if err != nil {
+			result.Errors++
+			continue
+		}
+		if !isRawMemberActive(memberState) {
+			s.markKnownGroupMemberLeft(ctx, chatID, entry.TelegramUserID, memberState.Status)
+			result.SkippedNotMember++
+			continue
+		}
+		if !isRegularMemberForTag(memberState) {
+			result.SkippedNotMember++
+			continue
+		}
+
+		if memberState.Tag == entry.PreviousTag {
+			result.Restored++
+			continue
+		}
+
+		if err := s.setChatMemberTag(ctx, b, chatID, entry.TelegramUserID, entry.PreviousTag); err != nil {
+			result.Errors++
+			continue
+		}
+		result.Restored++
 	}
 
 	return result, nil
@@ -457,6 +538,27 @@ func trimRunes(value string, limit int) string {
 
 func runeCount(value string) int {
 	return len([]rune(value))
+}
+
+func mapToSortedRollbackEntries(values map[int64]string) []fsm.MemberTagRollbackEntry {
+	if len(values) == 0 {
+		return nil
+	}
+
+	ids := make([]int64, 0, len(values))
+	for id := range values {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+
+	entries := make([]fsm.MemberTagRollbackEntry, 0, len(ids))
+	for _, id := range ids {
+		entries = append(entries, fsm.MemberTagRollbackEntry{
+			TelegramUserID: id,
+			PreviousTag:    values[id],
+		})
+	}
+	return entries
 }
 
 func nowTimestamptz() pgtype.Timestamptz {
