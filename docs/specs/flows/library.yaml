@@ -478,10 +478,10 @@ states:
           Функция может быть одобрена, если бронирование будет доступно и в Rocket.Chat.
           Для этого нужен отдельный аккаунт бота в Rocket.Chat, но по запросу на аккаунт уже 2 месяца нет ответа.
           Сейчас в этом боте можно бронировать и возвращать книги только в режиме песочницы.
-          Это не влияет на реальную библиотечную выдачу, которая работает по правилам вашего кампуса.
+          Это не влияет на реальную библиотечную выдачу, которая работает по правилам твоего кампуса.
 
           🗂 Список книг актуализируется через:
-          https://git.21-school.ru/gehnaeli/knowledge-base-nsk/-/tree/master/bot_content
+          `https://git.21-school.ru/gehnaeli/knowledge-base-nsk/-/tree/master/bot_content`
         en: |
           📜 *Duck Reader's Code* 🦆
 
@@ -496,7 +496,7 @@ states:
           It does not affect real library circulation, which operates under your campus rules.
 
           🗂 Book list is updated via:
-          https://git.21-school.ru/gehnaeli/knowledge-base-nsk/-/tree/master/bot_content
+          `https://git.21-school.ru/gehnaeli/knowledge-base-nsk/-/tree/master/bot_content`
       buttons:
         - id: back
           label:
