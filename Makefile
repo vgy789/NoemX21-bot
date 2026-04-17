@@ -81,8 +81,8 @@ security: $(GOVULN)		## Vulnerability scan
 yaml:		## Lint YAML files
 	yamllint . 2> /dev/null || docker run --rm -v "$(shell pwd):/data" cytopia/yamllint:latest . || echo "yamllint not found"
 
-ci: .github/workflows/ci.yml		## Run CI pipeline locally (act)
-	act push -P ubuntu-22.04=catthehacker/ubuntu:act-22.04
+ci: .github/workflows/ci.yml		## Run CI workflow locally via act (without CD jobs)
+	act push -W .github/workflows/ci.yml -P ubuntu-22.04=catthehacker/ubuntu:act-22.04
 
 ci-check: fmt vet lint test security yaml		## Full CI check locally
 
