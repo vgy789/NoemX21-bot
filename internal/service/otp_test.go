@@ -249,6 +249,28 @@ func TestOTPService_RenderOTPEmailBody(t *testing.T) {
 	assert.Contains(t, body, "user=42")
 }
 
+func TestOTPService_RenderOTPEmailBody_EmbeddedTemplate(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mock.NewMockQuerier(ctrl)
+	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	cfg := &config.Config{}
+	cfg.EmailOTP.TemplatePath = "/app/internal/service/templates/otp_email.html.tmpl"
+
+	svc := NewOTPService(mockRepo, nil, cfg, log)
+	body, err := svc.renderOTPEmailBody(
+		"654321",
+		"student2",
+		"student2@student.21-school.ru",
+		fsm.UserInfo{ID: 100, Username: "embedded", Platform: "Telegram"},
+	)
+	require.NoError(t, err)
+	assert.Contains(t, body, "654321")
+	assert.Contains(t, body, "student2")
+}
+
 func TestEnsureCoalitionPresent(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/tls"
+	"embed"
 	"fmt"
 	"html/template"
 	"math/big"
@@ -110,6 +111,14 @@ const (
 	otpDeliveryRocketchat = "rocketchat"
 	otpDeliveryEmail      = "email"
 )
+
+const (
+	defaultOTPEmailTemplatePath = "templates/otp_email.html.tmpl"
+	legacyTemplatePathPrefix    = "internal/service/"
+)
+
+//go:embed templates/otp_email.html.tmpl
+var otpEmailTemplatesFS embed.FS
 
 func (s *OTPService) sendOTPViaRocketChat(ctx context.Context, s21Login, code string, ui fsm.UserInfo) error {
 	if s.rcClient == nil {
@@ -358,16 +367,12 @@ func (s *OTPService) ensureRegisteredUserForEmail(ctx context.Context, s21Login 
 
 func (s *OTPService) renderOTPEmailBody(code, s21Login, targetEmail string, ui fsm.UserInfo) (string, error) {
 	templatePath := strings.TrimSpace(s.cfg.EmailOTP.TemplatePath)
-	if templatePath == "" {
-		return "", fmt.Errorf("email template path is empty")
-	}
-
-	rawTemplate, err := os.ReadFile(templatePath)
+	templateName, rawTemplate, err := readOTPEmailTemplate(templatePath)
 	if err != nil {
-		return "", fmt.Errorf("read email template: %w", err)
+		return "", err
 	}
 
-	tmpl, err := template.New(filepath.Base(templatePath)).Parse(string(rawTemplate))
+	tmpl, err := template.New(templateName).Parse(string(rawTemplate))
 	if err != nil {
 		return "", fmt.Errorf("parse email template: %w", err)
 	}
@@ -403,6 +408,66 @@ func (s *OTPService) renderOTPEmailBody(code, s21Login, targetEmail string, ui f
 	}
 
 	return body.String(), nil
+}
+
+func readOTPEmailTemplate(configPath string) (string, []byte, error) {
+	templatePath := strings.TrimSpace(configPath)
+	if templatePath != "" {
+		rawTemplate, err := os.ReadFile(templatePath)
+		if err == nil {
+			return filepath.Base(templatePath), rawTemplate, nil
+		}
+		if !os.IsNotExist(err) {
+			return "", nil, fmt.Errorf("read email template: %w", err)
+		}
+	}
+
+	if templatePath == "" {
+		templatePath = defaultOTPEmailTemplatePath
+	}
+	for _, candidate := range embeddedTemplateCandidates(templatePath) {
+		raw, err := otpEmailTemplatesFS.ReadFile(candidate)
+		if err == nil {
+			return filepath.Base(candidate), raw, nil
+		}
+	}
+
+	rawTemplate, err := os.ReadFile(templatePath)
+	if err != nil {
+		return "", nil, fmt.Errorf("read email template: %w", err)
+	}
+	return filepath.Base(templatePath), rawTemplate, nil
+}
+
+func embeddedTemplateCandidates(templatePath string) []string {
+	path := filepath.ToSlash(strings.TrimSpace(templatePath))
+	if path == "" {
+		return []string{defaultOTPEmailTemplatePath}
+	}
+
+	candidates := []string{path}
+	if trimmed, ok := strings.CutPrefix(path, "./"); ok {
+		candidates = append(candidates, trimmed)
+	}
+	if _, after, ok := strings.Cut(path, legacyTemplatePathPrefix); ok {
+		candidates = append(candidates, after)
+	}
+
+	seen := make(map[string]struct{}, len(candidates))
+	unique := make([]string, 0, len(candidates))
+	for _, candidate := range candidates {
+		candidate = strings.TrimPrefix(candidate, "/")
+		if candidate == "" {
+			continue
+		}
+		if _, ok := seen[candidate]; ok {
+			continue
+		}
+		seen[candidate] = struct{}{}
+		unique = append(unique, candidate)
+	}
+
+	return unique
 }
 
 func buildHTMLMessage(from, to, subject, body string) string {
