@@ -139,6 +139,28 @@ type MemberTagRunner interface {
 	SyncMemberTagsForRegisteredUser(ctx context.Context, telegramUserID int64) error
 }
 
+// MemberTagRollbackEntry stores previous member tag state for a single user.
+type MemberTagRollbackEntry struct {
+	TelegramUserID int64  `json:"telegram_user_id"`
+	PreviousTag    string `json:"previous_tag"`
+}
+
+// MemberTagRollbackResult contains aggregated counters for a rollback run.
+type MemberTagRollbackResult struct {
+	Restored         int
+	SkippedNotMember int
+	SkippedNoRights  int
+	Errors           int
+}
+
+// MemberTagRollbackRunner extends MemberTagRunner with snapshot/rollback operations.
+// Implementations may capture previous tags during manual run and restore them later.
+type MemberTagRollbackRunner interface {
+	MemberTagRunner
+	RunGroupMemberTagsWithRollback(ctx context.Context, ownerTelegramUserID, chatID int64, mode MemberTagRunMode) (MemberTagRunResult, []MemberTagRollbackEntry, error)
+	RollbackGroupMemberTags(ctx context.Context, ownerTelegramUserID, chatID int64, entries []MemberTagRollbackEntry) (MemberTagRollbackResult, error)
+}
+
 // DefenderRunResult contains aggregated counters for a defender run.
 type DefenderRunResult struct {
 	Removed             int

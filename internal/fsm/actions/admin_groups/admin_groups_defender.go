@@ -736,16 +736,13 @@ func registerDefenderActions(registry *fsm.LogicRegistry, log logger, queries db
 				display = strconv.FormatInt(c.ID, 10)
 			}
 			uname := strings.TrimPrefix(strings.TrimSpace(c.Uname), "@")
-			mentionURL := fmt.Sprintf("tg://user?id=%d", c.ID)
-			if uname != "" {
-				mentionURL = "https://t.me/" + uname
-			}
+			mentionURL := fmt.Sprintf("tg://openmessage?user_id=%d", c.ID)
 			mention := fmt.Sprintf("[%s](%s)", escapeMarkdownLinkText(display), mentionURL)
 			usernameSuffix := ""
 			if uname != "" {
 				usernameSuffix = " @" + escapeMarkdownPlain(uname)
 			}
-			lines = append(lines, fmt.Sprintf("%s%s `%d` - `%s`", mention, usernameSuffix, c.ID, escapeMarkdownV2(c.Reason)))
+			lines = append(lines, fmt.Sprintf("%s%s - `%s`", mention, usernameSuffix, escapeMarkdownV2(c.Reason)))
 		}
 		updates["defender_preview_candidate_ids"] = strings.Join(ids, ",")
 		previewText := fmt.Sprintf("Найдено: %d\n%s", len(candidates), strings.Join(lines, "\n"))
@@ -808,11 +805,11 @@ func registerDefenderActions(registry *fsm.LogicRegistry, log logger, queries db
 		}
 
 		tgIDRaw := strings.TrimSpace(fmt.Sprintf("%v", payload["id"]))
-		tgID, err := strconv.ParseInt(tgIDRaw, 10, 64)
-		if err != nil || tgID <= 0 {
+		tgID, uname, errRU, errEN := resolveWhitelistTargetTelegramID(ctx, queries, tgIDRaw)
+		if errRU != "" {
 			updates := buildDefenderContextUpdates(ctx, userID, payload, log, queries)
-			updates["defender_preview_summary_ru"] = "Некорректный Telegram ID."
-			updates["defender_preview_summary_en"] = "Invalid Telegram ID."
+			updates["defender_preview_summary_ru"] = errRU
+			updates["defender_preview_summary_en"] = errEN
 			return "", updates, nil
 		}
 
@@ -839,8 +836,13 @@ func registerDefenderActions(registry *fsm.LogicRegistry, log logger, queries db
 		}
 
 		updates := buildDefenderContextUpdates(ctx, userID, payload, log, queries)
-		updates["defender_preview_summary_ru"] = fmt.Sprintf("ID `%d` добавлен в whitelist.", tgID)
-		updates["defender_preview_summary_en"] = fmt.Sprintf("ID `%d` added to whitelist.", tgID)
+		if uname != "" {
+			updates["defender_preview_summary_ru"] = fmt.Sprintf("Пользователь @%s добавлен в whitelist (ID `%d`).", escapeMarkdownPlain(uname), tgID)
+			updates["defender_preview_summary_en"] = fmt.Sprintf("User @%s added to whitelist (ID `%d`).", escapeMarkdownPlain(uname), tgID)
+		} else {
+			updates["defender_preview_summary_ru"] = fmt.Sprintf("ID `%d` добавлен в whitelist.", tgID)
+			updates["defender_preview_summary_en"] = fmt.Sprintf("ID `%d` added to whitelist.", tgID)
+		}
 		return "", updates, nil
 	})
 
@@ -873,6 +875,10 @@ func registerDefenderActions(registry *fsm.LogicRegistry, log logger, queries db
 type logger interface {
 	Warn(msg string, args ...any)
 	Debug(msg string, args ...any)
+}
+
+type telegramUserAccountByUsernameResolver interface {
+	GetTelegramUserAccountByUsername(ctx context.Context, username string) (db.UserAccount, error)
 }
 
 func buildDefenderContextUpdates(ctx context.Context, userID int64, payload map[string]any, log logger, queries db.Querier) map[string]any {
@@ -1123,7 +1129,7 @@ func applyWhitelistRows(ctx context.Context, queries db.Querier, ownerTelegramUs
 	lines := make([]string, 0, len(rows))
 	for i, row := range rows {
 		display := strconv.FormatInt(row.TelegramUserID, 10)
-		mentionURL := fmt.Sprintf("tg://user?id=%d", row.TelegramUserID)
+		mentionURL := fmt.Sprintf("tg://openmessage?user_id=%d", row.TelegramUserID)
 		usernameSuffix := ""
 		uname := ""
 
@@ -1150,12 +1156,11 @@ func applyWhitelistRows(ctx context.Context, queries db.Querier, ownerTelegramUs
 		}
 
 		if uname != "" {
-			mentionURL = "https://t.me/" + uname
 			usernameSuffix = " @" + escapeMarkdownPlain(uname)
 		}
 
 		mention := fmt.Sprintf("[%s](%s)", escapeMarkdownLinkText(display), mentionURL)
-		lines = append(lines, fmt.Sprintf("%d. %s%s `%d`", i+1, mention, usernameSuffix, row.TelegramUserID))
+		lines = append(lines, fmt.Sprintf("%d. %s%s", i+1, mention, usernameSuffix))
 		if i < maxDefenderWhitelistButtons {
 			updates[fmt.Sprintf("defender_whitelist_remove_button_id_%d", i+1)] = fmt.Sprintf("def_wl_rm_%d", row.TelegramUserID)
 			updates[fmt.Sprintf("defender_whitelist_remove_label_%d", i+1)] = buildWhitelistRemoveLabel(display, row.TelegramUserID)
@@ -1694,6 +1699,63 @@ func parseWhitelistRemoveID(buttonID string) (int64, bool) {
 		return 0, false
 	}
 	return id, true
+}
+
+func resolveWhitelistTargetTelegramID(ctx context.Context, queries db.Querier, raw string) (int64, string, string, string) {
+	input := strings.TrimSpace(raw)
+	if input == "" {
+		return 0, "", "Укажи Telegram ID или @username.", "Provide Telegram ID or @username."
+	}
+
+	if tgID, err := strconv.ParseInt(input, 10, 64); err == nil && tgID > 0 {
+		return tgID, "", "", ""
+	}
+
+	username, ok := normalizeTelegramUsernameInput(input)
+	if !ok {
+		return 0, "", "Укажи Telegram ID или @username.", "Provide Telegram ID or @username."
+	}
+
+	resolver, ok := queries.(telegramUserAccountByUsernameResolver)
+	if !ok {
+		return 0, "", fmt.Sprintf("Не удалось найти Telegram ID для @%s.", escapeMarkdownPlain(username)), fmt.Sprintf("Could not resolve Telegram ID for @%s.", escapeMarkdownPlain(username))
+	}
+
+	acc, err := resolver.GetTelegramUserAccountByUsername(ctx, username)
+	if err != nil {
+		return 0, "", fmt.Sprintf("Не удалось найти Telegram ID для @%s.", escapeMarkdownPlain(username)), fmt.Sprintf("Could not resolve Telegram ID for @%s.", escapeMarkdownPlain(username))
+	}
+
+	tgID, err := strconv.ParseInt(strings.TrimSpace(acc.ExternalID), 10, 64)
+	if err != nil || tgID <= 0 {
+		return 0, "", fmt.Sprintf("Не удалось найти Telegram ID для @%s.", escapeMarkdownPlain(username)), fmt.Sprintf("Could not resolve Telegram ID for @%s.", escapeMarkdownPlain(username))
+	}
+	return tgID, username, "", ""
+}
+
+func normalizeTelegramUsernameInput(raw string) (string, bool) {
+	username := strings.TrimSpace(strings.TrimPrefix(raw, "@"))
+	if len(username) < 5 || len(username) > 32 {
+		return "", false
+	}
+
+	for i, r := range username {
+		if i == 0 && !isASCIIAlpha(r) {
+			return "", false
+		}
+		if !isASCIIAlphaNumeric(r) && r != '_' {
+			return "", false
+		}
+	}
+	return strings.ToLower(username), true
+}
+
+func isASCIIAlpha(r rune) bool {
+	return (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+}
+
+func isASCIIAlphaNumeric(r rune) bool {
+	return isASCIIAlpha(r) || (r >= '0' && r <= '9')
 }
 
 func splitCSVInt64(raw string) []int64 {

@@ -19,11 +19,15 @@ import (
 )
 
 type fakeMemberTagRunner struct {
-	lastMode   fsm.MemberTagRunMode
-	lastUserID int64
-	lastChatID int64
-	result     fsm.MemberTagRunResult
-	err        error
+	lastMode        fsm.MemberTagRunMode
+	lastUserID      int64
+	lastChatID      int64
+	result          fsm.MemberTagRunResult
+	err             error
+	rollbackEntries []fsm.MemberTagRollbackEntry
+	rollbackResult  fsm.MemberTagRollbackResult
+	rollbackErr     error
+	runSnapshot     []fsm.MemberTagRollbackEntry
 }
 
 type fakeDefenderRunner struct {
@@ -33,6 +37,13 @@ type fakeDefenderRunner struct {
 	err             error
 	resolveDisplay  string
 	resolveUsername string
+}
+
+type querierWithUsernameResolver struct {
+	*mock.MockQuerier
+	usernameAccount db.UserAccount
+	usernameErr     error
+	lastUsername    string
 }
 
 func (f *fakeDefenderRunner) RunGroupDefender(_ context.Context, ownerTelegramUserID, chatID int64) (fsm.DefenderRunResult, error) {
@@ -49,6 +60,11 @@ func (f *fakeDefenderRunner) ResolveGroupMemberIdentity(_ context.Context, _, _,
 	return f.resolveDisplay, f.resolveUsername, nil
 }
 
+func (q *querierWithUsernameResolver) GetTelegramUserAccountByUsername(_ context.Context, username string) (db.UserAccount, error) {
+	q.lastUsername = username
+	return q.usernameAccount, q.usernameErr
+}
+
 func (f *fakeMemberTagRunner) RunGroupMemberTags(_ context.Context, ownerTelegramUserID, chatID int64, mode fsm.MemberTagRunMode) (fsm.MemberTagRunResult, error) {
 	f.lastMode = mode
 	f.lastUserID = ownerTelegramUserID
@@ -58,6 +74,22 @@ func (f *fakeMemberTagRunner) RunGroupMemberTags(_ context.Context, ownerTelegra
 
 func (f *fakeMemberTagRunner) SyncMemberTagsForRegisteredUser(_ context.Context, _ int64) error {
 	return nil
+}
+
+func (f *fakeMemberTagRunner) RunGroupMemberTagsWithRollback(ctx context.Context, ownerTelegramUserID, chatID int64, mode fsm.MemberTagRunMode) (fsm.MemberTagRunResult, []fsm.MemberTagRollbackEntry, error) {
+	result, err := f.RunGroupMemberTags(ctx, ownerTelegramUserID, chatID, mode)
+	if len(f.runSnapshot) == 0 {
+		return result, nil, err
+	}
+	snapshotCopy := append([]fsm.MemberTagRollbackEntry(nil), f.runSnapshot...)
+	return result, snapshotCopy, err
+}
+
+func (f *fakeMemberTagRunner) RollbackGroupMemberTags(_ context.Context, ownerTelegramUserID, chatID int64, entries []fsm.MemberTagRollbackEntry) (fsm.MemberTagRollbackResult, error) {
+	f.lastUserID = ownerTelegramUserID
+	f.lastChatID = chatID
+	f.rollbackEntries = append([]fsm.MemberTagRollbackEntry(nil), entries...)
+	return f.rollbackResult, f.rollbackErr
 }
 
 func TestLoadAdminContext(t *testing.T) {
@@ -311,6 +343,84 @@ func TestRunGroupMemberTags_ShowsAlertWhenNoRights(t *testing.T) {
 	require.Equal(t, alertMemberTagNoRightsRU, updates["_alert"])
 }
 
+func TestRollbackGroupMemberTags_NoOpWithoutManualRun(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	reg := fsm.NewLogicRegistry()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	Register(reg, &config.Config{}, logger, q, nil)
+
+	action, ok := reg.Get("rollback_group_member_tags")
+	require.True(t, ok)
+
+	chatID := int64(-100706)
+	q.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
+		ChatID:              chatID,
+		OwnerTelegramUserID: 42,
+		IsInitialized:       true,
+		IsActive:            true,
+	}, nil)
+
+	runner := &fakeMemberTagRunner{}
+	ctx := context.WithValue(context.Background(), fsm.ContextKeyMemberTagRunner, runner)
+
+	_, updates, err := action(ctx, 42, map[string]any{
+		"selected_group_chat_id": "-100706",
+	})
+	require.NoError(t, err)
+	require.Len(t, updates, 0)
+	require.Len(t, runner.rollbackEntries, 0)
+}
+
+func TestRollbackGroupMemberTags_UsesSnapshot(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	reg := fsm.NewLogicRegistry()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	Register(reg, &config.Config{}, logger, q, nil)
+
+	action, ok := reg.Get("rollback_group_member_tags")
+	require.True(t, ok)
+
+	chatID := int64(-100705)
+	q.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
+		ChatID:              chatID,
+		OwnerTelegramUserID: 42,
+		IsInitialized:       true,
+		IsActive:            true,
+	}, nil)
+
+	entries := []fsm.MemberTagRollbackEntry{
+		{TelegramUserID: 1001, PreviousTag: "old-1"},
+		{TelegramUserID: 1002, PreviousTag: "old-2"},
+	}
+	snapshot := encodeMemberTagRollbackSnapshot(memberTagRollbackSnapshot{
+		ChatID:  chatID,
+		Entries: entries,
+	})
+	require.NotEmpty(t, snapshot)
+
+	runner := &fakeMemberTagRunner{
+		rollbackResult: fsm.MemberTagRollbackResult{
+			Restored: len(entries),
+		},
+	}
+	ctx := context.WithValue(context.Background(), fsm.ContextKeyMemberTagRunner, runner)
+
+	_, updates, err := action(ctx, 42, map[string]any{
+		"selected_group_chat_id":  "-100705",
+		memberTagRollbackStateKey: snapshot,
+	})
+	require.NoError(t, err)
+	require.Equal(t, entries, runner.rollbackEntries)
+	require.Contains(t, updates["member_tags_last_run_summary_ru"].(string), "rollback_restored=2")
+	require.Equal(t, "", updates[memberTagRollbackStateKey])
+}
+
 func TestLoadGroupDefenderContext_Owner(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -369,9 +479,9 @@ func TestLoadGroupDefenderContext_Owner(t *testing.T) {
 	require.Equal(t, true, updates["defender_enabled"])
 	require.Equal(t, true, updates["defender_remove_blocked"])
 	require.Equal(t, 1, updates["defender_whitelist_count"])
-	require.True(t, strings.Contains(updates["defender_whitelist_list_ru"].(string), "[saha](https://t.me/vgy789)"))
+	require.True(t, strings.Contains(updates["defender_whitelist_list_ru"].(string), "[saha](tg://openmessage?user_id=1001)"))
 	require.True(t, strings.Contains(updates["defender_whitelist_list_ru"].(string), "@vgy789"))
-	require.True(t, strings.Contains(updates["defender_whitelist_list_ru"].(string), "`1001`"))
+	require.NotContains(t, updates["defender_whitelist_list_ru"].(string), "`1001`")
 	require.Equal(t, "❌ saha (1001)", updates["defender_whitelist_remove_label_1"])
 	require.True(t, strings.Contains(updates["defender_logs_list_ru"].(string), "Автопроверка при входе"))
 }
@@ -640,6 +750,64 @@ func TestSetGroupDefenderBanDurationFromInput_InvalidRange(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "GROUP_DEFENDER_BAN_DURATION_INPUT", next)
 	require.Equal(t, "Срок должен быть в диапазоне от `5m` до `30d`.", updates["_alert"])
+}
+
+func TestAddGroupDefenderWhitelistFromInput_ByUsername(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	base := mock.NewMockQuerier(ctrl)
+	q := &querierWithUsernameResolver{
+		MockQuerier: base,
+		usernameAccount: db.UserAccount{
+			ExternalID: "1001",
+		},
+	}
+
+	reg := fsm.NewLogicRegistry()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	Register(reg, &config.Config{}, logger, q, nil)
+
+	action, ok := reg.Get("add_group_defender_whitelist_from_input")
+	require.True(t, ok)
+
+	chatID := int64(-100920)
+	expectEmptyDefenderFilterLists(base, chatID)
+	base.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
+		ChatID:              chatID,
+		OwnerTelegramUserID: 42,
+		IsInitialized:       true,
+		IsActive:            true,
+	}, nil).Times(2)
+	base.EXPECT().GetUserAccountIDByExternalId(gomock.Any(), db.GetUserAccountIDByExternalIdParams{
+		Platform:   db.EnumPlatformTelegram,
+		ExternalID: "42",
+	}).Return(int64(777), nil)
+	base.EXPECT().UpsertTelegramGroupWhitelist(gomock.Any(), db.UpsertTelegramGroupWhitelistParams{
+		ChatID:           chatID,
+		TelegramUserID:   1001,
+		AddedByAccountID: 777,
+	}).Return(db.TelegramGroupWhitelist{
+		ChatID:         chatID,
+		TelegramUserID: 1001,
+	}, nil)
+	base.EXPECT().ListTelegramGroupWhitelists(gomock.Any(), gomock.Any()).Return([]db.TelegramGroupWhitelist{
+		{ChatID: chatID, TelegramUserID: 1001},
+	}, nil)
+	base.EXPECT().GetUserAccountByExternalId(gomock.Any(), db.GetUserAccountByExternalIdParams{
+		Platform:   db.EnumPlatformTelegram,
+		ExternalID: "1001",
+	}).Return(db.UserAccount{}, pgx.ErrNoRows)
+	base.EXPECT().ListTelegramGroupLogs(gomock.Any(), gomock.Any()).Return([]db.TelegramGroupLog{}, nil)
+
+	_, updates, err := action(context.Background(), 42, map[string]any{
+		"selected_group_chat_id": "-100920",
+		"id":                     "@vgy789",
+	})
+	require.NoError(t, err)
+	require.Equal(t, "vgy789", q.lastUsername)
+	require.Contains(t, updates["defender_preview_summary_ru"].(string), "@vgy789")
+	require.Contains(t, updates["defender_preview_summary_ru"].(string), "`1001`")
 }
 
 func TestRunGroupDefender_UsesRunner(t *testing.T) {

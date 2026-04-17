@@ -26,10 +26,9 @@ states:
           3. Возвращайся сюда – и мы всё настроим!
 
           *Что я возьму на себя:*
-          🛡 *Защита:* выгоняю «левых» и отчисленных.
-          📨 *PRR-радар:* транслирую свежие запросы на ревью.
-          🏷 *Авто-теги:* ставлю логин и уровень рядом с именем.
-          👋 *Onboarding:* встречаю новичков по-человечески.
+          😛 *Фейс-контоль:* выгоняю «левых» и отчисленных, не пускаю незнакомцев.
+          📨 *PRR-радар:* транслирую свежие запросы на ревью прямо в тред.
+          🏷 *Авто-теги:* ставлю логин и уровень рядом с именем участников.
         en: |
           🦆 *Duck Admin / Clubs*
 
@@ -41,10 +40,9 @@ states:
           3. Come back here, and we'll set everything up!
 
           *What I'll handle:*
-          🛡 *Defender:* kicks outsiders and expelled users.
-          📨 *PRR-Radar:* forwards active review requests.
-          🏷 *Member Tags:* auto-assigns login and level titles.
-          👋 *Onboarding:* greets newcomers properly.
+          😛 *Face Control:* kick out the “leftists” and those who have been expelled, and don't let strangers in.
+          📨 *PRR-Radar:* posting the latest review requests directly in this thread.
+          🏷 *Member Tags:* I automatically display the username and level next to the participants' names.
       buttons:
         - id: back
           label:
@@ -135,13 +133,15 @@ states:
     interface:
       text:
         ru: |
-          🛠 *Управление чатом*
+          🛠 *Управление группой*
+
           📌 Группа: `{selected_group_title}`
           🆔 Chat ID: `{selected_group_chat_id}`
 
           Выбери нужный раздел для настройки:
         en: |
           🛠 *Management*
+
           📌 Group: `{selected_group_title}`
           🆔 Chat ID: `{selected_group_chat_id}`
 
@@ -154,8 +154,8 @@ states:
           next_state: GROUP_PRR_NOTIFICATIONS_MENU
         - id: open_defender_settings
           label:
-            ru: 🛡 Безопасность
-            en: 🛡 Security
+            ru: 😛 Фейс-контроль
+            en: 😛 Face control
           next_state: GROUP_DEFENDER_MENU
         - id: open_member_tags_settings
           label:
@@ -624,7 +624,7 @@ states:
           📊 *Последний запуск:*
           `{member_tags_last_run_summary_ru}`
 
-          🦆 _Совет Утк: это работает только для тех, кто хотя бы раз запускал этого бота._
+          _Это работает только для зарегистрированых пользователей._
         en: |
           🛠 *Member Tags* / {selected_group_title}
 
@@ -636,7 +636,7 @@ states:
           📊 *Last run:*
           `{member_tags_last_run_summary_en}`
 
-          🦆 *Tip: this only works for users who have started this bot at least once.*
+          _This feature is available only to registered users._
       buttons:
         - id: tags_autotag_settings
           label:
@@ -661,10 +661,10 @@ states:
           row: 3
         - id: back_to_groups
           label:
-            ru: ↩️ К списку групп
-            en: ↩️ Back to groups
+            ru: 🔙 Назад
+            en: 🔙 Back
           row: 99
-          next_state: SELECT_GROUP_TO_MANAGE
+          next_state: GROUP_PRR_FILTERS_MENU
 
   GROUP_MEMBER_TAGS_AUTOTAG:
     type: interactive
@@ -727,18 +727,18 @@ states:
     interface:
       text:
         ru: |
-          🛡 *Безопасность* / {selected_group_title}
+          🛡 *Фейс-контроль* / {selected_group_title}
           🆔 Chat ID: `{selected_group_chat_id}`
 
           Я слежу за тем, чтобы в чат не просочились «левые» люди. Могу проверять каждого на входе или устроить генеральную уборку.
 
           - Автоматический фейс-контроль: `{defender_enabled_label_ru}`
-          - Удалять BLOCKED/EXPELLED: `{defender_remove_blocked_label_ru}`
+          - Удалять ЗАБЛОКИРОВАН/ОТЧИСЛЕН: `{defender_remove_blocked_label_ru}`
           - Фильтр по кампусу: `{defender_filter_campus_label_ru}`
           - Фильтр по трайбу: `{defender_filter_tribe_label_ru}`
           - Whitelist: `{defender_whitelist_count}`
         en: |
-          🛡 *Security* / {selected_group_title}
+          🛡 *Face control* / {selected_group_title}
           🆔 Chat ID: `{selected_group_chat_id}`
 
           I make sure no outsiders sneak into the flock. I can check everyone at the gate or perform a full pond cleanup.
@@ -793,24 +793,23 @@ states:
     interface:
       text:
         ru: |
-          ⚙️ *Настройки фейс-контроля*
+          ⚙️ *Настройки автоматического фейс-контроля*
 
-          Если режим включён, я проверяю каждого новичка прямо «на пороге».
-          ⚠️ *Авто-режим не затрагивает тех, кто уже в чате.*
+          ⚠️ *Не затрагивает тех, кто уже в чате.* Т.е. я буду проверять новых людей, приходящих в группу.
 
           🛡 *Мои фильтры:*
 
           *1. Регистрация в боте:*
-          `{defender_enabled_label_ru}` _(Не пускаю тех, кто не залогинился в боте)_
+          `{defender_enabled_label_ru}` _(Если вкл: не пускаю тех, кто не залогинился в боте)_
 
-          *2. Статус (Blocked/Expelled):*
-          `{defender_remove_blocked_label_ru}` _(Не пускаю отчисленных студентов)_
+          *2. Статус (Заблокирован/Отчислен):*
+          `{defender_remove_blocked_label_ru}` _(Если вкл: не пускаю отчисленных и заблокированных студентов)_
 
           *3. Фильтр по кампусам:*
-          `{defender_filter_campus_label_ru}` _(Можно выбрать несколько. Если есть выбор — пускаю только из этих кампусов.)_
+          `{defender_filter_campus_label_ru}` _(Можно выбрать несколько. Если выбран: пускаю только из этих кампусов)_
 
           *4. Фильтр по трайбам:*
-          `{defender_filter_tribe_label_ru}` _(Можно выбрать несколько, но только из твоего кампуса. При выборе трайбов кампус фиксируется на твоём.)_
+          `{defender_filter_tribe_label_ru}` _(Можно выбрать несколько, но только из твоего кампуса. При выборе трайбов фильтр №3 фиксируется *на твоём* кампусе)_
 
           *5. Срок блокировки:*
           `{defender_ban_duration_label_ru}` _(После истечения срока Telegram разбанит пользователя автоматически)_
@@ -818,7 +817,7 @@ states:
           ⚙️ *Gatekeeper Settings*
 
           When enabled, I check every newcomer at the "gate".
-          ⚠️ *Auto-mode does not affect existing group members.*
+          ⚠️ *Auto-mode does not affect existing group members.*  In other words, I'll be vetting the people who join the group.
 
           🛡 *Filters:*
 
@@ -1131,9 +1130,9 @@ states:
     interface:
       text:
         ru: |
-          🚀 *Генеральная уборка*
+          🚀 *Генеральная уборка* (Ручной фейс-контроль)
 
-          Выбери режим очистки. В каждом режиме доступен предпросмотр списка «на вылет» перед запуском.
+          Выбери режим очистки. Перед очисткой будет предложен предпросмотр кандидатов «на вылет».
         en: |
           🚀 *Full Cleanup*
 
@@ -1256,9 +1255,12 @@ states:
         ru: |
           🧹 *Генеральная уборка: Кампус*
 
+          Удаляю всех пиров конкретного кампуса (действует только на зарегистрированых пользователей).
           Выбранный кампус: `{defender_cleanup_target_campus_label_ru}`
 
-          Сначала выбери нужный кампус, а затем перейди в предпросмотр. Кнопка запуска очистки находится именно там.
+          1. Выбери нужный кампус.
+          2. Перейди в *предпросмотр* кандидатов на удаление.
+          3. Кнопка запуска очистки находится в *предпросмотре*.
 
           {defender_last_run_notice_ru}
         en: |
@@ -1555,8 +1557,8 @@ states:
       buttons:
         - id: def_wl_add
           label:
-            ru: ➕ Добавить по ID
-            en: ➕ Add by ID
+            ru: ➕ Добавить по ID или @username
+            en: ➕ Add by ID or @username
           condition: "can_manage_selected_group == true"
           next_state: GROUP_DEFENDER_WHITELIST_ADD_INPUT
           row: 1
@@ -1629,20 +1631,20 @@ states:
 
   GROUP_DEFENDER_WHITELIST_ADD_INPUT:
     type: input
-    description: Ввод Telegram ID для whitelist
+    description: Ввод Telegram ID или @username для whitelist
     interface:
       text:
         ru: |
           ➕ *Добавление в whitelist*
 
-          Введи числовой Telegram ID пользователя.
+          Введи Telegram ID или @username пользователя.
         en: |
           ➕ *Add to whitelist*
 
-          Enter numeric Telegram user ID.
+          Enter Telegram user ID or @username.
       error_invalid:
-        ru: "Нужен числовой Telegram ID."
-        en: "Numeric Telegram ID is required."
+        ru: "Укажи Telegram ID или @username."
+        en: "Provide Telegram ID or @username."
       buttons:
         - id: def_wl_add_cancel
           label:
@@ -1650,7 +1652,7 @@ states:
             en: 🔙 Cancel
           next_state: GROUP_DEFENDER_WHITELIST
     validation:
-      regex: ^[0-9]{4,20}$
+      regex: '(?i)^\s*(?:[0-9]{4,20}|@?[a-z][a-z0-9_]{4,31})\s*$'
     transitions:
       - trigger: on_valid_input
         action: add_group_defender_whitelist_from_input
@@ -1663,6 +1665,8 @@ states:
       text:
         ru: |
           ⏳ *Срок временной блокировки*
+
+          Пользователь может *снова попытыться войти* в группу через указанное время. Справедливо, если человек стал подходить по фильтрам фейс-контроля (например станет пиром кампуса).
 
           Введи срок в формате: `5m`, `24h`, `3d`.
           Допустимый диапазон: от `5m` до `30d`.
@@ -1765,6 +1769,14 @@ states:
           condition: "can_manage_selected_group == true"
           next_state: GROUP_MEMBER_TAGS_RUN
           row: 1
+        - id: tags_run_rollback
+          label:
+            ru: ↩️ Откатить ручные теги
+            en: ↩️ Roll back manual tags
+          action: rollback_group_member_tags
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_MEMBER_TAGS_RUN
+          row: 2
         - id: tags_back_menu
           label:
             ru: 🔙 Назад

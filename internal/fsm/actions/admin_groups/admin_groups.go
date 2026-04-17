@@ -2,6 +2,7 @@ package admin_groups
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -20,9 +21,15 @@ const (
 	memberTagFormatLogin      = "login"
 	memberTagFormatLoginLevel = "login_level"
 	alertMemberTagNoRightsRU  = "Нужно право на Member Tags. Включите для бота в админах группы разрешение на изменение плашек и повторите."
+	memberTagRollbackStateKey = "member_tags_last_manual_snapshot"
 )
 
 var errGroupAccessDenied = errors.New("group access denied")
+
+type memberTagRollbackSnapshot struct {
+	ChatID  int64                        `json:"chat_id"`
+	Entries []fsm.MemberTagRollbackEntry `json:"entries"`
+}
 
 // Register registers admin-related actions.
 func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger, queries db.Querier, aliasRegistrar func(alias, target string)) {
@@ -237,7 +244,15 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 			mode = fsm.MemberTagRunModeClearAndApply
 		}
 
-		result, err := runner.RunGroupMemberTags(ctx, userID, chatID, mode)
+		var (
+			result          fsm.MemberTagRunResult
+			rollbackEntries []fsm.MemberTagRollbackEntry
+		)
+		if rollbackRunner, ok := runner.(fsm.MemberTagRollbackRunner); ok {
+			result, rollbackEntries, err = rollbackRunner.RunGroupMemberTagsWithRollback(ctx, userID, chatID, mode)
+		} else {
+			result, err = runner.RunGroupMemberTags(ctx, userID, chatID, mode)
+		}
 		if err != nil {
 			updates["member_tags_last_run_summary_ru"] = fmt.Sprintf("Ошибка запуска: %v", err)
 			updates["member_tags_last_run_summary_en"] = fmt.Sprintf("Run failed: %v", err)
@@ -250,8 +265,69 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 			if result.SkippedNoRights > 0 {
 				updates["_alert"] = alertMemberTagNoRightsRU
 			}
+
+			snapshot := memberTagRollbackSnapshot{
+				ChatID:  chatID,
+				Entries: rollbackEntries,
+			}
+			if encoded := encodeMemberTagRollbackSnapshot(snapshot); encoded != "" {
+				updates[memberTagRollbackStateKey] = encoded
+			} else {
+				updates[memberTagRollbackStateKey] = ""
+			}
 		}
 
+		return "", updates, nil
+	})
+
+	registry.Register("rollback_group_member_tags", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		updates := map[string]any{}
+
+		chatID, err := parseSelectedGroupChatID(payload)
+		if err != nil {
+			return "", updates, nil
+		}
+		if _, err := requireOwnedGroup(ctx, queries, userID, chatID); err != nil {
+			return "", updates, nil
+		}
+
+		snapshot, ok := decodeMemberTagRollbackSnapshot(fmt.Sprintf("%v", payload[memberTagRollbackStateKey]))
+		if !ok || snapshot.ChatID != chatID || len(snapshot.Entries) == 0 {
+			// Per requirement: do nothing when manual tagging has not been run.
+			return "", updates, nil
+		}
+
+		runner, ok := fsm.MemberTagRunnerFromContext(ctx)
+		if !ok {
+			updates["member_tags_last_run_summary_ru"] = "Недоступно: transport runner не подключён."
+			updates["member_tags_last_run_summary_en"] = "Unavailable: transport runner is not configured."
+			return "", updates, nil
+		}
+		rollbackRunner, ok := runner.(fsm.MemberTagRollbackRunner)
+		if !ok {
+			updates["member_tags_last_run_summary_ru"] = "Недоступно: rollback member tags не поддерживается transport runner."
+			updates["member_tags_last_run_summary_en"] = "Unavailable: rollback member tags is not supported by transport runner."
+			return "", updates, nil
+		}
+
+		result, err := rollbackRunner.RollbackGroupMemberTags(ctx, userID, chatID, snapshot.Entries)
+		if err != nil {
+			updates["member_tags_last_run_summary_ru"] = fmt.Sprintf("Ошибка отката: %v", err)
+			updates["member_tags_last_run_summary_en"] = fmt.Sprintf("Rollback failed: %v", err)
+			return "", updates, nil
+		}
+
+		updates["member_tags_last_run_summary_ru"] = fmt.Sprintf(
+			"rollback_restored=%d, skip_not_member=%d, skip_no_rights=%d, errors=%d",
+			result.Restored, result.SkippedNotMember, result.SkippedNoRights, result.Errors,
+		)
+		updates["member_tags_last_run_summary_en"] = updates["member_tags_last_run_summary_ru"]
+		if result.SkippedNoRights > 0 {
+			updates["_alert"] = alertMemberTagNoRightsRU
+		}
+		if result.Restored >= len(snapshot.Entries) {
+			updates[memberTagRollbackStateKey] = ""
+		}
 		return "", updates, nil
 	})
 
@@ -367,4 +443,30 @@ func buildMemberTagSettingsUpdates(group db.TelegramGroup) map[string]any {
 		"member_tag_login_level_option_label_ru": loginLvlOptionRU,
 		"member_tag_login_level_option_label_en": loginLvlOptionEN,
 	}
+}
+
+func encodeMemberTagRollbackSnapshot(snapshot memberTagRollbackSnapshot) string {
+	if snapshot.ChatID == 0 || len(snapshot.Entries) == 0 {
+		return ""
+	}
+	b, err := json.Marshal(snapshot)
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+func decodeMemberTagRollbackSnapshot(raw string) (memberTagRollbackSnapshot, bool) {
+	value := strings.TrimSpace(raw)
+	if value == "" || value == "<nil>" {
+		return memberTagRollbackSnapshot{}, false
+	}
+	var snapshot memberTagRollbackSnapshot
+	if err := json.Unmarshal([]byte(value), &snapshot); err != nil {
+		return memberTagRollbackSnapshot{}, false
+	}
+	if snapshot.ChatID == 0 || len(snapshot.Entries) == 0 {
+		return memberTagRollbackSnapshot{}, false
+	}
+	return snapshot, true
 }
