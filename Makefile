@@ -5,8 +5,8 @@ LDFLAGS := -s -w
 
 LOCAL_BIN := $(CURDIR)/bin
 
-GOLANGCI_VERSION 	:= v2.9.0		## https://github.com/golangci/golangci-lint/releases
-GOVULN_VERSION		:= v1.1.4		## https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck?tab=versions
+GOLANGCI_VERSION 	:= v2.11.4		## https://github.com/golangci/golangci-lint/releases
+GOVULN_VERSION		:= v1.2.0		## https://pkg.go.dev/golang.org/x/vuln/cmd/govulncheck?tab=versions
 SQLC_VERSION     	:= v1.30.0		## https://github.com/sqlc-dev/sqlc/releases
 MIGRATE_VERSION  	:= v4.19.1		## https://github.com/golang-migrate/migrate/releases
 MOCKGEN_VERSION  	:= v0.6.0		## https://github.com/uber-go/mock/releases/tag/v0.6.0
