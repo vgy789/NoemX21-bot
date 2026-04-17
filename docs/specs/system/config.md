@@ -59,6 +59,7 @@
 | `OTP_EMAIL_ENABLED` | `false` |
 | `OTP_EMAIL_SMTP_PORT` | `587` |
 | `OTP_EMAIL_SMTP_TIMEOUT` | `20s` |
+| `OTP_EXPIRES_IN` | `5m` |
 | `OTP_EMAIL_SUBJECT` | `NOEMX21-BOT \| Verification code` |
 | `OTP_EMAIL_TEMPLATE_PATH` | `internal/service/templates/otp_email.html.tmpl` |
 

@@ -62,8 +62,9 @@ type Config struct {
 		Interval time.Duration `env:"SCHEDULE_IMAGES_INTERVAL" envDefault:"5m"`
 		TempDir  string        `env:"SCHEDULE_IMAGES_TEMP_DIR" envDefault:"tmp/schedules"`
 	}
-	Production    bool `env:"PRODUCTION" envDefault:"false"`
-	TestModeNoOTP bool `env:"TEST_MODE_NO_OTP" envDefault:"false"` // Skip OTP verification for testing
+	OTPExpiresIn  time.Duration `env:"OTP_EXPIRES_IN" envDefault:"5m"`
+	Production    bool          `env:"PRODUCTION" envDefault:"false"`
+	TestModeNoOTP bool          `env:"TEST_MODE_NO_OTP" envDefault:"false"` // Skip OTP verification for testing
 }
 
 type EmailOTP struct {

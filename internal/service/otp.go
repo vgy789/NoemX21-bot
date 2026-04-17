@@ -71,8 +71,8 @@ func (s *OTPService) generateAndSendOTP(ctx context.Context, s21Login string, ui
 		return fmt.Errorf("failed to generate code: %w", err)
 	}
 
-	// Calculate expiration time (5 minutes from now)
-	expiresAt := time.Now().Add(5 * time.Minute)
+	expiresIn := s.otpExpiresIn()
+	expiresAt := time.Now().Add(expiresIn)
 
 	// 3. Delete all previous verification codes for this student (invalidate old codes)
 	err = s.db.DeleteAllAuthVerificationCodes(ctx, pgtype.Text{Valid: true, String: s21Login})
@@ -155,10 +155,11 @@ func (s *OTPService) sendOTPViaRocketChat(ctx context.Context, s21Login, code st
 	message := fmt.Sprintf(
 		"🔐 *NOEMX21-BOT* | КОД ПОДТВЕРЖДЕНИЯ: *%s*\n\n"+
 			"---\n"+
-			"Действует: 5 минут\n"+
+			"Действует: %d минут\n"+
 			"Код запросил пользователь *%s* id: *%d* username: *%s* platform: *%s*\n"+
 			"Не передавай код третьим лицам.\n\n",
 		code,
+		otpExpiryMinutes(s.otpExpiresIn()),
 		fullNameEscaped,
 		ui.ID,
 		usernameEscaped,
@@ -394,7 +395,7 @@ func (s *OTPService) renderOTPEmailBody(code, s21Login, targetEmail string, ui f
 		Code:            code,
 		S21Login:        strings.ToLower(strings.TrimSpace(s21Login)),
 		TargetEmail:     targetEmail,
-		ExpiresInMin:    5,
+		ExpiresInMin:    otpExpiryMinutes(s.otpExpiresIn()),
 		TelegramUserID:  ui.ID,
 		TelegramUser:    telegramUsername,
 		TelegramName:    fullName,
@@ -468,6 +469,25 @@ func embeddedTemplateCandidates(templatePath string) []string {
 	}
 
 	return unique
+}
+
+func (s *OTPService) otpExpiresIn() time.Duration {
+	expiresIn := s.cfg.OTPExpiresIn
+	if expiresIn <= 0 {
+		return 5 * time.Minute
+	}
+	return expiresIn
+}
+
+func otpExpiryMinutes(expiresIn time.Duration) int {
+	if expiresIn <= 0 {
+		return 1
+	}
+	minutes := int((expiresIn + time.Minute - 1) / time.Minute)
+	if minutes < 1 {
+		return 1
+	}
+	return minutes
 }
 
 func buildHTMLMessage(from, to, subject, body string) string {

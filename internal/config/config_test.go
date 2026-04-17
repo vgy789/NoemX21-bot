@@ -75,6 +75,7 @@ func TestConfig_Defaults(t *testing.T) {
 	t.Setenv("OTP_EMAIL_SMTP_TIMEOUT", "20s")
 	t.Setenv("OTP_EMAIL_SUBJECT", "NOEMX21-BOT | Verification code")
 	t.Setenv("OTP_EMAIL_TEMPLATE_PATH", "internal/service/templates/otp_email.html.tmpl")
+	t.Setenv("OTP_EXPIRES_IN", "5m")
 
 	cfg := MustLoad()
 
@@ -98,4 +99,5 @@ func TestConfig_Defaults(t *testing.T) {
 	assert.Equal(t, "", cfg.EmailOTP.TestTo)
 	assert.Equal(t, "NOEMX21-BOT | Verification code", cfg.EmailOTP.Subject)
 	assert.Equal(t, "internal/service/templates/otp_email.html.tmpl", cfg.EmailOTP.TemplatePath)
+	assert.Equal(t, 5*time.Minute, cfg.OTPExpiresIn)
 }
