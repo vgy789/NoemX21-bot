@@ -57,7 +57,7 @@ states:
 
           Что видят пиры в разделе статистики и поиска.
 
-          👁️ *Видят ли твой Telegram @username:* `{my_searchable_status_ru}`
+          👁️ *Видят ли твой Telegram @username и id:* `{my_searchable_status_ru}`
 
           📞 *Запасной канал связи:* `{my_alt_contact_display_ru}`
 
@@ -153,12 +153,12 @@ states:
         ru: |
           👁️ *Видимость изменена*
 
-          Теперь твой Telegram @username виден другим пирам.
+          Теперь твой Telegram @username и id будет виден другим пирам.
           *Статус:* `✅ Виден`
         en: |
           👁️ *Visibility Update*
 
-          Your Telegram @username is now visible to other peers.
+          Your Telegram @username and id is now visible to other peers.
           *Status:* `✅ Visible`
       buttons:
         - id: back
@@ -175,12 +175,12 @@ states:
         ru: |
           👁️ *Видимость изменена*
 
-          Теперь твой Telegram @username скрыт от других пиров.
+          Теперь твой Telegram @username и id не будет отображаться другим пирам.
           *Статус:* `❌ Не виден`
         en: |
           👁️ *Visibility Update*
 
-          Your Telegram @username is now hidden from other peers.
+          Your Telegram @username and id is now hidden from other peers.
           *Status:* `❌ Not visible`
       buttons:
         - id: back
@@ -197,21 +197,22 @@ states:
         ru: |
           📞 *Профиль / Запасной контакт*
 
-          Напиши, как ещё с тобой связаться (почта, другой мессенджер, сигнал дымом).
+          Напиши, как ещё с тобой связаться (почта, другой мессенджер, ~номер квартиры~).
 
           _Максимум 42 символа._
         en: |
           📞 *Profile / Backup Contact*
 
-          Tell us how else to reach you (email, other messenger, smoke signals).
+          Tell us how else to reach you (email, other messenger, apartment number).
 
           _Max 42 characters._
       error_invalid:
         ru: |
-          ⚠️ *Много букв!* (или слишком мало).
+          ⚠️ *Много букв!* (или слишком мало)
           Нужно уложиться в 42 символа. Попробуй еще раз.
         en: |
-          ⚠️ *Invalid length!* Must be between 1 and 42 characters. Try again.
+          ⚠️ *Invalid length! (or too few)*
+          Must be between 1 and 42 characters. Try again.
       buttons:
         - id: delete
           label:
