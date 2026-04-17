@@ -285,6 +285,7 @@ func Register(
 			}
 
 			var chartPath string
+			var legacyChartPath string
 			if xpChanged || requestType == "full_update" {
 				log.Info("XP changed, refreshing skills and chart", "login", acc.S21Login)
 				skillsResp, err := s21Client.GetParticipantSkills(ctx, token, acc.S21Login)
@@ -301,6 +302,7 @@ func Register(
 						})
 					}
 					chartPath, _ = generateRadarChart(map[string]map[string]int32{acc.S21Login: skillMap}, []string{acc.S21Login})
+					legacyChartPath, _ = generateRadarChartLegacy(map[string]map[string]int32{acc.S21Login: skillMap}, []string{acc.S21Login})
 				} else {
 					log.Warn("failed to refresh skills from API, falling back to DB for chart", "login", acc.S21Login, "error", err)
 				}
@@ -313,6 +315,7 @@ func Register(
 						skillMap[s.Name] = s.Value
 					}
 					chartPath, _ = generateRadarChart(map[string]map[string]int32{acc.S21Login: skillMap}, []string{acc.S21Login})
+					legacyChartPath, _ = generateRadarChartLegacy(map[string]map[string]int32{acc.S21Login: skillMap}, []string{acc.S21Login})
 				} else if err != nil {
 					log.Warn("failed to load skills from DB for chart", "login", acc.S21Login, "error", err)
 				}
@@ -341,6 +344,9 @@ func Register(
 			}
 			if chartPath != "" {
 				state.Context["radar_chart_path"] = chartPath
+			}
+			if legacyChartPath != "" {
+				state.Context["radar_chart_path_legacy"] = legacyChartPath
 			}
 
 			// Save final state
@@ -667,9 +673,23 @@ func Register(
 			return "", nil, err
 		}
 
+		legacyChartPath := ""
+		if len(usersData) == 1 {
+			legacyChartPath, _ = generateRadarChartLegacy(usersData, orderedLogins)
+			if legacyChartPath != "" {
+				if notifier, ok := fsm.RenderNotifierFromContext(ctx); ok {
+					_ = notifier.NotifyUserRender(ctx, userID, &fsm.RenderObject{
+						Text:  "📎 *Старый формат профиля навыков*",
+						Image: legacyChartPath,
+					})
+				}
+			}
+		}
+
 		return "", map[string]any{
-			"radar_chart_path":      chartPath,
-			"radar_comparison_path": chartPath,
+			"radar_chart_path":        chartPath,
+			"radar_chart_path_legacy": legacyChartPath,
+			"radar_comparison_path":   chartPath,
 		}, nil
 	})
 }

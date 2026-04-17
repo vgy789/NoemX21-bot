@@ -199,7 +199,7 @@ var orderedSkills = []string{
 	"Copywriting",
 }
 
-func generateRadarChart(usersData map[string]map[string]int32, orderedLogins []string) (string, error) {
+func generateRadarChartWithMode(usersData map[string]map[string]int32, orderedLogins []string, includeAllSkillsForIndividual bool, individualFilenameSuffix string) (string, error) {
 	if len(usersData) == 0 {
 		return "", fmt.Errorf("no data provided for chart")
 	}
@@ -267,37 +267,60 @@ func generateRadarChart(usersData map[string]map[string]int32, orderedLogins []s
 		logDiff = minLogDiffValue
 	}
 
-	// Step 2: Determine active skills (not 0 and >= 5% for at least one user)
+	// Step 2: Determine active skills
+	// - Individual chart: keep only skills with actual data (>0) for this user.
+	// - Comparison chart: keep skills that are >0 and significant enough (>= 5% scaled)
+	//   for at least one user.
 	var activeSkills []string
 	isIndividual := len(logins) == 1
-	for _, skillName := range orderedSkills {
-		if isIndividual {
-			activeSkills = append(activeSkills, skillName)
-			continue
-		}
-
-		keep := false
-		for _, login := range logins {
+	if isIndividual {
+		if includeAllSkillsForIndividual {
+			activeSkills = append(activeSkills, orderedSkills...)
+		} else {
+			login := logins[0]
 			skills := usersData[login]
 			normalized := userNormalizedSkills[login]
-
-			valInt, ok := skills[skillName]
-			if !ok {
-				valInt = normalized[strings.ToLower(skillName)]
-			}
-			val := float64(valInt)
-
-			logVal := math.Log10(val + 1)
-			scaledVal := ((logVal - logMin) / logDiff) * indicatorMaxValue
-
-			if val > 0 && scaledVal >= activeSkillThreshold {
-				keep = true
-				break
+			for _, skillName := range orderedSkills {
+				valInt, ok := skills[skillName]
+				if !ok {
+					valInt = normalized[strings.ToLower(skillName)]
+				}
+				if valInt > 0 {
+					activeSkills = append(activeSkills, skillName)
+				}
 			}
 		}
-		if keep {
-			activeSkills = append(activeSkills, skillName)
+	} else {
+		for _, skillName := range orderedSkills {
+			keep := false
+			for _, login := range logins {
+				skills := usersData[login]
+				normalized := userNormalizedSkills[login]
+
+				valInt, ok := skills[skillName]
+				if !ok {
+					valInt = normalized[strings.ToLower(skillName)]
+				}
+				val := float64(valInt)
+
+				logVal := math.Log10(val + 1)
+				scaledVal := ((logVal - logMin) / logDiff) * indicatorMaxValue
+
+				if val > 0 && scaledVal >= activeSkillThreshold {
+					keep = true
+					break
+				}
+			}
+			if keep {
+				activeSkills = append(activeSkills, skillName)
+			}
 		}
+	}
+
+	if len(activeSkills) == 0 {
+		// Nothing to render (e.g., user has no non-zero skills yet).
+		// Return empty path without error so callers can degrade gracefully.
+		return "", nil
 	}
 
 	// Step 3: Prepare data for active skills only
@@ -404,7 +427,7 @@ func generateRadarChart(usersData map[string]map[string]int32, orderedLogins []s
 
 	var filename string
 	if isIndividual {
-		filename = fmt.Sprintf("%s.png", logins[0])
+		filename = fmt.Sprintf("%s%s.png", logins[0], individualFilenameSuffix)
 	} else if len(logins) == 2 {
 		filename = fmt.Sprintf("%s+%s.png", logins[0], logins[1])
 	} else {
@@ -421,6 +444,14 @@ func generateRadarChart(usersData map[string]map[string]int32, orderedLogins []s
 	}
 
 	return filePath, nil
+}
+
+func generateRadarChart(usersData map[string]map[string]int32, orderedLogins []string) (string, error) {
+	return generateRadarChartWithMode(usersData, orderedLogins, false, "")
+}
+
+func generateRadarChartLegacy(usersData map[string]map[string]int32, orderedLogins []string) (string, error) {
+	return generateRadarChartWithMode(usersData, orderedLogins, true, "_legacy")
 }
 
 // GenerateRadarChartFromData is an exported wrapper to allow other packages
