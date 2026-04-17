@@ -87,6 +87,10 @@ type telegramService struct {
 	fileIDsMu sync.RWMutex
 }
 
+type activeInitializedTelegramGroupsLister interface {
+	ListActiveInitializedTelegramGroups(ctx context.Context) ([]db.TelegramGroup, error)
+}
+
 func telegramAllowedUpdates() []string {
 	return []string{
 		"message",
@@ -147,8 +151,14 @@ func (s *telegramService) Run(ctx context.Context) error {
 	s.setUpdater(updater)
 	s.registerHandlers(dispatcher)
 
+	dropPendingUpdates := s.cfg.Telegram.Polling.DropPendingUpdates
+	if dropPendingUpdates {
+		s.log.Warn("DROP_PENDING_UPDATES=true conflicts with moderation consistency; forcing false")
+		dropPendingUpdates = false
+	}
+
 	err = updater.StartPolling(tgBot, &ext.PollingOpts{
-		DropPendingUpdates: s.cfg.Telegram.Polling.DropPendingUpdates,
+		DropPendingUpdates: dropPendingUpdates,
 		GetUpdatesOpts: &gotgbot.GetUpdatesOpts{
 			AllowedUpdates: telegramAllowedUpdates(),
 			Timeout:        s.cfg.Telegram.Polling.Timeout,
@@ -161,6 +171,7 @@ func (s *telegramService) Run(ctx context.Context) error {
 		errMsg := config.RedactString(err.Error(), s.cfg.Telegram.Token, s.cfg.Telegram.Webhook.Secret)
 		return fmt.Errorf("failed to start polling: %s", errMsg)
 	}
+	s.startConsistencySweep(ctx, tgBot)
 	s.log.Info("start polling")
 
 	done := make(chan struct{})
@@ -235,6 +246,7 @@ func (s *telegramService) RunWebhook(ctx context.Context) error {
 		return fmt.Errorf("failed to start webhook: %s", errMsg)
 	}
 
+	s.startConsistencySweep(ctx, tgBot)
 	s.log.Info("webhook server started", "path", s.cfg.Telegram.Webhook.ListenPath, "addr", listenAddr)
 
 	done := make(chan struct{})
@@ -280,6 +292,81 @@ func (h *updaterHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	} else {
 		http.Error(w, "updater does not implement http.Handler", http.StatusInternalServerError)
 	}
+}
+
+func (s *telegramService) startConsistencySweep(parentCtx context.Context, b *gotgbot.Bot) {
+	if s == nil || s.queries == nil || b == nil {
+		return
+	}
+	lister, ok := s.queries.(activeInitializedTelegramGroupsLister)
+	if !ok {
+		return
+	}
+
+	go func() {
+		sweepCtx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+		defer cancel()
+
+		groups, err := lister.ListActiveInitializedTelegramGroups(sweepCtx)
+		if err != nil {
+			s.log.Warn("telegram consistency sweep: failed to list groups", "error", err)
+			return
+		}
+		if len(groups) == 0 {
+			return
+		}
+
+		s.log.Info("telegram consistency sweep started", "groups", len(groups))
+		processedGroups := 0
+		for _, group := range groups {
+			select {
+			case <-parentCtx.Done():
+				return
+			default:
+			}
+
+			if !group.DefenderEnabled && !group.MemberTagsEnabled {
+				continue
+			}
+			if err := s.reconcileKnownGroupMembers(sweepCtx, b, group); err != nil {
+				s.log.Warn("telegram consistency sweep: group reconcile failed", "chat_id", group.ChatID, "error", err)
+				continue
+			}
+			processedGroups++
+		}
+		s.log.Info("telegram consistency sweep finished", "groups", len(groups), "processed", processedGroups)
+	}()
+}
+
+func (s *telegramService) reconcileKnownGroupMembers(ctx context.Context, b *gotgbot.Bot, group db.TelegramGroup) error {
+	if s == nil || s.queries == nil || b == nil {
+		return nil
+	}
+	if !group.IsActive || !group.IsInitialized {
+		return nil
+	}
+
+	knownMembers, err := s.queries.ListTelegramGroupKnownMembers(ctx, group.ChatID)
+	if err != nil {
+		return err
+	}
+	if len(knownMembers) == 0 {
+		return nil
+	}
+
+	for _, known := range knownMembers {
+		if known.TelegramUserID == 0 || known.IsBot {
+			continue
+		}
+
+		if group.DefenderEnabled {
+			s.tryAutoDefenderForKnownGroup(ctx, b, group, known.TelegramUserID)
+		}
+		if group.MemberTagsEnabled {
+			s.tryAutoAssignMemberTagForKnownGroup(ctx, b, group, known.TelegramUserID)
+		}
+	}
+	return nil
 }
 
 // InvalidateScheduleFileID removes cached file_id for a schedule image.

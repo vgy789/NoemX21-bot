@@ -95,7 +95,7 @@ func TestHandleChatMember_AutoTagOnJoinWhenEnabled(t *testing.T) {
 	group := db.TelegramGroup{ChatID: chatID, OwnerTelegramUserID: 7007, IsInitialized: true, IsActive: true, MemberTagsEnabled: true, MemberTagFormat: memberTagFormatLogin}
 
 	queries.EXPECT().UpsertTelegramGroupMember(gomock.Any(), gomock.Any()).Return(db.TelegramGroupMember{}, nil)
-	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(group, nil).Times(2)
+	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(group, nil)
 	userSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), userID).Return(&service.UserProfile{Login: "peer", Level: 21}, nil)
 
 	client := &fakeMemberTagsBotClient{members: map[int64]rawChatMember{
@@ -137,7 +137,7 @@ func TestHandleChatMember_SkipWhenTagAlreadyExists(t *testing.T) {
 	group := db.TelegramGroup{ChatID: chatID, OwnerTelegramUserID: 7007, IsInitialized: true, IsActive: true, MemberTagsEnabled: true, MemberTagFormat: memberTagFormatLogin}
 
 	queries.EXPECT().UpsertTelegramGroupMember(gomock.Any(), gomock.Any()).Return(db.TelegramGroupMember{}, nil)
-	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(group, nil).Times(2)
+	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(group, nil)
 
 	client := &fakeMemberTagsBotClient{members: map[int64]rawChatMember{
 		9000: {Status: gotgbot.ChatMemberStatusAdministrator, CanManageTags: true, User: struct {
@@ -176,7 +176,7 @@ func TestHandleChatMember_SkipWhenBotHasNoTagRights(t *testing.T) {
 	group := db.TelegramGroup{ChatID: chatID, OwnerTelegramUserID: 7007, IsInitialized: true, IsActive: true, MemberTagsEnabled: true, MemberTagFormat: memberTagFormatLogin}
 
 	queries.EXPECT().UpsertTelegramGroupMember(gomock.Any(), gomock.Any()).Return(db.TelegramGroupMember{}, nil)
-	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(group, nil).Times(2)
+	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(group, nil)
 
 	client := &fakeMemberTagsBotClient{members: map[int64]rawChatMember{
 		9000: {Status: gotgbot.ChatMemberStatusAdministrator, CanManageTags: false, CanEditTag: false, User: struct {

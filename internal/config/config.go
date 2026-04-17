@@ -29,7 +29,7 @@ type TelegramBot struct {
 		// 4-byte aligned fields
 		MaxRoutines int `env:"MAX_ROUTINES" envDefault:"0"`
 		// 1-byte aligned fields last
-		DropPendingUpdates bool `env:"DROP_PENDING_UPDATES" envDefault:"true"`
+		DropPendingUpdates bool `env:"DROP_PENDING_UPDATES" envDefault:"false"`
 	}
 }
 

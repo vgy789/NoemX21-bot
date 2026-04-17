@@ -439,7 +439,7 @@ func (s *telegramService) handleChatMember(b *gotgbot.Bot, ctx *ext.Context) err
 
 	if b != nil && !updated.IsBot {
 		s.tryAutoDefenderForKnownGroup(context.Background(), b, group, updated.Id)
-		s.tryAutoAssignMemberTag(context.Background(), b, chat.Id, updated.Id)
+		s.tryAutoAssignMemberTagForKnownGroup(context.Background(), b, group, updated.Id)
 	}
 
 	return nil

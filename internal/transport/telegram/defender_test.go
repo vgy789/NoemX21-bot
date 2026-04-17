@@ -120,7 +120,7 @@ func TestHandleChatMember_AutoDefenderRemovesUnregistered(t *testing.T) {
 	}
 
 	queries.EXPECT().UpsertTelegramGroupMember(gomock.Any(), gomock.Any()).Return(db.TelegramGroupMember{}, nil).AnyTimes()
-	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(group, nil).Times(2)
+	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(group, nil)
 	queries.EXPECT().ExistsTelegramGroupWhitelist(gomock.Any(), db.ExistsTelegramGroupWhitelistParams{
 		ChatID:         chatID,
 		TelegramUserID: userID,
@@ -191,7 +191,7 @@ func TestHandleChatMember_AutoDefenderSkipsWhitelisted(t *testing.T) {
 	group := db.TelegramGroup{ChatID: chatID, OwnerTelegramUserID: 7007, IsInitialized: true, IsActive: true, DefenderEnabled: true}
 
 	queries.EXPECT().UpsertTelegramGroupMember(gomock.Any(), gomock.Any()).Return(db.TelegramGroupMember{}, nil)
-	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(group, nil).Times(2)
+	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(group, nil)
 	queries.EXPECT().ExistsTelegramGroupWhitelist(gomock.Any(), db.ExistsTelegramGroupWhitelistParams{ChatID: chatID, TelegramUserID: userID}).Return(true, nil)
 	queries.EXPECT().InsertTelegramGroupLog(gomock.Any(), gomock.Any()).Return(nil)
 

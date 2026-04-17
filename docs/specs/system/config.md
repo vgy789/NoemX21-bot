@@ -46,7 +46,7 @@
 | `REQUEST_TIMEOUT` | `25s` |
 | `POLLING_TIMEOUT` | `9` |
 | `MAX_ROUTINES` | `0` |
-| `DROP_PENDING_UPDATES` | `true` |
+| `DROP_PENDING_UPDATES` | `false` |
 | `GIT_BRANCH` | `main` |
 | `GIT_SYNC_INTERVAL` | `5m` |
 | `GIT_LOCAL_PATH` | `data` |
@@ -87,6 +87,7 @@
 
 - `TELEGRAM_WEBHOOK_ENABLED=false`
 - используются `POLLING_TIMEOUT`, `REQUEST_TIMEOUT`, `MAX_ROUTINES`, `DROP_PENDING_UPDATES`
+- для согласованности модерации и авто-тегов рекомендуется `DROP_PENDING_UPDATES=false` (иначе события простоя могут быть потеряны)
 - в Dokku deployment обычно сопровождается `domains:disable` и `ports:clear`
 
 ### Webhook

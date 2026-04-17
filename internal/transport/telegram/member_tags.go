@@ -75,6 +75,9 @@ func (s *telegramService) captureKnownMembersFromGroupMessage(ctx context.Contex
 	chatID := msg.Chat.Id
 	if msg.From != nil {
 		s.upsertKnownGroupMember(ctx, chatID, msg.From.Id, msg.From.IsBot, gotgbot.ChatMemberStatusMember, true)
+		if !msg.From.IsBot {
+			s.tryAutoModerationConsistencyForSender(ctx, b, chatID, msg.From.Id)
+		}
 	}
 
 	for _, member := range msg.NewChatMembers {
@@ -93,6 +96,24 @@ func (s *telegramService) captureKnownMembersFromGroupMessage(ctx context.Contex
 		if err := s.queries.UnlinkTelegramGroupOwner(ctx, chatID); err != nil {
 			s.log.Warn("failed to unlink group owner from owner-changed message event", "chat_id", chatID, "error", err)
 		}
+	}
+}
+
+func (s *telegramService) tryAutoModerationConsistencyForSender(ctx context.Context, b *gotgbot.Bot, chatID, telegramUserID int64) {
+	if s == nil || s.queries == nil || b == nil || chatID == 0 || telegramUserID == 0 {
+		return
+	}
+
+	group, err := s.queries.GetTelegramGroupByChatID(ctx, chatID)
+	if err != nil || !group.IsActive || !group.IsInitialized {
+		return
+	}
+
+	if group.DefenderEnabled {
+		s.tryAutoDefenderForKnownGroup(ctx, b, group, telegramUserID)
+	}
+	if group.MemberTagsEnabled {
+		s.tryAutoAssignMemberTagForKnownGroup(ctx, b, group, telegramUserID)
 	}
 }
 
@@ -352,21 +373,31 @@ func (s *telegramService) tryAutoAssignMemberTag(ctx context.Context, b *gotgbot
 	}
 
 	group, err := s.queries.GetTelegramGroupByChatID(ctx, chatID)
-	if err != nil || !group.IsActive || !group.IsInitialized || !group.MemberTagsEnabled {
+	if err != nil {
+		return
+	}
+	s.tryAutoAssignMemberTagForKnownGroup(ctx, b, group, telegramUserID)
+}
+
+func (s *telegramService) tryAutoAssignMemberTagForKnownGroup(ctx context.Context, b *gotgbot.Bot, group db.TelegramGroup, telegramUserID int64) {
+	if s == nil || s.queries == nil || s.userSvc == nil || b == nil || group.ChatID == 0 || telegramUserID == 0 {
+		return
+	}
+	if !group.IsActive || !group.IsInitialized || !group.MemberTagsEnabled {
 		return
 	}
 
-	botMember, err := s.getRawChatMember(ctx, b, chatID, b.Id)
+	botMember, err := s.getRawChatMember(ctx, b, group.ChatID, b.Id)
 	if err != nil || !canEditMemberTags(botMember) {
 		return
 	}
 
-	targetMember, err := s.getRawChatMember(ctx, b, chatID, telegramUserID)
+	targetMember, err := s.getRawChatMember(ctx, b, group.ChatID, telegramUserID)
 	if err != nil {
 		return
 	}
 	if !isRawMemberActive(targetMember) {
-		s.markKnownGroupMemberLeft(ctx, chatID, telegramUserID, targetMember.Status)
+		s.markKnownGroupMemberLeft(ctx, group.ChatID, telegramUserID, targetMember.Status)
 		return
 	}
 	if !isRegularMemberForTag(targetMember) {
@@ -386,8 +417,8 @@ func (s *telegramService) tryAutoAssignMemberTag(ctx context.Context, b *gotgbot
 		return
 	}
 
-	if err := s.setChatMemberTag(ctx, b, chatID, telegramUserID, tag); err != nil {
-		s.log.Debug("failed to auto-assign member tag", "chat_id", chatID, "user_id", telegramUserID, "error", err)
+	if err := s.setChatMemberTag(ctx, b, group.ChatID, telegramUserID, tag); err != nil {
+		s.log.Debug("failed to auto-assign member tag", "chat_id", group.ChatID, "user_id", telegramUserID, "error", err)
 	}
 }
 
