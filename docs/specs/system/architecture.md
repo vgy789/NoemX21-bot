@@ -5,7 +5,7 @@
 ## Стек
 
 ```yaml
-language: "Go 1.26.1"
+language: "Go 1.26.2"
 database: "PostgreSQL (pgx/v5, sqlc)"
 telegram_sdk: "gotgbot/v2"
 http_server: "net/http"
