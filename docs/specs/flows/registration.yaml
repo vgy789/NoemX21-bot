@@ -96,11 +96,11 @@ states:
     interface:
       text:
         ru: |
-          ✅ Логин подтверждён.
+          ✅ Отлично.
 
           Выбери способ подтверждения:
         en: |
-          ✅ Login verified.
+          ✅ Great.
 
           Choose verification method:
       buttons:
@@ -331,21 +331,21 @@ states:
     interface:
       text:
         ru: |
-          📥 *Лови посылку!*
+          📥 *Лови код!*
 
           Я отправила 6-значный код тебе {otp_delivery_label_ru}.
           Скорее проверяй и пиши его сюда, пока он не истёк!
 
-          Если выбран Email: письмо должно прийти с адреса `{otp_email_from}`.
-          Если письма нет, проверь папку «Спам».
+          ---
+          Письмо должно прийти с адреса `{otp_email_from}`. Если письма нет, проверь папку «Спам».
         en: |
-          📥 *Catch!*
+          📥 *Catch the code!*
 
           I've sent a 6-digit code {otp_delivery_label_en}.
           Go check it and enter it here before it expires!
 
-          If you selected Email: the message should come from `{otp_email_from}`.
-          If you don't see it, check your Spam folder.
+          ---
+          The message should come from `{otp_email_from}`. If you don't see it, check your Spam folder.
       error_invalid:
         ru: |
           ❌ *Что-то не сходится.*
