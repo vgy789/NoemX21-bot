@@ -36,9 +36,38 @@ func (n *telegramNotifier) NotifyUser(_ context.Context, userID int64, text stri
 }
 
 func (n *telegramNotifier) NotifyUserRender(_ context.Context, userID int64, render *fsm.RenderObject) error {
-	if n == nil || n.sender == nil || render == nil || strings.TrimSpace(render.Text) == "" {
+	if n == nil || n.sender == nil || render == nil {
 		return nil
 	}
+	text := strings.TrimSpace(render.Text)
+	image := strings.TrimSpace(render.Image)
+	if text == "" && image == "" {
+		return nil
+	}
+
+	if image != "" {
+		cleanPath := filepath.Clean(image)
+		if strings.Contains(cleanPath, "..") || strings.HasPrefix(cleanPath, "/") {
+			return fmt.Errorf("telegram notify render failed: illegal image path %q", image)
+		}
+
+		fileToClose, err := os.Open(cleanPath)
+		if err != nil {
+			return fmt.Errorf("telegram notify render failed: open image %q: %w", cleanPath, err)
+		}
+		defer func() { _ = fileToClose.Close() }()
+
+		_, err = n.sender.SendPhoto(userID, gotgbot.InputFileByReader("chart.png", fileToClose), &gotgbot.SendPhotoOpts{
+			Caption:     render.Text,
+			ParseMode:   "Markdown",
+			ReplyMarkup: buildMarkup(render.Buttons),
+		})
+		if err != nil {
+			return fmt.Errorf("telegram notify render failed: %w", err)
+		}
+		return nil
+	}
+
 	_, err := n.sender.SendMessage(userID, render.Text, &gotgbot.SendMessageOpts{
 		ParseMode:   "Markdown",
 		ReplyMarkup: buildMarkup(render.Buttons),
@@ -287,7 +316,7 @@ func (s *telegramService) handleGroupInit(b *gotgbot.Bot, ctx *ext.Context) erro
 	}
 
 	_, err = s.getSender(b).SendMessage(chatID,
-		"Группа успешно инициализирована.\nПрава управления закреплены за текущим владельцем (инициатором /init).\n\nОткрой личный чат с ботом → Клубы → Настройка групп. Там появятся кнопки выбора групп.",
+		"Группа успешно инициализирована.\nПрава управления закреплены за текущим владельцем (инициатором /init).\n\nОткрой личный чат с ботом → Клубы → Настройка групп. Там появится кнопка для настройки группы.",
 		nil,
 	)
 	return err
