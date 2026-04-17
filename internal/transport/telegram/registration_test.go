@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -154,4 +155,99 @@ func TestRegistration_UniquenessAndOTP(t *testing.T) {
 		// After successful registration, user should be in MAIN_MENU
 		assert.Contains(t, render.Text, "Главное меню")
 	})
+}
+
+func TestRegistration_EmailOTPProvisioningFlow(t *testing.T) {
+	cfg := &config.Config{}
+	cfg.EmailOTP.Enabled = true
+	cfg.EmailOTP.SMTPHost = "smtp.test.local"
+	cfg.EmailOTP.SMTPPort = 587
+	cfg.EmailOTP.SMTPUsername = "bot@test.local"
+	cfg.EmailOTP.SMTPPassword = config.Secret("secret")
+	cfg.EmailOTP.From = "bot@test.local"
+
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockUserSvc := serviceMock.NewMockUserService(ctrl)
+	mockQuerier := dbMock.NewMockQuerier(ctrl)
+	mockRCClient := rocketchat.NewClient("", "", "")
+
+	engine := setup.NewFSM(cfg, logger, mockQuerier, mockUserSvc, mockRCClient, nil, nil, "../../../docs/specs/flows", nil)
+	ts := NewTelegramService(cfg, logger, mockUserSvc, mockQuerier, engine, nil)
+
+	repo := fsm.NewMemoryStateRepository()
+	parser := fsm.NewFlowParser("../../../docs/specs/flows", logger)
+	ts.engine = fsm.NewEngine(parser, repo, logger, ts.engine.Registry(), ts.engine.Sanitizer())
+
+	crypter, _ := crypto.NewCrypter("12345678123456781234567812345678")
+	credSvc := service.NewCredentialService(mockQuerier, crypter, nil, logger)
+	otpSvc := service.NewOTPService(mockQuerier, nil, cfg, logger)
+	otpSvc.SetSMTPSender(func(host string, port int, username, password, from, to, msg string, timeout time.Duration) error {
+		return nil
+	})
+	otpProvider := service.NewRealOTPProvider(otpSvc)
+
+	mockQuerier.EXPECT().GetPlatformCredentials(gomock.Any(), gomock.Any()).Return(db.PlatformCredential{}, fmt.Errorf("not found")).AnyTimes()
+
+	registrar := actions.NewRegistrar(cfg, logger, mockUserSvc, mockQuerier, mockRCClient, nil, credSvc, otpProvider, repo, nil)
+	registrar.RegisterAll(ts.engine.Registry(), ts.engine.AddAlias)
+
+	ts.engine.Registry().Register("validate_school21_user", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		return "", map[string]any{
+			"api_status": 200,
+			"s21_login":  "newuser",
+			"s21_user": map[string]any{
+				"status":       "ACTIVE",
+				"parallelName": "Core program",
+			},
+		}, nil
+	})
+
+	ctx := context.Background()
+	userID := int64(401)
+
+	require.NoError(t, ts.engine.InitState(ctx, userID, fsm.FlowRegistration, fsm.StateInputLogin, map[string]any{
+		"otp_email_enabled": true,
+		"otp_email_from":    cfg.EmailOTP.From,
+	}))
+
+	gomock.InOrder(
+		mockQuerier.EXPECT().
+			GetLastAuthVerificationCode(gomock.Any(), gomock.Any()).
+			Return(db.AuthVerificationCode{}, fmt.Errorf("no rows in result set")),
+		mockQuerier.EXPECT().
+			DeleteAllAuthVerificationCodes(gomock.Any(), gomock.Any()).
+			Return(nil),
+		mockQuerier.EXPECT().
+			GetRegisteredUserByS21Login(gomock.Any(), "newuser").
+			Return(db.RegisteredUser{}, fmt.Errorf("no rows in result set")),
+		mockQuerier.EXPECT().
+			UpsertRegisteredUser(gomock.Any(), gomock.Any()).
+			Return(db.RegisteredUser{S21Login: "newuser", Timezone: "UTC"}, nil),
+		mockQuerier.EXPECT().
+			CreateAuthVerificationCode(gomock.Any(), gomock.Any()).
+			Return(db.AuthVerificationCode{}, nil),
+		mockQuerier.EXPECT().
+			GetRegisteredUserByS21Login(gomock.Any(), "newuser").
+			Return(db.RegisteredUser{S21Login: "newuser", Timezone: "UTC"}, nil),
+	)
+
+	render, err := ts.engine.Process(ctx, userID, "newuser")
+	require.NoError(t, err)
+	require.NotNil(t, render)
+	assert.Contains(t, render.Text, "Выбери способ подтверждения")
+
+	render, err = ts.engine.Process(ctx, userID, "auth_email")
+	require.NoError(t, err)
+	require.NotNil(t, render)
+	assert.Contains(t, render.Text, "Лови код")
+
+	state, err := ts.engine.Repo().GetState(ctx, userID)
+	require.NoError(t, err)
+	require.NotNil(t, state)
+	assert.Equal(t, fsm.StateAwaitingOTP, state.CurrentState)
+	assert.Equal(t, "newuser", state.Context["s21_login"])
+	assert.Equal(t, "email", state.Context["otp_delivery_method"])
 }

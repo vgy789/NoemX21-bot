@@ -213,8 +213,46 @@ func TestOTPService_GenerateAndSendOTP_EmailDisabled(t *testing.T) {
 		DeleteAllAuthVerificationCodes(ctx, gomock.Any()).
 		Return(nil)
 	mockRepo.EXPECT().
+		GetRegisteredUserByS21Login(ctx, "student1").
+		Return(db.RegisteredUser{}, &noRowsErr{})
+	mockRepo.EXPECT().
+		UpsertRegisteredUser(ctx, gomock.Any()).
+		Return(db.RegisteredUser{S21Login: "student1"}, nil)
+	mockRepo.EXPECT().
 		CreateAuthVerificationCode(ctx, gomock.Any()).
 		Return(db.AuthVerificationCode{}, nil)
+
+	err := svc.generateAndSendOTP(ctx, "student1", fsm.UserInfo{ID: 1, Username: "u", Platform: "Telegram"})
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "email otp is disabled")
+}
+
+func TestOTPService_GenerateAndSendOTP_EmailCreatesRegisteredUserBeforeInsert(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := mock.NewMockQuerier(ctrl)
+	log := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	svc := NewOTPService(mockRepo, nil, &config.Config{}, log)
+	ctx := context.WithValue(context.Background(), fsm.ContextKeyOTPDeliveryMethod, "email")
+
+	gomock.InOrder(
+		mockRepo.EXPECT().
+			GetLastAuthVerificationCode(ctx, gomock.Any()).
+			Return(db.AuthVerificationCode{}, &noRowsErr{}),
+		mockRepo.EXPECT().
+			DeleteAllAuthVerificationCodes(ctx, gomock.Any()).
+			Return(nil),
+		mockRepo.EXPECT().
+			GetRegisteredUserByS21Login(ctx, "student1").
+			Return(db.RegisteredUser{}, &noRowsErr{}),
+		mockRepo.EXPECT().
+			UpsertRegisteredUser(ctx, gomock.Any()).
+			Return(db.RegisteredUser{S21Login: "student1"}, nil),
+		mockRepo.EXPECT().
+			CreateAuthVerificationCode(ctx, gomock.Any()).
+			Return(db.AuthVerificationCode{}, nil),
+	)
 
 	err := svc.generateAndSendOTP(ctx, "student1", fsm.UserInfo{ID: 1, Username: "u", Platform: "Telegram"})
 	assert.Error(t, err)

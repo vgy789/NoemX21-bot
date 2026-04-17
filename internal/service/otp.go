@@ -32,6 +32,7 @@ type OTPService struct {
 	rcClient *rocketchat.Client
 	cfg      *config.Config
 	log      *slog.Logger
+	smtpSend func(host string, port int, username, password, from, to, msg string, timeout time.Duration) error
 }
 
 // NewOTPService creates a new OTP service
@@ -42,6 +43,11 @@ func NewOTPService(db db.Querier, rcClient *rocketchat.Client, cfg *config.Confi
 		cfg:      cfg,
 		log:      log,
 	}
+}
+
+// SetSMTPSender overrides SMTP delivery. Useful for tests and custom transports.
+func (s *OTPService) SetSMTPSender(sender func(host string, port int, username, password, from, to, msg string, timeout time.Duration) error) {
+	s.smtpSend = sender
 }
 
 // generateAndSendOTP generates a 6-digit code and sends it via selected channel (internal use).
@@ -79,6 +85,14 @@ func (s *OTPService) generateAndSendOTP(ctx context.Context, s21Login string, ui
 	if err != nil && !strings.Contains(err.Error(), "no rows") {
 		s.log.Warn("failed to delete old verification codes", "error", err)
 		// Continue anyway - not critical
+	}
+
+	// Email OTP can be requested before any registration record exists.
+	// Ensure the FK target exists before inserting the verification code row.
+	if deliveryMethod == otpDeliveryEmail {
+		if err := s.ensureRegisteredUserForEmail(ctx, s21Login); err != nil {
+			return err
+		}
 	}
 
 	// 4. Create new verification code in database
@@ -231,7 +245,11 @@ func (s *OTPService) sendOTPViaEmail(ctx context.Context, s21Login, code string,
 
 	s.log.Info("sending otp via email", "login", normalizedLogin, "target", to, "smtp_host", host, "smtp_port", s.cfg.EmailOTP.SMTPPort, "smtp_timeout", timeout)
 	msg := buildHTMLMessage(from, to, subject, body)
-	if err := s.sendSMTPMail(host, s.cfg.EmailOTP.SMTPPort, username, password, from, to, msg, timeout); err != nil {
+	sender := s.smtpSend
+	if sender == nil {
+		sender = s.sendSMTPMail
+	}
+	if err := sender(host, s.cfg.EmailOTP.SMTPPort, username, password, from, to, msg, timeout); err != nil {
 		return fmt.Errorf("smtp send failed: %w", err)
 	}
 
