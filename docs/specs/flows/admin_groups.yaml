@@ -1079,12 +1079,55 @@ states:
           condition: "can_manage_selected_group == true"
           next_state: GROUP_DEFENDER_BAN_DURATION_INPUT
           row: 5
+        - id: show_recommendation
+          label:
+            ru: 📌 Рекомендация по настройке
+            en: 📌 See the setup guide
+          next_state: GROUP_DEFENDER_RECOMMENDATION
+          row: 6
         - id: def_back_menu
           label:
             ru: 🔙 Назад
             en: 🔙 Back
           row: 99
           next_state: GROUP_DEFENDER_MENU
+
+  GROUP_DEFENDER_RECOMMENDATION:
+    type: interactive
+    description: Рекомендация по включению заявок на вступление
+    interface:
+      text:
+        ru: |
+          📌 *Рекомендация*
+
+          Представь гипотетическую ситуацию: бот перестал работать, и все новички могут свободно проходить мимо фейс-контроля.
+
+          Чтобы этого не допустить, рекомендуется включить функцию *«Заявки на вступление»*.
+
+          Если бот сдохнет, админ группы сможет вручную обработать заявки, или просто дождаться, когда бот заработает и сам одобрит/отклонит заявки.
+
+          *Как включить:*
+          1. Открой свою группу → нажми на название группы вверху.
+          2. Нажми *«Управление группой»* (или *«Редактировать»* → *«Информация о группе»*).
+          3. Перейди в раздел *«Пригласительные ссылки»* (Invite Links).
+          4. Нажми *«Создать новую ссылку»* (или отредактируй существующую).
+          5. Включи переключатель *«Заявки на вступление»* / *«Одобрять новых участников»* / *«Request admin approval»*.
+          6. Сохрани ссылку.
+
+          Теперь все, кто перейдёт по этой ссылке, будут видеть кнопку *«Подать заявку»* вместо автоматического вступления.
+        en: |
+          📌 *Recommendation*
+
+          Enable *Join Requests* for invite links so newcomers do not bypass face control during bot downtime.
+
+          Then an group admin can approve/decline manually, or wait until the bot is back and it will process requests automatically.
+      buttons:
+        - id: recommendation_ok
+          label:
+            ru: ✅ Понятно
+            en: ✅ Got it
+          next_state: GROUP_DEFENDER_AUTOMODE
+          row: 1
 
   GROUP_DEFENDER_FILTER_CAMPUS:
     type: interactive
