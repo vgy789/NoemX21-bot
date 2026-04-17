@@ -162,6 +162,11 @@ states:
             ru: 🏷 Теги пользователей
             en: 🏷 Member Tags
           next_state: GROUP_MEMBER_TAGS_MENU
+        - id: open_moderators_settings
+          label:
+            ru: 👮‍♂️ Команда модераторов
+            en: 👮‍♂️ Moderation Team
+          next_state: GROUP_MODERATORS_MENU
         - id: back_to_groups
           label:
             ru: ↩️ К списку групп
@@ -784,6 +789,191 @@ states:
             en: 🔙 Back
           row: 99
           next_state: GROUP_ADMIN_MENU
+
+  GROUP_MODERATORS_MENU:
+    type: interactive
+    description: Список модераторов группы
+    on_enter:
+      - action: load_group_moderators_context
+    interface:
+      text:
+        ru: |
+          👮‍♂️ *Команда модераторов* / {selected_group_title}
+
+          Здесь ты можешь назначить помощников. Модераторы смогут использовать функции бота для наведения порядка.
+
+          *Текущий состав:*
+          {moderators_list_formatted_ru}
+        en: |
+          👮‍♂️ *Moderation Team* / {selected_group_title}
+
+          Assign helpers here. Moderators will be able to use bot functions to keep the pond clean.
+
+          *Current team:*
+          {moderators_list_formatted_en}
+      buttons:
+        - id: mod_add_new
+          label:
+            ru: ➕ Добавить модератора
+            en: ➕ Add moderator
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_MODERATORS_ADD_INPUT
+          row: 1
+        - id: "{moderator_button_id_1}"
+          label: "{moderator_button_label_1}"
+          condition: "moderator_button_id_1 != ''"
+          action: select_group_moderator
+          next_state: GROUP_MODERATOR_SETTINGS
+          row: 2
+        - id: "{moderator_button_id_2}"
+          label: "{moderator_button_label_2}"
+          condition: "moderator_button_id_2 != ''"
+          action: select_group_moderator
+          next_state: GROUP_MODERATOR_SETTINGS
+          row: 3
+        - id: "{moderator_button_id_3}"
+          label: "{moderator_button_label_3}"
+          condition: "moderator_button_id_3 != ''"
+          action: select_group_moderator
+          next_state: GROUP_MODERATOR_SETTINGS
+          row: 4
+        - id: "{moderator_button_id_4}"
+          label: "{moderator_button_label_4}"
+          condition: "moderator_button_id_4 != ''"
+          action: select_group_moderator
+          next_state: GROUP_MODERATOR_SETTINGS
+          row: 5
+        - id: "{moderator_button_id_5}"
+          label: "{moderator_button_label_5}"
+          condition: "moderator_button_id_5 != ''"
+          action: select_group_moderator
+          next_state: GROUP_MODERATOR_SETTINGS
+          row: 6
+        - id: "{moderator_button_id_6}"
+          label: "{moderator_button_label_6}"
+          condition: "moderator_button_id_6 != ''"
+          action: select_group_moderator
+          next_state: GROUP_MODERATOR_SETTINGS
+          row: 7
+        - id: "{moderator_button_id_7}"
+          label: "{moderator_button_label_7}"
+          condition: "moderator_button_id_7 != ''"
+          action: select_group_moderator
+          next_state: GROUP_MODERATOR_SETTINGS
+          row: 8
+        - id: "{moderator_button_id_8}"
+          label: "{moderator_button_label_8}"
+          condition: "moderator_button_id_8 != ''"
+          action: select_group_moderator
+          next_state: GROUP_MODERATOR_SETTINGS
+          row: 9
+        - id: "{moderator_button_id_9}"
+          label: "{moderator_button_label_9}"
+          condition: "moderator_button_id_9 != ''"
+          action: select_group_moderator
+          next_state: GROUP_MODERATOR_SETTINGS
+          row: 10
+        - id: "{moderator_button_id_10}"
+          label: "{moderator_button_label_10}"
+          condition: "moderator_button_id_10 != ''"
+          action: select_group_moderator
+          next_state: GROUP_MODERATOR_SETTINGS
+          row: 11
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: GROUP_ADMIN_MENU
+          row: 99
+
+  GROUP_MODERATORS_ADD_INPUT:
+    type: input
+    description: Ввод идентификатора нового модератора
+    interface:
+      text:
+        ru: |
+          ➕ *Новый модератор*
+
+          Введи Telegram ID, школьный логин или `@username` пользователя.
+          💡 _Пользователь должен быть зарегистрирован в боте._
+        en: |
+          ➕ *New Moderator*
+
+          Enter Telegram ID, school login, or `@username`.
+          💡 _User must be registered in the bot._
+      buttons:
+        - id: cancel
+          label:
+            ru: 🔙 Отмена
+            en: 🔙 Cancel
+          next_state: GROUP_MODERATORS_MENU
+    transitions:
+      - trigger: on_input
+        action: add_group_moderator_from_input
+        next_state: GROUP_MODERATOR_SETTINGS
+
+  GROUP_MODERATOR_SETTINGS:
+    type: interactive
+    description: Настройка прав конкретного модератора
+    on_enter:
+      - action: load_target_moderator_context
+    interface:
+      text:
+        ru: |
+          ⚙️ *Права модератора:* {target_mod_name}
+
+          Настрой, что разрешено этому пользователю:
+
+          🚫 *Бан:* `{mod_can_ban_label_ru}`
+          🔇 *Мут:* `{mod_can_mute_label_ru}`
+          🦆 *Полный доступ:* `{mod_full_access_label_ru}`
+
+          _Полный доступ позволяет видеть группу в списке «Твои группы» и менять любые настройки бота._
+        en: |
+          ⚙️ *Permissions:* {target_mod_name}
+
+          Configure what this user is allowed to do:
+
+          🚫 *Ban:* `{mod_can_ban_label_en}`
+          🔇 *Mute:* `{mod_can_mute_label_en}`
+          🦆 *Full Access:* `{mod_full_access_label_en}`
+
+          _Full access allows the user to see this group in their "Your Groups" list and change any bot settings._
+      buttons:
+        - id: toggle_perm_ban
+          label:
+            ru: "🚫 Бан: {mod_can_ban_status_ru}"
+            en: "🚫 Ban: {mod_can_ban_status_en}"
+          action: toggle_moderator_permission
+          next_state: GROUP_MODERATOR_SETTINGS
+          row: 1
+        - id: toggle_perm_mute
+          label:
+            ru: "🔇 Мут: {mod_can_mute_status_ru}"
+            en: "🔇 Mute: {mod_can_mute_status_en}"
+          action: toggle_moderator_permission
+          next_state: GROUP_MODERATOR_SETTINGS
+          row: 1
+        - id: toggle_perm_full
+          label:
+            ru: "🦆 Полный доступ: {mod_full_access_status_ru}"
+            en: "🦆 Full Access: {mod_full_access_status_en}"
+          action: toggle_moderator_permission
+          next_state: GROUP_MODERATOR_SETTINGS
+          row: 2
+        - id: delete_moderator
+          label:
+            ru: 🗑 Удалить из команды
+            en: 🗑 Remove from team
+          action: remove_group_moderator
+          next_state: GROUP_MODERATORS_MENU
+          row: 3
+        - id: back
+          label:
+            ru: 🔙 К списку
+            en: 🔙 To list
+          next_state: GROUP_MODERATORS_MENU
+          row: 99
 
   GROUP_DEFENDER_AUTOMODE:
     type: interactive

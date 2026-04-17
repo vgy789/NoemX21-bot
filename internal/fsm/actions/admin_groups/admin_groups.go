@@ -59,7 +59,7 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 			updates["is_bot_owner"] = (acc.S21Login == cfg.Init.SchoolLogin)
 		}
 
-		groups, err := queries.ListTelegramGroupsByOwner(ctx, userID)
+		groups, err := listManagedGroups(ctx, queries, userID)
 		if err != nil {
 			log.Debug("admin groups: failed to load groups", "user_id", userID, "error", err)
 			return "", updates, nil
@@ -331,6 +331,7 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 		return "", updates, nil
 	})
 
+	registerModeratorActions(registry, log, queries)
 	registerDefenderActions(registry, log, queries)
 	registerPRRActions(registry, log, queries)
 }
@@ -360,10 +361,34 @@ func requireOwnedGroup(ctx context.Context, queries db.Querier, userID, chatID i
 	if err != nil {
 		return db.TelegramGroup{}, err
 	}
-	if group.OwnerTelegramUserID != userID || !group.IsActive || !group.IsInitialized {
+	if !group.IsActive || !group.IsInitialized {
 		return db.TelegramGroup{}, errGroupAccessDenied
 	}
-	return group, nil
+	if group.OwnerTelegramUserID == userID {
+		return group, nil
+	}
+	if checker, ok := queries.(groupFullAccessChecker); ok {
+		hasAccess, err := checker.ExistsTelegramGroupModeratorFullAccess(ctx, chatID, userID)
+		if err == nil && hasAccess {
+			return group, nil
+		}
+	}
+	return db.TelegramGroup{}, errGroupAccessDenied
+}
+
+type managedGroupsLister interface {
+	ListTelegramGroupsManagedByUser(ctx context.Context, telegramUserID int64) ([]db.TelegramGroup, error)
+}
+
+type groupFullAccessChecker interface {
+	ExistsTelegramGroupModeratorFullAccess(ctx context.Context, chatID, telegramUserID int64) (bool, error)
+}
+
+func listManagedGroups(ctx context.Context, queries db.Querier, userID int64) ([]db.TelegramGroup, error) {
+	if lister, ok := queries.(managedGroupsLister); ok {
+		return lister.ListTelegramGroupsManagedByUser(ctx, userID)
+	}
+	return queries.ListTelegramGroupsByOwner(ctx, userID)
 }
 
 func mergeMemberTagSettingsDefaults(updates map[string]any) {

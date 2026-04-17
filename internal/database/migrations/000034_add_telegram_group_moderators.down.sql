@@ -1,0 +1,3 @@
+DROP INDEX IF EXISTS idx_telegram_group_moderators_user_full_access;
+DROP INDEX IF EXISTS idx_telegram_group_moderators_chat_updated;
+DROP TABLE IF EXISTS telegram_group_moderators;
