@@ -14,6 +14,7 @@ import (
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext/handlers"
+	chatjoinrequestfilters "github.com/PaulSonOfLars/gotgbot/v2/ext/handlers/filters/chatjoinrequest"
 	chatmemberfilters "github.com/PaulSonOfLars/gotgbot/v2/ext/handlers/filters/chatmember"
 	"github.com/jackc/pgx/v5"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
@@ -91,6 +92,7 @@ func (s *telegramService) registerHandlers(d *ext.Dispatcher) {
 	d.AddHandler(handlers.NewCommand("kick", s.handleKickCommand))
 	d.AddHandler(handlers.NewMyChatMember(chatmemberfilters.All, s.handleMyChatMember))
 	d.AddHandler(handlers.NewChatMember(chatmemberfilters.All, s.handleChatMember))
+	d.AddHandler(handlers.NewChatJoinRequest(chatjoinrequestfilters.All, s.handleChatJoinRequest))
 	d.AddHandler(handlers.NewCallback(func(cq *gotgbot.CallbackQuery) bool { return true }, s.withCallbackDebugMiddleware(s.handleCallback)))
 	d.AddHandler(handlers.NewMessage(func(msg *gotgbot.Message) bool { return true }, s.withDurationCleanupMiddleware(s.handleTextMessage)))
 }
@@ -440,6 +442,25 @@ func (s *telegramService) handleChatMember(b *gotgbot.Bot, ctx *ext.Context) err
 		s.tryAutoAssignMemberTag(context.Background(), b, chat.Id, updated.Id)
 	}
 
+	return nil
+}
+
+func (s *telegramService) handleChatJoinRequest(b *gotgbot.Bot, ctx *ext.Context) error {
+	if ctx.ChatJoinRequest == nil || b == nil || s.queries == nil {
+		return nil
+	}
+
+	chat := &ctx.ChatJoinRequest.Chat
+	if !isGroupChat(chat) {
+		return nil
+	}
+
+	group, err := s.queries.GetTelegramGroupByChatID(context.Background(), chat.Id)
+	if err != nil || !group.IsActive || !group.IsInitialized {
+		return nil
+	}
+
+	s.tryAutoDefenderForJoinRequest(context.Background(), b, group, ctx.ChatJoinRequest.From.Id)
 	return nil
 }
 

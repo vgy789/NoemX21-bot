@@ -93,6 +93,7 @@ func telegramAllowedUpdates() []string {
 		"callback_query",
 		"chat_member",
 		"my_chat_member",
+		"chat_join_request",
 	}
 }
 

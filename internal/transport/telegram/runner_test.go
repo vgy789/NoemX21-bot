@@ -208,3 +208,8 @@ func TestTelegramService_InvalidateScheduleFileID(t *testing.T) {
 	assert.False(t, hasCache)
 	assert.True(t, hasOther)
 }
+
+func TestTelegramAllowedUpdates_IncludesJoinRequests(t *testing.T) {
+	updates := telegramAllowedUpdates()
+	assert.Contains(t, updates, "chat_join_request")
+}

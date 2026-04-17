@@ -1221,6 +1221,11 @@ func defenderLogSourceLabel(source, language string) string {
 			return "Auto-check on join"
 		}
 		return "Автопроверка при входе"
+	case "auto_join_request":
+		if language == fsm.LangEn {
+			return "Auto-check join request"
+		}
+		return "Автопроверка заявки на вход"
 	case "manual_run":
 		if language == fsm.LangEn {
 			return "Manual run"
@@ -1273,6 +1278,51 @@ func defenderLogResultLabel(action, reason, language string) string {
 			return "🚫 Temporarily banned: matched selected tribe"
 		}
 		return "🚫 Временный бан: из выбранного трайба"
+	case "declined/unregistered":
+		if language == fsm.LangEn {
+			return "⛔ Join request declined: not registered in bot"
+		}
+		return "⛔ Заявка отклонена: не зарегистрирован в боте"
+	case "declined/blocked":
+		if language == fsm.LangEn {
+			return "⛔ Join request declined: student status BLOCKED"
+		}
+		return "⛔ Заявка отклонена: статус студента BLOCKED"
+	case "declined/expelled":
+		if language == fsm.LangEn {
+			return "⛔ Join request declined: student status EXPELLED"
+		}
+		return "⛔ Заявка отклонена: статус студента EXPELLED"
+	case "declined/campus_filter":
+		if language == fsm.LangEn {
+			return "⛔ Join request declined: campus filter mismatch"
+		}
+		return "⛔ Заявка отклонена: не прошёл фильтр кампуса"
+	case "declined/tribe_filter":
+		if language == fsm.LangEn {
+			return "⛔ Join request declined: tribe filter mismatch"
+		}
+		return "⛔ Заявка отклонена: не прошёл фильтр трайба"
+	case "declined/campus_selected":
+		if language == fsm.LangEn {
+			return "⛔ Join request declined: matched selected campus"
+		}
+		return "⛔ Заявка отклонена: из выбранного кампуса"
+	case "declined/tribe_selected":
+		if language == fsm.LangEn {
+			return "⛔ Join request declined: matched selected tribe"
+		}
+		return "⛔ Заявка отклонена: из выбранного трайба"
+	case "approved/passed":
+		if language == fsm.LangEn {
+			return "✅ Join request approved: passed checks"
+		}
+		return "✅ Заявка одобрена: проверки пройдены"
+	case "approved/whitelist":
+		if language == fsm.LangEn {
+			return "✅ Join request approved: in whitelist"
+		}
+		return "✅ Заявка одобрена: в whitelist"
 	case "skipped_whitelist/whitelist":
 		if language == fsm.LangEn {
 			return "⏭ Skipped: in whitelist"

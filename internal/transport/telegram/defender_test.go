@@ -20,9 +20,11 @@ import (
 )
 
 type fakeDefenderBotClient struct {
-	members    map[int64]rawChatMember
-	banCalls   []fakeDefenderBanCall
-	unbanCalls []int64
+	members      map[int64]rawChatMember
+	banCalls     []fakeDefenderBanCall
+	unbanCalls   []int64
+	approveCalls []int64
+	declineCalls []int64
 }
 
 type fakeDefenderBanCall struct {
@@ -69,6 +71,20 @@ func (f *fakeDefenderBotClient) RequestWithContext(_ context.Context, _ string, 
 		member := f.members[userID]
 		member.Status = gotgbot.ChatMemberStatusLeft
 		f.members[userID] = member
+		return json.Marshal(true)
+	case "approveChatJoinRequest":
+		userID, ok := toInt64(params["user_id"])
+		if !ok {
+			return nil, fmt.Errorf("invalid user_id param type: %T", params["user_id"])
+		}
+		f.approveCalls = append(f.approveCalls, userID)
+		return json.Marshal(true)
+	case "declineChatJoinRequest":
+		userID, ok := toInt64(params["user_id"])
+		if !ok {
+			return nil, fmt.Errorf("invalid user_id param type: %T", params["user_id"])
+		}
+		f.declineCalls = append(f.declineCalls, userID)
 		return json.Marshal(true)
 	default:
 		return nil, fmt.Errorf("unexpected method: %s", method)
@@ -201,6 +217,177 @@ func TestHandleChatMember_AutoDefenderSkipsWhitelisted(t *testing.T) {
 	require.NoError(t, err)
 	require.Len(t, client.banCalls, 0)
 	require.Len(t, client.unbanCalls, 0)
+}
+
+func TestHandleChatJoinRequest_AutoDefenderDeclinesUnregistered(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	queries := dbmock.NewMockQuerier(ctrl)
+	userSvc := serviceMock.NewMockUserService(ctrl)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	s := &telegramService{log: log, queries: queries, userSvc: userSvc}
+
+	chatID := int64(-100912)
+	userID := int64(1912)
+	expectEmptyDefenderFilters(queries, chatID)
+	group := db.TelegramGroup{
+		ChatID:          chatID,
+		IsInitialized:   true,
+		IsActive:        true,
+		DefenderEnabled: true,
+	}
+
+	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(group, nil)
+	queries.EXPECT().ExistsTelegramGroupWhitelist(gomock.Any(), db.ExistsTelegramGroupWhitelistParams{
+		ChatID:         chatID,
+		TelegramUserID: userID,
+	}).Return(false, nil)
+
+	logRows := make([]db.InsertTelegramGroupLogParams, 0)
+	queries.EXPECT().InsertTelegramGroupLog(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, arg db.InsertTelegramGroupLogParams) error {
+		logRows = append(logRows, arg)
+		return nil
+	}).AnyTimes()
+
+	userSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), userID).Return(nil, fmt.Errorf("user account not found"))
+
+	client := &fakeDefenderBotClient{members: map[int64]rawChatMember{
+		9000: {
+			Status:         gotgbot.ChatMemberStatusAdministrator,
+			CanInviteUsers: true,
+			User: struct {
+				ID    int64 `json:"id"`
+				IsBot bool  `json:"is_bot"`
+			}{ID: 9000, IsBot: true},
+		},
+	}}
+	bot := &gotgbot.Bot{Token: "test-token", User: gotgbot.User{Id: 9000, IsBot: true}, BotClient: client}
+
+	ctx := ext.NewContext(bot, &gotgbot.Update{ChatJoinRequest: &gotgbot.ChatJoinRequest{
+		Chat: gotgbot.Chat{Id: chatID, Type: "supergroup"},
+		From: gotgbot.User{Id: userID, IsBot: false},
+	}}, nil)
+
+	err := s.handleChatJoinRequest(bot, ctx)
+	require.NoError(t, err)
+	require.Len(t, client.approveCalls, 0)
+	require.Len(t, client.declineCalls, 1)
+	assert.Equal(t, userID, client.declineCalls[0])
+	require.NotEmpty(t, logRows)
+	assert.Equal(t, "auto_join_request", logRows[0].Source)
+	assert.Equal(t, "declined", logRows[0].Action)
+	assert.Equal(t, "unregistered", logRows[0].Reason)
+}
+
+func TestHandleChatJoinRequest_AutoDefenderApprovesWhitelisted(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	queries := dbmock.NewMockQuerier(ctrl)
+	userSvc := serviceMock.NewMockUserService(ctrl)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	s := &telegramService{log: log, queries: queries, userSvc: userSvc}
+
+	chatID := int64(-100913)
+	userID := int64(1913)
+	group := db.TelegramGroup{
+		ChatID:          chatID,
+		IsInitialized:   true,
+		IsActive:        true,
+		DefenderEnabled: true,
+	}
+
+	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(group, nil)
+	queries.EXPECT().ExistsTelegramGroupWhitelist(gomock.Any(), db.ExistsTelegramGroupWhitelistParams{
+		ChatID:         chatID,
+		TelegramUserID: userID,
+	}).Return(true, nil)
+
+	logRows := make([]db.InsertTelegramGroupLogParams, 0)
+	queries.EXPECT().InsertTelegramGroupLog(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, arg db.InsertTelegramGroupLogParams) error {
+		logRows = append(logRows, arg)
+		return nil
+	}).AnyTimes()
+
+	client := &fakeDefenderBotClient{members: map[int64]rawChatMember{
+		9000: {
+			Status:         gotgbot.ChatMemberStatusAdministrator,
+			CanInviteUsers: true,
+			User: struct {
+				ID    int64 `json:"id"`
+				IsBot bool  `json:"is_bot"`
+			}{ID: 9000, IsBot: true},
+		},
+	}}
+	bot := &gotgbot.Bot{Token: "test-token", User: gotgbot.User{Id: 9000, IsBot: true}, BotClient: client}
+
+	ctx := ext.NewContext(bot, &gotgbot.Update{ChatJoinRequest: &gotgbot.ChatJoinRequest{
+		Chat: gotgbot.Chat{Id: chatID, Type: "supergroup"},
+		From: gotgbot.User{Id: userID, IsBot: false},
+	}}, nil)
+
+	err := s.handleChatJoinRequest(bot, ctx)
+	require.NoError(t, err)
+	require.Len(t, client.approveCalls, 1)
+	require.Len(t, client.declineCalls, 0)
+	assert.Equal(t, userID, client.approveCalls[0])
+	require.NotEmpty(t, logRows)
+	assert.Equal(t, "auto_join_request", logRows[0].Source)
+	assert.Equal(t, "approved", logRows[0].Action)
+	assert.Equal(t, "whitelist", logRows[0].Reason)
+}
+
+func TestHandleChatJoinRequest_AutoDefenderSkipsWithoutInviteRights(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	queries := dbmock.NewMockQuerier(ctrl)
+	userSvc := serviceMock.NewMockUserService(ctrl)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	s := &telegramService{log: log, queries: queries, userSvc: userSvc}
+
+	chatID := int64(-100914)
+	userID := int64(1914)
+	group := db.TelegramGroup{
+		ChatID:          chatID,
+		IsInitialized:   true,
+		IsActive:        true,
+		DefenderEnabled: true,
+	}
+
+	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(group, nil)
+
+	logRows := make([]db.InsertTelegramGroupLogParams, 0)
+	queries.EXPECT().InsertTelegramGroupLog(gomock.Any(), gomock.Any()).DoAndReturn(func(_ context.Context, arg db.InsertTelegramGroupLogParams) error {
+		logRows = append(logRows, arg)
+		return nil
+	}).AnyTimes()
+
+	client := &fakeDefenderBotClient{members: map[int64]rawChatMember{
+		9000: {
+			Status:         gotgbot.ChatMemberStatusAdministrator,
+			CanInviteUsers: false,
+			User: struct {
+				ID    int64 `json:"id"`
+				IsBot bool  `json:"is_bot"`
+			}{ID: 9000, IsBot: true},
+		},
+	}}
+	bot := &gotgbot.Bot{Token: "test-token", User: gotgbot.User{Id: 9000, IsBot: true}, BotClient: client}
+
+	ctx := ext.NewContext(bot, &gotgbot.Update{ChatJoinRequest: &gotgbot.ChatJoinRequest{
+		Chat: gotgbot.Chat{Id: chatID, Type: "supergroup"},
+		From: gotgbot.User{Id: userID, IsBot: false},
+	}}, nil)
+
+	err := s.handleChatJoinRequest(bot, ctx)
+	require.NoError(t, err)
+	require.Len(t, client.approveCalls, 0)
+	require.Len(t, client.declineCalls, 0)
+	require.NotEmpty(t, logRows)
+	assert.Equal(t, "skipped_no_rights", logRows[0].Action)
+	assert.Equal(t, "bot_rights", logRows[0].Reason)
 }
 
 func TestDefenderRunner_ManualRunBlockedUser(t *testing.T) {

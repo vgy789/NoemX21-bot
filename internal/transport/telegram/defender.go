@@ -15,14 +15,17 @@ import (
 )
 
 const (
-	defenderSourceAutoJoin  = "auto_join"
-	defenderSourceManualRun = "manual_run"
+	defenderSourceAutoJoin        = "auto_join"
+	defenderSourceAutoJoinRequest = "auto_join_request"
+	defenderSourceManualRun       = "manual_run"
 
 	defenderBanDefaultSec = int32(24 * 60 * 60)
 	defenderBanMinSec     = int32(5 * 60)
 	defenderBanMaxSec     = int32(30 * 24 * 60 * 60)
 
 	defenderActionRemoved          = "removed"
+	defenderActionApproved         = "approved"
+	defenderActionDeclined         = "declined"
 	defenderActionSkippedWhitelist = "skipped_whitelist"
 	defenderActionSkippedNoRights  = "skipped_no_rights"
 	defenderActionSkippedNotMember = "skipped_not_member"
@@ -31,6 +34,7 @@ const (
 	defenderReasonBlocked      = "blocked"
 	defenderReasonExpelled     = "expelled"
 	defenderReasonWhitelist    = "whitelist"
+	defenderReasonPassed       = "passed"
 	defenderReasonBotRights    = "bot_rights"
 	defenderReasonNotMember    = "not_member"
 	defenderReasonCampusFilter = "campus_filter"
@@ -361,6 +365,70 @@ func (s *telegramService) tryAutoDefenderForKnownGroup(ctx context.Context, b *g
 	s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoin, telegramUserID, defenderActionRemoved, decision.Reason, formatDefenderBanDetails(banDurationSec, untilUTC))
 }
 
+func (s *telegramService) tryAutoDefenderForJoinRequest(ctx context.Context, b *gotgbot.Bot, group db.TelegramGroup, telegramUserID int64) {
+	if s == nil || s.queries == nil || s.userSvc == nil || b == nil || telegramUserID == 0 {
+		return
+	}
+	if !group.IsActive || !group.IsInitialized || !group.DefenderEnabled {
+		return
+	}
+
+	botMember, err := s.getRawChatMember(ctx, b, group.ChatID, b.Id)
+	if err != nil {
+		return
+	}
+	if !canManageJoinRequests(botMember) {
+		s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoinRequest, telegramUserID, defenderActionSkippedNoRights, defenderReasonBotRights, "")
+		return
+	}
+
+	isWhitelisted, err := s.queries.ExistsTelegramGroupWhitelist(ctx, db.ExistsTelegramGroupWhitelistParams{
+		ChatID:         group.ChatID,
+		TelegramUserID: telegramUserID,
+	})
+	if err != nil {
+		return
+	}
+	if isWhitelisted {
+		if err := s.approveChatJoinRequest(ctx, b, group.ChatID, telegramUserID); err != nil {
+			s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoinRequest, telegramUserID, defenderActionSkippedNoRights, defenderReasonBotRights, err.Error())
+			return
+		}
+		s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoinRequest, telegramUserID, defenderActionApproved, defenderReasonWhitelist, "")
+		return
+	}
+
+	filters, err := s.loadDefenderFilterConfig(ctx, group.ChatID)
+	if err != nil {
+		if s.log != nil {
+			s.log.Warn("defender: failed to load filter config for join request, fallback to base rules", "chat_id", group.ChatID, "error", err)
+		}
+		filters = emptyDefenderFilterConfig()
+	}
+	decision, err := s.evaluateDefenderDecision(ctx, telegramUserID, group, filters, fsm.DefenderManualFilter{}, false)
+	if err != nil {
+		if s.log != nil {
+			s.log.Warn("defender: failed to evaluate join request decision", "chat_id", group.ChatID, "user_id", telegramUserID, "error", err)
+		}
+		return
+	}
+
+	if decision.ShouldRemove {
+		if err := s.declineChatJoinRequest(ctx, b, group.ChatID, telegramUserID); err != nil {
+			s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoinRequest, telegramUserID, defenderActionSkippedNoRights, defenderReasonBotRights, err.Error())
+			return
+		}
+		s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoinRequest, telegramUserID, defenderActionDeclined, decision.Reason, "")
+		return
+	}
+
+	if err := s.approveChatJoinRequest(ctx, b, group.ChatID, telegramUserID); err != nil {
+		s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoinRequest, telegramUserID, defenderActionSkippedNoRights, defenderReasonBotRights, err.Error())
+		return
+	}
+	s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoinRequest, telegramUserID, defenderActionApproved, defenderReasonPassed, "")
+}
+
 func (s *telegramService) evaluateDefenderDecision(
 	ctx context.Context,
 	telegramUserID int64,
@@ -573,6 +641,17 @@ func canRestrictMembers(member rawChatMember) bool {
 	}
 }
 
+func canManageJoinRequests(member rawChatMember) bool {
+	switch strings.TrimSpace(member.Status) {
+	case gotgbot.ChatMemberStatusOwner:
+		return true
+	case gotgbot.ChatMemberStatusAdministrator:
+		return member.CanInviteUsers
+	default:
+		return false
+	}
+}
+
 func normalizeDefenderBanDurationSec(sec int32) int32 {
 	if sec < defenderBanMinSec || sec > defenderBanMaxSec {
 		return defenderBanDefaultSec
@@ -608,6 +687,50 @@ func (s *telegramService) banChatMemberForDuration(ctx context.Context, b *gotgb
 		return time.Time{}, errors.New("banChatMember returned false")
 	}
 	return untilUTC, nil
+}
+
+func (s *telegramService) approveChatJoinRequest(ctx context.Context, b *gotgbot.Bot, chatID, userID int64) error {
+	if b == nil {
+		return errors.New("bot is nil")
+	}
+	resp, err := b.RequestWithContext(ctx, "approveChatJoinRequest", map[string]any{
+		"chat_id": chatID,
+		"user_id": userID,
+	}, nil)
+	if err != nil {
+		return err
+	}
+
+	var ok bool
+	if err := json.Unmarshal(resp, &ok); err != nil {
+		return fmt.Errorf("failed to decode approveChatJoinRequest response: %w", err)
+	}
+	if !ok {
+		return errors.New("approveChatJoinRequest returned false")
+	}
+	return nil
+}
+
+func (s *telegramService) declineChatJoinRequest(ctx context.Context, b *gotgbot.Bot, chatID, userID int64) error {
+	if b == nil {
+		return errors.New("bot is nil")
+	}
+	resp, err := b.RequestWithContext(ctx, "declineChatJoinRequest", map[string]any{
+		"chat_id": chatID,
+		"user_id": userID,
+	}, nil)
+	if err != nil {
+		return err
+	}
+
+	var ok bool
+	if err := json.Unmarshal(resp, &ok); err != nil {
+		return fmt.Errorf("failed to decode declineChatJoinRequest response: %w", err)
+	}
+	if !ok {
+		return errors.New("declineChatJoinRequest returned false")
+	}
+	return nil
 }
 
 func (s *telegramService) logDefenderAction(ctx context.Context, chatID int64, actionSource string, telegramUserID int64, action, reason, details string) {
