@@ -879,11 +879,60 @@ states:
           action: select_group_moderator
           next_state: GROUP_MODERATOR_SETTINGS
           row: 11
+        - id: commands_list
+          label:
+            ru: 📑 Список команд
+            en: 📑 List commands
+          next_state: GROUP_MODERATION_COMMANDS
+          row: 99
         - id: back
           label:
             ru: 🔙 Назад
             en: 🔙 Back
           next_state: GROUP_ADMIN_MENU
+          row: 99
+
+  GROUP_MODERATION_COMMANDS:
+    type: interactive
+    description: Список команд модерации для группы
+    interface:
+      text:
+        ru: |
+          📑 *Команды модерации*
+
+          `/mute <время>` — выдать мут по reply.
+          `/mute <ник|@username|id> <время>` — выдать мут по явной цели.
+          `/unmute` — снять мут по reply.
+          `/unmute <ник|@username|id>` — снять мут по явной цели.
+          `/ban` — заблокировать участника по reply.
+          `/ban <ник|@username|id>` — заблокировать по явной цели.
+          `/eban` — снять блокировку по reply.
+          `/eban <ник|@username|id>` — снять блокировку по явной цели.
+          `/kick` — исключить участника по reply.
+          `/kick <ник|@username|id>` — исключить по явной цели.
+
+          _Примеры времени:_ `10m`, `10минут`, `2 hours`, `2 Ч`, `6 Days`,`6 дней`.
+        en: |
+          📑 *Moderation Commands*
+
+          `/mute <duration>` — mute by reply.
+          `/mute <login|@username|id> <duration>` — mute explicit target.
+          `/unmute` — unmute by reply.
+          `/unmute <login|@username|id>` — unmute explicit target.
+          `/ban` — ban by reply.
+          `/ban <login|@username|id>` — ban explicit target.
+          `/eban` — unban by reply.
+          `/eban <login|@username|id>` — unban explicit target.
+          `/kick` — kick by reply.
+          `/kick <login|@username|id>` — kick explicit target.
+
+          _Duration examples_ `10m`, `10минут`, `2 hours`, `2 Ч`, `6 Days`,`6 дней`.
+      buttons:
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: GROUP_MODERATORS_MENU
           row: 99
 
   GROUP_MODERATORS_ADD_INPUT:
