@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"html"
 	"regexp"
 	"strconv"
 	"strings"
@@ -48,7 +49,7 @@ func (s *telegramService) handleMuteCommand(b *gotgbot.Bot, ctx *ext.Context) er
 		return nil
 	}
 
-	untilUTC, err := s.restrictChatMemberForDuration(context.Background(), b, group.ChatID, target.TelegramUserID, duration)
+	_, err = s.restrictChatMemberForDuration(context.Background(), b, group.ChatID, target.TelegramUserID, duration)
 	if err != nil {
 		s.log.Warn("failed to mute chat member", "chat_id", group.ChatID, "target_user_id", target.TelegramUserID, "error", err)
 		_, _ = s.getSender(b).SendMessage(group.ChatID, "Не удалось выдать мут. Проверьте, что бот администратор с правом ограничения участников.", nil)
@@ -56,12 +57,11 @@ func (s *telegramService) handleMuteCommand(b *gotgbot.Bot, ctx *ext.Context) er
 	}
 
 	_, _ = s.getSender(b).SendMessage(group.ChatID,
-		fmt.Sprintf("Мут выдан: %s на %s (до %s UTC).",
-			describeModerationTarget(target),
-			formatModerationDuration(duration),
-			untilUTC.UTC().Format(time.RFC3339),
+		fmt.Sprintf("🌊 %s отправляется пускать пузыри под водой на %s.",
+			formatModerationTargetOpenMessageLink(target),
+			formatModerationDurationRussian(duration),
 		),
-		nil,
+		&gotgbot.SendMessageOpts{ParseMode: "HTML"},
 	)
 	return nil
 }
@@ -89,7 +89,10 @@ func (s *telegramService) handleUnmuteCommand(b *gotgbot.Bot, ctx *ext.Context) 
 		return nil
 	}
 
-	_, _ = s.getSender(b).SendMessage(group.ChatID, fmt.Sprintf("Мут снят: %s.", describeModerationTarget(target)), nil)
+	_, _ = s.getSender(b).SendMessage(group.ChatID,
+		fmt.Sprintf("🌊 %s вынырнул:а и снова может крякать в общем чате.", formatModerationTargetOpenMessageLink(target)),
+		&gotgbot.SendMessageOpts{ParseMode: "HTML"},
+	)
 	return nil
 }
 
@@ -177,7 +180,7 @@ func (s *telegramService) handleKickCommand(b *gotgbot.Bot, ctx *ext.Context) er
 	}
 	s.markKnownGroupMemberLeft(context.Background(), group.ChatID, target.TelegramUserID, gotgbot.ChatMemberStatusLeft)
 
-	_, _ = s.getSender(b).SendMessage(group.ChatID, fmt.Sprintf("Участник исключён из группы: %s.", describeModerationTarget(target)), nil)
+	_, _ = s.getSender(b).SendMessage(group.ChatID, fmt.Sprintf("🦆 %s покидает наш уютный пруд и улетает в тёплые края.", moderationTargetDisplayName(target)), nil)
 	return nil
 }
 
@@ -481,17 +484,65 @@ func describeModerationTarget(target moderationTarget) string {
 	return idLabel
 }
 
-func formatModerationDuration(duration time.Duration) string {
+func moderationTargetDisplayName(target moderationTarget) string {
+	switch target.Source {
+	case "login":
+		if strings.TrimSpace(target.Login) != "" {
+			return target.Login
+		}
+	case "username", "reply":
+		if strings.TrimSpace(target.Username) != "" {
+			return "@" + target.Username
+		}
+	}
+	return fmt.Sprintf("ID %d", target.TelegramUserID)
+}
+
+func formatModerationTargetOpenMessageLink(target moderationTarget) string {
+	return fmt.Sprintf(
+		`<a href="tg://openmessage?user_id=%d">%s</a>`,
+		target.TelegramUserID,
+		html.EscapeString(moderationTargetDisplayName(target)),
+	)
+}
+
+func formatModerationDurationRussian(duration time.Duration) string {
 	if duration%(24*time.Hour) == 0 {
-		return fmt.Sprintf("%dд", int64(duration/(24*time.Hour)))
+		value := int64(duration / (24 * time.Hour))
+		return fmt.Sprintf("%d %s", value, russianPlural(value, "день", "дня", "дней"))
 	}
 	if duration%time.Hour == 0 {
-		return fmt.Sprintf("%dч", int64(duration/time.Hour))
+		value := int64(duration / time.Hour)
+		return fmt.Sprintf("%d %s", value, russianPlural(value, "час", "часа", "часов"))
 	}
 	if duration%time.Minute == 0 {
-		return fmt.Sprintf("%dм", int64(duration/time.Minute))
+		value := int64(duration / time.Minute)
+		return fmt.Sprintf("%d %s", value, russianPlural(value, "минута", "минуты", "минут"))
 	}
-	return fmt.Sprintf("%dс", int64(duration/time.Second))
+	value := int64(duration / time.Second)
+	return fmt.Sprintf("%d %s", value, russianPlural(value, "секунда", "секунды", "секунд"))
+}
+
+func russianPlural(value int64, one, few, many string) string {
+	value = absInt64(value) % 100
+	if value >= 11 && value <= 14 {
+		return many
+	}
+	switch value % 10 {
+	case 1:
+		return one
+	case 2, 3, 4:
+		return few
+	default:
+		return many
+	}
+}
+
+func absInt64(v int64) int64 {
+	if v < 0 {
+		return -v
+	}
+	return v
 }
 
 func (s *telegramService) restrictChatMemberForDuration(ctx context.Context, b *gotgbot.Bot, chatID, userID int64, duration time.Duration) (time.Time, error) {

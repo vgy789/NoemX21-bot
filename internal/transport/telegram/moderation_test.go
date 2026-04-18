@@ -187,7 +187,7 @@ func TestHandleMuteCommand_ReplyDuration(t *testing.T) {
 	assert.Equal(t, replyID, client.restrictCalls[0].userID)
 	assert.True(t, client.restrictCalls[0].untilDate > before)
 	require.NotEmpty(t, sender.texts)
-	assert.Contains(t, sender.texts[len(sender.texts)-1], "Мут выдан")
+	assert.Contains(t, sender.texts[len(sender.texts)-1], "пускать пузыри под водой")
 }
 
 func TestHandleMuteCommand_ExplicitTargetOverridesReply(t *testing.T) {
