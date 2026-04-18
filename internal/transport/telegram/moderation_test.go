@@ -140,6 +140,15 @@ func (r *recordingSender) AnswerCallbackQuery(_ string, _ *gotgbot.AnswerCallbac
 	return true, nil
 }
 
+type queriesWithModerationCommandsConfig struct {
+	db.Querier
+	enabled bool
+}
+
+func (q *queriesWithModerationCommandsConfig) GetTelegramGroupModerationCommandsEnabledByChatID(_ context.Context, _ int64) (bool, error) {
+	return q.enabled, nil
+}
+
 func TestHandleMuteCommand_ReplyDuration(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -449,6 +458,57 @@ func TestHandleUnmuteCommand_ByReply(t *testing.T) {
 	assert.Equal(t, targetID, client.restrictCalls[0].userID)
 	assert.Equal(t, int64(0), client.restrictCalls[0].untilDate)
 	assert.Equal(t, true, client.restrictCalls[0].permissions["can_send_messages"])
+}
+
+func TestHandleMuteCommand_WhenModerationCommandsDisabled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	const (
+		chatID  = int64(-100117)
+		ownerID = int64(5007)
+		replyID = int64(1207)
+		botID   = int64(9000)
+	)
+
+	baseQueries := dbmock.NewMockQuerier(ctrl)
+	queries := &queriesWithModerationCommandsConfig{
+		Querier: baseQueries,
+		enabled: false,
+	}
+	sender := &recordingSender{}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	client := &fakeModerationBotClient{
+		members: map[int64]rawChatMember{
+			botID: {
+				Status:      gotgbot.ChatMemberStatusAdministrator,
+				CanRestrict: true,
+				User: struct {
+					ID    int64 `json:"id"`
+					IsBot bool  `json:"is_bot"`
+				}{ID: botID, IsBot: true},
+			},
+		},
+	}
+
+	s := &telegramService{log: log, sender: sender, queries: queries}
+	bot := &gotgbot.Bot{Token: "test-token", User: gotgbot.User{Id: botID, IsBot: true}, BotClient: client}
+
+	baseQueries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
+		ChatID:              chatID,
+		OwnerTelegramUserID: ownerID,
+		IsInitialized:       true,
+		IsActive:            true,
+	}, nil)
+
+	ctx := makeGroupCommandContext(bot, chatID, ownerID, "/mute 10m", replyID, "reply_user")
+	err := s.handleMuteCommand(bot, ctx)
+	require.NoError(t, err)
+
+	require.Empty(t, client.restrictCalls)
+	require.NotEmpty(t, sender.texts)
+	assert.Contains(t, sender.texts[len(sender.texts)-1], "Команды модерации выключены")
 }
 
 func makeGroupCommandContext(bot *gotgbot.Bot, chatID, fromUserID int64, text string, replyFromID int64, replyUsername string) *ext.Context {

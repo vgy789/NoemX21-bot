@@ -29,6 +29,10 @@ type telegramUserAccountByUsernameResolver interface {
 	GetTelegramUserAccountByUsername(ctx context.Context, username string) (db.UserAccount, error)
 }
 
+type groupModerationCommandsConfigReader interface {
+	GetTelegramGroupModerationCommandsEnabledByChatID(ctx context.Context, chatID int64) (bool, error)
+}
+
 func (s *telegramService) handleMuteCommand(b *gotgbot.Bot, ctx *ext.Context) error {
 	group, ok := s.requireGroupModerationAccess(b, ctx)
 	if !ok {
@@ -202,11 +206,30 @@ func (s *telegramService) requireGroupModerationAccess(b *gotgbot.Bot, ctx *ext.
 		_, _ = s.getSender(b).SendMessage(ctx.EffectiveChat.Id, "Группа не инициализирована. Сначала выполни /init.", nil)
 		return group, false
 	}
+	if !s.isGroupModerationCommandsEnabled(context.Background(), loaded.ChatID) {
+		_, _ = s.getSender(b).SendMessage(ctx.EffectiveChat.Id, "Команды модерации выключены в настройках группы.", nil)
+		return group, false
+	}
 	if loaded.OwnerTelegramUserID != ctx.EffectiveUser.Id {
 		_, _ = s.getSender(b).SendMessage(ctx.EffectiveChat.Id, "Сейчас эту команду может выполнять только владелец группы.", nil)
 		return group, false
 	}
 	return loaded, true
+}
+
+func (s *telegramService) isGroupModerationCommandsEnabled(ctx context.Context, chatID int64) bool {
+	reader, ok := s.queries.(groupModerationCommandsConfigReader)
+	if !ok {
+		return true
+	}
+	enabled, err := reader.GetTelegramGroupModerationCommandsEnabledByChatID(ctx, chatID)
+	if err != nil {
+		if s.log != nil {
+			s.log.Warn("failed to read moderation_commands_enabled, fallback to enabled", "chat_id", chatID, "error", err)
+		}
+		return true
+	}
+	return enabled
 }
 
 func (s *telegramService) ensureBotCanRestrictMembers(ctx context.Context, b *gotgbot.Bot, chatID int64) bool {

@@ -21,10 +21,11 @@ import (
 type querierWithModerators struct {
 	*mock.MockQuerier
 
-	moderatorsByChat   map[int64]map[int64]db.TelegramGroupModerator
-	managedGroupsByUID map[int64][]db.TelegramGroup
-	loginAccounts      map[string]db.UserAccount
-	usernameAccounts   map[string]db.UserAccount
+	moderatorsByChat         map[int64]map[int64]db.TelegramGroupModerator
+	managedGroupsByUID       map[int64][]db.TelegramGroup
+	loginAccounts            map[string]db.UserAccount
+	usernameAccounts         map[string]db.UserAccount
+	moderationCommandsByChat map[int64]bool
 }
 
 func (q *querierWithModerators) ListTelegramGroupsManagedByUser(_ context.Context, telegramUserID int64) ([]db.TelegramGroup, error) {
@@ -127,6 +128,25 @@ func (q *querierWithModerators) GetTelegramUserAccountByUsername(_ context.Conte
 		return acc, nil
 	}
 	return db.UserAccount{}, pgx.ErrNoRows
+}
+
+func (q *querierWithModerators) GetTelegramGroupModerationCommandsEnabledByChatID(_ context.Context, chatID int64) (bool, error) {
+	if q.moderationCommandsByChat == nil {
+		return true, nil
+	}
+	enabled, ok := q.moderationCommandsByChat[chatID]
+	if !ok {
+		return true, nil
+	}
+	return enabled, nil
+}
+
+func (q *querierWithModerators) UpdateTelegramGroupModerationCommandsEnabled(_ context.Context, arg db.UpdateTelegramGroupModerationCommandsEnabledParams) (int64, error) {
+	if q.moderationCommandsByChat == nil {
+		q.moderationCommandsByChat = map[int64]bool{}
+	}
+	q.moderationCommandsByChat[arg.ChatID] = arg.ModerationCommandsEnabled
+	return 1, nil
 }
 
 func TestLoadGroupModeratorsContext_LoadsRows(t *testing.T) {
@@ -270,6 +290,40 @@ func TestToggleModeratorPermission_TogglesBan(t *testing.T) {
 	row, err := q.GetTelegramGroupModeratorByChatAndUser(context.Background(), -1003, 3003)
 	require.NoError(t, err)
 	require.True(t, row.CanBan)
+}
+
+func TestSetGroupModerationCommandsEnabled_TogglesOff(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	base := mock.NewMockQuerier(ctrl)
+	q := &querierWithModerators{
+		MockQuerier:              base,
+		moderationCommandsByChat: map[int64]bool{-1006: true},
+	}
+
+	reg := fsm.NewLogicRegistry()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	Register(reg, &config.Config{}, logger, q, nil)
+
+	action, ok := reg.Get("set_group_moderation_commands_enabled")
+	require.True(t, ok)
+
+	base.EXPECT().GetTelegramGroupByChatID(gomock.Any(), int64(-1006)).Return(db.TelegramGroup{
+		ChatID:              -1006,
+		ChatTitle:           "Zeta",
+		OwnerTelegramUserID: 42,
+		IsInitialized:       true,
+		IsActive:            true,
+	}, nil)
+
+	_, updates, err := action(context.Background(), 42, map[string]any{
+		"selected_group_chat_id": "-1006",
+		"id":                     "mod_cmds_disable",
+	})
+	require.NoError(t, err)
+	require.Contains(t, updates["_alert"].(string), "выключены")
+	require.Equal(t, false, q.moderationCommandsByChat[-1006])
 }
 
 func TestLoadAdminContext_UsesManagedGroupsLister(t *testing.T) {

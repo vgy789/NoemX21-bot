@@ -25,6 +25,11 @@ type groupModeratorsStore interface {
 	DeleteTelegramGroupModeratorByChatAndUser(ctx context.Context, chatID, telegramUserID int64) error
 }
 
+type groupModerationCommandsStore interface {
+	GetTelegramGroupModerationCommandsEnabledByChatID(ctx context.Context, chatID int64) (bool, error)
+	UpdateTelegramGroupModerationCommandsEnabled(ctx context.Context, arg db.UpdateTelegramGroupModerationCommandsEnabledParams) (int64, error)
+}
+
 type telegramUserAccountByS21LoginResolver interface {
 	GetTelegramUserAccountByS21Login(ctx context.Context, s21Login string) (db.UserAccount, error)
 }
@@ -55,6 +60,14 @@ func registerModeratorActions(registry *fsm.LogicRegistry, log *slog.Logger, que
 		if strings.TrimSpace(fmt.Sprintf("%v", payload["selected_group_title"])) == "" {
 			updates["selected_group_title"] = group.ChatTitle
 		}
+		if store, ok := queries.(groupModerationCommandsStore); ok {
+			enabled, err := store.GetTelegramGroupModerationCommandsEnabledByChatID(ctx, chatID)
+			if err != nil {
+				log.Warn("admin groups: failed to load moderation_commands_enabled", "chat_id", chatID, "user_id", userID, "error", err)
+			} else {
+				applyModerationCommandsEnabled(updates, enabled)
+			}
+		}
 
 		store, ok := queries.(groupModeratorsStore)
 		if !ok {
@@ -73,6 +86,46 @@ func registerModeratorActions(registry *fsm.LogicRegistry, log *slog.Logger, que
 
 		applyModeratorsRows(ctx, queries, updates, rows)
 		return "", updates, nil
+	})
+
+	registry.Register("set_group_moderation_commands_enabled", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		chatID, err := parseSelectedGroupChatID(payload)
+		if err != nil {
+			return "", map[string]any{}, nil
+		}
+		if _, err := requireOwnedGroup(ctx, queries, userID, chatID); err != nil {
+			return "", map[string]any{}, nil
+		}
+
+		store, ok := queries.(groupModerationCommandsStore)
+		if !ok {
+			return "", map[string]any{
+				"_alert": "Недоступно: переключатель команд модерации не подключён",
+			}, nil
+		}
+
+		enable := strings.TrimSpace(fmt.Sprintf("%v", payload["id"])) == "mod_cmds_enable"
+		rows, err := store.UpdateTelegramGroupModerationCommandsEnabled(ctx, db.UpdateTelegramGroupModerationCommandsEnabledParams{
+			ChatID:                    chatID,
+			ModerationCommandsEnabled: enable,
+		})
+		if err != nil {
+			log.Warn("admin groups: failed to update moderation_commands_enabled", "chat_id", chatID, "user_id", userID, "enabled", enable, "error", err)
+			return "", map[string]any{
+				"_alert": "Не удалось обновить переключатель команд модерации",
+			}, nil
+		}
+		if rows == 0 {
+			return "", map[string]any{}, nil
+		}
+
+		alert := "Команды модерации включены"
+		if !enable {
+			alert = "Команды модерации выключены"
+		}
+		return "", map[string]any{
+			"_alert": alert,
+		}, nil
 	})
 
 	registry.Register("add_group_moderator_from_input", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
@@ -290,9 +343,20 @@ func registerModeratorActions(registry *fsm.LogicRegistry, log *slog.Logger, que
 func mergeModeratorsDefaults(updates map[string]any) {
 	updates["moderators_list_formatted_ru"] = "Пусто"
 	updates["moderators_list_formatted_en"] = "Empty"
+	applyModerationCommandsEnabled(updates, true)
 	for i := 1; i <= maxGroupModeratorButtons; i++ {
 		updates[fmt.Sprintf("moderator_button_id_%d", i)] = ""
 		updates[fmt.Sprintf("moderator_button_label_%d", i)] = ""
+	}
+}
+
+func applyModerationCommandsEnabled(updates map[string]any, enabled bool) {
+	updates["group_moderation_commands_enabled"] = enabled
+	updates["group_moderation_commands_enabled_label_ru"] = "❌ Выключены"
+	updates["group_moderation_commands_enabled_label_en"] = "❌ Disabled"
+	if enabled {
+		updates["group_moderation_commands_enabled_label_ru"] = "✅ Включены"
+		updates["group_moderation_commands_enabled_label_en"] = "✅ Enabled"
 	}
 }
 

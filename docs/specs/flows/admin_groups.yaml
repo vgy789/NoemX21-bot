@@ -802,6 +802,8 @@ states:
 
           Здесь ты можешь назначить помощников. Модераторы смогут использовать функции бота для наведения порядка.
 
+          ⚙️ *Команды модерации:* `{group_moderation_commands_enabled_label_ru}`
+
           *Текущий состав:*
           {moderators_list_formatted_ru}
         en: |
@@ -809,76 +811,94 @@ states:
 
           Assign helpers here. Moderators will be able to use bot functions to keep the pond clean.
 
+          ⚙️ *Moderation Commands:* `{group_moderation_commands_enabled_label_en}`
+
           *Current team:*
           {moderators_list_formatted_en}
       buttons:
+        - id: mod_cmds_enable
+          label:
+            ru: ⚙️ Команды модерации: ✅
+            en: ⚙️ Moderation commands: ✅
+          action: set_group_moderation_commands_enabled
+          condition: "can_manage_selected_group == true && group_moderation_commands_enabled == false"
+          next_state: GROUP_MODERATORS_MENU
+          row: 1
+        - id: mod_cmds_disable
+          label:
+            ru: ⚙️ Команды модерации: ⬜
+            en: ⚙️ Moderation commands: ⬜
+          action: set_group_moderation_commands_enabled
+          condition: "can_manage_selected_group == true && group_moderation_commands_enabled == true"
+          next_state: GROUP_MODERATORS_MENU
+          row: 1
         - id: mod_add_new
           label:
             ru: ➕ Добавить модератора
             en: ➕ Add moderator
           condition: "can_manage_selected_group == true"
           next_state: GROUP_MODERATORS_ADD_INPUT
-          row: 1
+          row: 2
         - id: "{moderator_button_id_1}"
           label: "{moderator_button_label_1}"
           condition: "moderator_button_id_1 != ''"
           action: select_group_moderator
           next_state: GROUP_MODERATOR_SETTINGS
-          row: 2
+          row: 3
         - id: "{moderator_button_id_2}"
           label: "{moderator_button_label_2}"
           condition: "moderator_button_id_2 != ''"
           action: select_group_moderator
           next_state: GROUP_MODERATOR_SETTINGS
-          row: 3
+          row: 4
         - id: "{moderator_button_id_3}"
           label: "{moderator_button_label_3}"
           condition: "moderator_button_id_3 != ''"
           action: select_group_moderator
           next_state: GROUP_MODERATOR_SETTINGS
-          row: 4
+          row: 5
         - id: "{moderator_button_id_4}"
           label: "{moderator_button_label_4}"
           condition: "moderator_button_id_4 != ''"
           action: select_group_moderator
           next_state: GROUP_MODERATOR_SETTINGS
-          row: 5
+          row: 6
         - id: "{moderator_button_id_5}"
           label: "{moderator_button_label_5}"
           condition: "moderator_button_id_5 != ''"
           action: select_group_moderator
           next_state: GROUP_MODERATOR_SETTINGS
-          row: 6
+          row: 7
         - id: "{moderator_button_id_6}"
           label: "{moderator_button_label_6}"
           condition: "moderator_button_id_6 != ''"
           action: select_group_moderator
           next_state: GROUP_MODERATOR_SETTINGS
-          row: 7
+          row: 8
         - id: "{moderator_button_id_7}"
           label: "{moderator_button_label_7}"
           condition: "moderator_button_id_7 != ''"
           action: select_group_moderator
           next_state: GROUP_MODERATOR_SETTINGS
-          row: 8
+          row: 9
         - id: "{moderator_button_id_8}"
           label: "{moderator_button_label_8}"
           condition: "moderator_button_id_8 != ''"
           action: select_group_moderator
           next_state: GROUP_MODERATOR_SETTINGS
-          row: 9
+          row: 10
         - id: "{moderator_button_id_9}"
           label: "{moderator_button_label_9}"
           condition: "moderator_button_id_9 != ''"
           action: select_group_moderator
           next_state: GROUP_MODERATOR_SETTINGS
-          row: 10
+          row: 11
         - id: "{moderator_button_id_10}"
           label: "{moderator_button_label_10}"
           condition: "moderator_button_id_10 != ''"
           action: select_group_moderator
           next_state: GROUP_MODERATOR_SETTINGS
-          row: 11
+          row: 12
         - id: commands_list
           label:
             ru: 📑 Список команд
