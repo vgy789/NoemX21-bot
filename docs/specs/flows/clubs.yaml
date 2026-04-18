@@ -139,6 +139,7 @@ states:
           label:
             ru: 🔙 Назад
             en: 🔙 Back
+          row: 99
           next_state: INIT_CLUBS
 
   FETCH_CLUBS_BY_CATEGORY:
