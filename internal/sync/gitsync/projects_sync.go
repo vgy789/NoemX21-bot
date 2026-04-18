@@ -14,11 +14,12 @@ import (
 )
 
 const fallbackProjectsCatalogPath = "data_repo/bot_content/various/projects.yaml"
+const projectsCatalogFilename = "projects.yaml"
 
 func (s *Service) syncProjectsCatalog(ctx context.Context) error {
 	projectsPath, ok := s.resolveProjectsCatalogPath()
 	if !ok {
-		s.log.Debug("projects catalog not found, skipping", "configured_path", s.cfg.ProjectsPath)
+		s.log.Debug("projects catalog not found, skipping", "configured_various_path", s.cfg.VariousPath)
 		return nil
 	}
 
@@ -115,17 +116,19 @@ func (s *Service) syncProjectsCatalog(ctx context.Context) error {
 
 func (s *Service) resolveProjectsCatalogPath() (string, bool) {
 	candidates := make([]string, 0, 4)
-	configured := strings.TrimSpace(s.cfg.ProjectsPath)
-	if configured != "" {
-		if filepath.IsAbs(configured) {
-			candidates = append(candidates, configured)
-		} else {
-			base := strings.TrimSpace(s.cfg.LocalPath)
-			if base != "" {
-				candidates = append(candidates, filepath.Join(base, configured))
-			}
-			candidates = append(candidates, configured)
+	configured := strings.TrimSpace(s.cfg.VariousPath)
+	if configured == "" {
+		configured = "bot_content/various"
+	}
+
+	if filepath.IsAbs(configured) {
+		candidates = append(candidates, filepath.Join(configured, projectsCatalogFilename))
+	} else {
+		base := strings.TrimSpace(s.cfg.LocalPath)
+		if base != "" {
+			candidates = append(candidates, filepath.Join(base, configured, projectsCatalogFilename))
 		}
+		candidates = append(candidates, filepath.Join(configured, projectsCatalogFilename))
 	}
 	candidates = append(candidates, fallbackProjectsCatalogPath)
 

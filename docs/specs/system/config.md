@@ -51,7 +51,7 @@
 | `GIT_SYNC_INTERVAL` | `5m` |
 | `GIT_LOCAL_PATH` | `data` |
 | `GIT_CAMPUSES_PATH` | `campuses` |
-| `GIT_PROJECTS_PATH` | `bot_content/various/projects.yaml` |
+| `GIT_VARIOUS_PATH` | `bot_content/various` |
 | `CHART_TEMP_DIR` | `tmp/skills_radar` |
 | `SCHEDULE_IMAGES_ENABLED` | `true` |
 | `SCHEDULE_IMAGES_INTERVAL` | `5m` |

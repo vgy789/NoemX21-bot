@@ -3,15 +3,44 @@ package clubs
 import (
 	"context"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
+	"gopkg.in/yaml.v3"
 )
 
+const (
+	fallbackVariousPath       = "data_repo/bot_content/various"
+	communityLinksFilename    = "community_links.yaml"
+	defaultBotTelegramLink    = "https://t.me/my_bot"
+	defaultBotContentRepoLink = ""
+	defaultBotRepoLink        = ""
+)
+
+type communityLinksYAML struct {
+	ContentLinks contentLinksSectionYAML `yaml:"content_links"`
+}
+
+type contentLinksSectionYAML struct {
+	BotLinks  botLinksYAML  `yaml:"bot_links"`
+	RepoLinks repoLinksYAML `yaml:"repo_links"`
+}
+
+type botLinksYAML struct {
+	Telegram string `yaml:"telegram"`
+}
+
+type repoLinksYAML struct {
+	Bot        string `yaml:"bot"`
+	BotContent string `yaml:"bot_content"`
+}
+
 // Register registers clubs-related actions.
-func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar func(alias, target string)) {
+func Register(registry *fsm.LogicRegistry, queries db.Querier, variousPath string, aliasRegistrar func(alias, target string)) {
 	if aliasRegistrar != nil {
 		aliasRegistrar("CLUBS_MENU", "clubs.yaml/INIT_CLUBS")
 		aliasRegistrar("CLUBS_MAIN", "clubs.yaml/CLUBS_MAIN")
@@ -33,11 +62,16 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, aliasRegistrar fu
 			return "", nil, fmt.Errorf("failed to fetch campus info: %w", err)
 		}
 
+		botTelegramLink, botContentRepoLink, botRepoLink := loadBotLinks(variousPath)
+
 		return "", map[string]any{
-			"leader_name":      campus.LeaderName.String,
-			"leader_form_link": campus.LeaderFormLink.String,
-			"campus_id":        campusIDStr, // Ensure it's back in context
-			"my_campus":        campus.ShortName,
+			"leader_name":           campus.LeaderName.String,
+			"leader_form_link":      campus.LeaderFormLink.String,
+			"campus_id":             campusIDStr, // Ensure it's back in context
+			"my_campus":             campus.ShortName,
+			"bot_telegram_link":     botTelegramLink,
+			"bot_content_repo_link": botContentRepoLink,
+			"bot_repo_link":         botRepoLink,
 		}, nil
 	})
 
@@ -465,4 +499,70 @@ func minInt(a, b int) int {
 		return a
 	}
 	return b
+}
+
+func loadBotLinks(variousPath string) (string, string, string) {
+	botTelegramLink := defaultBotTelegramLink
+	botContentRepoLink := defaultBotContentRepoLink
+	botRepoLink := defaultBotRepoLink
+
+	communityLinksPath, ok := resolveCommunityLinksPath(variousPath)
+	if !ok {
+		return botTelegramLink, botContentRepoLink, botRepoLink
+	}
+
+	data, err := os.ReadFile(communityLinksPath)
+	if err != nil {
+		return botTelegramLink, botContentRepoLink, botRepoLink
+	}
+
+	var links communityLinksYAML
+	if err := yaml.Unmarshal(data, &links); err != nil {
+		return botTelegramLink, botContentRepoLink, botRepoLink
+	}
+
+	if link := strings.TrimSpace(links.ContentLinks.BotLinks.Telegram); link != "" {
+		botTelegramLink = link
+	}
+	if link := strings.TrimSpace(links.ContentLinks.RepoLinks.BotContent); link != "" {
+		botContentRepoLink = link
+	}
+	if link := strings.TrimSpace(links.ContentLinks.RepoLinks.Bot); link != "" {
+		botRepoLink = link
+	}
+
+	return botTelegramLink, botContentRepoLink, botRepoLink
+}
+
+func resolveCommunityLinksPath(variousPath string) (string, bool) {
+	configuredPath := strings.TrimSpace(variousPath)
+
+	localBasePath := strings.TrimSpace(os.Getenv("GIT_LOCAL_PATH"))
+	if localBasePath == "" {
+		localBasePath = "data"
+	}
+
+	candidates := make([]string, 0, 4)
+	if configuredPath != "" {
+		if filepath.IsAbs(configuredPath) {
+			candidates = append(candidates, filepath.Join(configuredPath, communityLinksFilename))
+		} else {
+			candidates = append(candidates, filepath.Join(localBasePath, configuredPath, communityLinksFilename))
+			candidates = append(candidates, filepath.Join(configuredPath, communityLinksFilename))
+		}
+	}
+	candidates = append(candidates, filepath.Join(fallbackVariousPath, communityLinksFilename))
+
+	seen := make(map[string]bool, len(candidates))
+	for _, candidate := range candidates {
+		if candidate == "" || seen[candidate] {
+			continue
+		}
+		seen[candidate] = true
+		if stat, err := os.Stat(candidate); err == nil && !stat.IsDir() {
+			return candidate, true
+		}
+	}
+
+	return "", false
 }

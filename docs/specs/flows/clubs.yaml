@@ -42,6 +42,12 @@ states:
             en: 🧩 Assemble a club
           next_state: CREATE_CLUB_INFO
           row: 2
+        - id: update_club
+          label:
+            ru: ℹ️ Как добавить / обновить
+            en: ℹ️ How to add / update
+          next_state: UPDATE_CLUB_INFO
+          row: 2
         - id: back
           label:
             ru: 🏠 На главную
@@ -304,3 +310,37 @@ states:
             ru: 🔙 Назад
             en: 🔙 Back
           next_state: INIT_CLUBS
+
+  UPDATE_CLUB_INFO:
+    type: interactive
+    description: Информация о добавлении и обновлении данных клуба
+    interface:
+      text:
+        ru: |
+          ℹ️ *Как добавить / обновить информацию по группе*
+
+          • Не нравится название, описание, эмодзи твоей группы?
+          • Группа находится не в том разделе?
+          • Организовал:а новый клуб и хочешь показать его остальным?
+
+          Исправь всё в школьном репозитории данных бота.
+        en: |
+          ℹ️ *How to add / update group information*
+
+          • Want to change your group name, description, or emoji?
+          • Is your group shown in the wrong section?
+          • Started a new club and want others to see it?
+
+          Update everything in the school bot's data repository.
+      buttons:
+        - id: open_bot_content_repo
+          label:
+            ru: 🔗 Открыть репозиторий данных
+            en: 🔗 Open data repository
+          url: "{bot_content_repo_link}"
+          condition: bot_content_repo_link != ''
+        - id: update_info_ok
+          label:
+            ru: ✅ Понятно
+            en: ✅ Got it
+          next_state: CLUBS_MAIN

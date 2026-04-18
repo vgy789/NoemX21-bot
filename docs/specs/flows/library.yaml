@@ -481,7 +481,7 @@ states:
           Это не влияет на реальную библиотечную выдачу, которая работает по правилам твоего кампуса.
 
           🗂 Список книг актуализируется через:
-          ~ссылка скрыта~
+          `{bot_content_repo_link}`
         en: |
           📜 *Duck Reader's Code* 🦆
 
@@ -496,7 +496,7 @@ states:
           It does not affect real library circulation, which operates under your campus rules.
 
           🗂 Book list is updated via:
-          ~ссылка скрыта~
+          `{bot_content_repo_link}`
       buttons:
         - id: back
           label:

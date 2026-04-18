@@ -79,7 +79,7 @@ states:
           Это не влияет на реальное бронирование, которое работает по правилам твоего кампуса.
 
           🗂 Список переговорок актуализируется через:
-          ~ссылка скрыта~
+          `{bot_content_repo_link}`
 
           💡 _Помни: занял переговорку – не забудь прийти, иначе утки заклюют!_
         en: |
@@ -106,7 +106,7 @@ states:
           It does not affect real booking, which operates under your campus rules.
 
           🗂 Meeting rooms list is updated via:
-          ~ссылка скрыта~
+          `{bot_content_repo_link}`
 
           💡 _Remember: if you book a room, show up, or the ducks will peck!_
       buttons:

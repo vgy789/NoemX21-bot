@@ -206,7 +206,7 @@ Mode-specific domains, ports и webhook env настраиваются на Dokk
 | `GIT_SYNC_INTERVAL` | `5m` | interval |
 | `GIT_LOCAL_PATH` | `data` | local checkout path |
 | `GIT_CAMPUSES_PATH` | `campuses` | путь к campus content |
-| `GIT_PROJECTS_PATH` | `bot_content/various/projects.yaml` | путь к каталогу проектов |
+| `GIT_VARIOUS_PATH` | `bot_content/various` | путь к каталогу `various` |
 
 ### Generated assets
 
