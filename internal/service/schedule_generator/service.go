@@ -2,6 +2,7 @@ package schedule_generator
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"log/slog"
 	"os"
@@ -186,6 +187,15 @@ func (s *Service) generateForCampus(ctx context.Context, campus db.GetAllActiveC
 	}
 
 	key := fmt.Sprintf("imgcache:schedule:%s", campus.ShortName)
+	previousBytes, hasPrevious := s.imgCache.Get(key)
+
+	newHash := sha256.Sum256(imgBytes)
+	imageChanged := true
+	if hasPrevious {
+		previousHash := sha256.Sum256(previousBytes)
+		imageChanged = previousHash != newHash
+	}
+
 	s.imgCache.Set(key, imgBytes)
 
 	dir := filepath.Join(s.cfg.ScheduleImages.TempDir, loc.String())
@@ -196,8 +206,8 @@ func (s *Service) generateForCampus(ctx context.Context, campus db.GetAllActiveC
 		}
 	}
 
-	// Invalidate cached file_id so next send will upload new image
-	if s.invalidator != nil {
+	// Invalidate cached file_id only when image content changed.
+	if imageChanged && s.invalidator != nil {
 		s.invalidator.InvalidateScheduleFileID(campus.ShortName)
 	}
 
