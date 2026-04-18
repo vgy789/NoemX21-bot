@@ -240,6 +240,7 @@ sudo dokku config:set bot \
 Polling mode не должен иметь публичный ingress.
 
 ```bash
+sudo dokku checks:disable bot web || true
 sudo dokku config:set bot TELEGRAM_WEBHOOK_ENABLED=false
 sudo dokku config:unset bot TELEGRAM_WEBHOOK_URL TELEGRAM_WEBHOOK_SECRET || true
 sudo dokku domains:disable bot
@@ -249,7 +250,9 @@ sudo dokku ports:clear bot
 Правила:
 
 - бот получает обновления через long polling;
+- для polling deploy checks лучше держать выключенными, иначе Dokku может кратко держать старый и новый контейнеры одновременно;
 - `API_SERVER_PORT=8081` остаётся внутренним портом процесса;
+- приложение дополнительно удерживает PostgreSQL advisory lock, поэтому даже при overlap только один контейнер может выполнять `getUpdates`;
 - не используйте `dokku proxy:disable bot`: это обходит proxy-слой Dokku и может открыть app на случайном host port.
 
 ### Webhook mode

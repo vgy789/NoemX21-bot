@@ -818,16 +818,16 @@ states:
       buttons:
         - id: mod_cmds_enable
           label:
-            ru: ⚙️ Команды модерации: ✅
-            en: ⚙️ Moderation commands: ✅
+            ru: '⚙️ Команды модерации: ✅'
+            en: '⚙️ Moderation commands: ✅'
           action: set_group_moderation_commands_enabled
           condition: "can_manage_selected_group == true && group_moderation_commands_enabled == false"
           next_state: GROUP_MODERATORS_MENU
           row: 1
         - id: mod_cmds_disable
           label:
-            ru: ⚙️ Команды модерации: ⬜
-            en: ⚙️ Moderation commands: ⬜
+            ru: '⚙️ Команды модерации: ⬜'
+            en: '⚙️ Moderation commands: ⬜'
           action: set_group_moderation_commands_enabled
           condition: "can_manage_selected_group == true && group_moderation_commands_enabled == true"
           next_state: GROUP_MODERATORS_MENU

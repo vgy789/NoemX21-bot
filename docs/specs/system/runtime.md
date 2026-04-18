@@ -51,6 +51,7 @@
 
 - `telegram.Run(ctx)`
 - получает updates через long polling
+- перед стартом polling захватывается PostgreSQL advisory lock, чтобы второй контейнер ждал освобождения, а не запускал параллельный `getUpdates`
 - в production у app нет публичного домена и нет port mapping на `80/443`
 
 ### Webhook mode
@@ -67,6 +68,7 @@
 
 ### Polling deployment
 
+- `dokku checks:disable bot web`
 - `dokku domains:disable bot`
 - `dokku ports:clear bot`
 - `TELEGRAM_WEBHOOK_ENABLED=false`

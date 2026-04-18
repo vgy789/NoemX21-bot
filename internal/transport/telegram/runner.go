@@ -11,6 +11,7 @@ import (
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/vgy789/noemx21-bot/internal/clients/telegram"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
@@ -60,31 +61,33 @@ func (s *DefaultSender) AnswerCallbackQuery(id string, opts *gotgbot.AnswerCallb
 }
 
 // NewTelegramService creates new telegram service.
-func NewTelegramService(cfg *config.Config, log *slog.Logger, userSvc service.UserService, queries db.Querier, engine *fsm.Engine, cache *imgcache.Store) *telegramService {
+func NewTelegramService(cfg *config.Config, log *slog.Logger, userSvc service.UserService, queries db.Querier, pool *pgxpool.Pool, engine *fsm.Engine, cache *imgcache.Store) *telegramService {
 	return &telegramService{
-		cfg:      cfg,
-		log:      log,
-		userSvc:  userSvc,
-		queries:  queries,
-		engine:   engine,
-		imgCache: cache,
-		fileIDs:  make(map[string]string),
+		cfg:         cfg,
+		log:         log,
+		userSvc:     userSvc,
+		queries:     queries,
+		engine:      engine,
+		imgCache:    cache,
+		pollingLock: newPollingLocker(pool, log),
+		fileIDs:     make(map[string]string),
 	}
 }
 
 type telegramService struct {
-	cfg       *config.Config
-	log       *slog.Logger
-	userSvc   service.UserService
-	queries   db.Querier
-	engine    *fsm.Engine
-	imgCache  *imgcache.Store
-	sender    Sender // For testing
-	bot       *gotgbot.Bot
-	updater   *ext.Updater
-	updaterMu sync.RWMutex
-	fileIDs   map[string]string
-	fileIDsMu sync.RWMutex
+	cfg         *config.Config
+	log         *slog.Logger
+	userSvc     service.UserService
+	queries     db.Querier
+	engine      *fsm.Engine
+	imgCache    *imgcache.Store
+	sender      Sender // For testing
+	bot         *gotgbot.Bot
+	updater     *ext.Updater
+	updaterMu   sync.RWMutex
+	pollingLock pollingLocker
+	fileIDs     map[string]string
+	fileIDsMu   sync.RWMutex
 }
 
 type activeInitializedTelegramGroupsLister interface {
@@ -122,6 +125,26 @@ func (s *telegramService) getUpdater() *ext.Updater {
 
 // Run starts the telegram bot using long polling.
 func (s *telegramService) Run(ctx context.Context) error {
+	locker := s.pollingLock
+	if locker == nil {
+		locker = noopPollingLocker{}
+	}
+
+	lease, err := locker.Acquire(ctx)
+	if err != nil {
+		if ctx.Err() != nil {
+			return nil
+		}
+		return err
+	}
+	defer func() {
+		if err := lease.Release(); err != nil {
+			if s.log != nil {
+				s.log.Error("failed to release telegram polling lock", "error", err)
+			}
+		}
+	}()
+
 	tgBot, err := telegram.New(&s.cfg.Telegram)
 	if err != nil {
 		return err

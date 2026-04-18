@@ -68,6 +68,12 @@ jobs:
             APP_NAME=${{ vars.DOKKU_APP_NAME }}
             # deploy user runs dokku via sudo (NOPASSWD)
             sudo dokku apps:create $APP_NAME || true
+            TELEGRAM_WEBHOOK_ENABLED="$(sudo dokku config:get $APP_NAME TELEGRAM_WEBHOOK_ENABLED || true)"
+            if [ "$TELEGRAM_WEBHOOK_ENABLED" = "true" ]; then
+              sudo dokku checks:enable $APP_NAME web
+            else
+              sudo dokku checks:disable $APP_NAME web || true
+            fi
             # runtime applies migrations during normal startup
             set +e
             DEPLOY_OUTPUT="$(sudo dokku git:from-image $APP_NAME $FULL_IMAGE 2>&1)"

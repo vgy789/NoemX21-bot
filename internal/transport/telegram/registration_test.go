@@ -37,7 +37,7 @@ func prepareRegistrationTestWithOTP(t *testing.T, useMockOTP bool) (*telegramSer
 	mockRCClient := rocketchat.NewClient("", "", "")
 
 	engine := setup.NewFSM(cfg, logger, mockQuerier, mockUserSvc, mockRCClient, nil, nil, "../../../docs/specs/flows", nil)
-	ts := NewTelegramService(cfg, logger, mockUserSvc, mockQuerier, engine, nil)
+	ts := NewTelegramService(cfg, logger, mockUserSvc, mockQuerier, nil, engine, nil)
 
 	// Override engine with test settings
 	repo := fsm.NewMemoryStateRepository()
@@ -175,7 +175,7 @@ func TestRegistration_EmailOTPProvisioningFlow(t *testing.T) {
 	mockRCClient := rocketchat.NewClient("", "", "")
 
 	engine := setup.NewFSM(cfg, logger, mockQuerier, mockUserSvc, mockRCClient, nil, nil, "../../../docs/specs/flows", nil)
-	ts := NewTelegramService(cfg, logger, mockUserSvc, mockQuerier, engine, nil)
+	ts := NewTelegramService(cfg, logger, mockUserSvc, mockQuerier, nil, engine, nil)
 
 	repo := fsm.NewMemoryStateRepository()
 	parser := fsm.NewFlowParser("../../../docs/specs/flows", logger)

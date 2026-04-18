@@ -62,7 +62,7 @@ func New(cfg *config.Config, log *slog.Logger, repo *db.DBWrapper, rcClient *roc
 	userSvc := service.NewUserService(repo.Queries)
 	engine := setup.NewFSM(cfg, log, repo.Queries, userSvc, rcClient, s21Client, credService, "docs/specs/flows", scheduleRegen)
 
-	tgService := telegram.NewTelegramService(cfg, log, userSvc, repo.Queries, engine, cache)
+	tgService := telegram.NewTelegramService(cfg, log, userSvc, repo.Queries, repo.Pool, engine, cache)
 
 	if setter, ok := campusSvc.(interface {
 		SetPRRStatusBroadcaster(service.PRRStatusBroadcaster)
