@@ -29,6 +29,7 @@ states:
           😛 *Фейс-контоль:* выгоняю «левых» и отчисленных, не пускаю незнакомцев.
           📨 *PRR-радар:* транслирую свежие запросы на ревью прямо в тред.
           🏷 *Авто-теги:* ставлю логин и уровень рядом с именем участников.
+          👮‍♂️ *Модерация:* поддерживаю /mute и выдаю права модераторам группы.
         en: |
           🦆 *Duck Admin / Clubs*
 
@@ -43,6 +44,7 @@ states:
           😛 *Face Control:* kick out the “leftists” and those who have been expelled, and don't let strangers in.
           📨 *PRR-Radar:* posting the latest review requests directly in this thread.
           🏷 *Member Tags:* I automatically display the username and level next to the participants' names.
+          👮‍♂️ *Moderation:* I support the /mute command and grant moderator privileges to group moderators.
       buttons:
         - id: back
           label:
@@ -818,16 +820,16 @@ states:
       buttons:
         - id: mod_cmds_enable
           label:
-            ru: '⚙️ Команды модерации: ✅'
-            en: '⚙️ Moderation commands: ✅'
+            ru: '⚙️ Команды модерации: ✅ Включить'
+            en: '⚙️ Moderation commands: ✅ Enable'
           action: set_group_moderation_commands_enabled
           condition: "can_manage_selected_group == true && group_moderation_commands_enabled == false"
           next_state: GROUP_MODERATORS_MENU
           row: 1
         - id: mod_cmds_disable
           label:
-            ru: '⚙️ Команды модерации: ⬜'
-            en: '⚙️ Moderation commands: ⬜'
+            ru: '⚙️ Команды модерации: ❌ Выключить'
+            en: '⚙️ Moderation commands: ❌ Disable'
           action: set_group_moderation_commands_enabled
           condition: "can_manage_selected_group == true && group_moderation_commands_enabled == true"
           next_state: GROUP_MODERATORS_MENU
