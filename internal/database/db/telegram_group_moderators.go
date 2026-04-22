@@ -7,7 +7,7 @@ import (
 )
 
 const listTelegramGroupsManagedByUser = `
-SELECT DISTINCT
+SELECT
     g.chat_id,
     g.chat_title,
     g.owner_telegram_user_id,
@@ -27,12 +27,17 @@ SELECT DISTINCT
     g.prr_notifications_thread_label,
     g.prr_withdrawn_behavior
 FROM telegram_groups g
-LEFT JOIN telegram_group_moderators m ON m.chat_id = g.chat_id
 WHERE g.is_active = true
   AND g.is_initialized = true
   AND (
       g.owner_telegram_user_id = $1
-      OR (m.telegram_user_id = $1 AND m.full_access = true)
+      OR EXISTS (
+          SELECT 1
+          FROM telegram_group_moderators m
+          WHERE m.chat_id = g.chat_id
+            AND m.telegram_user_id = $1
+            AND m.full_access = true
+      )
   )
 ORDER BY g.chat_title
 `

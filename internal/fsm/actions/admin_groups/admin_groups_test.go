@@ -130,6 +130,42 @@ func TestLoadAdminContext(t *testing.T) {
 	require.Equal(t, "", updates["group_chat_id_3"])
 }
 
+func TestLoadAdminContext_DedupesManagedGroupsByChatID(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	reg := fsm.NewLogicRegistry()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	Register(reg, &config.Config{}, logger, q, nil)
+
+	action, ok := reg.Get("load_admin_context")
+	require.True(t, ok)
+
+	oldTS := pgtype.Timestamptz{Time: time.Unix(100, 0), Valid: true}
+	newTS := pgtype.Timestamptz{Time: time.Unix(200, 0), Valid: true}
+
+	q.EXPECT().GetUserAccountByExternalId(gomock.Any(), db.GetUserAccountByExternalIdParams{
+		Platform:   db.EnumPlatformTelegram,
+		ExternalID: "42",
+	}).Return(db.UserAccount{}, pgx.ErrNoRows)
+	q.EXPECT().ListTelegramGroupsByOwner(gomock.Any(), int64(42)).Return([]db.TelegramGroup{
+		{ChatID: -100222, ChatTitle: "Beta", UpdatedAt: oldTS},
+		{ChatID: -100111, ChatTitle: "Alpha", UpdatedAt: oldTS},
+		{ChatID: -100111, ChatTitle: "Alpha Renamed", UpdatedAt: newTS},
+	}, nil)
+
+	_, updates, err := action(context.Background(), 42, nil)
+	require.NoError(t, err)
+	require.Equal(t, 2, updates["groups_count"])
+	require.Equal(t, "-100111", updates["group_chat_id_1"])
+	require.Equal(t, "Alpha Renamed", updates["group_title_1"])
+	require.Equal(t, "-100222", updates["group_chat_id_2"])
+	require.Equal(t, "Beta", updates["group_title_2"])
+	require.Equal(t, "", updates["group_chat_id_3"])
+}
+
 func TestSelectAdminGroup(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"maps"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -386,9 +387,69 @@ type groupFullAccessChecker interface {
 
 func listManagedGroups(ctx context.Context, queries db.Querier, userID int64) ([]db.TelegramGroup, error) {
 	if lister, ok := queries.(managedGroupsLister); ok {
-		return lister.ListTelegramGroupsManagedByUser(ctx, userID)
+		groups, err := lister.ListTelegramGroupsManagedByUser(ctx, userID)
+		if err != nil {
+			return nil, err
+		}
+		return dedupeManagedGroups(groups), nil
 	}
-	return queries.ListTelegramGroupsByOwner(ctx, userID)
+	groups, err := queries.ListTelegramGroupsByOwner(ctx, userID)
+	if err != nil {
+		return nil, err
+	}
+	return dedupeManagedGroups(groups), nil
+}
+
+func dedupeManagedGroups(groups []db.TelegramGroup) []db.TelegramGroup {
+	if len(groups) < 2 {
+		return groups
+	}
+
+	byChatID := make(map[int64]db.TelegramGroup, len(groups))
+	for _, group := range groups {
+		existing, ok := byChatID[group.ChatID]
+		if !ok || shouldReplaceManagedGroup(existing, group) {
+			byChatID[group.ChatID] = group
+		}
+	}
+
+	unique := make([]db.TelegramGroup, 0, len(byChatID))
+	for _, group := range byChatID {
+		unique = append(unique, group)
+	}
+
+	sort.Slice(unique, func(i, j int) bool {
+		leftTitle := strings.ToLower(strings.TrimSpace(unique[i].ChatTitle))
+		rightTitle := strings.ToLower(strings.TrimSpace(unique[j].ChatTitle))
+		if leftTitle == rightTitle {
+			return unique[i].ChatID < unique[j].ChatID
+		}
+		return leftTitle < rightTitle
+	})
+
+	return unique
+}
+
+func shouldReplaceManagedGroup(current, candidate db.TelegramGroup) bool {
+	currentTitle := strings.TrimSpace(current.ChatTitle)
+	candidateTitle := strings.TrimSpace(candidate.ChatTitle)
+	if currentTitle == "" && candidateTitle != "" {
+		return true
+	}
+	if currentTitle != "" && candidateTitle == "" {
+		return false
+	}
+
+	currentUpdatedAt := current.UpdatedAt.Time
+	candidateUpdatedAt := candidate.UpdatedAt.Time
+	if !candidateUpdatedAt.IsZero() && currentUpdatedAt.IsZero() {
+		return true
+	}
+	if candidateUpdatedAt.After(currentUpdatedAt) {
+		return true
+	}
+
+	return false
 }
 
 func mergeMemberTagSettingsDefaults(updates map[string]any) {
