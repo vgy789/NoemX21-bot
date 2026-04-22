@@ -254,6 +254,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, variousPath strin
 	// get_club_card: Fetch a specific club by ID and format as a card
 	registry.Register("get_club_card", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		var clubID int16
+		var buttonSlot int
 
 		// Try to get club_id as integer first
 		if val, ok := payload["club_id"]; ok {
@@ -269,38 +270,84 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, variousPath strin
 			case float64:
 				clubID = int16(v)
 			case string:
+				v = strings.ReplaceAll(v, "\\", "")
 				if id, err := fmt.Sscanf(v, "%d", &clubID); err != nil || id != 1 {
 					clubID = 0
+				}
+				if buttonSlot == 0 {
+					buttonSlot = parseClubButtonSlot(v)
 				}
 			}
 		}
 
 		// If not found, try last_input which could be a callback like "club_5_callback"
-		if clubID == 0 {
+		if clubID == 0 || buttonSlot == 0 {
 			clubIDStr, ok := payload["last_input"].(string)
 			if ok && clubIDStr != "" {
-				// Clean up any escaped characters
 				clubIDStr = strings.ReplaceAll(clubIDStr, "\\", "")
-				// Extract club ID from callback format (e.g., "club_5_callback" -> "5")
-				if strings.Contains(clubIDStr, "_callback") {
-					parts := strings.Split(clubIDStr, "_")
-					if len(parts) >= 2 {
-						if id, err := fmt.Sscanf(parts[1], "%d", &clubID); err != nil || id != 1 {
-							clubID = 0
-						}
+				if clubID == 0 {
+					if id, err := fmt.Sscanf(clubIDStr, "%d", &clubID); err != nil || id != 1 {
+						clubID = 0
 					}
 				}
+				if buttonSlot == 0 {
+					buttonSlot = parseClubButtonSlot(clubIDStr)
+				}
 			}
+		}
+
+		var selectedCampusName string
+		var selectedIsLocal bool
+		if buttonSlot > 0 {
+			if selectedClubID := int16FromPayload(payload, fmt.Sprintf("club_real_id_%d", buttonSlot)); selectedClubID != 0 {
+				clubID = selectedClubID
+			}
+			selectedCampusName = stringFromPayload(payload, fmt.Sprintf("club_campus_name_%d", buttonSlot))
+			selectedIsLocal = boolFromPayload(payload, fmt.Sprintf("club_is_local_%d", buttonSlot))
 		}
 
 		if clubID == 0 {
 			return "", nil, fmt.Errorf("club_id not found in payload")
 		}
 
-		// Query for both local and global clubs
+		if selectedIsLocal {
+			campusIDStr := ensureCampusID(ctx, queries, userID, payload)
+			if campusIDStr != "" {
+				if campusUUID, err := parseCampusUUID(campusIDStr); err == nil {
+					if localClubs, err := queries.GetLocalClubs(ctx, campusUUID); err == nil {
+						for _, c := range localClubs {
+							if c.ID == clubID {
+								card := formatLocalClubCard(c)
+								return "", map[string]any{
+									"club_card": card,
+									"club_name": normalizeClubText(c.Name),
+									"club_link": c.ExternalLink.String,
+									"club_id":   clubID,
+								}, nil
+							}
+						}
+					}
+				}
+			}
+		}
+
 		globalClubs, err := queries.GetGlobalClubs(ctx)
 		if err != nil {
 			return "", nil, fmt.Errorf("failed to fetch global clubs: %w", err)
+		}
+
+		if selectedCampusName != "" {
+			for _, c := range globalClubs {
+				if c.ID == clubID && c.CampusName == selectedCampusName {
+					card := formatClubCard(c)
+					return "", map[string]any{
+						"club_card": card,
+						"club_name": normalizeClubText(c.Name),
+						"club_link": c.ExternalLink.String,
+						"club_id":   clubID,
+					}, nil
+				}
+			}
 		}
 
 		for _, c := range globalClubs {
@@ -315,8 +362,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, variousPath strin
 			}
 		}
 
-		// If not found globally, try locally
-		campusIDStr := stringFromPayload(payload, "campus_id")
+		campusIDStr := ensureCampusID(ctx, queries, userID, payload)
 		if campusIDStr != "" {
 			if campusUUID, err := parseCampusUUID(campusIDStr); err == nil {
 				if localClubs, err := queries.GetLocalClubs(ctx, campusUUID); err == nil {
@@ -466,13 +512,19 @@ func parseCampusUUID(campusIDStr string) (pgtype.UUID, error) {
 func writeClubButtons(updates map[string]any, clubs []any, max int) {
 	limit := minInt(len(clubs), max)
 	for i := range limit {
-		name, id := clubData(clubs[i])
-		updates[fmt.Sprintf("club_name_%d", i+1)] = name
-		updates[fmt.Sprintf("club_id_%d", i+1)] = id
+		buttonData := clubData(clubs[i])
+		updates[fmt.Sprintf("club_name_%d", i+1)] = buttonData.Name
+		updates[fmt.Sprintf("club_id_%d", i+1)] = clubButtonCallback(i + 1)
+		updates[fmt.Sprintf("club_real_id_%d", i+1)] = buttonData.ID
+		updates[fmt.Sprintf("club_campus_name_%d", i+1)] = buttonData.CampusName
+		updates[fmt.Sprintf("club_is_local_%d", i+1)] = buttonData.IsLocal
 	}
 	for i := limit; i < max; i++ {
 		updates[fmt.Sprintf("club_name_%d", i+1)] = ""
 		updates[fmt.Sprintf("club_id_%d", i+1)] = ""
+		updates[fmt.Sprintf("club_real_id_%d", i+1)] = 0
+		updates[fmt.Sprintf("club_campus_name_%d", i+1)] = ""
+		updates[fmt.Sprintf("club_is_local_%d", i+1)] = false
 	}
 }
 
@@ -486,15 +538,67 @@ func writeCategoryButtons(updates map[string]any, categories []string, max int) 
 	}
 }
 
-func clubData(club any) (string, int16) {
+type clubButtonData struct {
+	Name       string
+	ID         int16
+	CampusName string
+	IsLocal    bool
+}
+
+func clubData(club any) clubButtonData {
 	switch c := club.(type) {
 	case db.GetLocalClubsRow:
-		return normalizeClubText(c.Name), c.ID
+		return clubButtonData{
+			Name:       normalizeClubText(c.Name),
+			ID:         c.ID,
+			CampusName: c.CampusName,
+			IsLocal:    true,
+		}
 	case db.GetGlobalClubsRow:
-		return normalizeClubText(c.Name), c.ID
+		return clubButtonData{
+			Name:       normalizeClubText(c.Name),
+			ID:         c.ID,
+			CampusName: c.CampusName,
+			IsLocal:    false,
+		}
 	default:
-		return "", 0
+		return clubButtonData{}
 	}
+}
+
+func clubButtonCallback(slot int) string {
+	return fmt.Sprintf("club_%d_callback", slot)
+}
+
+func parseClubButtonSlot(input string) int {
+	var slot int
+	if matched, err := fmt.Sscanf(input, "club_%d_callback", &slot); err != nil || matched != 1 || slot <= 0 {
+		return 0
+	}
+	return slot
+}
+
+func int16FromPayload(payload map[string]any, key string) int16 {
+	if val, ok := payload[key]; ok {
+		switch v := val.(type) {
+		case int:
+			return int16(v)
+		case int16:
+			return v
+		case int32:
+			return int16(v)
+		case int64:
+			return int16(v)
+		case float64:
+			return int16(v)
+		case string:
+			var n int16
+			if matched, err := fmt.Sscanf(v, "%d", &n); err == nil && matched == 1 {
+				return n
+			}
+		}
+	}
+	return 0
 }
 
 func normalizeClubText(s string) string {

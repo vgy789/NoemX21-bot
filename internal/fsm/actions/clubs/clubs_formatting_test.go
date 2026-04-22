@@ -26,11 +26,20 @@ func TestFormatClubCard_NormalizesLegacyMarkdownEscapes(t *testing.T) {
 }
 
 func TestClubData_NormalizesLegacyMarkdownEscapesForButtons(t *testing.T) {
-	name, id := clubData(db.GetGlobalClubsRow{
-		ID:   7,
-		Name: "CPP2\\_s21\\_containers",
+	buttonData := clubData(db.GetGlobalClubsRow{
+		ID:         7,
+		Name:       "CPP2\\_s21\\_containers",
+		CampusName: "21 Kazan",
 	})
 
-	require.Equal(t, int16(7), id)
-	require.Equal(t, "CPP2_s21_containers", name)
+	require.Equal(t, int16(7), buttonData.ID)
+	require.Equal(t, "CPP2_s21_containers", buttonData.Name)
+	require.Equal(t, "21 Kazan", buttonData.CampusName)
+	require.False(t, buttonData.IsLocal)
+}
+
+func TestClubButtonCallbackHelpers(t *testing.T) {
+	require.Equal(t, "club_5_callback", clubButtonCallback(5))
+	require.Equal(t, 5, parseClubButtonSlot("club_5_callback"))
+	require.Equal(t, 0, parseClubButtonSlot("21"))
 }
