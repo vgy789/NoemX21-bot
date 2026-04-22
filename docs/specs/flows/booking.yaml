@@ -632,7 +632,7 @@ states:
           {my_bookings_hint_en}
       buttons:
         - id: "{booking_btn_id_1}"
-          label: "❌ Отменить: {booking_btn_label_1}"
+          label: "{booking_btn_label_1}"
           row: 1
           next_state: PROCESS_MY_BOOKING
         - id: "{booking_btn_id_2}"

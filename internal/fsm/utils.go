@@ -23,7 +23,7 @@ func EscapeMarkdown(s string) string {
 // would break the surrounding code span, so we normalize common legacy escapes
 // and replace backticks/newlines with safe plain-text equivalents.
 func EscapeMarkdownCode(s string) string {
-	s = normalizeMarkdownEscapes(s)
+	s = NormalizeMarkdownEscapes(s)
 	s = strings.ReplaceAll(s, "`", "'")
 	s = strings.ReplaceAll(s, "\r\n", " ")
 	s = strings.ReplaceAll(s, "\n", " ")
@@ -31,7 +31,9 @@ func EscapeMarkdownCode(s string) string {
 	return s
 }
 
-func normalizeMarkdownEscapes(s string) string {
+// NormalizeMarkdownEscapes removes legacy backslashes before Markdown control
+// characters so values can be re-rendered safely without accumulating escapes.
+func NormalizeMarkdownEscapes(s string) string {
 	if strings.TrimSpace(s) == "" {
 		return s
 	}

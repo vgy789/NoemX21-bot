@@ -276,6 +276,7 @@ states:
             ru: 🔗 Занырнуть в канал
             en: 🔗 Dive into channel
           url: "{club_link}"
+          condition: club_link != ''
         - id: back_to_list
           label:
             ru: 🔙 Назад
@@ -325,6 +326,7 @@ states:
           • Организовал:а новый клуб и хочешь показать его остальным?
 
           Исправь всё в школьном репозитории данных бота.
+          Либо попроси в чате бота.
         en: |
           ℹ️ *How to add / update group information*
 
@@ -333,6 +335,7 @@ states:
           • Started a new club and want others to see it?
 
           Update everything in the school bot's data repository.
+          Or ask the bot in the chat.
       buttons:
         - id: open_bot_content_repo
           label:
@@ -340,6 +343,12 @@ states:
             en: 🔗 Open data repository
           url: "{bot_content_repo_link}"
           condition: bot_content_repo_link != ''
+        - id: open_bot_chat
+          label:
+            ru: 💬 Открыть чат бота
+            en: 💬 Open bot chat
+          url: "{bot_telegram_link}"
+          condition: bot_telegram_link != ''
         - id: update_info_ok
           label:
             ru: ✅ Понятно

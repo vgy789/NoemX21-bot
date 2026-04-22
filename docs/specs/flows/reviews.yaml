@@ -710,7 +710,7 @@ states:
           label:
             ru: "{my_prr_page_caption_ru}"
             en: "{my_prr_page_caption_en}"
-          condition: "my_prr_id_1 != ''"
+          condition: "my_prr_id_1 != '' && my_prr_total_pages > 1"
           action: none
           row: 6
         - id: next_my_prr_page

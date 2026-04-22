@@ -169,9 +169,10 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, variousPath strin
 			if campusUUID, err := parseCampusUUID(campusIDStr); err == nil {
 				if clubs, err := queries.GetLocalClubs(ctx, campusUUID); err == nil {
 					for _, c := range clubs {
-						if !categoryMap[c.CategoryName] {
-							categoryMap[c.CategoryName] = true
-							categories = append(categories, c.CategoryName)
+						categoryName := normalizeClubText(c.CategoryName)
+						if !categoryMap[categoryName] {
+							categoryMap[categoryName] = true
+							categories = append(categories, categoryName)
 						}
 					}
 				}
@@ -179,9 +180,10 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, variousPath strin
 		} else if !isLocal {
 			if clubs, err := queries.GetGlobalClubs(ctx); err == nil {
 				for _, c := range clubs {
-					if !categoryMap[c.CategoryName] {
-						categoryMap[c.CategoryName] = true
-						categories = append(categories, c.CategoryName)
+					categoryName := normalizeClubText(c.CategoryName)
+					if !categoryMap[categoryName] {
+						categoryMap[categoryName] = true
+						categories = append(categories, categoryName)
 					}
 				}
 			}
@@ -210,6 +212,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, variousPath strin
 		if !ok || categoryName == "" {
 			return "", nil, fmt.Errorf("category_name or last_input required")
 		}
+		categoryName = normalizeClubText(categoryName)
 
 		isLocal := boolFromPayload(payload, "is_local")
 		campusIDStr := ensureCampusID(ctx, queries, userID, payload)
@@ -219,7 +222,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, variousPath strin
 			if campusUUID, err := parseCampusUUID(campusIDStr); err == nil {
 				if clubs, err := queries.GetLocalClubs(ctx, campusUUID); err == nil {
 					for _, c := range clubs {
-						if c.CategoryName == categoryName {
+						if normalizeClubText(c.CategoryName) == categoryName {
 							filteredClubs = append(filteredClubs, c)
 						}
 					}
@@ -228,7 +231,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, variousPath strin
 		} else if !isLocal {
 			if clubs, err := queries.GetGlobalClubs(ctx); err == nil {
 				for _, c := range clubs {
-					if c.CategoryName == categoryName {
+					if normalizeClubText(c.CategoryName) == categoryName {
 						filteredClubs = append(filteredClubs, c)
 					}
 				}
@@ -305,7 +308,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, variousPath strin
 				card := formatClubCard(c)
 				return "", map[string]any{
 					"club_card": card,
-					"club_name": c.Name,
+					"club_name": normalizeClubText(c.Name),
 					"club_link": c.ExternalLink.String,
 					"club_id":   clubID,
 				}, nil
@@ -322,7 +325,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, variousPath strin
 							card := formatLocalClubCard(c)
 							return "", map[string]any{
 								"club_card": card,
-								"club_name": c.Name,
+								"club_name": normalizeClubText(c.Name),
 								"club_link": c.ExternalLink.String,
 								"club_id":   clubID,
 							}, nil
@@ -339,12 +342,12 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, variousPath strin
 func formatLocalClubs(clubs []db.GetLocalClubsRow) string {
 	var sb strings.Builder
 	for _, c := range clubs {
-		_, _ = fmt.Fprintf(&sb, "*%s* [%s]\n", fsm.EscapeMarkdown(c.Name), fsm.EscapeMarkdown(c.CategoryName))
+		_, _ = fmt.Fprintf(&sb, "*%s* [%s]\n", escapeClubMarkdown(c.Name), escapeClubMarkdown(c.CategoryName))
 		if c.Description.Valid && c.Description.String != "" {
-			_, _ = fmt.Fprintf(&sb, "%s\n", fsm.EscapeMarkdown(c.Description.String))
+			_, _ = fmt.Fprintf(&sb, "%s\n", escapeClubMarkdown(c.Description.String))
 		}
 		if c.LeaderLogin.Valid && c.LeaderLogin.String != "" {
-			_, _ = fmt.Fprintf(&sb, "👤 Leader: %s\n", fsm.EscapeMarkdown(c.LeaderLogin.String))
+			_, _ = fmt.Fprintf(&sb, "👤 Leader: %s\n", escapeClubMarkdown(c.LeaderLogin.String))
 		}
 		if c.ExternalLink.Valid && c.ExternalLink.String != "" {
 			_, _ = fmt.Fprintf(&sb, "🔗 [Join](%s)\n", c.ExternalLink.String)
@@ -357,12 +360,12 @@ func formatLocalClubs(clubs []db.GetLocalClubsRow) string {
 func formatGlobalClubs(clubs []db.GetGlobalClubsRow) string {
 	var sb strings.Builder
 	for _, c := range clubs {
-		_, _ = fmt.Fprintf(&sb, "*%s* [%s]\n", fsm.EscapeMarkdown(c.Name), fsm.EscapeMarkdown(c.CategoryName))
+		_, _ = fmt.Fprintf(&sb, "*%s* [%s]\n", escapeClubMarkdown(c.Name), escapeClubMarkdown(c.CategoryName))
 		if c.Description.Valid && c.Description.String != "" {
-			_, _ = fmt.Fprintf(&sb, "%s\n", fsm.EscapeMarkdown(c.Description.String))
+			_, _ = fmt.Fprintf(&sb, "%s\n", escapeClubMarkdown(c.Description.String))
 		}
 		if c.LeaderLogin.Valid && c.LeaderLogin.String != "" {
-			_, _ = fmt.Fprintf(&sb, "👤 Leader: %s\n", fsm.EscapeMarkdown(c.LeaderLogin.String))
+			_, _ = fmt.Fprintf(&sb, "👤 Leader: %s\n", escapeClubMarkdown(c.LeaderLogin.String))
 		}
 		if c.ExternalLink.Valid && c.ExternalLink.String != "" {
 			_, _ = fmt.Fprintf(&sb, "🔗 [Join](%s)\n", c.ExternalLink.String)
@@ -375,18 +378,18 @@ func formatGlobalClubs(clubs []db.GetGlobalClubsRow) string {
 // formatClubCard formats a global club as a detailed card
 func formatClubCard(c db.GetGlobalClubsRow) string {
 	var sb strings.Builder
-	_, _ = fmt.Fprintf(&sb, "*%s*\n\n", fsm.EscapeMarkdown(c.Name))
+	_, _ = fmt.Fprintf(&sb, "*%s*\n\n", escapeClubMarkdown(c.Name))
 
 	if c.Description.Valid && c.Description.String != "" {
 		// Use plain text for description to avoid nested italics issues with underscores
-		_, _ = fmt.Fprintf(&sb, "%s\n\n", fsm.EscapeMarkdown(c.Description.String))
+		_, _ = fmt.Fprintf(&sb, "%s\n\n", escapeClubMarkdown(c.Description.String))
 	}
 	if c.LeaderLogin.Valid && c.LeaderLogin.String != "" {
-		_, _ = fmt.Fprintf(&sb, "👤 *Лидер:* %s\n", fsm.EscapeMarkdown(c.LeaderLogin.String))
+		_, _ = fmt.Fprintf(&sb, "👤 *Лидер:* %s\n", escapeClubMarkdown(c.LeaderLogin.String))
 	}
-	_, _ = fmt.Fprintf(&sb, "📂 *Категория:* %s\n", fsm.EscapeMarkdown(c.CategoryName))
+	_, _ = fmt.Fprintf(&sb, "📂 *Категория:* %s\n", escapeClubMarkdown(c.CategoryName))
 	if c.CampusName != "" {
-		_, _ = fmt.Fprintf(&sb, "📍 *Кампус:* %s\n", fsm.EscapeMarkdown(c.CampusName))
+		_, _ = fmt.Fprintf(&sb, "📍 *Кампус:* %s\n", escapeClubMarkdown(c.CampusName))
 	}
 	return sb.String()
 }
@@ -394,17 +397,17 @@ func formatClubCard(c db.GetGlobalClubsRow) string {
 // formatLocalClubCard formats a local club as a detailed card
 func formatLocalClubCard(c db.GetLocalClubsRow) string {
 	var sb strings.Builder
-	_, _ = fmt.Fprintf(&sb, "*%s*\n\n", fsm.EscapeMarkdown(c.Name))
+	_, _ = fmt.Fprintf(&sb, "*%s*\n\n", escapeClubMarkdown(c.Name))
 
 	if c.Description.Valid && c.Description.String != "" {
 		// Use plain text for description to avoid nested italics issues with underscores
-		_, _ = fmt.Fprintf(&sb, "%s\n\n", fsm.EscapeMarkdown(c.Description.String))
+		_, _ = fmt.Fprintf(&sb, "%s\n\n", escapeClubMarkdown(c.Description.String))
 	}
 	if c.LeaderLogin.Valid && c.LeaderLogin.String != "" {
-		_, _ = fmt.Fprintf(&sb, "👤 *Лидер:* %s\n", fsm.EscapeMarkdown(c.LeaderLogin.String))
+		_, _ = fmt.Fprintf(&sb, "👤 *Лидер:* %s\n", escapeClubMarkdown(c.LeaderLogin.String))
 	}
-	_, _ = fmt.Fprintf(&sb, "📂 *Категория:* %s\n", fsm.EscapeMarkdown(c.CategoryName))
-	_, _ = fmt.Fprintf(&sb, "📍 *Организовали в:* %s\n", fsm.EscapeMarkdown(c.CampusName))
+	_, _ = fmt.Fprintf(&sb, "📂 *Категория:* %s\n", escapeClubMarkdown(c.CategoryName))
+	_, _ = fmt.Fprintf(&sb, "📍 *Организовали в:* %s\n", escapeClubMarkdown(c.CampusName))
 	return sb.String()
 }
 
@@ -486,12 +489,20 @@ func writeCategoryButtons(updates map[string]any, categories []string, max int) 
 func clubData(club any) (string, int16) {
 	switch c := club.(type) {
 	case db.GetLocalClubsRow:
-		return c.Name, c.ID
+		return normalizeClubText(c.Name), c.ID
 	case db.GetGlobalClubsRow:
-		return c.Name, c.ID
+		return normalizeClubText(c.Name), c.ID
 	default:
 		return "", 0
 	}
+}
+
+func normalizeClubText(s string) string {
+	return fsm.NormalizeMarkdownEscapes(s)
+}
+
+func escapeClubMarkdown(s string) string {
+	return fsm.EscapeMarkdown(normalizeClubText(s))
 }
 
 func minInt(a, b int) int {
