@@ -250,7 +250,7 @@ states:
         ru: |
           📝 *Сверяем координаты:*
 
-          📁 Проект: *{selected_project_name}*
+          📁 Проект: *{selected_project_name_md}*
           ⏰ Время: `{create_prr_time_description}`
           📝 Заметка: `{create_prr_note_text_display}`
           🌐 Пояс: `{user_timezone_name}` (UTC{user_timezone_formatted})
@@ -259,7 +259,7 @@ states:
         en: |
           📝 *Final check:*
 
-          📁 Project: *{selected_project_name}*
+          📁 Project: *{selected_project_name_md}*
           ⏰ Time: `{create_prr_time_description}`
           📝 Note: `{create_prr_note_text_display}`
           🌐 Timezone: `{user_timezone_name}` (UTC{user_timezone_formatted})
@@ -1318,7 +1318,7 @@ states:
         ru: |
           📝 *Проверим заявку*
 
-          📁 Проект: *{selected_team_project_name}*
+          📁 Проект: *{selected_team_project_name_md}*
           ⏰ Планируемый старт: `{team_planned_start_text}`
           💬 Заметка: `{team_request_note_text}`
           🌐 Пояс: `{user_timezone_name}` (UTC{user_timezone_formatted})
@@ -1327,7 +1327,7 @@ states:
         en: |
           📝 *Final check*
 
-          📁 Project: *{selected_team_project_name}*
+          📁 Project: *{selected_team_project_name_md}*
           ⏰ Planned start: `{team_planned_start_text}`
           💬 Note: `{team_request_note_text}`
           🌐 Timezone: `{user_timezone_name}` (UTC{user_timezone_formatted})

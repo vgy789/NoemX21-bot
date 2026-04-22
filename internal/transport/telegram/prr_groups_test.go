@@ -187,8 +187,8 @@ func TestSanitizePRRGroupTelegramUsername(t *testing.T) {
 
 func TestBuildPRRGroupStatusMessage_Formats(t *testing.T) {
 	data := prrGroupNotificationData{
-		ProjectName:      "CPP",
-		RequesterLogin:   "login",
+		ProjectName:      "CPP2_s21_containers",
+		RequesterLogin:   "login_name",
 		RequesterLevel:   "5",
 		RequesterCampus:  "MSK",
 		AvailabilityText: "now",
@@ -202,13 +202,20 @@ func TestBuildPRRGroupStatusMessage_Formats(t *testing.T) {
 
 	text, buttons = buildPRRGroupStatusMessage(db.EnumReviewStatusNEGOTIATING, data)
 	assert.Contains(t, strings.ToLower(text), "паузе")
+	assert.Contains(t, text, "`CPP2_s21_containers`")
+	assert.Contains(t, text, "`login_name`")
+	assert.NotContains(t, text, "\\_")
 	assert.Nil(t, buttons)
 
 	text, _ = buildPRRGroupStatusMessage(db.EnumReviewStatusCLOSED, data)
 	assert.Contains(t, text, "Запрос закрыт")
+	assert.Contains(t, text, "`CPP2_s21_containers`")
+	assert.NotContains(t, text, "\\_")
 
 	text, _ = buildPRRGroupStatusMessage(db.EnumReviewStatusWITHDRAWN, data)
 	assert.Contains(t, text, "Запрос отозван")
+	assert.Contains(t, text, "`CPP2_s21_containers`")
+	assert.NotContains(t, text, "\\_")
 }
 
 func mustUUID(t *testing.T, raw string) pgtype.UUID {

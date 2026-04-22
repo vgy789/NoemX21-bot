@@ -30,6 +30,7 @@ var preformattedContextKeys = map[string]bool{
 	"my_selected_negotiating_contact_block": true,
 	"current_project_filters_text":          true,
 	"selected_project_name_md":              true,
+	"selected_team_project_name_md":         true,
 	"defender_preview_summary_ru":           true,
 	"defender_preview_summary_en":           true,
 	"defender_logs_list_ru":                 true,
@@ -896,16 +897,37 @@ func (e *Engine) replaceVariablesOpts(text string, state *UserState, sanitize bo
 		if strings.Contains(result, key) {
 			e.log.Info("replacing template variable", "key", key, "val", val)
 
-			var finalVal string
 			varName := e.replacementKeyToVarName(key)
-			skipSanitize := preformattedContextKeys[varName]
-			if sanitize && e.sanitizer != nil && !skipSanitize {
-				finalVal = e.sanitizer(val)
-			} else {
-				finalVal = val
+			var rendered strings.Builder
+			rest := result
+
+			for {
+				idx := strings.Index(rest, key)
+				if idx < 0 {
+					rendered.WriteString(rest)
+					break
+				}
+
+				rendered.WriteString(rest[:idx])
+
+				finalVal := val
+				endIdx := idx + len(key)
+				inlineCode := idx > 0 && endIdx < len(rest) && rest[idx-1] == '`' && rest[endIdx] == '`'
+				skipSanitize := preformattedContextKeys[varName]
+				if sanitize {
+					switch {
+					case inlineCode:
+						finalVal = EscapeMarkdownCode(val)
+					case e.sanitizer != nil && !skipSanitize:
+						finalVal = e.sanitizer(val)
+					}
+				}
+
+				rendered.WriteString(finalVal)
+				rest = rest[endIdx:]
 			}
 
-			result = strings.ReplaceAll(result, key, finalVal)
+			result = rendered.String()
 		}
 	}
 

@@ -178,6 +178,31 @@ func TestEngine_GetCurrentRender(t *testing.T) {
 	})
 }
 
+func TestEngine_ReplaceVariablesOpts_UsesMarkdownContextAwareEscaping(t *testing.T) {
+	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
+	engine := NewEngine(nil, nil, logger, nil, EscapeMarkdown)
+	state := &UserState{
+		Language: LangRu,
+		Context: map[string]any{
+			"selected_team_project_name_md": "CPP2\\_s21\\_containers",
+			"team_request_note_text":        "need_cpp_review",
+		},
+	}
+
+	rendered := engine.replaceVariablesOpts(
+		"📁 *Проект:* {selected_team_project_name_md}\n📝 Заметка: `{team_request_note_text}`",
+		state,
+		true,
+	)
+
+	assert.Equal(
+		t,
+		"📁 *Проект:* CPP2\\_s21\\_containers\n📝 Заметка: `need_cpp_review`",
+		rendered,
+	)
+	assert.NotContains(t, rendered, "\\\\\\_")
+}
+
 func TestEngine_Process(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelError}))
 	parser := NewFlowParser("../../docs/specs/flows", logger)

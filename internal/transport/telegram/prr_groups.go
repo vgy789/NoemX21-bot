@@ -301,8 +301,8 @@ func buildPRRGroupSearchingMessage(data prrGroupNotificationData) (string, [][]f
 }
 
 func buildPRRGroupStatusMessage(status db.EnumReviewStatus, data prrGroupNotificationData) (string, [][]fsm.ButtonRender) {
-	project := fsm.EscapeMarkdown(data.ProjectName)
-	nickname := fsm.EscapeMarkdown(data.RequesterLogin)
+	project := fsm.EscapeMarkdownCode(data.ProjectName)
+	nickname := fsm.EscapeMarkdownCode(data.RequesterLogin)
 
 	switch status {
 	case db.EnumReviewStatusSEARCHING:

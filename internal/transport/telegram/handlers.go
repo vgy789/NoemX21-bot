@@ -372,7 +372,7 @@ func (s *telegramService) handlePRRHere(b *gotgbot.Bot, ctx *ext.Context) error 
 		return nil
 	}
 
-	text := fmt.Sprintf("Цель PRR-радара сохранена: `%s`.", fsm.EscapeMarkdown(threadLabel))
+	text := fmt.Sprintf("Цель PRR-радара сохранена: `%s`.", fsm.EscapeMarkdownCode(threadLabel))
 	_, _ = s.getSender(b).SendMessage(chatID, text, &gotgbot.SendMessageOpts{ParseMode: "Markdown"})
 	return nil
 }
@@ -419,7 +419,7 @@ func (s *telegramService) handleTeamHere(b *gotgbot.Bot, ctx *ext.Context) error
 		return nil
 	}
 
-	text := fmt.Sprintf("Цель радара команды сохранена: `%s`.", fsm.EscapeMarkdown(threadLabel))
+	text := fmt.Sprintf("Цель радара команды сохранена: `%s`.", fsm.EscapeMarkdownCode(threadLabel))
 	_, _ = s.getSender(b).SendMessage(chatID, text, &gotgbot.SendMessageOpts{ParseMode: "Markdown"})
 	return nil
 }
