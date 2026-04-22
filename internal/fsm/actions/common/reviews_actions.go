@@ -136,9 +136,16 @@ func registerReviewActions(
 	})
 
 	registry.Register("db_get_my_prr_summary", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		publicCount, err := queries.CountSearchingReviewRequests(ctx)
+		if err != nil {
+			log.Warn("reviews: failed to count searching requests", "user_id", userID, "error", err)
+			publicCount = 0
+		}
+
 		acc, err := getTelegramAccount(ctx, queries, userID)
 		if err != nil {
 			return "", map[string]any{
+				"public_prr_count":        int(publicCount),
 				"my_prr_count":            0,
 				"active_prr_notification": "📭 Активных запросов нет.",
 			}, nil
@@ -153,6 +160,7 @@ func registerReviewActions(
 			notification = fmt.Sprintf("📌 Активных запросов: %d", count)
 		}
 		return "", map[string]any{
+			"public_prr_count":        int(publicCount),
 			"my_prr_count":            int(count),
 			"active_prr_notification": notification,
 		}, nil

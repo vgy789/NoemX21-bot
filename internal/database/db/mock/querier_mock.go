@@ -234,6 +234,36 @@ func (mr *MockQuerierMockRecorder) CountOpenTeamSearchRequestsByUser(ctx, reques
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountOpenTeamSearchRequestsByUser", reflect.TypeOf((*MockQuerier)(nil).CountOpenTeamSearchRequestsByUser), ctx, requesterUserID)
 }
 
+// CountSearchingReviewRequests mocks base method.
+func (m *MockQuerier) CountSearchingReviewRequests(ctx context.Context) (int32, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountSearchingReviewRequests", ctx)
+	ret0, _ := ret[0].(int32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountSearchingReviewRequests indicates an expected call of CountSearchingReviewRequests.
+func (mr *MockQuerierMockRecorder) CountSearchingReviewRequests(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountSearchingReviewRequests", reflect.TypeOf((*MockQuerier)(nil).CountSearchingReviewRequests), ctx)
+}
+
+// CountSearchingTeamSearchRequests mocks base method.
+func (m *MockQuerier) CountSearchingTeamSearchRequests(ctx context.Context) (int32, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountSearchingTeamSearchRequests", ctx)
+	ret0, _ := ret[0].(int32)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountSearchingTeamSearchRequests indicates an expected call of CountSearchingTeamSearchRequests.
+func (mr *MockQuerierMockRecorder) CountSearchingTeamSearchRequests(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountSearchingTeamSearchRequests", reflect.TypeOf((*MockQuerier)(nil).CountSearchingTeamSearchRequests), ctx)
+}
+
 // CountSearchBooks mocks base method.
 func (m *MockQuerier) CountSearchBooks(ctx context.Context, arg db.CountSearchBooksParams) (int32, error) {
 	m.ctrl.T.Helper()

@@ -26,6 +26,8 @@ type Querier interface {
 	CountOpenTeamSearchRequestsByUser(ctx context.Context, requesterUserID int64) (int32, error)
 	CountSearchBooks(ctx context.Context, arg CountSearchBooksParams) (int32, error)
 	CountSearchCatalogProjects(ctx context.Context, dollar_1 interface{}) (int32, error)
+	CountSearchingReviewRequests(ctx context.Context) (int32, error)
+	CountSearchingTeamSearchRequests(ctx context.Context) (int32, error)
 	CreateApiKey(ctx context.Context, arg CreateApiKeyParams) (ApiKey, error)
 	CreateAuthVerificationCode(ctx context.Context, arg CreateAuthVerificationCodeParams) (AuthVerificationCode, error)
 	CreateBookLoan(ctx context.Context, arg CreateBookLoanParams) (BookLoan, error)

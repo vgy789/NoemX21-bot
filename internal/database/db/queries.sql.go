@@ -286,6 +286,32 @@ func (q *Queries) CountSearchCatalogProjects(ctx context.Context, dollar_1 inter
 	return column_1, err
 }
 
+const countSearchingReviewRequests = `-- name: CountSearchingReviewRequests :one
+SELECT count(*)::int
+FROM review_requests
+WHERE status = 'SEARCHING'
+`
+
+func (q *Queries) CountSearchingReviewRequests(ctx context.Context) (int32, error) {
+	row := q.db.QueryRow(ctx, countSearchingReviewRequests)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countSearchingTeamSearchRequests = `-- name: CountSearchingTeamSearchRequests :one
+SELECT count(*)::int
+FROM team_search_requests
+WHERE status = 'SEARCHING'
+`
+
+func (q *Queries) CountSearchingTeamSearchRequests(ctx context.Context) (int32, error) {
+	row := q.db.QueryRow(ctx, countSearchingTeamSearchRequests)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const createApiKey = `-- name: CreateApiKey :one
 INSERT INTO api_keys (
     user_account_id, key_hash, prefix, expires_at

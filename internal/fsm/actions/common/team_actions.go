@@ -28,9 +28,16 @@ func registerTeamActions(
 	log *slog.Logger,
 ) {
 	registry.Register("db_get_my_team_summary", func(ctx context.Context, userID int64, _ map[string]any) (string, map[string]any, error) {
+		publicCount, err := queries.CountSearchingTeamSearchRequests(ctx)
+		if err != nil {
+			log.Warn("team finder: failed to count searching requests", "user_id", userID, "error", err)
+			publicCount = 0
+		}
+
 		acc, err := getTelegramAccount(ctx, queries, userID)
 		if err != nil {
 			return "", map[string]any{
+				"public_team_count":        int(publicCount),
 				"my_team_count":            0,
 				"active_team_notification": "📭 Активных запросов на поиск команды нет.",
 			}, nil
@@ -47,6 +54,7 @@ func registerTeamActions(
 			notification = fmt.Sprintf("📌 Активных запросов на поиск команды: %d", count)
 		}
 		return "", map[string]any{
+			"public_team_count":        int(publicCount),
 			"my_team_count":            int(count),
 			"active_team_notification": notification,
 		}, nil

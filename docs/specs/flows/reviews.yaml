@@ -36,8 +36,8 @@ states:
       buttons:
         - id: list_all
           label:
-            ru: 🔎 Найти кого поревьюить
-            en: 🔎 Find someone to review
+            ru: 🔎 Найти кого поревьюить ({public_prr_count})
+            en: 🔎 Find someone to review ({public_prr_count})
           next_state: GLOBAL_PRR_BOARD
           row: 1
         - id: create_new
@@ -1128,8 +1128,8 @@ states:
       buttons:
         - id: list_all
           label:
-            ru: 🔎 Смотреть запросы
-            en: 🔎 Browse requests
+            ru: 🔎 Смотреть запросы ({public_team_count})
+            en: 🔎 Browse requests ({public_team_count})
           next_state: GLOBAL_TEAM_BOARD
           row: 1
         - id: create_new

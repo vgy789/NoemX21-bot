@@ -1132,6 +1132,11 @@ FROM review_requests
 WHERE requester_user_id = $1
   AND status NOT IN ('CLOSED', 'WITHDRAWN');
 
+-- name: CountSearchingReviewRequests :one
+SELECT count(*)::int
+FROM review_requests
+WHERE status = 'SEARCHING';
+
 -- name: ExistsOpenReviewRequestByUserAndProject :one
 SELECT EXISTS (
     SELECT 1
@@ -1381,6 +1386,11 @@ SELECT count(*)::int
 FROM team_search_requests
 WHERE requester_user_id = $1
   AND status NOT IN ('CLOSED', 'WITHDRAWN');
+
+-- name: CountSearchingTeamSearchRequests :one
+SELECT count(*)::int
+FROM team_search_requests
+WHERE status = 'SEARCHING';
 
 -- name: ExistsOpenTeamSearchRequestByUserAndProject :one
 SELECT EXISTS (
