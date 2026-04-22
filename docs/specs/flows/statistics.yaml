@@ -134,7 +134,9 @@ states:
     type: interactive
     description: "Display user's skills radar chart"
     interface:
-      image: "$context.radar_chart_path"
+      images:
+        - "$context.radar_chart_path"
+        - "$context.radar_chart_path_legacy"
       text:
         ru: |
           📊 *Твой профиль навыков*

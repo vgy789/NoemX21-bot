@@ -180,7 +180,7 @@ func TestTelegramService_Handlers(t *testing.T) {
 		mockSender.EXPECT().DeleteMessage(int64(1), int64(1)).Return(true, nil)
 		mockSender.EXPECT().SendMessage(int64(1), "fail", gomock.Any()).Return(nil, assert.AnError)
 
-		_, err := s.updateMessageRender(mockSender, 1, 1, render)
+		_, err := s.updateMessageRender(1, mockSender, 1, 1, render)
 		assert.Error(t, err)
 	})
 
@@ -189,7 +189,7 @@ func TestTelegramService_Handlers(t *testing.T) {
 		notModErr := fmt.Errorf("bad request: message is not modified")
 		mockSender.EXPECT().EditMessageText("no change", gomock.Any()).Return(nil, false, notModErr)
 
-		_, err := s.updateMessageRender(mockSender, 1, 1, render)
+		_, err := s.updateMessageRender(1, mockSender, 1, 1, render)
 		assert.NoError(t, err)
 	})
 

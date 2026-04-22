@@ -86,6 +86,7 @@ func (e *Engine) AddAlias(alias, target string) {
 type RenderObject struct {
 	Text    string
 	Image   string
+	Images  []string
 	Alert   string
 	Buttons [][]ButtonRender
 }
@@ -813,10 +814,21 @@ func (e *Engine) renderState(ctx context.Context, userState *UserState, flowStat
 		buttons = append(buttons, []ButtonRender{item})
 	}
 
-	// Image
+	// Images
 	imagePath := flowState.Interface.Image
 	if imagePath != "" {
 		imagePath = e.replaceVariablesOpts(imagePath, userState, false)
+	}
+	imagePaths := make([]string, 0, len(flowState.Interface.Images)+1)
+	for _, candidate := range flowState.Interface.Images {
+		candidate = e.replaceVariablesOpts(candidate, userState, false)
+		if strings.TrimSpace(candidate) == "" {
+			continue
+		}
+		imagePaths = append(imagePaths, candidate)
+	}
+	if imagePath != "" {
+		imagePaths = append(imagePaths, imagePath)
 	}
 
 	// Alert
@@ -835,6 +847,7 @@ func (e *Engine) renderState(ctx context.Context, userState *UserState, flowStat
 		Text:    text,
 		Buttons: buttons,
 		Image:   imagePath,
+		Images:  imagePaths,
 		Alert:   alert,
 	}
 }

@@ -115,6 +115,22 @@ func (mr *MockSenderMockRecorder) EditMessageText(text, opts interface{}) *gomoc
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EditMessageText", reflect.TypeOf((*MockSender)(nil).EditMessageText), text, opts)
 }
 
+// EditMessageReplyMarkup mocks base method.
+func (m *MockSender) EditMessageReplyMarkup(opts *gotgbot.EditMessageReplyMarkupOpts) (*gotgbot.Message, bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EditMessageReplyMarkup", opts)
+	ret0, _ := ret[0].(*gotgbot.Message)
+	ret1, _ := ret[1].(bool)
+	ret2, _ := ret[2].(error)
+	return ret0, ret1, ret2
+}
+
+// EditMessageReplyMarkup indicates an expected call of EditMessageReplyMarkup.
+func (mr *MockSenderMockRecorder) EditMessageReplyMarkup(opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EditMessageReplyMarkup", reflect.TypeOf((*MockSender)(nil).EditMessageReplyMarkup), opts)
+}
+
 // SendMessage mocks base method.
 func (m *MockSender) SendMessage(chatID int64, text string, opts *gotgbot.SendMessageOpts) (*gotgbot.Message, error) {
 	m.ctrl.T.Helper()
@@ -143,4 +159,19 @@ func (m *MockSender) SendPhoto(chatID int64, photo gotgbot.InputFileOrString, op
 func (mr *MockSenderMockRecorder) SendPhoto(chatID, photo, opts interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendPhoto", reflect.TypeOf((*MockSender)(nil).SendPhoto), chatID, photo, opts)
+}
+
+// SendMediaGroup mocks base method.
+func (m *MockSender) SendMediaGroup(chatID int64, media []gotgbot.InputMedia, opts *gotgbot.SendMediaGroupOpts) ([]gotgbot.Message, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SendMediaGroup", chatID, media, opts)
+	ret0, _ := ret[0].([]gotgbot.Message)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// SendMediaGroup indicates an expected call of SendMediaGroup.
+func (mr *MockSenderMockRecorder) SendMediaGroup(chatID, media, opts interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SendMediaGroup", reflect.TypeOf((*MockSender)(nil).SendMediaGroup), chatID, media, opts)
 }

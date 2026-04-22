@@ -128,7 +128,15 @@ func (r *recordingSender) SendPhoto(_ int64, _ gotgbot.InputFileOrString, _ *got
 	return &gotgbot.Message{}, nil
 }
 
+func (r *recordingSender) SendMediaGroup(_ int64, _ []gotgbot.InputMedia, _ *gotgbot.SendMediaGroupOpts) ([]gotgbot.Message, error) {
+	return []gotgbot.Message{{}, {}}, nil
+}
+
 func (r *recordingSender) EditMessageText(_ string, _ *gotgbot.EditMessageTextOpts) (*gotgbot.Message, bool, error) {
+	return &gotgbot.Message{}, true, nil
+}
+
+func (r *recordingSender) EditMessageReplyMarkup(_ *gotgbot.EditMessageReplyMarkupOpts) (*gotgbot.Message, bool, error) {
 	return &gotgbot.Message{}, true, nil
 }
 

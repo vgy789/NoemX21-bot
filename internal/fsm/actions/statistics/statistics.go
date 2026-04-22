@@ -676,14 +676,6 @@ func Register(
 		legacyChartPath := ""
 		if len(usersData) == 1 {
 			legacyChartPath, _ = generateRadarChartLegacy(usersData, orderedLogins)
-			if legacyChartPath != "" {
-				if notifier, ok := fsm.RenderNotifierFromContext(ctx); ok {
-					_ = notifier.NotifyUserRender(ctx, userID, &fsm.RenderObject{
-						Text:  "📎 *Старый формат профиля навыков*",
-						Image: legacyChartPath,
-					})
-				}
-			}
 		}
 
 		return "", map[string]any{

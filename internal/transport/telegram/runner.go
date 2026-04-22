@@ -30,7 +30,9 @@ type TelegramService interface {
 type Sender interface {
 	SendMessage(chatID int64, text string, opts *gotgbot.SendMessageOpts) (*gotgbot.Message, error)
 	SendPhoto(chatID int64, photo gotgbot.InputFileOrString, opts *gotgbot.SendPhotoOpts) (*gotgbot.Message, error)
+	SendMediaGroup(chatID int64, media []gotgbot.InputMedia, opts *gotgbot.SendMediaGroupOpts) ([]gotgbot.Message, error)
 	EditMessageText(text string, opts *gotgbot.EditMessageTextOpts) (*gotgbot.Message, bool, error)
+	EditMessageReplyMarkup(opts *gotgbot.EditMessageReplyMarkupOpts) (*gotgbot.Message, bool, error)
 	DeleteMessage(chatID int64, messageID int64) (bool, error)
 	AnswerCallbackQuery(callbackQueryId string, opts *gotgbot.AnswerCallbackQueryOpts) (bool, error)
 }
@@ -48,8 +50,16 @@ func (s *DefaultSender) SendPhoto(chatID int64, photo gotgbot.InputFileOrString,
 	return s.Bot.SendPhoto(chatID, photo, opts)
 }
 
+func (s *DefaultSender) SendMediaGroup(chatID int64, media []gotgbot.InputMedia, opts *gotgbot.SendMediaGroupOpts) ([]gotgbot.Message, error) {
+	return s.Bot.SendMediaGroup(chatID, media, opts)
+}
+
 func (s *DefaultSender) EditMessageText(text string, opts *gotgbot.EditMessageTextOpts) (*gotgbot.Message, bool, error) {
 	return s.Bot.EditMessageText(text, opts)
+}
+
+func (s *DefaultSender) EditMessageReplyMarkup(opts *gotgbot.EditMessageReplyMarkupOpts) (*gotgbot.Message, bool, error) {
+	return s.Bot.EditMessageReplyMarkup(opts)
 }
 
 func (s *DefaultSender) DeleteMessage(chatID int64, messageID int64) (bool, error) {

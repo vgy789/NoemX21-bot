@@ -32,6 +32,7 @@ type Validation struct {
 
 type Interface struct {
 	Image        string            `yaml:"image"`         // Optional: Path to image
+	Images       []string          `yaml:"images"`        // Optional: Paths to images
 	Text         map[string]string `yaml:"text"`          // Locale -> Text
 	ErrorInvalid map[string]string `yaml:"error_invalid"` // Optional: Locale -> Error Text
 	Buttons      []Button          `yaml:"buttons"`

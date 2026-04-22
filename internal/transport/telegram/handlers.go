@@ -558,7 +558,7 @@ func (s *telegramService) handleTextMessage(b *gotgbot.Bot, ctx *ext.Context) er
 
 	lastBotMessageID := s.getLastBotMessageID(userID)
 	if lastBotMessageID > 0 {
-		newMessageID, editErr := s.updateMessageRender(s.getSender(b), chatID, lastBotMessageID, render)
+		newMessageID, editErr := s.updateMessageRender(userID, s.getSender(b), chatID, lastBotMessageID, render)
 		if editErr == nil {
 			if newMessageID > 0 {
 				s.setLastBotMessageID(userID, &gotgbot.Message{MessageId: newMessageID})
@@ -627,7 +627,7 @@ func (s *telegramService) handleCallback(b *gotgbot.Bot, ctx *ext.Context) error
 			_, _ = s.getSender(b).AnswerCallbackQuery(cb.Id, &gotgbot.AnswerCallbackQueryOpts{})
 		}
 
-		newMessageID, renderErr := s.updateMessageRender(s.getSender(b), ctx.EffectiveChat.Id, cb.Message.GetMessageId(), render)
+		newMessageID, renderErr := s.updateMessageRender(userID, s.getSender(b), ctx.EffectiveChat.Id, cb.Message.GetMessageId(), render)
 		if renderErr == nil && newMessageID > 0 {
 			s.setLastBotMessageID(userID, &gotgbot.Message{MessageId: newMessageID})
 		}
@@ -672,7 +672,7 @@ func (s *telegramService) handleCallback(b *gotgbot.Bot, ctx *ext.Context) error
 		_, _ = s.getSender(b).AnswerCallbackQuery(cb.Id, opts)
 	}
 
-	newMessageID, err := s.updateMessageRender(s.getSender(b), ctx.EffectiveChat.Id, cb.Message.GetMessageId(), render)
+	newMessageID, err := s.updateMessageRender(userID, s.getSender(b), ctx.EffectiveChat.Id, cb.Message.GetMessageId(), render)
 	if err == nil && newMessageID > 0 {
 		s.setLastBotMessageID(userID, &gotgbot.Message{MessageId: newMessageID})
 	}
@@ -728,15 +728,25 @@ func (s *telegramService) handlePRRNotificationCallback(ctx context.Context, use
 }
 
 func (s *telegramService) sendRenderAndStore(userID int64, chatID int64, sender Sender, render *fsm.RenderObject) error {
+	s.cleanupStoredAlbumMessages(userID, chatID, sender, nil)
 	msg, err := s.sendRender(sender, chatID, render)
 	if err == nil {
 		s.setLastBotMessageID(userID, msg)
+		if len(renderImages(render)) <= 1 {
+			s.setLastBotAlbumMessageIDs(userID, nil)
+		}
 	}
 	return err
 }
 
 func (s *telegramService) sendRender(sender Sender, chatID int64, render *fsm.RenderObject) (*gotgbot.Message, error) {
-	if render.Image != "" {
+	images := renderImages(render)
+	if len(images) > 1 {
+		return s.sendRenderAlbum(sender, chatID, render, images)
+	}
+
+	if len(images) == 1 {
+		render.Image = images[0]
 		s.fileIDsMu.RLock()
 		fileID, cached := s.fileIDs[render.Image]
 		s.fileIDsMu.RUnlock()
@@ -803,6 +813,133 @@ func (s *telegramService) sendRender(sender Sender, chatID int64, render *fsm.Re
 	return s.sendRenderText(sender, chatID, render)
 }
 
+func renderImages(render *fsm.RenderObject) []string {
+	if render == nil {
+		return nil
+	}
+
+	seen := make(map[string]struct{}, len(render.Images)+1)
+	images := make([]string, 0, len(render.Images)+1)
+	appendImage := func(image string) {
+		image = strings.TrimSpace(image)
+		if image == "" {
+			return
+		}
+		if _, exists := seen[image]; exists {
+			return
+		}
+		seen[image] = struct{}{}
+		images = append(images, image)
+	}
+
+	for _, image := range render.Images {
+		appendImage(image)
+	}
+	appendImage(render.Image)
+
+	return images
+}
+
+func (s *telegramService) sendRenderAlbum(sender Sender, chatID int64, render *fsm.RenderObject, images []string) (*gotgbot.Message, error) {
+	media := make([]gotgbot.InputMedia, 0, len(images))
+	cleanup := make([]func(), 0, len(images))
+	cacheKeys := make([]string, 0, len(images))
+	cacheable := make([]bool, 0, len(images))
+
+	for _, image := range images {
+		photo, fileCleanup, cached, err := s.resolveRenderImage(image)
+		if err != nil {
+			for _, closeFn := range cleanup {
+				closeFn()
+			}
+			s.log.Error("failed to prepare album image", "path", image, "error", err)
+			return s.sendRenderText(sender, chatID, render)
+		}
+
+		cleanup = append(cleanup, fileCleanup)
+		cacheKeys = append(cacheKeys, image)
+		cacheable = append(cacheable, !cached)
+
+		item := gotgbot.InputMediaPhoto{Media: photo}
+		media = append(media, item)
+	}
+
+	defer func() {
+		for _, closeFn := range cleanup {
+			closeFn()
+		}
+	}()
+
+	msgs, err := sender.SendMediaGroup(chatID, media, nil)
+	if err != nil {
+		return nil, err
+	}
+	if len(msgs) == 0 {
+		return nil, nil
+	}
+
+	for idx, msg := range msgs {
+		if idx >= len(cacheKeys) || !cacheable[idx] || len(msg.Photo) == 0 {
+			continue
+		}
+		largestPhoto := msg.Photo[len(msg.Photo)-1]
+		s.fileIDsMu.Lock()
+		s.fileIDs[cacheKeys[idx]] = largestPhoto.FileId
+		s.fileIDsMu.Unlock()
+	}
+
+	s.setLastBotAlbumMessageIDs(chatID, msgs)
+
+	if strings.TrimSpace(render.Text) != "" || len(render.Buttons) > 0 {
+		anchorRender := &fsm.RenderObject{
+			Text:    render.Text,
+			Buttons: render.Buttons,
+		}
+		if strings.TrimSpace(anchorRender.Text) == "" && len(anchorRender.Buttons) > 0 {
+			anchorRender.Text = "\u2060"
+		}
+		return s.sendRenderText(sender, chatID, anchorRender)
+	}
+
+	lastMsg := msgs[len(msgs)-1]
+	return &lastMsg, nil
+}
+
+func (s *telegramService) resolveRenderImage(image string) (gotgbot.InputFileOrString, func(), bool, error) {
+	s.fileIDsMu.RLock()
+	fileID, cached := s.fileIDs[image]
+	s.fileIDsMu.RUnlock()
+
+	if cached {
+		s.log.Info("using cached file_id for image", "image_key", image)
+		return gotgbot.InputFileByID(fileID), func() {}, true, nil
+	}
+
+	if strings.HasPrefix(image, "imgcache:") {
+		if s.imgCache == nil {
+			return nil, func() {}, false, fmt.Errorf("imgcache not initialized for %q", image)
+		}
+		data, ok := s.imgCache.Get(image)
+		if !ok {
+			return nil, func() {}, false, fmt.Errorf("image not found in imgcache: %q", image)
+		}
+		return gotgbot.InputFileByReader("chart.png", bytes.NewReader(data)), func() {}, false, nil
+	}
+
+	cleanPath := filepath.Clean(image)
+	if strings.Contains(cleanPath, "..") || strings.HasPrefix(cleanPath, "/") {
+		return nil, func() {}, false, fmt.Errorf("illegal image path %q", image)
+	}
+
+	fileToClose, err := os.Open(cleanPath)
+	if err != nil {
+		return nil, func() {}, false, err
+	}
+	return gotgbot.InputFileByReader("chart.png", fileToClose), func() {
+		_ = fileToClose.Close()
+	}, false, nil
+}
+
 func (s *telegramService) sendRenderText(sender Sender, chatID int64, render *fsm.RenderObject) (*gotgbot.Message, error) {
 	msg, err := sender.SendMessage(chatID, render.Text, &gotgbot.SendMessageOpts{
 		ParseMode:   "Markdown",
@@ -811,14 +948,15 @@ func (s *telegramService) sendRenderText(sender Sender, chatID int64, render *fs
 	return msg, err
 }
 
-func (s *telegramService) updateMessageRender(sender Sender, chatID int64, messageID int64, render *fsm.RenderObject) (int64, error) {
+func (s *telegramService) updateMessageRender(userID int64, sender Sender, chatID int64, messageID int64, render *fsm.RenderObject) (int64, error) {
 	// If message has an image, we MUST use delete/send because Telegram doesn't support
 	// converting a photo message to a text message via EditMessageText, or vice versa.
 	// We use the presence of render.Image to determine the NEW type.
 	// Note: We don't easily know if the OLD message had a photo, but we hit the error fallback if it did.
+	s.cleanupStoredAlbumMessages(userID, chatID, sender, map[int64]struct{}{messageID: {}})
 
-	if render.Image != "" {
-		s.log.Debug("render has image, switching to photo message", "image", render.Image)
+	if len(renderImages(render)) > 0 {
+		s.log.Debug("render has image, switching to photo message", "image", render.Image, "images", render.Images)
 		_, _ = sender.DeleteMessage(chatID, messageID)
 		msg, err := s.sendRender(sender, chatID, render)
 		return getMessageID(msg), err
@@ -855,6 +993,7 @@ func (s *telegramService) updateMessageRender(sender Sender, chatID int64, messa
 }
 
 const lastBotMessageIDKey = "last_bot_message_id"
+const lastBotAlbumMessageIDsKey = "last_bot_album_message_ids"
 
 func (s *telegramService) setLastBotMessageID(userID int64, msg *gotgbot.Message) {
 	if msg == nil || msg.MessageId == 0 || s.engine == nil || s.engine.Repo() == nil {
@@ -907,11 +1046,98 @@ func parseMessageID(v any) int64 {
 	return 0
 }
 
+func parseMessageIDs(v any) []int64 {
+	switch t := v.(type) {
+	case []int64:
+		return append([]int64(nil), t...)
+	case []int:
+		ids := make([]int64, 0, len(t))
+		for _, id := range t {
+			if id > 0 {
+				ids = append(ids, int64(id))
+			}
+		}
+		return ids
+	case []any:
+		ids := make([]int64, 0, len(t))
+		for _, raw := range t {
+			if id := parseMessageID(raw); id > 0 {
+				ids = append(ids, id)
+			}
+		}
+		return ids
+	default:
+		return nil
+	}
+}
+
 func getMessageID(msg *gotgbot.Message) int64 {
 	if msg == nil {
 		return 0
 	}
 	return int64(msg.MessageId)
+}
+
+func (s *telegramService) setLastBotAlbumMessageIDs(userID int64, msgs []gotgbot.Message) {
+	if s.engine == nil || s.engine.Repo() == nil {
+		return
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	state, err := s.engine.Repo().GetState(ctx, userID)
+	if err != nil || state == nil {
+		return
+	}
+	if state.Context == nil {
+		state.Context = make(map[string]any)
+	}
+
+	ids := make([]int64, 0, len(msgs))
+	for _, msg := range msgs {
+		if msg.MessageId > 0 {
+			ids = append(ids, int64(msg.MessageId))
+		}
+	}
+
+	if len(ids) == 0 {
+		delete(state.Context, lastBotAlbumMessageIDsKey)
+	} else {
+		state.Context[lastBotAlbumMessageIDsKey] = ids
+	}
+	_ = s.engine.Repo().SetState(ctx, state)
+}
+
+func (s *telegramService) getLastBotAlbumMessageIDs(userID int64) []int64 {
+	if s.engine == nil || s.engine.Repo() == nil {
+		return nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+
+	state, err := s.engine.Repo().GetState(ctx, userID)
+	if err != nil || state == nil || state.Context == nil {
+		return nil
+	}
+
+	return parseMessageIDs(state.Context[lastBotAlbumMessageIDsKey])
+}
+
+func (s *telegramService) cleanupStoredAlbumMessages(userID int64, chatID int64, sender Sender, exclude map[int64]struct{}) {
+	ids := s.getLastBotAlbumMessageIDs(userID)
+	if len(ids) == 0 {
+		return
+	}
+
+	for _, id := range ids {
+		if _, skip := exclude[id]; skip {
+			continue
+		}
+		_, _ = sender.DeleteMessage(chatID, id)
+	}
+	s.setLastBotAlbumMessageIDs(userID, nil)
 }
 
 func buildMarkup(rows [][]fsm.ButtonRender) gotgbot.InlineKeyboardMarkup {
