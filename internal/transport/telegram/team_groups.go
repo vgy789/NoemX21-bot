@@ -253,7 +253,6 @@ func isGroupEligibleForTeam(ctx context.Context, queries db.Querier, chatID int6
 
 func buildTeamGroupSearchingMessage(data teamGroupNotificationData) (string, [][]fsm.ButtonRender) {
 	project := fsm.EscapeMarkdown(nonEmpty(data.ProjectName, "Unknown project"))
-	projectType := fsm.EscapeMarkdown(nonEmpty(data.ProjectType, "GROUP"))
 	nickname := fsm.EscapeMarkdown(nonEmpty(data.RequesterLogin, "unknown"))
 	level := fsm.EscapeMarkdown(nonEmpty(data.RequesterLevel, "0"))
 	campus := fsm.EscapeMarkdown(nonEmpty(data.RequesterCampus, "Unknown campus"))
@@ -263,8 +262,7 @@ func buildTeamGroupSearchingMessage(data teamGroupNotificationData) (string, [][
 	lines := []string{
 		"🟢 *Новая заявка на поиск команды!*",
 		"",
-		fmt.Sprintf("📁 Проект: %s", project),
-		fmt.Sprintf("🧩 Тип: %s", projectType),
+		fmt.Sprintf("📁 Проект: #%s", project),
 		fmt.Sprintf("👤 Автор: %s (lvl %s)", nickname, level),
 		fmt.Sprintf("📍 Кампус: %s", campus),
 		fmt.Sprintf("⏰ Старт: %s", startText),

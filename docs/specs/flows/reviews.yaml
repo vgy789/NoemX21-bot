@@ -250,7 +250,7 @@ states:
         ru: |
           📝 *Сверяем координаты:*
 
-          📁 Проект: *{selected_project_name_md}*
+          📁 Проект: #*{selected_project_name_md}*
           ⏰ Время: `{create_prr_time_description}`
           📝 Заметка: `{create_prr_note_text_display}`
           🌐 Пояс: `{user_timezone_name}` (UTC{user_timezone_formatted})
@@ -531,7 +531,7 @@ states:
 
           👤 {nickname} (lvl {peer_level})
           📍 Кампус: {peer_campus}
-          📁 Проект: {project_name}
+          📁 Проект: #{project_name}
           🧩 Тип: {project_type}
 
           ⏰ *Когда удобно:*
@@ -752,7 +752,7 @@ states:
         ru: |
           📌 *Твой запрос на доске*
 
-          📁 Проект: {my_selected_project_name}
+          📁 Проект: #{my_selected_project_name}
           ⏰ Время: {my_selected_time_description}
           📝 Заметка: {my_selected_request_note_text}
 
@@ -768,7 +768,7 @@ states:
         en: |
           📌 *My request*
 
-          📁 Project: {my_selected_project_name}
+          📁 Project: #{my_selected_project_name}
           ⏰ Time: {my_selected_time_description}
           📝 Note: {my_selected_request_note_text}
 
@@ -1318,7 +1318,7 @@ states:
         ru: |
           📝 *Проверим заявку*
 
-          📁 Проект: *{selected_team_project_name_md}*
+          📁 Проект: #*{selected_team_project_name_md}*
           ⏰ Планируемый старт: `{team_planned_start_text}`
           💬 Заметка: `{team_request_note_text}`
           🌐 Пояс: `{user_timezone_name}` (UTC{user_timezone_formatted})
@@ -1327,7 +1327,7 @@ states:
         en: |
           📝 *Final check*
 
-          📁 Project: *{selected_team_project_name_md}*
+          📁 Project: #*{selected_team_project_name_md}*
           ⏰ Planned start: `{team_planned_start_text}`
           💬 Note: `{team_request_note_text}`
           🌐 Timezone: `{user_timezone_name}` (UTC{user_timezone_formatted})
@@ -1580,7 +1580,7 @@ states:
 
           👤 {nickname} (lvl {peer_level})
           📍 Кампус: {peer_campus}
-          📁 Проект: {project_name}
+          📁 Проект: #{project_name}
           🧩 Тип: {project_type}
 
           ⏰ *Когда стартуют:*
@@ -1600,7 +1600,7 @@ states:
 
           👤 {nickname} (lvl {peer_level})
           📍 Campus: {peer_campus}
-          📁 Project: {project_name}
+          📁 #Project: {project_name}
           🧩 Type: {project_type}
 
           ⏰ *Planned start:*
@@ -1794,7 +1794,7 @@ states:
         ru: |
           📌 *Твой запрос на поиск команды*
 
-          📁 Проект: {my_team_selected_project_name}
+          📁 Проект: #{my_team_selected_project_name}
           ⏰ Старт: {my_team_selected_planned_start_text}
           💬 Заметка: {my_team_selected_request_note_text}
 
@@ -1808,7 +1808,7 @@ states:
         en: |
           📌 *My team request*
 
-          📁 Project: {my_team_selected_project_name}
+          📁 Project: #{my_team_selected_project_name}
           ⏰ Planned start: {my_team_selected_planned_start_text}
           💬 Note: {my_team_selected_request_note_text}
 
