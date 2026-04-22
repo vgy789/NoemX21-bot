@@ -223,6 +223,53 @@ states:
     transitions:
       - trigger: on_input
         action: save_time_input
+        next_state: INPUT_PRR_REQUEST_NOTE
+
+  INPUT_PRR_REQUEST_NOTE:
+    type: input
+    interface:
+      text:
+        ru: |
+          📝 *Дополнительная информация к PRR*
+
+          Добавь контекста, чтобы пир не прошел мимо:
+          • 5 часов до депортации из школы
+          • В пределах кластера (можно оффлайн)
+          • Ищу критику уровня «Хардкор», ломай меня полностью
+
+          Этот шаг можно пропустить.
+        en: |
+          📝 *Extra info for your PRR*
+
+          Add context to help peers find you:
+          • 5 hours until school deportation
+          • Within the cluster (offline possible)
+          • Looking for "Hardcore" critique, break me down
+
+          You can skip this step.
+      buttons:
+        - id: skip
+          label:
+            ru: ⏭ Пропустить
+            en: ⏭ Skip
+          action: skip_prr_note_input
+          next_state: CONFIRM_PRR_CREATION
+          row: 1
+        - id: back
+          label:
+            ru: 🔙 К времени
+            en: 🔙 Back to time
+          next_state: INPUT_TIME_AVAILABILITY
+          row: 2
+        - id: cancel
+          label:
+            ru: 🔙 Отмена
+            en: 🔙 Cancel
+          next_state: PRR_MAIN_MENU
+          row: 3
+    transitions:
+      - trigger: on_input
+        action: save_prr_note_input
         next_state: CONFIRM_PRR_CREATION
 
   CONFIRM_PRR_CREATION:
@@ -234,6 +281,7 @@ states:
 
           📁 Проект: *{selected_project_name}*
           ⏰ Время: `{create_prr_time_description}`
+          📝 Заметка: `{create_prr_note_text_display}`
           🌐 Пояс: `{user_timezone_name}` (UTC{user_timezone_formatted})
 
           _Если всё верно – публикуем в эфир. Пиры увидят твой сигнал на радаре._
@@ -242,6 +290,7 @@ states:
 
           📁 Project: *{selected_project_name}*
           ⏰ Time: `{create_prr_time_description}`
+          📝 Note: `{create_prr_note_text_display}`
           🌐 Timezone: `{user_timezone_name}` (UTC{user_timezone_formatted})
 
           _If everything is correct – let's go live. Peers will see your signal on the radar._
@@ -258,12 +307,18 @@ states:
             en: ✍️ Edit time
           next_state: INPUT_TIME_AVAILABILITY
           row: 1
+        - id: retry_note
+          label:
+            ru: 📝 Изменить заметку
+            en: 📝 Edit note
+          next_state: INPUT_PRR_REQUEST_NOTE
+          row: 2
         - id: cancel
           label:
             ru: 🔙 Отмена
             en: 🔙 Cancel
           next_state: PRR_MAIN_MENU
-          row: 2
+          row: 3
 
   SAVE_PRR_SYSTEM:
     type: system
@@ -512,6 +567,9 @@ states:
           {time_description}
           _(UTC{requester_timezone_utc_offset}; у тебя: {viewer_local_time_hint})_
 
+          📝 *Доп. информация:*
+          {prr_request_note_text}
+
           📊 *Статистика:*
           👁 Просмотров: {view_count} | 🙋 Откликов: {response_count}
           🕒 Создан: {prr_opened_at}
@@ -528,6 +586,9 @@ states:
           ⏰ *Available time:*
           {time_description}
           _(UTC{requester_timezone_utc_offset}; for you: {viewer_local_time_hint})_
+
+          📝 *Extra info:*
+          {prr_request_note_text}
 
           *Statistics:*
           👁 Views: {view_count} | 🙋 Offers: {response_count}
@@ -722,6 +783,7 @@ states:
 
           📁 Проект: {my_selected_project_name}
           ⏰ Время: {my_selected_time_description}
+          📝 Заметка: {my_selected_request_note_text}
 
           📊 *Пульс заявки:*
           🙋 Откликов: {my_selected_response_count}
@@ -737,6 +799,7 @@ states:
 
           📁 Project: {my_selected_project_name}
           ⏰ Time: {my_selected_time_description}
+          📝 Note: {my_selected_request_note_text}
 
           📊 *Request Pulse:*
           🙋 Offers: {my_selected_response_count}

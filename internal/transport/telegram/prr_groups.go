@@ -74,6 +74,7 @@ type prrGroupNotificationData struct {
 	RequesterLevel    string
 	RequesterCampus   string
 	AvailabilityText  string
+	RequestNoteText   string
 	TelegramUsername  string
 	RocketchatID      string
 }
@@ -111,6 +112,7 @@ func loadPRRGroupNotificationData(ctx context.Context, queries db.Querier, revie
 		RequesterLevel:    level,
 		RequesterCampus:   campus,
 		AvailabilityText:  strings.TrimSpace(row.AvailabilityText),
+		RequestNoteText:   strings.TrimSpace(row.RequestNoteText),
 		TelegramUsername:  sanitizePRRGroupTelegramUsername(fmt.Sprintf("%v", row.RequesterTelegramUsername)),
 		RocketchatID:      rocketchatID,
 	}, nil
@@ -267,14 +269,16 @@ func buildPRRGroupSearchingMessage(data prrGroupNotificationData) (string, [][]f
 	level := fsm.EscapeMarkdown(data.RequesterLevel)
 	campus := fsm.EscapeMarkdown(data.RequesterCampus)
 	timeText := fsm.EscapeMarkdown(nonEmpty(data.AvailabilityText, "—"))
+	noteText := fsm.EscapeMarkdown(nonEmpty(data.RequestNoteText, "—"))
 
 	text := fmt.Sprintf(
-		"🟢 *Новый запрос на ревью!*\n\n📁 Проект: #%s\n👤 Студент: %s (lvl %s)\n📍 Кампус: %s\n\n⏰ *Когда ждет:* \"%s\"",
+		"🟢 *Новый запрос на ревью!*\n\n📁 Проект: #%s\n👤 Студент: %s (lvl %s)\n📍 Кампус: %s\n\n⏰ *Когда ждет:* \"%s\"\n📝 *Доп. информация:* \"%s\"",
 		project,
 		nickname,
 		level,
 		campus,
 		timeText,
+		noteText,
 	)
 
 	rows := make([][]fsm.ButtonRender, 0, 2)

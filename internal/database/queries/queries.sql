@@ -1150,11 +1150,12 @@ INSERT INTO review_requests (
     project_name,
     project_type,
     availability_text,
+    request_note_text,
     requester_timezone,
     requester_timezone_offset,
     status
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, 'SEARCHING'
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'SEARCHING'
 )
 RETURNING *;
 
@@ -1179,6 +1180,7 @@ SELECT
     rr.project_name,
     rr.project_type,
     rr.availability_text,
+    rr.request_note_text,
     rr.requester_timezone,
     rr.requester_timezone_offset,
     rr.status,
@@ -1225,6 +1227,7 @@ SELECT
     rr.project_name,
     rr.project_type,
     rr.availability_text,
+    rr.request_note_text,
     rr.requester_timezone,
     rr.requester_timezone_offset,
     rr.status,
@@ -1260,6 +1263,7 @@ SELECT
     rr.project_name,
     rr.project_type,
     rr.availability_text,
+    rr.request_note_text,
     rr.requester_timezone,
     rr.requester_timezone_offset,
     rr.status,
@@ -1300,6 +1304,7 @@ SELECT
     rr.project_name,
     rr.project_type,
     rr.availability_text,
+    rr.request_note_text,
     rr.requester_timezone,
     rr.requester_timezone_offset,
     rr.status,

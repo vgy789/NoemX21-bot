@@ -22,6 +22,7 @@ import (
 const (
 	reviewsPageSize      = 5
 	campusFilterPageSize = 7
+	prrNoteMaxLen        = 280
 
 	projectFilterModeProject = "project"
 	projectFilterModeCourse  = "course"
@@ -275,6 +276,22 @@ func registerReviewActions(
 		}, nil
 	})
 
+	registry.Register("save_prr_note_input", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
+		value := strings.TrimSpace(ToString(payload["last_input"]))
+		value = TrimRunes(value, prrNoteMaxLen)
+		return "", map[string]any{
+			"create_prr_note_text":         value,
+			"create_prr_note_text_display": nonEmpty(value, "—"),
+		}, nil
+	})
+
+	registry.Register("skip_prr_note_input", func(_ context.Context, _ int64, _ map[string]any) (string, map[string]any, error) {
+		return "", map[string]any{
+			"create_prr_note_text":         "",
+			"create_prr_note_text_display": "—",
+		}, nil
+	})
+
 	registry.Register("db_save_prr", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		acc, err := getTelegramAccount(ctx, queries, userID)
 		if err != nil {
@@ -316,6 +333,7 @@ func registerReviewActions(
 			}
 		}
 		availability = nonEmpty(TrimRunes(availability, 250), "Flexible")
+		requestNote := TrimRunes(strings.TrimSpace(ToString(payload["create_prr_note_text"])), prrNoteMaxLen)
 
 		created, err := queries.CreateReviewRequest(ctx, db.CreateReviewRequestParams{
 			RequesterUserID:         acc.ID,
@@ -325,6 +343,7 @@ func registerReviewActions(
 			ProjectName:             normalizeMarkdownEscapes(defaultString(payload["selected_project_name"], "Unknown project")),
 			ProjectType:             defaultString(payload["selected_project_type"], "INDIVIDUAL"),
 			AvailabilityText:        availability,
+			RequestNoteText:         requestNote,
 			RequesterTimezone:       timezoneName,
 			RequesterTimezoneOffset: timezoneOffset,
 		})
@@ -815,6 +834,7 @@ func registerReviewActions(
 						"my_selected_project_name":              normalizeMarkdownEscapes(legacyRow.ProjectName),
 						"my_selected_project_type":              legacyRow.ProjectType,
 						"my_selected_time_description":          legacyRow.AvailabilityText,
+						"my_selected_request_note_text":         nonEmpty(strings.TrimSpace(legacyRow.RequestNoteText), "—"),
 						"my_selected_view_count":                int(legacyRow.ViewCount),
 						"my_selected_response_count":            int(legacyRow.ResponseCount),
 						"my_selected_status":                    string(legacyRow.Status),
@@ -837,14 +857,15 @@ func registerReviewActions(
 		}
 
 		return "", map[string]any{
-			"selected_my_prr_id":           strconv.FormatInt(row.ID, 10),
-			"my_selected_project_name":     normalizeMarkdownEscapes(row.ProjectName),
-			"my_selected_project_type":     row.ProjectType,
-			"my_selected_time_description": row.AvailabilityText,
-			"my_selected_view_count":       int(row.ViewCount),
-			"my_selected_response_count":   int(row.ResponseCount),
-			"my_selected_status":           string(row.Status),
-			"my_selected_status_label":     statusLabel(string(row.Status), ToString(payload["language"])),
+			"selected_my_prr_id":            strconv.FormatInt(row.ID, 10),
+			"my_selected_project_name":      normalizeMarkdownEscapes(row.ProjectName),
+			"my_selected_project_type":      row.ProjectType,
+			"my_selected_time_description":  row.AvailabilityText,
+			"my_selected_request_note_text": nonEmpty(strings.TrimSpace(row.RequestNoteText), "—"),
+			"my_selected_view_count":        int(row.ViewCount),
+			"my_selected_response_count":    int(row.ResponseCount),
+			"my_selected_status":            string(row.Status),
+			"my_selected_status_label":      statusLabel(string(row.Status), ToString(payload["language"])),
 			"my_selected_negotiating_contact_block": buildNegotiatingContactBlock(
 				ToString(payload["language"]),
 				strings.TrimSpace(row.NegotiatingReviewerS21Login),
@@ -1391,6 +1412,7 @@ func detailUpdatesFromReviewRow(ctx context.Context, queries db.Querier, row db.
 		"peer_campus":                        nonEmpty(row.RequesterCampusName, "Unknown campus"),
 		"peer_level":                         nonEmpty(strings.TrimSpace(ToString(row.RequesterLevel)), "0"),
 		"time_description":                   nonEmpty(row.AvailabilityText, "Flexible"),
+		"prr_request_note_text":              nonEmpty(strings.TrimSpace(row.RequestNoteText), "—"),
 		"requester_timezone_utc_offset":      requesterOffset,
 		"viewer_local_time_hint":             viewerTimezoneHint(requesterOffset, viewerOffset, lang),
 		"prr_opened_at":                      formatTS(row.CreatedAt),

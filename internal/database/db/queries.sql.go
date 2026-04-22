@@ -401,13 +401,14 @@ INSERT INTO review_requests (
     project_name,
     project_type,
     availability_text,
+    request_note_text,
     requester_timezone,
     requester_timezone_offset,
     status
 ) VALUES (
-    $1, $2, $3, $4, $5, $6, $7, $8, $9, 'SEARCHING'
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'SEARCHING'
 )
-RETURNING id, requester_user_id, requester_s21_login, requester_campus_id, project_id, project_name, project_type, availability_text, requester_timezone, requester_timezone_offset, status, view_count, response_count, created_at, updated_at, closed_at, negotiating_reviewer_user_id, negotiating_reviewer_s21_login, negotiating_reviewer_telegram_username, negotiating_reviewer_rocketchat_id, negotiating_reviewer_alternative_contact, negotiating_started_at
+RETURNING id, requester_user_id, requester_s21_login, requester_campus_id, project_id, project_name, project_type, availability_text, requester_timezone, requester_timezone_offset, status, view_count, response_count, created_at, updated_at, closed_at, negotiating_reviewer_user_id, negotiating_reviewer_s21_login, negotiating_reviewer_telegram_username, negotiating_reviewer_rocketchat_id, negotiating_reviewer_alternative_contact, negotiating_started_at, request_note_text
 `
 
 type CreateReviewRequestParams struct {
@@ -418,6 +419,7 @@ type CreateReviewRequestParams struct {
 	ProjectName             string      `json:"project_name"`
 	ProjectType             string      `json:"project_type"`
 	AvailabilityText        string      `json:"availability_text"`
+	RequestNoteText         string      `json:"request_note_text"`
 	RequesterTimezone       string      `json:"requester_timezone"`
 	RequesterTimezoneOffset string      `json:"requester_timezone_offset"`
 }
@@ -431,6 +433,7 @@ func (q *Queries) CreateReviewRequest(ctx context.Context, arg CreateReviewReque
 		arg.ProjectName,
 		arg.ProjectType,
 		arg.AvailabilityText,
+		arg.RequestNoteText,
 		arg.RequesterTimezone,
 		arg.RequesterTimezoneOffset,
 	)
@@ -458,6 +461,7 @@ func (q *Queries) CreateReviewRequest(ctx context.Context, arg CreateReviewReque
 		&i.NegotiatingReviewerRocketchatID,
 		&i.NegotiatingReviewerAlternativeContact,
 		&i.NegotiatingStartedAt,
+		&i.RequestNoteText,
 	)
 	return i, err
 }
@@ -2019,6 +2023,7 @@ SELECT
     rr.project_name,
     rr.project_type,
     rr.availability_text,
+    rr.request_note_text,
     rr.requester_timezone,
     rr.requester_timezone_offset,
     rr.status,
@@ -2054,6 +2059,7 @@ type GetMyOpenReviewRequestsRow struct {
 	ProjectName               string             `json:"project_name"`
 	ProjectType               string             `json:"project_type"`
 	AvailabilityText          string             `json:"availability_text"`
+	RequestNoteText           string             `json:"request_note_text"`
 	RequesterTimezone         string             `json:"requester_timezone"`
 	RequesterTimezoneOffset   string             `json:"requester_timezone_offset"`
 	Status                    EnumReviewStatus   `json:"status"`
@@ -2085,6 +2091,7 @@ func (q *Queries) GetMyOpenReviewRequests(ctx context.Context, requesterUserID i
 			&i.ProjectName,
 			&i.ProjectType,
 			&i.AvailabilityText,
+			&i.RequestNoteText,
 			&i.RequesterTimezone,
 			&i.RequesterTimezoneOffset,
 			&i.Status,
@@ -2299,6 +2306,7 @@ SELECT
     rr.project_name,
     rr.project_type,
     rr.availability_text,
+    rr.request_note_text,
     rr.requester_timezone,
     rr.requester_timezone_offset,
     rr.status,
@@ -2344,6 +2352,7 @@ type GetMyReviewRequestByIDRow struct {
 	ProjectName                           string             `json:"project_name"`
 	ProjectType                           string             `json:"project_type"`
 	AvailabilityText                      string             `json:"availability_text"`
+	RequestNoteText                       string             `json:"request_note_text"`
 	RequesterTimezone                     string             `json:"requester_timezone"`
 	RequesterTimezoneOffset               string             `json:"requester_timezone_offset"`
 	Status                                EnumReviewStatus   `json:"status"`
@@ -2375,6 +2384,7 @@ func (q *Queries) GetMyReviewRequestByID(ctx context.Context, arg GetMyReviewReq
 		&i.ProjectName,
 		&i.ProjectType,
 		&i.AvailabilityText,
+		&i.RequestNoteText,
 		&i.RequesterTimezone,
 		&i.RequesterTimezoneOffset,
 		&i.Status,
@@ -2516,6 +2526,7 @@ SELECT
     rr.project_name,
     rr.project_type,
     rr.availability_text,
+    rr.request_note_text,
     rr.requester_timezone,
     rr.requester_timezone_offset,
     rr.status,
@@ -2551,6 +2562,7 @@ type GetOpenReviewRequestsByProjectRow struct {
 	ProjectName               string             `json:"project_name"`
 	ProjectType               string             `json:"project_type"`
 	AvailabilityText          string             `json:"availability_text"`
+	RequestNoteText           string             `json:"request_note_text"`
 	RequesterTimezone         string             `json:"requester_timezone"`
 	RequesterTimezoneOffset   string             `json:"requester_timezone_offset"`
 	Status                    EnumReviewStatus   `json:"status"`
@@ -2582,6 +2594,7 @@ func (q *Queries) GetOpenReviewRequestsByProject(ctx context.Context, projectID 
 			&i.ProjectName,
 			&i.ProjectType,
 			&i.AvailabilityText,
+			&i.RequestNoteText,
 			&i.RequesterTimezone,
 			&i.RequesterTimezoneOffset,
 			&i.Status,
@@ -2956,6 +2969,7 @@ SELECT
     rr.project_name,
     rr.project_type,
     rr.availability_text,
+    rr.request_note_text,
     rr.requester_timezone,
     rr.requester_timezone_offset,
     rr.status,
@@ -2989,6 +3003,7 @@ type GetReviewRequestByIDRow struct {
 	ProjectName               string             `json:"project_name"`
 	ProjectType               string             `json:"project_type"`
 	AvailabilityText          string             `json:"availability_text"`
+	RequestNoteText           string             `json:"request_note_text"`
 	RequesterTimezone         string             `json:"requester_timezone"`
 	RequesterTimezoneOffset   string             `json:"requester_timezone_offset"`
 	Status                    EnumReviewStatus   `json:"status"`
@@ -3014,6 +3029,7 @@ func (q *Queries) GetReviewRequestByID(ctx context.Context, id int64) (GetReview
 		&i.ProjectName,
 		&i.ProjectType,
 		&i.AvailabilityText,
+		&i.RequestNoteText,
 		&i.RequesterTimezone,
 		&i.RequesterTimezoneOffset,
 		&i.Status,

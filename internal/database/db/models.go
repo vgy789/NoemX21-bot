@@ -393,6 +393,7 @@ type ReviewRequest struct {
 	NegotiatingReviewerRocketchatID       pgtype.Text        `json:"negotiating_reviewer_rocketchat_id"`
 	NegotiatingReviewerAlternativeContact pgtype.Text        `json:"negotiating_reviewer_alternative_contact"`
 	NegotiatingStartedAt                  pgtype.Timestamptz `json:"negotiating_started_at"`
+	RequestNoteText                       string             `json:"request_note_text"`
 }
 
 type RocketchatCredential struct {
