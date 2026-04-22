@@ -1,42 +1,13 @@
-initial_state: REVIEWS_MENU
+initial_state: PRR_MAIN_MENU
 
 states:
   REVIEWS_MENU:
-    type: interactive
-    description: Подменю раздела Ревью
-    interface:
-      text:
-        ru: |
-          👀 *Ревью и командные проекты*
-
-          Выбери, что именно нужно сделать:
-          • найти, кого поревьюить или выставить свой PRR
-          • найти команду для группового проекта
-        en: |
-          👀 *Reviews and Team Finder*
-
-          Choose what you want to do:
-          • find someone to review or publish your PRR
-          • find a team for a group project
-      buttons:
-        - id: prr
-          label:
-            ru: 🧪 PRR
-            en: 🧪 PRR
-          next_state: PRR_MAIN_MENU
-          row: 1
-        - id: team
-          label:
-            ru: 👥 Найти команду
-            en: 👥 Find a team
-          next_state: TEAM_MAIN_MENU
-          row: 1
-        - id: back
-          label:
-            ru: 🔙 Назад
-            en: 🔙 Back
-          next_state: MAIN_MENU
-          row: 2
+    type: system
+    description: Legacy entry for old reviews menu, redirecting to PRR
+    logic:
+      action: none
+    transitions:
+      - next_state: PRR_MAIN_MENU
 
   PRR_MAIN_MENU:
     type: interactive
@@ -94,7 +65,7 @@ states:
           label:
             ru: 🔙 Назад
             en: 🔙 Back
-          next_state: REVIEWS_MENU
+          next_state: MAIN_MENU
           row: 3
 
   SELECT_PROJECT_FOR_PRR:
@@ -1186,7 +1157,7 @@ states:
           label:
             ru: 🔙 Назад
             en: 🔙 Back
-          next_state: REVIEWS_MENU
+          next_state: MAIN_MENU
           row: 3
 
   SELECT_PROJECT_FOR_TEAM:

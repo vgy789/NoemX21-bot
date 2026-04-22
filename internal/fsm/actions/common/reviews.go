@@ -21,7 +21,9 @@ func RegisterReviews(
 	aliasRegistrar func(alias, target string),
 ) {
 	if aliasRegistrar != nil {
-		aliasRegistrar("REVIEWS_MENU", "reviews.yaml/REVIEWS_MENU")
+		aliasRegistrar("REVIEWS_MENU", "reviews.yaml/PRR_MAIN_MENU")
+		aliasRegistrar("PRR_MAIN_MENU", "reviews.yaml/PRR_MAIN_MENU")
+		aliasRegistrar("TEAM_MAIN_MENU", "reviews.yaml/TEAM_MAIN_MENU")
 	}
 
 	registerReviewActions(registry, cfg, queries, s21Client, credService, log)

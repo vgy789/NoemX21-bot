@@ -38,19 +38,25 @@ states:
           next_state: BOOKING_MENU
         - id: review
           label:
-            ru: 👀 Проекты
-            en: 👀 Projects
-          next_state: REVIEWS_MENU
+            ru: 👀 Ревью
+            en: 👀 Review
+          next_state: PRR_MAIN_MENU
           row: 3
-        - id: clubs
+        - id: team_finder
           label:
-            ru: 🧶 Клубы
-            en: 🧶 Clubs
+            ru: 👥 Найти команду
+            en: 👥 Find a team
+          next_state: TEAM_MAIN_MENU
           row: 3
-          next_state: CLUBS_MENU
         - id: settings
           label:
             ru: ⚙️ Настройки
             en: ⚙️ Settings
           next_state: SETTINGS_MENU
           row: 4
+        - id: clubs
+          label:
+            ru: 🧶 Клубы
+            en: 🧶 Clubs
+          row: 4
+          next_state: CLUBS_MENU
