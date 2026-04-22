@@ -76,6 +76,8 @@ func Register(
 			"otp_delivery_method":      otpDeliveryRocketchat,
 			"otp_delivery_label_ru":    "в Rocket.Chat",
 			"otp_delivery_label_en":    "to Rocket.Chat",
+			"otp_email_hint_ru":        "",
+			"otp_email_hint_en":        "",
 			"otp_resend_state":         "GENERATE_OTP",
 			"rocket_user_id":           "",
 			"rocket_token_verified":    false,
@@ -264,40 +266,21 @@ func Register(
 			}
 		}
 
-		// 2. Call Rocket.Chat API to find the real user and verify email
-		// This ensures we get the *current* ID even if DB is outdated, and validates security
+		// 2. Resolve the user by exact Rocket.Chat username.
+		// Rocket.Chat usernames are unique, so users.info?username=... is sufficient.
 		rcUser, err := rcClient.GetUserInfo(ctx, login)
 		if err != nil {
 			log.Error("failed to find user in RocketChat API", "login", login, "error", err)
 			updates["rocket_user_not_found"] = true
 			return "", updates, nil
 		}
-
-		// 3. Verify email
-		expectedEmail := fmt.Sprintf("%s@student.21-school.ru", login)
-		emailVerified := false
-		if cfg.TestModeNoOTP {
-			// In test mode we intentionally bypass OTP and related strict checks.
-			// This allows local/dev auth flows even when Rocket.Chat email scope is unavailable.
-			log.Info("skipping rocketchat email verification in test mode", "login", login)
-			emailVerified = true
-		} else {
-			for _, email := range rcUser.User.Emails {
-				if email.Address == expectedEmail && email.Verified {
-					emailVerified = true
-					break
-				}
-			}
-		}
-
-		if !emailVerified {
-			log.Warn("rocketchat email verification failed", "login", login)
-			updates["email_mismatch"] = true
-			updates["rocket_user_found"] = true
+		if !strings.EqualFold(strings.TrimSpace(rcUser.User.Username), login) {
+			log.Warn("rocketchat username lookup returned unexpected user", "login", login, "username", rcUser.User.Username)
+			updates["rocket_api_error"] = true
 			return "", updates, nil
 		}
 
-		// 4. Update the Rocket.Chat ID in the database
+		// 3. Update the Rocket.Chat ID in the database
 		// If registered user doesn't exist, create it.
 		regUser, err := queries.GetRegisteredUserByS21Login(ctx, login)
 		if err != nil {
@@ -328,7 +311,6 @@ func Register(
 
 		log.Debug("rocket user verified", "login", login, "rc_id", rcUser.User.ID)
 		updates["rocket_user_found"] = true
-		updates["email_verified"] = true
 		return "", updates, nil
 	})
 
@@ -375,20 +357,9 @@ func Register(
 			return "", updates, nil
 		}
 
-		expectedEmail := fmt.Sprintf("%s@student.21-school.ru", login)
-		emailVerified := false
-		if cfg.TestModeNoOTP {
-			emailVerified = true
-		} else {
-			for _, email := range profile.Emails {
-				if strings.EqualFold(strings.TrimSpace(email.Address), expectedEmail) && email.Verified {
-					emailVerified = true
-					break
-				}
-			}
-		}
-		if !emailVerified {
-			updates["email_mismatch"] = true
+		if !strings.EqualFold(strings.TrimSpace(profile.Username), login) {
+			log.Warn("rocket token belongs to unexpected username", "login", login, "username", profile.Username, "rocket_user_id", rocketUserID)
+			updates["rocket_token_invalid"] = true
 			return "", updates, nil
 		}
 
@@ -470,7 +441,6 @@ func Register(
 
 		updates["s21_login"] = login
 		updates["rocket_token_verified"] = true
-		updates["email_verified"] = true
 		return "", updates, nil
 	})
 
@@ -498,11 +468,15 @@ func Register(
 
 		otpDeliveryLabelRU := "в Rocket.Chat"
 		otpDeliveryLabelEN := "to Rocket.Chat"
+		otpEmailHintRU := ""
+		otpEmailHintEN := ""
 		otpResendState := "GENERATE_OTP"
 		if deliveryMethod == otpDeliveryEmail {
 			targetEmail := fmt.Sprintf("%s@student.21-school.ru", strings.ToLower(login))
 			otpDeliveryLabelRU = fmt.Sprintf("на email %s", targetEmail)
 			otpDeliveryLabelEN = fmt.Sprintf("to email %s", targetEmail)
+			otpEmailHintRU = fmt.Sprintf("\n---\nПисьмо должно прийти с адреса `%s`. Если письма нет, проверь папку «Спам».", otpEmailFrom)
+			otpEmailHintEN = fmt.Sprintf("\n---\nThe message should come from `%s`. If you don't see it, check your Spam folder.", otpEmailFrom)
 			otpResendState = "GENERATE_EMAIL_OTP"
 		}
 
@@ -525,6 +499,8 @@ func Register(
 					"otp_delivery_method":   deliveryMethod,
 					"otp_delivery_label_ru": otpDeliveryLabelRU,
 					"otp_delivery_label_en": otpDeliveryLabelEN,
+					"otp_email_hint_ru":     otpEmailHintRU,
+					"otp_email_hint_en":     otpEmailHintEN,
 					"otp_resend_state":      otpResendState,
 				}, nil
 			}
@@ -538,6 +514,8 @@ func Register(
 			"otp_delivery_method":   deliveryMethod,
 			"otp_delivery_label_ru": otpDeliveryLabelRU,
 			"otp_delivery_label_en": otpDeliveryLabelEN,
+			"otp_email_hint_ru":     otpEmailHintRU,
+			"otp_email_hint_en":     otpEmailHintEN,
 			"otp_resend_state":      otpResendState,
 		}, nil
 	})

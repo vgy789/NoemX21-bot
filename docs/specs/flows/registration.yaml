@@ -113,34 +113,18 @@ states:
             en: 🔐 Rocket.Chat token
           next_state: INPUT_ROCKET_USER_ID
           row: 1
-        #- id: auth_rocketchat
-        #  label:
-        #    ru: ❌ Rocket.Chat (недоступно)
-        #    en: ❌ Rocket.Chat (unavailable)
-        #  next_state: ROCKETCHAT_UNAVAILABLE
-        #  row: 2
+        - id: auth_rocketchat
+          label:
+            ru: 💬 Rocket.Chat
+            en: 💬 Rocket.Chat
+          next_state: FIND_ROCKET_USER
+          row: 2
         - id: back
           label:
             ru: "🔙 Назад"
             en: "🔙 Back"
           next_state: INPUT_LOGIN
           row: 3
-
-  ROCKETCHAT_UNAVAILABLE:
-    type: interactive
-    description: Rocket.Chat авторизация временно недоступна
-    interface:
-      text:
-        ru: |
-          Запланированный способ. Будет доступно, как только администрация школы выдаст мне аккаунт для интеграции с Rocket.Chat (хотя сомневаюсь что это возможно, не отвечают на просьбу уже пару месяцев).
-        en: |
-          This method is planned. It will become available once school administration provides an integration account for Rocket.Chat.
-      buttons:
-        - id: back
-          label:
-            ru: "🔙 Назад"
-            en: "🔙 Back"
-          next_state: SELECT_OTP_METHOD
 
   INPUT_ROCKET_USER_ID:
     type: input
@@ -244,8 +228,6 @@ states:
     transitions:
       - condition: email_already_registered == true
         next_state: ERROR_EMAIL_ALREADY_REGISTERED
-      - condition: email_mismatch == true
-        next_state: ERROR_EMAIL_MISMATCH
       - condition: rocket_token_verified == true
         next_state: LOAD_PROFILE
       - condition: rocket_token_invalid == true
@@ -286,12 +268,8 @@ states:
     transitions:
       - condition: email_already_registered == true
         next_state: ERROR_EMAIL_ALREADY_REGISTERED
-      - condition: rocket_user_found == true && email_verified == true
+      - condition: rocket_user_found == true
         next_state: GENERATE_OTP
-      - condition: rocket_user_found == true && email_unavailable == true
-        next_state: ERROR_EMAIL_UNAVAILABLE
-      - condition: rocket_user_found == true && email_mismatch == true
-        next_state: ERROR_EMAIL_MISMATCH
       - condition: rocket_user_not_found == true
         next_state: ROCKET_USER_NOT_FOUND
       - condition: rocket_api_error == true
@@ -350,17 +328,13 @@ states:
 
           Я отправила 6-значный код тебе {otp_delivery_label_ru}.
           Скорее проверяй и пиши его сюда, пока он не истёк!
-
-          ---
-          Письмо должно прийти с адреса `{otp_email_from}`. Если письма нет, проверь папку «Спам».
+          {otp_email_hint_ru}
         en: |
           📥 *Catch the code!*
 
           I've sent a 6-digit code {otp_delivery_label_en}.
           Go check it and enter it here before it expires!
-
-          ---
-          The message should come from `{otp_email_from}`. If you don't see it, check your Spam folder.
+          {otp_email_hint_en}
       error_invalid:
         ru: |
           ❌ *Что-то не сходится.*

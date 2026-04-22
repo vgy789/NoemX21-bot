@@ -152,7 +152,7 @@ func TestLoadUserProfile_LogsUpsertError(t *testing.T) {
 	}
 }
 
-func TestFindAndVerifyRocketUser_EmailMismatchWhenNotInTestMode(t *testing.T) {
+func TestFindAndVerifyRocketUser_SucceedsWithExactUsernameLookup(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -160,45 +160,6 @@ func TestFindAndVerifyRocketUser_EmailMismatchWhenNotInTestMode(t *testing.T) {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
 	registry := fsm.NewLogicRegistry()
 	cfg := &config.Config{}
-	cfg.TestModeNoOTP = false
-
-	mockQ.EXPECT().GetUserAccountByS21Login(gomock.Any(), "roryraqu").Return(db.UserAccount{}, pgx.ErrNoRows)
-
-	rcHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path == "/api/v1/users.info" {
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"success":true,"user":{"_id":"rc123","username":"roryraqu","emails":[]}}`))
-			return
-		}
-		http.NotFound(w, r)
-	})
-	rcClient := newMockRocketClient(rcHandler)
-
-	Register(registry, cfg, logger, mockQ, &fakeUserSvc{}, rcClient, nil, nil, nil, nil)
-
-	action, ok := registry.Get("find_and_verify_rocket_user")
-	if !ok {
-		t.Fatalf("find_and_verify_rocket_user action not registered")
-	}
-
-	_, updates, err := action(context.Background(), 42, map[string]any{"login": "roryraqu"})
-	if err != nil {
-		t.Fatalf("action returned error: %v", err)
-	}
-	if updates["email_mismatch"] != true {
-		t.Fatalf("expected email_mismatch=true, got: %#v", updates)
-	}
-}
-
-func TestFindAndVerifyRocketUser_SkipsEmailCheckInTestMode(t *testing.T) {
-	ctrl := gomock.NewController(t)
-	defer ctrl.Finish()
-
-	mockQ := dbmock.NewMockQuerier(ctrl)
-	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	registry := fsm.NewLogicRegistry()
-	cfg := &config.Config{}
-	cfg.TestModeNoOTP = true
 
 	mockQ.EXPECT().GetUserAccountByS21Login(gomock.Any(), "roryraqu").Return(db.UserAccount{}, pgx.ErrNoRows)
 	mockQ.EXPECT().GetRegisteredUserByS21Login(gomock.Any(), "roryraqu").Return(db.RegisteredUser{
@@ -228,8 +189,45 @@ func TestFindAndVerifyRocketUser_SkipsEmailCheckInTestMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("action returned error: %v", err)
 	}
-	if updates["email_verified"] != true || updates["rocket_user_found"] != true {
-		t.Fatalf("expected email_verified=true and rocket_user_found=true, got: %#v", updates)
+	if updates["rocket_user_found"] != true {
+		t.Fatalf("expected rocket_user_found=true, got: %#v", updates)
+	}
+}
+
+func TestFindAndVerifyRocketUser_UnexpectedUsernameSetsAPIError(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockQ := dbmock.NewMockQuerier(ctrl)
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	registry := fsm.NewLogicRegistry()
+	cfg := &config.Config{}
+
+	mockQ.EXPECT().GetUserAccountByS21Login(gomock.Any(), "roryraqu").Return(db.UserAccount{}, pgx.ErrNoRows)
+
+	rcHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/users.info" {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"success":true,"user":{"_id":"rc123","username":"someoneelse","emails":[]}}`))
+			return
+		}
+		http.NotFound(w, r)
+	})
+	rcClient := newMockRocketClient(rcHandler)
+
+	Register(registry, cfg, logger, mockQ, &fakeUserSvc{}, rcClient, nil, nil, nil, nil)
+
+	action, ok := registry.Get("find_and_verify_rocket_user")
+	if !ok {
+		t.Fatalf("find_and_verify_rocket_user action not registered")
+	}
+
+	_, updates, err := action(context.Background(), 42, map[string]any{"login": "roryraqu"})
+	if err != nil {
+		t.Fatalf("action returned error: %v", err)
+	}
+	if updates["rocket_api_error"] != true {
+		t.Fatalf("expected rocket_api_error=true, got: %#v", updates)
 	}
 }
 
@@ -261,7 +259,7 @@ func TestFindAndVerifyRocketUser_AlreadyRegisteredResetsSuccessFlags(t *testing.
 	if updates["email_already_registered"] != true {
 		t.Fatalf("expected email_already_registered=true, got: %#v", updates)
 	}
-	if updates["rocket_user_found"] != false || updates["email_verified"] != false {
+	if updates["rocket_user_found"] != false {
 		t.Fatalf("expected stale success flags to be reset, got: %#v", updates)
 	}
 }
@@ -368,6 +366,47 @@ func TestVerifyRocketChatToken_InvalidToken(t *testing.T) {
 	}
 	if profileRequests != 1 {
 		t.Fatalf("expected exactly 1 profile request, got %d", profileRequests)
+	}
+}
+
+func TestVerifyRocketChatToken_UsernameMismatch(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockQ := dbmock.NewMockQuerier(ctrl)
+	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
+	registry := fsm.NewLogicRegistry()
+	cfg := &config.Config{}
+
+	rcHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/api/v1/me" {
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"success":true,"_id":"rc123","username":"anotheruser","emails":[]}`))
+			return
+		}
+		http.NotFound(w, r)
+	})
+	rcClient := newMockRocketClient(rcHandler)
+
+	mockQ.EXPECT().GetUserAccountByS21Login(gomock.Any(), "roryraqu").Return(db.UserAccount{}, pgx.ErrNoRows)
+
+	Register(registry, cfg, logger, mockQ, &fakeUserSvc{}, rcClient, nil, nil, nil, nil)
+
+	action, ok := registry.Get("verify_rocketchat_token")
+	if !ok {
+		t.Fatalf("verify_rocketchat_token action not registered")
+	}
+
+	_, updates, err := action(context.Background(), 42, map[string]any{
+		"login":             "roryraqu",
+		"rocket_user_id":    "rc123",
+		"rocket_auth_token": "token1234567890",
+	})
+	if err != nil {
+		t.Fatalf("action returned error: %v", err)
+	}
+	if updates["rocket_token_invalid"] != true {
+		t.Fatalf("expected rocket_token_invalid=true, got: %#v", updates)
 	}
 }
 

@@ -243,6 +243,7 @@ func TestRegistration_EmailOTPProvisioningFlow(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, render)
 	assert.Contains(t, render.Text, "Лови код")
+	assert.Contains(t, render.Text, "Письмо должно прийти с адреса")
 
 	state, err := ts.engine.Repo().GetState(ctx, userID)
 	require.NoError(t, err)
@@ -250,4 +251,48 @@ func TestRegistration_EmailOTPProvisioningFlow(t *testing.T) {
 	assert.Equal(t, fsm.StateAwaitingOTP, state.CurrentState)
 	assert.Equal(t, "newuser", state.Context["s21_login"])
 	assert.Equal(t, "email", state.Context["otp_delivery_method"])
+}
+
+func TestRegistration_RocketChatOTPDoesNotShowEmailHint(t *testing.T) {
+	ts, _, _, ctrl := prepareRegistrationTest(t)
+	defer ctrl.Finish()
+
+	ctx := context.Background()
+	userID := int64(402)
+
+	ts.engine.Registry().Register("validate_school21_user", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		return "", map[string]any{
+			"api_status": 200,
+			"s21_login":  "newuser",
+			"s21_user": map[string]any{
+				"status":       "ACTIVE",
+				"parallelName": "Core program",
+			},
+		}, nil
+	})
+	ts.engine.Registry().Register("find_and_verify_rocket_user", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		return "", map[string]any{
+			"rocket_user_found": true,
+		}, nil
+	})
+
+	require.NoError(t, ts.engine.InitState(ctx, userID, fsm.FlowRegistration, fsm.StateInputLogin, nil))
+
+	render, err := ts.engine.Process(ctx, userID, "newuser")
+	require.NoError(t, err)
+	require.NotNil(t, render)
+	assert.Contains(t, render.Text, "Выбери способ подтверждения")
+
+	render, err = ts.engine.Process(ctx, userID, "auth_rocketchat")
+	require.NoError(t, err)
+	require.NotNil(t, render)
+	assert.Contains(t, render.Text, "Лови код")
+	assert.NotContains(t, render.Text, "Письмо должно прийти с адреса")
+	assert.NotContains(t, render.Text, "Спам")
+
+	state, err := ts.engine.Repo().GetState(ctx, userID)
+	require.NoError(t, err)
+	require.NotNil(t, state)
+	assert.Equal(t, fsm.StateAwaitingOTP, state.CurrentState)
+	assert.Equal(t, "rocketchat", state.Context["otp_delivery_method"])
 }
