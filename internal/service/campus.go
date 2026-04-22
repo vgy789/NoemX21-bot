@@ -22,6 +22,7 @@ type CampusService struct {
 	cron     *cron.Cron
 	credsSvc *CredentialService
 	prrSync  PRRStatusBroadcaster
+	teamSync TeamStatusBroadcaster
 }
 
 const (
@@ -33,6 +34,11 @@ const (
 // PRRStatusBroadcaster syncs review request status to external channels.
 type PRRStatusBroadcaster interface {
 	SyncReviewRequestStatus(ctx context.Context, reviewRequestID int64, status string) error
+}
+
+// TeamStatusBroadcaster syncs team-search request status to external channels.
+type TeamStatusBroadcaster interface {
+	SyncTeamSearchRequestStatus(ctx context.Context, requestID int64, status string) error
 }
 
 func NewCampusService(queries db.Querier, s21Client *s21.Client, cfg *config.Config, log *slog.Logger, credsSvc *CredentialService) *CampusService {
@@ -93,12 +99,23 @@ func (s *CampusService) SetPRRStatusBroadcaster(syncer PRRStatusBroadcaster) {
 	s.prrSync = syncer
 }
 
+// SetTeamStatusBroadcaster configures optional group notifications sync for team finder.
+func (s *CampusService) SetTeamStatusBroadcaster(syncer TeamStatusBroadcaster) {
+	if s == nil {
+		return
+	}
+	s.teamSync = syncer
+}
+
 func (s *CampusService) scheduleReviewCleanup() error {
 	_, err := s.cron.AddFunc(reviewRequestCleanupSchedule, func() {
 		ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 		defer cancel()
 		if err := s.CleanupOutdatedReviewRequests(ctx); err != nil {
 			s.log.Warn("review cleanup failed", "error", err)
+		}
+		if err := s.CleanupOutdatedTeamSearchRequests(ctx); err != nil {
+			s.log.Warn("team cleanup failed", "error", err)
 		}
 	})
 	if err != nil {
@@ -188,6 +205,94 @@ func (s *CampusService) CleanupOutdatedReviewRequests(ctx context.Context) error
 		s.log.Info("review cleanup done", "checked", len(rows), "closed", closed)
 	}
 	return nil
+}
+
+func (s *CampusService) CleanupOutdatedTeamSearchRequests(ctx context.Context) error {
+	if s.queries == nil || s.s21 == nil || s.credsSvc == nil || s.config == nil || strings.TrimSpace(s.config.Init.SchoolLogin) == "" {
+		return nil
+	}
+
+	token, err := s.credsSvc.GetValidToken(ctx, s.config.Init.SchoolLogin)
+	if err != nil {
+		return fmt.Errorf("failed to get token for team cleanup: %w", err)
+	}
+
+	rows, err := s.queries.GetTeamSearchRequestsForCleanup(ctx, db.GetTeamSearchRequestsForCleanupParams{
+		UpdatedAt: pgtype.Timestamptz{
+			Time:  time.Now().Add(-reviewRequestCleanupStaleFor),
+			Valid: true,
+		},
+		Limit: reviewRequestCleanupBatch,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to load team cleanup candidates: %w", err)
+	}
+	if len(rows) == 0 {
+		return nil
+	}
+
+	projectsByLogin := make(map[string]map[int64]bool, len(rows))
+	for _, row := range rows {
+		login := strings.TrimSpace(row.RequesterS21Login)
+		if login == "" {
+			continue
+		}
+		if _, exists := projectsByLogin[login]; exists {
+			continue
+		}
+
+		resp, apiErr := s.s21.GetParticipantProjects(ctx, token, login, 1000, 0, "REGISTERED")
+		if apiErr != nil {
+			s.log.Warn("team cleanup: failed to fetch REGISTERED projects", "login", login, "error", apiErr)
+			continue
+		}
+
+		set := map[int64]bool{}
+		if resp != nil {
+			set = make(map[int64]bool, len(resp.Projects))
+			for _, p := range resp.Projects {
+				if isRegisteredGroupProject(p) {
+					set[p.ID] = true
+				}
+			}
+		}
+		projectsByLogin[login] = set
+	}
+
+	closed := 0
+	for _, row := range rows {
+		login := strings.TrimSpace(row.RequesterS21Login)
+		if login == "" {
+			continue
+		}
+		currentProjects, ok := projectsByLogin[login]
+		if !ok {
+			continue
+		}
+		if currentProjects[row.ProjectID] {
+			continue
+		}
+		if err := s.queries.CloseTeamSearchRequestByID(ctx, row.ID); err != nil {
+			s.log.Warn("team cleanup: failed to close outdated request", "request_id", row.ID, "login", login, "project_id", row.ProjectID, "error", err)
+			continue
+		}
+		if s.teamSync != nil {
+			if syncErr := s.teamSync.SyncTeamSearchRequestStatus(ctx, row.ID, "CLOSED"); syncErr != nil {
+				s.log.Warn("team cleanup: failed to sync closed status to team groups", "request_id", row.ID, "error", syncErr)
+			}
+		}
+		closed++
+	}
+
+	if closed > 0 {
+		s.log.Info("team cleanup done", "checked", len(rows), "closed", closed)
+	}
+	return nil
+}
+
+func isRegisteredGroupProject(project s21.ParticipantProjectV1DTO) bool {
+	return strings.EqualFold(strings.TrimSpace(project.Status), "REGISTERED") &&
+		strings.EqualFold(strings.TrimSpace(project.Type), "GROUP")
 }
 
 func (s *CampusService) UpdateCampuses(ctx context.Context) error {

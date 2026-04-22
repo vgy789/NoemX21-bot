@@ -168,11 +168,40 @@ SET prr_withdrawn_behavior = $3,
 WHERE chat_id = $1
   AND owner_telegram_user_id = $2;
 
+-- name: UpdateTelegramGroupTeamNotificationsEnabledByOwner :execrows
+UPDATE telegram_groups
+SET team_notifications_enabled = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2;
+
+-- name: UpdateTelegramGroupTeamNotificationDestinationByOwner :execrows
+UPDATE telegram_groups
+SET team_notifications_thread_id = $3,
+    team_notifications_thread_label = $4,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2;
+
+-- name: UpdateTelegramGroupTeamWithdrawnBehaviorByOwner :execrows
+UPDATE telegram_groups
+SET team_withdrawn_behavior = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2;
+
 -- name: ListTelegramGroupsWithPRRNotifications :many
 SELECT * FROM telegram_groups
 WHERE is_active = true
   AND is_initialized = true
   AND prr_notifications_enabled = true
+ORDER BY chat_title;
+
+-- name: ListTelegramGroupsWithTeamNotifications :many
+SELECT * FROM telegram_groups
+WHERE is_active = true
+  AND is_initialized = true
+  AND team_notifications_enabled = true
 ORDER BY chat_title;
 
 -- name: ListTelegramGroupPRRProjectFilters :many
@@ -269,6 +298,101 @@ WHERE review_request_id = $1
 -- name: DeleteTelegramGroupPRRMessagesByReviewRequest :exec
 DELETE FROM telegram_group_prr_messages
 WHERE review_request_id = $1;
+
+-- name: ListTelegramGroupTeamProjectFilters :many
+SELECT * FROM telegram_group_team_project_filters
+WHERE chat_id = $1
+ORDER BY created_at ASC, project_id;
+
+-- name: UpsertTelegramGroupTeamProjectFilterByOwner :execrows
+INSERT INTO telegram_group_team_project_filters (chat_id, project_id)
+SELECT g.chat_id, $3
+FROM telegram_groups g
+WHERE g.chat_id = $1
+  AND g.owner_telegram_user_id = $2
+ON CONFLICT (chat_id, project_id) DO NOTHING;
+
+-- name: DeleteTelegramGroupTeamProjectFilterByOwner :execrows
+DELETE FROM telegram_group_team_project_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND f.project_id = $3
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2;
+
+-- name: ClearTelegramGroupTeamProjectFiltersByOwner :execrows
+DELETE FROM telegram_group_team_project_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2;
+
+-- name: ListTelegramGroupTeamCampusFilters :many
+SELECT * FROM telegram_group_team_campus_filters
+WHERE chat_id = $1
+ORDER BY created_at ASC, campus_id;
+
+-- name: UpsertTelegramGroupTeamCampusFilterByOwner :execrows
+INSERT INTO telegram_group_team_campus_filters (chat_id, campus_id)
+SELECT g.chat_id, $3
+FROM telegram_groups g
+WHERE g.chat_id = $1
+  AND g.owner_telegram_user_id = $2
+ON CONFLICT (chat_id, campus_id) DO NOTHING;
+
+-- name: DeleteTelegramGroupTeamCampusFilterByOwner :execrows
+DELETE FROM telegram_group_team_campus_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND f.campus_id = $3
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2;
+
+-- name: ClearTelegramGroupTeamCampusFiltersByOwner :execrows
+DELETE FROM telegram_group_team_campus_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2;
+
+-- name: UpsertTelegramGroupTeamMessage :exec
+INSERT INTO telegram_group_team_messages (
+    team_search_request_id,
+    chat_id,
+    message_id,
+    message_thread_id,
+    last_rendered_status
+) VALUES (
+    $1, $2, $3, $4, $5
+)
+ON CONFLICT (team_search_request_id, chat_id) DO UPDATE SET
+    message_id = EXCLUDED.message_id,
+    message_thread_id = EXCLUDED.message_thread_id,
+    last_rendered_status = EXCLUDED.last_rendered_status,
+    last_rendered_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP;
+
+-- name: UpdateTelegramGroupTeamMessageStatus :exec
+UPDATE telegram_group_team_messages
+SET last_rendered_status = $3,
+    last_rendered_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+WHERE team_search_request_id = $1
+  AND chat_id = $2;
+
+-- name: ListTelegramGroupTeamMessagesByRequest :many
+SELECT * FROM telegram_group_team_messages
+WHERE team_search_request_id = $1
+ORDER BY created_at ASC;
+
+-- name: DeleteTelegramGroupTeamMessageByRequestAndChat :execrows
+DELETE FROM telegram_group_team_messages
+WHERE team_search_request_id = $1
+  AND chat_id = $2;
+
+-- name: DeleteTelegramGroupTeamMessagesByRequest :exec
+DELETE FROM telegram_group_team_messages
+WHERE team_search_request_id = $1;
 
 -- name: ListTelegramGroupDefenderCampusFilters :many
 SELECT * FROM telegram_group_defender_campus_filters
@@ -1241,6 +1365,256 @@ RETURNING id, status;
 
 -- name: CloseReviewRequestByID :exec
 UPDATE review_requests
+SET status = 'CLOSED',
+    updated_at = CURRENT_TIMESTAMP,
+    closed_at = CURRENT_TIMESTAMP
+WHERE id = $1
+  AND status NOT IN ('CLOSED', 'WITHDRAWN');
+
+-- name: CountOpenTeamSearchRequestsByUser :one
+SELECT count(*)::int
+FROM team_search_requests
+WHERE requester_user_id = $1
+  AND status NOT IN ('CLOSED', 'WITHDRAWN');
+
+-- name: ExistsOpenTeamSearchRequestByUserAndProject :one
+SELECT EXISTS (
+    SELECT 1
+    FROM team_search_requests
+    WHERE requester_user_id = $1
+      AND project_id = $2
+      AND status NOT IN ('CLOSED', 'WITHDRAWN')
+);
+
+-- name: CreateTeamSearchRequest :one
+INSERT INTO team_search_requests (
+    requester_user_id,
+    requester_s21_login,
+    requester_campus_id,
+    project_id,
+    project_name,
+    project_type,
+    planned_start_text,
+    request_note_text,
+    requester_timezone,
+    requester_timezone_offset,
+    status
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'SEARCHING'
+)
+RETURNING *;
+
+-- name: GetGlobalTeamProjectGroups :many
+SELECT
+    project_id,
+    project_name,
+    project_type,
+    count(*)::int AS requests_count
+FROM team_search_requests
+WHERE status = 'SEARCHING'
+GROUP BY project_id, project_name, project_type
+ORDER BY requests_count DESC, project_name ASC;
+
+-- name: GetOpenTeamSearchRequestsByProject :many
+SELECT
+    tsr.id,
+    tsr.requester_user_id,
+    tsr.requester_s21_login,
+    tsr.requester_campus_id,
+    tsr.project_id,
+    tsr.project_name,
+    tsr.project_type,
+    tsr.planned_start_text,
+    tsr.request_note_text,
+    tsr.requester_timezone,
+    tsr.requester_timezone_offset,
+    tsr.status,
+    tsr.view_count,
+    tsr.response_count,
+    tsr.created_at,
+    tsr.updated_at,
+    tsr.closed_at,
+    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(psc.level::text, '0') AS requester_level,
+    COALESCE(
+        CASE
+            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            ELSE ''::text
+        END,
+        ''
+    ) AS requester_telegram_username
+FROM team_search_requests tsr
+LEFT JOIN campuses c ON tsr.requester_campus_id = c.id
+LEFT JOIN participant_stats_cache psc ON tsr.requester_s21_login = psc.s21_login
+LEFT JOIN user_accounts ua ON tsr.requester_user_id = ua.id AND ua.platform = 'telegram'
+WHERE tsr.project_id = $1
+  AND tsr.status = 'SEARCHING'
+ORDER BY tsr.created_at DESC;
+
+-- name: GetTeamSearchRequestsForCleanup :many
+SELECT
+    id,
+    requester_s21_login,
+    project_id
+FROM team_search_requests
+WHERE status NOT IN ('CLOSED', 'WITHDRAWN')
+  AND updated_at < $1
+ORDER BY updated_at ASC
+LIMIT $2;
+
+-- name: GetMyOpenTeamSearchRequests :many
+SELECT
+    tsr.id,
+    tsr.requester_user_id,
+    tsr.requester_s21_login,
+    tsr.requester_campus_id,
+    tsr.project_id,
+    tsr.project_name,
+    tsr.project_type,
+    tsr.planned_start_text,
+    tsr.request_note_text,
+    tsr.requester_timezone,
+    tsr.requester_timezone_offset,
+    tsr.status,
+    tsr.view_count,
+    tsr.response_count,
+    tsr.created_at,
+    tsr.updated_at,
+    tsr.closed_at,
+    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(psc.level::text, '0') AS requester_level,
+    COALESCE(
+        CASE
+            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            ELSE ''::text
+        END,
+        ''
+    ) AS requester_telegram_username
+FROM team_search_requests tsr
+LEFT JOIN campuses c ON tsr.requester_campus_id = c.id
+LEFT JOIN participant_stats_cache psc ON tsr.requester_s21_login = psc.s21_login
+LEFT JOIN user_accounts ua ON tsr.requester_user_id = ua.id AND ua.platform = 'telegram'
+WHERE tsr.requester_user_id = $1
+  AND tsr.status NOT IN ('CLOSED', 'WITHDRAWN')
+ORDER BY tsr.created_at DESC;
+
+-- name: GetMyTeamSearchRequestByID :one
+SELECT
+    tsr.id,
+    tsr.requester_user_id,
+    tsr.requester_s21_login,
+    tsr.requester_campus_id,
+    tsr.project_id,
+    tsr.project_name,
+    tsr.project_type,
+    tsr.planned_start_text,
+    tsr.request_note_text,
+    tsr.requester_timezone,
+    tsr.requester_timezone_offset,
+    tsr.status,
+    tsr.view_count,
+    tsr.response_count,
+    tsr.negotiating_peer_user_id,
+    COALESCE(tsr.negotiating_peer_s21_login, '') AS negotiating_peer_s21_login,
+    COALESCE(tsr.negotiating_peer_telegram_username, '') AS negotiating_peer_telegram_username,
+    COALESCE(tsr.negotiating_peer_rocketchat_id, '') AS negotiating_peer_rocketchat_id,
+    COALESCE(tsr.negotiating_peer_alternative_contact, '') AS negotiating_peer_alternative_contact,
+    tsr.negotiating_started_at,
+    tsr.created_at,
+    tsr.updated_at,
+    tsr.closed_at,
+    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(psc.level::text, '0') AS requester_level,
+    COALESCE(
+        CASE
+            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            ELSE ''::text
+        END,
+        ''
+    ) AS requester_telegram_username
+FROM team_search_requests tsr
+LEFT JOIN campuses c ON tsr.requester_campus_id = c.id
+LEFT JOIN participant_stats_cache psc ON tsr.requester_s21_login = psc.s21_login
+LEFT JOIN user_accounts ua ON tsr.requester_user_id = ua.id AND ua.platform = 'telegram'
+WHERE tsr.id = $1
+  AND tsr.requester_user_id = $2;
+
+-- name: GetTeamSearchRequestByID :one
+SELECT
+    tsr.id,
+    tsr.requester_user_id,
+    tsr.requester_s21_login,
+    tsr.requester_campus_id,
+    tsr.project_id,
+    tsr.project_name,
+    tsr.project_type,
+    tsr.planned_start_text,
+    tsr.request_note_text,
+    tsr.requester_timezone,
+    tsr.requester_timezone_offset,
+    tsr.status,
+    tsr.view_count,
+    tsr.response_count,
+    tsr.created_at,
+    tsr.updated_at,
+    tsr.closed_at,
+    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(psc.level::text, '0') AS requester_level,
+    COALESCE(
+        CASE
+            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            ELSE ''::text
+        END,
+        ''
+    ) AS requester_telegram_username
+FROM team_search_requests tsr
+LEFT JOIN campuses c ON tsr.requester_campus_id = c.id
+LEFT JOIN participant_stats_cache psc ON tsr.requester_s21_login = psc.s21_login
+LEFT JOIN user_accounts ua ON tsr.requester_user_id = ua.id AND ua.platform = 'telegram'
+WHERE tsr.id = $1;
+
+-- name: IncrementTeamSearchRequestViewCount :one
+UPDATE team_search_requests
+SET view_count = view_count + 1,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING view_count;
+
+-- name: MarkTeamSearchRequestNegotiatingAndIncrementResponses :one
+UPDATE team_search_requests
+SET response_count = response_count + 1,
+    status = 'NEGOTIATING',
+    updated_at = CURRENT_TIMESTAMP,
+    negotiating_peer_user_id = $2,
+    negotiating_peer_s21_login = $3,
+    negotiating_peer_telegram_username = $4,
+    negotiating_peer_rocketchat_id = $5,
+    negotiating_peer_alternative_contact = $6,
+    negotiating_started_at = CURRENT_TIMESTAMP
+WHERE id = $1
+  AND status = 'SEARCHING'
+RETURNING response_count, status;
+
+-- name: SetTeamSearchRequestStatus :one
+UPDATE team_search_requests
+SET status = sqlc.arg(status)::enum_review_status,
+    updated_at = CURRENT_TIMESTAMP,
+    closed_at = CASE
+        WHEN sqlc.arg(status)::enum_review_status IN ('CLOSED', 'WITHDRAWN') THEN CURRENT_TIMESTAMP
+        ELSE NULL
+    END,
+    negotiating_peer_user_id = CASE WHEN sqlc.arg(status)::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_peer_user_id END,
+    negotiating_peer_s21_login = CASE WHEN sqlc.arg(status)::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_peer_s21_login END,
+    negotiating_peer_telegram_username = CASE WHEN sqlc.arg(status)::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_peer_telegram_username END,
+    negotiating_peer_rocketchat_id = CASE WHEN sqlc.arg(status)::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_peer_rocketchat_id END,
+    negotiating_peer_alternative_contact = CASE WHEN sqlc.arg(status)::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_peer_alternative_contact END,
+    negotiating_started_at = CASE WHEN sqlc.arg(status)::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_started_at END
+WHERE id = $1
+  AND requester_user_id = $2
+RETURNING id, status;
+
+-- name: CloseTeamSearchRequestByID :exec
+UPDATE team_search_requests
 SET status = 'CLOSED',
     updated_at = CURRENT_TIMESTAMP,
     closed_at = CURRENT_TIMESTAMP

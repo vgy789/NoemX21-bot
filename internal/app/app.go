@@ -69,6 +69,11 @@ func New(cfg *config.Config, log *slog.Logger, repo *db.DBWrapper, rcClient *roc
 	}); ok {
 		setter.SetPRRStatusBroadcaster(tgService)
 	}
+	if setter, ok := campusSvc.(interface {
+		SetTeamStatusBroadcaster(service.TeamStatusBroadcaster)
+	}); ok {
+		setter.SetTeamStatusBroadcaster(tgService)
+	}
 
 	// Set invalidator for schedule generator to clear cached file_ids on regeneration.
 	if setter, ok := scheduleGen.(interface {

@@ -38,8 +38,8 @@ states:
           next_state: BOOKING_MENU
         - id: review
           label:
-            ru: 👀 Ревью
-            en: 👀 Review
+            ru: 👀 Проекты
+            en: 👀 Projects
           next_state: REVIEWS_MENU
           row: 3
         - id: clubs

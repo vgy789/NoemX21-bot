@@ -89,6 +89,8 @@ const (
 	ContextKeyDefenderManualFilter ContextKey = "defender_manual_filter"
 	// ContextKeyPRRGroupBroadcaster is used for group PRR notifications transport.
 	ContextKeyPRRGroupBroadcaster ContextKey = "prr_group_broadcaster"
+	// ContextKeyTeamGroupBroadcaster is used for group Team Finder notifications transport.
+	ContextKeyTeamGroupBroadcaster ContextKey = "team_group_broadcaster"
 )
 
 // UserInfo represents basic user metadata from the transport layer
@@ -114,6 +116,12 @@ type RenderNotifier interface {
 type PRRGroupBroadcaster interface {
 	PublishReviewRequest(ctx context.Context, reviewRequestID int64) error
 	SyncReviewRequestStatus(ctx context.Context, reviewRequestID int64, status string) error
+}
+
+// TeamGroupBroadcaster publishes and syncs Team Finder cards in Telegram groups.
+type TeamGroupBroadcaster interface {
+	PublishTeamSearchRequest(ctx context.Context, requestID int64) error
+	SyncTeamSearchRequestStatus(ctx context.Context, requestID int64, status string) error
 }
 
 // MemberTagRunMode defines manual member tags run behavior.
@@ -230,6 +238,15 @@ func PRRGroupBroadcasterFromContext(ctx context.Context) (PRRGroupBroadcaster, b
 		return nil, false
 	}
 	n, ok := ctx.Value(ContextKeyPRRGroupBroadcaster).(PRRGroupBroadcaster)
+	return n, ok && n != nil
+}
+
+// TeamGroupBroadcasterFromContext extracts a TeamGroupBroadcaster from context.
+func TeamGroupBroadcasterFromContext(ctx context.Context) (TeamGroupBroadcaster, bool) {
+	if ctx == nil {
+		return nil, false
+	}
+	n, ok := ctx.Value(ContextKeyTeamGroupBroadcaster).(TeamGroupBroadcaster)
 	return n, ok && n != nil
 }
 

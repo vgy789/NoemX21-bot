@@ -41,6 +41,24 @@ func (s *prrStatusSyncStub) SyncReviewRequestStatus(_ context.Context, reviewReq
 	return s.err
 }
 
+type teamStatusSyncStub struct {
+	calls []teamStatusSyncCall
+	err   error
+}
+
+type teamStatusSyncCall struct {
+	requestID int64
+	status    string
+}
+
+func (s *teamStatusSyncStub) SyncTeamSearchRequestStatus(_ context.Context, requestID int64, status string) error {
+	s.calls = append(s.calls, teamStatusSyncCall{
+		requestID: requestID,
+		status:    status,
+	})
+	return s.err
+}
+
 func TestNewCampusService(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -321,6 +339,104 @@ func TestCampusService_CleanupOutdatedReviewRequests_ProjectStillInReviews(t *te
 	svc.SetPRRStatusBroadcaster(syncer)
 
 	err = svc.CleanupOutdatedReviewRequests(context.Background())
+	require.NoError(t, err)
+	assert.Empty(t, syncer.calls)
+}
+
+func TestCampusService_CleanupOutdatedTeamSearchRequests_SyncClosedStatus(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	log := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	hexKey := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+	crypter, err := crypto.NewCrypter(hexKey)
+	require.NoError(t, err)
+
+	tokenEnc, tokenNonce, err := crypter.Encrypt([]byte("cleanup-token"), []byte("school"))
+	require.NoError(t, err)
+
+	q.EXPECT().GetPlatformCredentials(gomock.Any(), "school").Return(db.PlatformCredential{
+		S21Login:        "school",
+		AccessTokenEnc:  tokenEnc,
+		AccessNonce:     tokenNonce,
+		AccessExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(2 * time.Hour), Valid: true},
+	}, nil)
+	q.EXPECT().GetTeamSearchRequestsForCleanup(gomock.Any(), gomock.Any()).Return([]db.GetTeamSearchRequestsForCleanupRow{
+		{ID: 1001, RequesterS21Login: "alice", ProjectID: 777},
+	}, nil)
+	q.EXPECT().CloseTeamSearchRequestByID(gomock.Any(), int64(1001)).Return(nil)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "REGISTERED", r.URL.Query().Get("status"))
+		resp := s21.ParticipantProjectsV1DTO{
+			Projects: []s21.ParticipantProjectV1DTO{
+				{ID: 777, Status: "REGISTERED", Type: "INDIVIDUAL"},
+				{ID: 888, Status: "REGISTERED", Type: "GROUP"},
+			},
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+
+	cfg := &config.Config{}
+	cfg.Init.SchoolLogin = "school"
+
+	credSvc := NewCredentialService(q, crypter, nil, log)
+	svc := NewCampusService(q, newMockS21Client(handler), cfg, log, credSvc)
+	syncer := &teamStatusSyncStub{}
+	svc.SetTeamStatusBroadcaster(syncer)
+
+	err = svc.CleanupOutdatedTeamSearchRequests(context.Background())
+	require.NoError(t, err)
+	require.Len(t, syncer.calls, 1)
+	assert.Equal(t, int64(1001), syncer.calls[0].requestID)
+	assert.Equal(t, "CLOSED", syncer.calls[0].status)
+}
+
+func TestCampusService_CleanupOutdatedTeamSearchRequests_ProjectStillRegisteredGroup(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	log := slog.New(slog.NewTextHandler(io.Discard, &slog.HandlerOptions{Level: slog.LevelError}))
+
+	hexKey := "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f"
+	crypter, err := crypto.NewCrypter(hexKey)
+	require.NoError(t, err)
+
+	tokenEnc, tokenNonce, err := crypter.Encrypt([]byte("cleanup-token"), []byte("school"))
+	require.NoError(t, err)
+
+	q.EXPECT().GetPlatformCredentials(gomock.Any(), "school").Return(db.PlatformCredential{
+		S21Login:        "school",
+		AccessTokenEnc:  tokenEnc,
+		AccessNonce:     tokenNonce,
+		AccessExpiresAt: pgtype.Timestamptz{Time: time.Now().Add(2 * time.Hour), Valid: true},
+	}, nil)
+	q.EXPECT().GetTeamSearchRequestsForCleanup(gomock.Any(), gomock.Any()).Return([]db.GetTeamSearchRequestsForCleanupRow{
+		{ID: 1002, RequesterS21Login: "bob", ProjectID: 333},
+	}, nil)
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, "REGISTERED", r.URL.Query().Get("status"))
+		resp := s21.ParticipantProjectsV1DTO{
+			Projects: []s21.ParticipantProjectV1DTO{
+				{ID: 333, Status: "REGISTERED", Type: "GROUP"},
+			},
+		}
+		_ = json.NewEncoder(w).Encode(resp)
+	})
+
+	cfg := &config.Config{}
+	cfg.Init.SchoolLogin = "school"
+
+	credSvc := NewCredentialService(q, crypter, nil, log)
+	svc := NewCampusService(q, newMockS21Client(handler), cfg, log, credSvc)
+	syncer := &teamStatusSyncStub{}
+	svc.SetTeamStatusBroadcaster(syncer)
+
+	err = svc.CleanupOutdatedTeamSearchRequests(context.Background())
 	require.NoError(t, err)
 	assert.Empty(t, syncer.calls)
 }

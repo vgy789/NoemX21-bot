@@ -2,8 +2,6 @@ package db
 
 import (
 	"context"
-
-	"github.com/jackc/pgx/v5/pgtype"
 )
 
 const listTelegramGroupsManagedByUser = `
@@ -25,7 +23,12 @@ SELECT
     g.prr_notifications_enabled,
     g.prr_notifications_thread_id,
     g.prr_notifications_thread_label,
-    g.prr_withdrawn_behavior
+    g.prr_withdrawn_behavior,
+    g.moderation_commands_enabled,
+    g.team_notifications_enabled,
+    g.team_notifications_thread_id,
+    g.team_notifications_thread_label,
+    g.team_withdrawn_behavior
 FROM telegram_groups g
 WHERE g.is_active = true
   AND g.is_initialized = true
@@ -97,18 +100,6 @@ SELECT EXISTS (
 )
 `
 
-type TelegramGroupModerator struct {
-	ID               int64              `json:"id"`
-	ChatID           int64              `json:"chat_id"`
-	TelegramUserID   int64              `json:"telegram_user_id"`
-	CanBan           bool               `json:"can_ban"`
-	CanMute          bool               `json:"can_mute"`
-	FullAccess       bool               `json:"full_access"`
-	AddedByAccountID int64              `json:"added_by_account_id"`
-	CreatedAt        pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
-}
-
 type UpsertTelegramGroupModeratorParams struct {
 	ChatID           int64 `json:"chat_id"`
 	TelegramUserID   int64 `json:"telegram_user_id"`
@@ -155,6 +146,11 @@ func (q *Queries) ListTelegramGroupsManagedByUser(ctx context.Context, telegramU
 			&i.PrrNotificationsThreadID,
 			&i.PrrNotificationsThreadLabel,
 			&i.PrrWithdrawnBehavior,
+			&i.ModerationCommandsEnabled,
+			&i.TeamNotificationsEnabled,
+			&i.TeamNotificationsThreadID,
+			&i.TeamNotificationsThreadLabel,
+			&i.TeamWithdrawnBehavior,
 		); err != nil {
 			return nil, err
 		}

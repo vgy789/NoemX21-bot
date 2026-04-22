@@ -1,6 +1,43 @@
-initial_state: PRR_MAIN_MENU
+initial_state: REVIEWS_MENU
 
 states:
+  REVIEWS_MENU:
+    type: interactive
+    description: Подменю раздела Ревью
+    interface:
+      text:
+        ru: |
+          👀 *Ревью и командные проекты*
+
+          Выбери, что именно нужно сделать:
+          • найти, кого поревьюить или выставить свой PRR
+          • найти команду для группового проекта
+        en: |
+          👀 *Reviews and Team Finder*
+
+          Choose what you want to do:
+          • find someone to review or publish your PRR
+          • find a team for a group project
+      buttons:
+        - id: prr
+          label:
+            ru: 🧪 PRR
+            en: 🧪 PRR
+          next_state: PRR_MAIN_MENU
+          row: 1
+        - id: team
+          label:
+            ru: 👥 Найти команду
+            en: 👥 Find a team
+          next_state: TEAM_MAIN_MENU
+          row: 1
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: MAIN_MENU
+          row: 2
+
   PRR_MAIN_MENU:
     type: interactive
     description: Главное меню Peer Review Helper
@@ -55,9 +92,9 @@ states:
           row: 2
         - id: back
           label:
-            ru: 🏠 На главную
-            en: 🏠 Main menu
-          next_state: MAIN_MENU
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: REVIEWS_MENU
           row: 3
 
   SELECT_PROJECT_FOR_PRR:
@@ -1029,6 +1066,876 @@ states:
       action: save_project_filter_query
     transitions:
       - next_state: PRR_FILTERS_MENU
+
+  TEAM_MAIN_MENU:
+    type: interactive
+    description: Главное меню поиска команды
+    on_enter:
+      - action: school_api_get_participant_registered_group_projects
+        payload:
+          participant_login: $context.my_s21login
+      - action: db_get_my_team_summary
+        payload:
+          user_id: $context.user_id
+    interface:
+      text:
+        ru: |
+          👥 *Найти команду*
+
+          _В одиночку ты просто утка, в команде – мощный клин._
+
+          {active_team_notification}
+        en: |
+          👥 *Find a team*
+
+          _On your own, you're just a duck; as part of a team, you're a powerful force._
+
+          {active_team_notification}
+      buttons:
+        - id: list_all
+          label:
+            ru: 🔎 Смотреть запросы
+            en: 🔎 Browse requests
+          next_state: GLOBAL_TEAM_BOARD
+          row: 1
+        - id: create_new
+          label:
+            ru: ➕ Выставить свой проект
+            en: ➕ Publish my project
+          condition: "team_available_projects_count > 0"
+          next_state: SELECT_PROJECT_FOR_TEAM
+          row: 2
+        - id: create_new_disabled
+          label:
+            ru: ➕ Выставить свой проект
+            en: ➕ Publish my project
+          condition: "team_available_projects_count == 0"
+          next_state: ERROR_NO_REGISTERED_GROUP_PROJECTS
+          row: 2
+        - id: my_requests
+          label:
+            ru: 📂 Мои запросы ({my_team_count})
+            en: 📂 My requests ({my_team_count})
+          action: reset_my_team_page
+          next_state: MY_TEAM_LIST
+          row: 2
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: REVIEWS_MENU
+          row: 3
+
+  SELECT_PROJECT_FOR_TEAM:
+    type: interactive
+    description: Выбор группового проекта для поиска команды
+    on_enter:
+      - action: prepare_available_projects_for_team
+        payload:
+          page: $context.create_team_projects_page
+    interface:
+      text:
+        ru: |
+          👥 *Для какого проекта ищем команду?*
+
+          Покажу только групповые проекты в статусе `REGISTERED`.
+
+          {team_available_projects_list_hint}
+        en: |
+          👥 *Which project needs a team?*
+
+          Only group projects in `REGISTERED` status are shown.
+
+          {team_available_projects_list_hint}
+      buttons:
+        - id: "{team_project_id_1}"
+          label: "{team_project_name_1} ({team_project_type_1})"
+          condition: "team_project_id_1 != ''"
+          action: select_team_create_project
+          next_state: CHECK_DUPLICATE_TEAM_REQUEST
+          row: 1
+        - id: "{team_project_id_2}"
+          label: "{team_project_name_2} ({team_project_type_2})"
+          condition: "team_project_id_2 != ''"
+          action: select_team_create_project
+          next_state: CHECK_DUPLICATE_TEAM_REQUEST
+          row: 2
+        - id: "{team_project_id_3}"
+          label: "{team_project_name_3} ({team_project_type_3})"
+          condition: "team_project_id_3 != ''"
+          action: select_team_create_project
+          next_state: CHECK_DUPLICATE_TEAM_REQUEST
+          row: 3
+        - id: "{team_project_id_4}"
+          label: "{team_project_name_4} ({team_project_type_4})"
+          condition: "team_project_id_4 != ''"
+          action: select_team_create_project
+          next_state: CHECK_DUPLICATE_TEAM_REQUEST
+          row: 4
+        - id: "{team_project_id_5}"
+          label: "{team_project_name_5} ({team_project_type_5})"
+          condition: "team_project_id_5 != ''"
+          action: select_team_create_project
+          next_state: CHECK_DUPLICATE_TEAM_REQUEST
+          row: 5
+        - id: prev_projects
+          label:
+            ru: ⬅️ Назад
+            en: ⬅️ Back
+          condition: "team_available_projects_has_prev_page == true"
+          action: team_available_projects_prev_page
+          next_state: SELECT_PROJECT_FOR_TEAM
+          row: 6
+        - id: projects_page
+          label:
+            ru: "{team_available_projects_page_caption_ru}"
+            en: "{team_available_projects_page_caption_en}"
+          action: none
+          row: 6
+        - id: next_projects
+          label:
+            ru: Вперёд ➡️
+            en: Next ➡️
+          condition: "team_available_projects_has_next_page == true"
+          action: team_available_projects_next_page
+          next_state: SELECT_PROJECT_FOR_TEAM
+          row: 6
+        - id: back
+          label:
+            ru: 🔙 Отмена
+            en: 🔙 Cancel
+          next_state: TEAM_MAIN_MENU
+          row: 7
+
+  CHECK_DUPLICATE_TEAM_REQUEST:
+    type: system
+    description: Нельзя создавать второй открытый запрос на тот же проект
+    logic:
+      action: db_check_open_team_for_selected_project
+      payload:
+        user_id: $context.user_id
+        project_id: $context.selected_team_project_id
+    transitions:
+      - condition: has_open_team_for_selected_project == true
+        next_state: ERROR_TEAM_ALREADY_EXISTS_FOR_PROJECT
+      - next_state: INPUT_TEAM_PLANNED_START
+
+  INPUT_TEAM_PLANNED_START:
+    type: input
+    interface:
+      text:
+        ru: |
+          ⏰ *Когда планируете стартовать?*
+
+          Напиши, когда собираешься начать работу по проекту.
+
+          Например:
+          • «Завтра в 11:00 по МСК»
+          • «В выходные, если найдём ещё двоих»
+          • «Как только, так сразу»
+        en: |
+          ⏰ *When do you plan to start?*
+
+          Tell peers when you expect to start the project.
+      buttons:
+        - id: cancel
+          label:
+            ru: 🔙 Отмена
+            en: 🔙 Cancel
+          next_state: TEAM_MAIN_MENU
+          row: 1
+    transitions:
+      - trigger: on_input
+        action: save_team_start_input
+        next_state: INPUT_TEAM_NOTE
+
+  INPUT_TEAM_NOTE:
+    type: input
+    interface:
+      text:
+        ru: |
+          📝 *Расскажи о наборе*
+
+          Напиши одной заметкой всё важное:
+          • сколько людей нужно
+          • за сколько хотите закрыть
+          • кого ищете
+          • стек, формат работы, саморекламу
+        en: |
+          📝 *Describe the request*
+
+          Use one short note for team size, timing, roles, stack, and anything important.
+      buttons:
+        - id: cancel
+          label:
+            ru: 🔙 Отмена
+            en: 🔙 Cancel
+          next_state: TEAM_MAIN_MENU
+          row: 1
+    transitions:
+      - trigger: on_input
+        action: save_team_note_input
+        next_state: CONFIRM_TEAM_REQUEST_CREATION
+
+  CONFIRM_TEAM_REQUEST_CREATION:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          📝 *Проверим заявку*
+
+          📁 Проект: *{selected_team_project_name}*
+          ⏰ Планируемый старт: `{team_planned_start_text}`
+          💬 Заметка: `{team_request_note_text}`
+          🌐 Пояс: `{user_timezone_name}` (UTC{user_timezone_formatted})
+
+          _Если всё верно, публикуем запрос на доску._
+        en: |
+          📝 *Final check*
+
+          📁 Project: *{selected_team_project_name}*
+          ⏰ Planned start: `{team_planned_start_text}`
+          💬 Note: `{team_request_note_text}`
+          🌐 Timezone: `{user_timezone_name}` (UTC{user_timezone_formatted})
+
+          _If everything looks right, let's publish it._
+      buttons:
+        - id: confirm
+          label:
+            ru: ✅ Да, публикуем
+            en: ✅ Yes, publish
+          next_state: SAVE_TEAM_REQUEST_SYSTEM
+          row: 1
+        - id: retry_start
+          label:
+            ru: ✍️ Изменить старт
+            en: ✍️ Edit start
+          next_state: INPUT_TEAM_PLANNED_START
+          row: 1
+        - id: retry_note
+          label:
+            ru: 💬 Изменить заметку
+            en: 💬 Edit note
+          next_state: INPUT_TEAM_NOTE
+          row: 2
+        - id: cancel
+          label:
+            ru: 🔙 Отмена
+            en: 🔙 Cancel
+          next_state: TEAM_MAIN_MENU
+          row: 3
+
+  SAVE_TEAM_REQUEST_SYSTEM:
+    type: system
+    logic:
+      action: db_save_team_search_request
+    transitions:
+      - condition: save_team_conflict_same_project == true
+        next_state: ERROR_TEAM_ALREADY_EXISTS_FOR_PROJECT
+      - next_state: TEAM_REQUEST_SUCCESS_POSTED
+
+  TEAM_REQUEST_SUCCESS_POSTED:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          🚀 *Запрос опубликован*
+
+          Твоя заявка уже на доске. Как только кто-то откликнется, я передам контакт.
+        en: |
+          🚀 *Request published*
+
+          Your request is now on the board. I'll pass the contact as soon as someone responds.
+      buttons:
+        - id: ok
+          label:
+            ru: 👌 Понятно
+            en: 👌 Got it
+          next_state: TEAM_MAIN_MENU
+          row: 1
+
+  GLOBAL_TEAM_BOARD:
+    type: interactive
+    description: Общая доска запросов на поиск команды
+    on_enter:
+      - action: db_get_global_team_project_groups
+        payload:
+          page: $context.team_board_page
+    interface:
+      text:
+        ru: |
+          📋 *Запросы на поиск команды*
+
+          _Выбери проект, чтобы посмотреть, кто сейчас собирает команду._
+
+          {team_project_groups_formatted}
+        en: |
+          📋 *Team Finder Board*
+
+          _Choose a project to see who is currently looking for teammates._
+
+          {team_project_groups_formatted}
+      buttons:
+        - id: "{team_project_group_id_1}"
+          label: "{team_project_group_btn_label_1}"
+          condition: "team_project_group_id_1 != ''"
+          action: select_team_project_group
+          next_state: PROJECT_TEAM_LIST
+          row: 1
+        - id: "{team_project_group_id_2}"
+          label: "{team_project_group_btn_label_2}"
+          condition: "team_project_group_id_2 != ''"
+          action: select_team_project_group
+          next_state: PROJECT_TEAM_LIST
+          row: 2
+        - id: "{team_project_group_id_3}"
+          label: "{team_project_group_btn_label_3}"
+          condition: "team_project_group_id_3 != ''"
+          action: select_team_project_group
+          next_state: PROJECT_TEAM_LIST
+          row: 3
+        - id: "{team_project_group_id_4}"
+          label: "{team_project_group_btn_label_4}"
+          condition: "team_project_group_id_4 != ''"
+          action: select_team_project_group
+          next_state: PROJECT_TEAM_LIST
+          row: 4
+        - id: "{team_project_group_id_5}"
+          label: "{team_project_group_btn_label_5}"
+          condition: "team_project_group_id_5 != ''"
+          action: select_team_project_group
+          next_state: PROJECT_TEAM_LIST
+          row: 5
+        - id: prev_board_page
+          label:
+            ru: ⬅️ Назад
+            en: ⬅️ Back
+          condition: "team_board_has_prev_page == true"
+          action: global_team_board_prev_page
+          next_state: GLOBAL_TEAM_BOARD
+          row: 6
+        - id: board_page
+          label:
+            ru: "{team_board_page_caption_ru}"
+            en: "{team_board_page_caption_en}"
+          condition: "team_project_group_id_1 != '' && team_board_total_pages > 1"
+          action: none
+          row: 6
+        - id: next_board_page
+          label:
+            ru: Вперёд ➡️
+            en: Next ➡️
+          condition: "team_board_has_next_page == true"
+          action: global_team_board_next_page
+          next_state: GLOBAL_TEAM_BOARD
+          row: 6
+        - id: refresh
+          label:
+            ru: 🔄 Обновить
+            en: 🔄 Refresh
+          next_state: GLOBAL_TEAM_BOARD
+          row: 7
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: TEAM_MAIN_MENU
+          row: 8
+
+  PROJECT_TEAM_LIST:
+    type: interactive
+    description: Все активные запросы на поиск команды внутри выбранного проекта
+    on_enter:
+      - action: db_get_team_requests_for_selected_project
+        payload:
+          project_id: $context.selected_team_project_id
+          page: $context.project_team_page
+    interface:
+      text:
+        ru: |
+          📁 *Проект: {selected_team_project_name_md}*
+          Тип: `{selected_team_project_type}`
+
+          _Выбери заявку, чтобы посмотреть детали и откликнуться._
+
+          {project_team_list_formatted}
+        en: |
+          📁 *Project: {selected_team_project_name_md}*
+          Type: `{selected_team_project_type}`
+
+          _Pick a request to view details and respond._
+
+          {project_team_list_formatted}
+      buttons:
+        - id: "{project_team_id_1}"
+          label: "{project_team_btn_label_1}"
+          condition: "project_team_id_1 != ''"
+          action: select_team_request
+          next_state: TEAM_REQUEST_DETAILS_VIEW
+          row: 1
+        - id: "{project_team_id_2}"
+          label: "{project_team_btn_label_2}"
+          condition: "project_team_id_2 != ''"
+          action: select_team_request
+          next_state: TEAM_REQUEST_DETAILS_VIEW
+          row: 2
+        - id: "{project_team_id_3}"
+          label: "{project_team_btn_label_3}"
+          condition: "project_team_id_3 != ''"
+          action: select_team_request
+          next_state: TEAM_REQUEST_DETAILS_VIEW
+          row: 3
+        - id: "{project_team_id_4}"
+          label: "{project_team_btn_label_4}"
+          condition: "project_team_id_4 != ''"
+          action: select_team_request
+          next_state: TEAM_REQUEST_DETAILS_VIEW
+          row: 4
+        - id: "{project_team_id_5}"
+          label: "{project_team_btn_label_5}"
+          condition: "project_team_id_5 != ''"
+          action: select_team_request
+          next_state: TEAM_REQUEST_DETAILS_VIEW
+          row: 5
+        - id: prev_project_team_page
+          label:
+            ru: ⬅️ Назад
+            en: ⬅️ Back
+          condition: "project_team_has_prev_page == true"
+          action: project_team_prev_page
+          next_state: PROJECT_TEAM_LIST
+          row: 6
+        - id: project_team_page
+          label:
+            ru: "{project_team_page_caption_ru}"
+            en: "{project_team_page_caption_en}"
+          condition: "project_team_id_1 != '' && project_team_total_pages > 1"
+          action: none
+          row: 6
+        - id: next_project_team_page
+          label:
+            ru: Вперёд ➡️
+            en: Next ➡️
+          condition: "project_team_has_next_page == true"
+          action: project_team_next_page
+          next_state: PROJECT_TEAM_LIST
+          row: 6
+        - id: refresh
+          label:
+            ru: 🔄 Обновить
+            en: 🔄 Refresh
+          next_state: PROJECT_TEAM_LIST
+          row: 7
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: GLOBAL_TEAM_BOARD
+          row: 7
+
+  TEAM_REQUEST_DETAILS_VIEW:
+    type: interactive
+    on_enter:
+      - action: db_increment_team_view_counter
+        payload:
+          team_request_id: $context.selected_team_request_id
+    interface:
+      text:
+        ru: |
+          🟢 *Карточка запроса*
+
+          👤 {nickname} (lvl {peer_level})
+          📍 Кампус: {peer_campus}
+          📁 Проект: {project_name}
+          🧩 Тип: {project_type}
+
+          ⏰ *Когда стартуют:*
+          {team_planned_start_text}
+          _(UTC{requester_timezone_utc_offset}; у тебя: {viewer_local_time_hint})_
+
+          💬 *Заметка:*
+          {team_request_note_text}
+
+          📊 *Статистика:*
+          👁 Просмотров: {view_count} | 🙋 Откликов: {response_count}
+          🕒 Создан: {team_opened_at}
+
+          _Готов присоединиться? Жми кнопку, и я выдам контакты._
+        en: |
+          🟢 *Request Card*
+
+          👤 {nickname} (lvl {peer_level})
+          📍 Campus: {peer_campus}
+          📁 Project: {project_name}
+          🧩 Type: {project_type}
+
+          ⏰ *Planned start:*
+          {team_planned_start_text}
+          _(UTC{requester_timezone_utc_offset}; for you: {viewer_local_time_hint})_
+
+          💬 *Note:*
+          {team_request_note_text}
+
+          📊 *Stats:*
+          👁 Views: {view_count} | 🙋 Responses: {response_count}
+          🕒 Created: {team_opened_at}
+
+          _Ready to join? Tap the button to get the contacts._
+      buttons:
+        - id: propose_join
+          label:
+            ru: 💬 Откликнуться
+            en: 💬 Respond
+          next_state: TEAM_REQUEST_PROPOSE_SYSTEM
+          row: 1
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: PROJECT_TEAM_LIST
+          row: 2
+
+  TEAM_REQUEST_PROPOSE_SYSTEM:
+    type: system
+    description: Проверка проекта в момент отклика и запрет отклика самому себе
+    logic:
+      action: validate_and_propose_team_join
+      payload:
+        team_request_id: $context.selected_team_request_id
+        reviewer_user_id: $context.user_id
+    transitions:
+      - condition: is_own_team_request == true
+        next_state: ERROR_CANNOT_JOIN_OWN_TEAM_REQUEST
+      - condition: project_still_registered_group == false
+        next_state: INFO_TEAM_REQUEST_OUTDATED_REMOVED
+      - condition: team_request_closed == true
+        next_state: INFO_TEAM_REQUEST_ALREADY_CLOSED
+      - next_state: TEAM_REQUEST_PROPOSE_SENT
+
+  TEAM_REQUEST_PROPOSE_SENT:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          📨 *Контакт передан*
+
+          _Я перевела заявку в переговоры, чтобы автору не писали все сразу._
+
+          Напиши автору и договорись о составе команды.
+          {requester_alternative_contact_line}
+        en: |
+          📨 *Contact shared*
+
+          _The request is now in negotiation mode so the author won't get spammed._
+
+          Reach out and coordinate the team.
+          {requester_alternative_contact_line}
+      buttons:
+        - id: message_author
+          label:
+            ru: 💬 Написать в Telegram
+            en: 💬 Message in Telegram
+          condition: "requester_username != ''"
+          action: open_url
+          url: "https://t.me/{requester_username}"
+          row: 1
+        - id: message_author_rc
+          label:
+            ru: 💬 Написать в Rocket.Chat
+            en: 💬 Message in Rocket.Chat
+          condition: "requester_rocketchat_id != ''"
+          action: open_url
+          url: "https://rocketchat-student.21-school.ru/direct/{requester_rocketchat_id}"
+          row: 1
+        - id: back_project
+          label:
+            ru: 🔙 К запросам проекта
+            en: 🔙 Back to project requests
+          next_state: PROJECT_TEAM_LIST
+          row: 2
+        - id: board
+          label:
+            ru: 📋 К доске проектов
+            en: 📋 To project board
+          next_state: GLOBAL_TEAM_BOARD
+          row: 3
+
+  MY_TEAM_LIST:
+    type: interactive
+    on_enter:
+      - action: db_get_my_active_team_requests
+        payload:
+          user_id: $context.user_id
+          page: $context.my_team_page
+    interface:
+      text:
+        ru: |
+          📂 *Мои запросы на команду*
+
+          Здесь можно приостановить поиск, возобновить или закрыть заявку.
+
+          {my_team_list_formatted}
+        en: |
+          📂 *My team requests*
+
+          Pause, resume, or close your requests here.
+
+          {my_team_list_formatted}
+      buttons:
+        - id: "{my_team_id_1}"
+          label: "{my_team_btn_label_1}"
+          condition: "my_team_id_1 != ''"
+          action: select_my_team_request
+          next_state: MY_TEAM_DETAILS
+          row: 1
+        - id: "{my_team_id_2}"
+          label: "{my_team_btn_label_2}"
+          condition: "my_team_id_2 != ''"
+          action: select_my_team_request
+          next_state: MY_TEAM_DETAILS
+          row: 2
+        - id: "{my_team_id_3}"
+          label: "{my_team_btn_label_3}"
+          condition: "my_team_id_3 != ''"
+          action: select_my_team_request
+          next_state: MY_TEAM_DETAILS
+          row: 3
+        - id: "{my_team_id_4}"
+          label: "{my_team_btn_label_4}"
+          condition: "my_team_id_4 != ''"
+          action: select_my_team_request
+          next_state: MY_TEAM_DETAILS
+          row: 4
+        - id: "{my_team_id_5}"
+          label: "{my_team_btn_label_5}"
+          condition: "my_team_id_5 != ''"
+          action: select_my_team_request
+          next_state: MY_TEAM_DETAILS
+          row: 5
+        - id: prev_my_team_page
+          label:
+            ru: ⬅️ Назад
+            en: ⬅️ Back
+          condition: "my_team_has_prev_page == true"
+          action: my_team_prev_page
+          next_state: MY_TEAM_LIST
+          row: 6
+        - id: my_team_page
+          label:
+            ru: "{my_team_page_caption_ru}"
+            en: "{my_team_page_caption_en}"
+          condition: "my_team_id_1 != '' && my_team_total_pages > 1"
+          action: none
+          row: 6
+        - id: next_my_team_page
+          label:
+            ru: Вперёд ➡️
+            en: Next ➡️
+          condition: "my_team_has_next_page == true"
+          action: my_team_next_page
+          next_state: MY_TEAM_LIST
+          row: 6
+        - id: refresh
+          label:
+            ru: 🔄 Обновить
+            en: 🔄 Refresh
+          next_state: MY_TEAM_LIST
+          row: 7
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: TEAM_MAIN_MENU
+          row: 7
+
+  MY_TEAM_DETAILS:
+    type: interactive
+    on_enter:
+      - action: db_get_selected_my_team_request
+        payload:
+          user_id: $context.user_id
+          team_request_id: $context.selected_my_team_request_id
+    interface:
+      text:
+        ru: |
+          📌 *Твой запрос на поиск команды*
+
+          📁 Проект: {my_team_selected_project_name}
+          ⏰ Старт: {my_team_selected_planned_start_text}
+          💬 Заметка: {my_team_selected_request_note_text}
+
+          📊 *Пульс заявки:*
+          🙋 Откликов: {my_team_selected_response_count}
+          👁 Просмотров: {my_team_selected_view_count}
+          🔖 Статус: {my_team_selected_status_label}
+
+          {my_team_selected_error_line}
+          {my_team_selected_negotiating_contact_block}
+        en: |
+          📌 *My team request*
+
+          📁 Project: {my_team_selected_project_name}
+          ⏰ Planned start: {my_team_selected_planned_start_text}
+          💬 Note: {my_team_selected_request_note_text}
+
+          📊 *Request pulse:*
+          🙋 Responses: {my_team_selected_response_count}
+          👁 Views: {my_team_selected_view_count}
+          🔖 Status: {my_team_selected_status_label}
+
+          {my_team_selected_error_line}
+          {my_team_selected_negotiating_contact_block}
+      buttons:
+        - id: pause_search
+          label:
+            ru: ⏸ Приостановить поиск
+            en: ⏸ Pause search
+          condition: "my_team_selected_status == 'SEARCHING'"
+          action: pause_my_team_request
+          next_state: MY_TEAM_DETAILS
+          row: 1
+        - id: resume_search
+          label:
+            ru: ▶️ Возобновить поиск
+            en: ▶️ Resume search
+          condition: "my_team_selected_status == 'PAUSED'"
+          action: resume_my_team_request
+          next_state: MY_TEAM_DETAILS
+          row: 1
+        - id: resume_from_negotiating
+          label:
+            ru: 🔄 Вернуть на доску
+            en: 🔄 Return to board
+          condition: "my_team_selected_status == 'NEGOTIATING'"
+          action: resume_my_team_request
+          next_state: MY_TEAM_DETAILS
+          row: 1
+        - id: close_request
+          label:
+            ru: ❌ Закрыть запрос
+            en: ❌ Close request
+          condition: "my_team_selected_status != 'CLOSED' && my_team_selected_status != 'WITHDRAWN'"
+          action: close_my_team_request
+          next_state: MY_TEAM_LIST
+          row: 2
+        - id: withdraw_request
+          label:
+            ru: 🧹 Отозвать запрос
+            en: 🧹 Withdraw request
+          condition: "my_team_selected_status != 'CLOSED' && my_team_selected_status != 'WITHDRAWN'"
+          action: withdraw_my_team_request
+          next_state: MY_TEAM_LIST
+          row: 2
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: MY_TEAM_LIST
+          row: 3
+
+  ERROR_NO_REGISTERED_GROUP_PROJECTS:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          🦆 *Пока нечего публиковать…*
+
+          Я не нашла у тебя групповых проектов в статусе `REGISTERED`.
+
+          _Когда появится нужный проект, возвращайся._
+        en: |
+          🦆 *Nothing to publish yet…*
+
+          I couldn't find any group projects in `REGISTERED` status for you.
+      buttons:
+        - id: ok
+          label:
+            ru: 👌 Понятно
+            en: 👌 Got it
+          next_state: TEAM_MAIN_MENU
+          row: 1
+
+  ERROR_TEAM_ALREADY_EXISTS_FOR_PROJECT:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          ⚠️ *Дубликат заявки*
+
+          На этот проект у тебя уже есть активный запрос на поиск команды.
+
+          _Закрой старый запрос в «Моих запросах», если хочешь завести новый._
+        en: |
+          ⚠️ *Duplicate request*
+
+          You already have an active team request for this project.
+      buttons:
+        - id: my_requests
+          label:
+            ru: 📂 Мои запросы
+            en: 📂 My requests
+          next_state: MY_TEAM_LIST
+          row: 1
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: TEAM_MAIN_MENU
+          row: 2
+
+  ERROR_CANNOT_JOIN_OWN_TEAM_REQUEST:
+    type: interactive
+    interface:
+      text:
+        ru: "Эй, это твоя же заявка. Сам к себе в команду не откликаются. 🦆"
+        en: "This is your own request. You can't respond to yourself. 🦆"
+      buttons:
+        - id: back
+          label:
+            ru: 🔙 Назад к запросу
+            en: 🔙 Back to request
+          next_state: TEAM_REQUEST_DETAILS_VIEW
+          row: 1
+
+  INFO_TEAM_REQUEST_OUTDATED_REMOVED:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          ℹ️ *Запрос устарел*
+
+          Проект больше не подходит под `REGISTERED + GROUP` на платформе. Мы сняли заявку с доски.
+        en: |
+          ℹ️ *Outdated request*
+
+          The project is no longer `REGISTERED + GROUP` on the platform. We removed the request from the board.
+      buttons:
+        - id: board
+          label:
+            ru: 📋 К доске проектов
+            en: 📋 To project board
+          next_state: GLOBAL_TEAM_BOARD
+          row: 1
+
+  INFO_TEAM_REQUEST_ALREADY_CLOSED:
+    type: interactive
+    interface:
+      text:
+        ru: |
+          ℹ️ *Заявка уже не активна*
+
+          Похоже, автор уже договорился или убрал запрос с доски.
+        en: |
+          ℹ️ *Request is no longer active*
+
+          It looks like the author already negotiated or removed the request.
+      buttons:
+        - id: back
+          label:
+            ru: 🔙 К проекту
+            en: 🔙 Back to project
+          next_state: PROJECT_TEAM_LIST
+          row: 1
 
   ERROR_NO_IN_REVIEWS_PROJECTS:
     type: interactive

@@ -110,6 +110,48 @@ func (q *Queries) ClearTelegramGroupPRRProjectFiltersByOwner(ctx context.Context
 	return result.RowsAffected(), nil
 }
 
+const clearTelegramGroupTeamCampusFiltersByOwner = `-- name: ClearTelegramGroupTeamCampusFiltersByOwner :execrows
+DELETE FROM telegram_group_team_campus_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2
+`
+
+type ClearTelegramGroupTeamCampusFiltersByOwnerParams struct {
+	ChatID              int64 `json:"chat_id"`
+	OwnerTelegramUserID int64 `json:"owner_telegram_user_id"`
+}
+
+func (q *Queries) ClearTelegramGroupTeamCampusFiltersByOwner(ctx context.Context, arg ClearTelegramGroupTeamCampusFiltersByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, clearTelegramGroupTeamCampusFiltersByOwner, arg.ChatID, arg.OwnerTelegramUserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const clearTelegramGroupTeamProjectFiltersByOwner = `-- name: ClearTelegramGroupTeamProjectFiltersByOwner :execrows
+DELETE FROM telegram_group_team_project_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2
+`
+
+type ClearTelegramGroupTeamProjectFiltersByOwnerParams struct {
+	ChatID              int64 `json:"chat_id"`
+	OwnerTelegramUserID int64 `json:"owner_telegram_user_id"`
+}
+
+func (q *Queries) ClearTelegramGroupTeamProjectFiltersByOwner(ctx context.Context, arg ClearTelegramGroupTeamProjectFiltersByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, clearTelegramGroupTeamProjectFiltersByOwner, arg.ChatID, arg.OwnerTelegramUserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const closeReviewRequestByID = `-- name: CloseReviewRequestByID :exec
 UPDATE review_requests
 SET status = 'CLOSED',
@@ -121,6 +163,20 @@ WHERE id = $1
 
 func (q *Queries) CloseReviewRequestByID(ctx context.Context, id int64) error {
 	_, err := q.db.Exec(ctx, closeReviewRequestByID, id)
+	return err
+}
+
+const closeTeamSearchRequestByID = `-- name: CloseTeamSearchRequestByID :exec
+UPDATE team_search_requests
+SET status = 'CLOSED',
+    updated_at = CURRENT_TIMESTAMP,
+    closed_at = CURRENT_TIMESTAMP
+WHERE id = $1
+  AND status NOT IN ('CLOSED', 'WITHDRAWN')
+`
+
+func (q *Queries) CloseTeamSearchRequestByID(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, closeTeamSearchRequestByID, id)
 	return err
 }
 
@@ -171,6 +227,20 @@ WHERE requester_user_id = $1
 
 func (q *Queries) CountOpenReviewRequestsByUser(ctx context.Context, requesterUserID int64) (int32, error) {
 	row := q.db.QueryRow(ctx, countOpenReviewRequestsByUser, requesterUserID)
+	var column_1 int32
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
+const countOpenTeamSearchRequestsByUser = `-- name: CountOpenTeamSearchRequestsByUser :one
+SELECT count(*)::int
+FROM team_search_requests
+WHERE requester_user_id = $1
+  AND status NOT IN ('CLOSED', 'WITHDRAWN')
+`
+
+func (q *Queries) CountOpenTeamSearchRequestsByUser(ctx context.Context, requesterUserID int64) (int32, error) {
+	row := q.db.QueryRow(ctx, countOpenTeamSearchRequestsByUser, requesterUserID)
 	var column_1 int32
 	err := row.Scan(&column_1)
 	return column_1, err
@@ -430,6 +500,80 @@ func (q *Queries) CreateRoomBooking(ctx context.Context, arg CreateRoomBookingPa
 		&i.StartTime,
 		&i.DurationMinutes,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const createTeamSearchRequest = `-- name: CreateTeamSearchRequest :one
+INSERT INTO team_search_requests (
+    requester_user_id,
+    requester_s21_login,
+    requester_campus_id,
+    project_id,
+    project_name,
+    project_type,
+    planned_start_text,
+    request_note_text,
+    requester_timezone,
+    requester_timezone_offset,
+    status
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, 'SEARCHING'
+)
+RETURNING id, requester_user_id, requester_s21_login, requester_campus_id, project_id, project_name, project_type, planned_start_text, request_note_text, requester_timezone, requester_timezone_offset, status, view_count, response_count, created_at, updated_at, closed_at, negotiating_peer_user_id, negotiating_peer_s21_login, negotiating_peer_telegram_username, negotiating_peer_rocketchat_id, negotiating_peer_alternative_contact, negotiating_started_at
+`
+
+type CreateTeamSearchRequestParams struct {
+	RequesterUserID         int64       `json:"requester_user_id"`
+	RequesterS21Login       string      `json:"requester_s21_login"`
+	RequesterCampusID       pgtype.UUID `json:"requester_campus_id"`
+	ProjectID               int64       `json:"project_id"`
+	ProjectName             string      `json:"project_name"`
+	ProjectType             string      `json:"project_type"`
+	PlannedStartText        string      `json:"planned_start_text"`
+	RequestNoteText         string      `json:"request_note_text"`
+	RequesterTimezone       string      `json:"requester_timezone"`
+	RequesterTimezoneOffset string      `json:"requester_timezone_offset"`
+}
+
+func (q *Queries) CreateTeamSearchRequest(ctx context.Context, arg CreateTeamSearchRequestParams) (TeamSearchRequest, error) {
+	row := q.db.QueryRow(ctx, createTeamSearchRequest,
+		arg.RequesterUserID,
+		arg.RequesterS21Login,
+		arg.RequesterCampusID,
+		arg.ProjectID,
+		arg.ProjectName,
+		arg.ProjectType,
+		arg.PlannedStartText,
+		arg.RequestNoteText,
+		arg.RequesterTimezone,
+		arg.RequesterTimezoneOffset,
+	)
+	var i TeamSearchRequest
+	err := row.Scan(
+		&i.ID,
+		&i.RequesterUserID,
+		&i.RequesterS21Login,
+		&i.RequesterCampusID,
+		&i.ProjectID,
+		&i.ProjectName,
+		&i.ProjectType,
+		&i.PlannedStartText,
+		&i.RequestNoteText,
+		&i.RequesterTimezone,
+		&i.RequesterTimezoneOffset,
+		&i.Status,
+		&i.ViewCount,
+		&i.ResponseCount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ClosedAt,
+		&i.NegotiatingPeerUserID,
+		&i.NegotiatingPeerS21Login,
+		&i.NegotiatingPeerTelegramUsername,
+		&i.NegotiatingPeerRocketchatID,
+		&i.NegotiatingPeerAlternativeContact,
+		&i.NegotiatingStartedAt,
 	)
 	return i, err
 }
@@ -754,6 +898,81 @@ func (q *Queries) DeleteTelegramGroupPRRProjectFilterByOwner(ctx context.Context
 	return result.RowsAffected(), nil
 }
 
+const deleteTelegramGroupTeamCampusFilterByOwner = `-- name: DeleteTelegramGroupTeamCampusFilterByOwner :execrows
+DELETE FROM telegram_group_team_campus_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND f.campus_id = $3
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2
+`
+
+type DeleteTelegramGroupTeamCampusFilterByOwnerParams struct {
+	ChatID              int64       `json:"chat_id"`
+	OwnerTelegramUserID int64       `json:"owner_telegram_user_id"`
+	CampusID            pgtype.UUID `json:"campus_id"`
+}
+
+func (q *Queries) DeleteTelegramGroupTeamCampusFilterByOwner(ctx context.Context, arg DeleteTelegramGroupTeamCampusFilterByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTelegramGroupTeamCampusFilterByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.CampusID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteTelegramGroupTeamMessageByRequestAndChat = `-- name: DeleteTelegramGroupTeamMessageByRequestAndChat :execrows
+DELETE FROM telegram_group_team_messages
+WHERE team_search_request_id = $1
+  AND chat_id = $2
+`
+
+type DeleteTelegramGroupTeamMessageByRequestAndChatParams struct {
+	TeamSearchRequestID int64 `json:"team_search_request_id"`
+	ChatID              int64 `json:"chat_id"`
+}
+
+func (q *Queries) DeleteTelegramGroupTeamMessageByRequestAndChat(ctx context.Context, arg DeleteTelegramGroupTeamMessageByRequestAndChatParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTelegramGroupTeamMessageByRequestAndChat, arg.TeamSearchRequestID, arg.ChatID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const deleteTelegramGroupTeamMessagesByRequest = `-- name: DeleteTelegramGroupTeamMessagesByRequest :exec
+DELETE FROM telegram_group_team_messages
+WHERE team_search_request_id = $1
+`
+
+func (q *Queries) DeleteTelegramGroupTeamMessagesByRequest(ctx context.Context, teamSearchRequestID int64) error {
+	_, err := q.db.Exec(ctx, deleteTelegramGroupTeamMessagesByRequest, teamSearchRequestID)
+	return err
+}
+
+const deleteTelegramGroupTeamProjectFilterByOwner = `-- name: DeleteTelegramGroupTeamProjectFilterByOwner :execrows
+DELETE FROM telegram_group_team_project_filters f
+USING telegram_groups g
+WHERE f.chat_id = $1
+  AND f.project_id = $3
+  AND g.chat_id = f.chat_id
+  AND g.owner_telegram_user_id = $2
+`
+
+type DeleteTelegramGroupTeamProjectFilterByOwnerParams struct {
+	ChatID              int64 `json:"chat_id"`
+	OwnerTelegramUserID int64 `json:"owner_telegram_user_id"`
+	ProjectID           int64 `json:"project_id"`
+}
+
+func (q *Queries) DeleteTelegramGroupTeamProjectFilterByOwner(ctx context.Context, arg DeleteTelegramGroupTeamProjectFilterByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTelegramGroupTeamProjectFilterByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.ProjectID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteTelegramGroupWhitelistByOwner = `-- name: DeleteTelegramGroupWhitelistByOwner :execrows
 DELETE FROM telegram_group_whitelists w
 USING telegram_groups g
@@ -829,6 +1048,28 @@ type ExistsOpenReviewRequestByUserAndProjectParams struct {
 
 func (q *Queries) ExistsOpenReviewRequestByUserAndProject(ctx context.Context, arg ExistsOpenReviewRequestByUserAndProjectParams) (bool, error) {
 	row := q.db.QueryRow(ctx, existsOpenReviewRequestByUserAndProject, arg.RequesterUserID, arg.ProjectID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const existsOpenTeamSearchRequestByUserAndProject = `-- name: ExistsOpenTeamSearchRequestByUserAndProject :one
+SELECT EXISTS (
+    SELECT 1
+    FROM team_search_requests
+    WHERE requester_user_id = $1
+      AND project_id = $2
+      AND status NOT IN ('CLOSED', 'WITHDRAWN')
+)
+`
+
+type ExistsOpenTeamSearchRequestByUserAndProjectParams struct {
+	RequesterUserID int64 `json:"requester_user_id"`
+	ProjectID       int64 `json:"project_id"`
+}
+
+func (q *Queries) ExistsOpenTeamSearchRequestByUserAndProject(ctx context.Context, arg ExistsOpenTeamSearchRequestByUserAndProjectParams) (bool, error) {
+	row := q.db.QueryRow(ctx, existsOpenTeamSearchRequestByUserAndProject, arg.RequesterUserID, arg.ProjectID)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
@@ -1644,6 +1885,50 @@ func (q *Queries) GetGlobalReviewProjectGroups(ctx context.Context) ([]GetGlobal
 	return items, nil
 }
 
+const getGlobalTeamProjectGroups = `-- name: GetGlobalTeamProjectGroups :many
+SELECT
+    project_id,
+    project_name,
+    project_type,
+    count(*)::int AS requests_count
+FROM team_search_requests
+WHERE status = 'SEARCHING'
+GROUP BY project_id, project_name, project_type
+ORDER BY requests_count DESC, project_name ASC
+`
+
+type GetGlobalTeamProjectGroupsRow struct {
+	ProjectID     int64  `json:"project_id"`
+	ProjectName   string `json:"project_name"`
+	ProjectType   string `json:"project_type"`
+	RequestsCount int32  `json:"requests_count"`
+}
+
+func (q *Queries) GetGlobalTeamProjectGroups(ctx context.Context) ([]GetGlobalTeamProjectGroupsRow, error) {
+	rows, err := q.db.Query(ctx, getGlobalTeamProjectGroups)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetGlobalTeamProjectGroupsRow
+	for rows.Next() {
+		var i GetGlobalTeamProjectGroupsRow
+		if err := rows.Scan(
+			&i.ProjectID,
+			&i.ProjectName,
+			&i.ProjectType,
+			&i.RequestsCount,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getLastAuthVerificationCode = `-- name: GetLastAuthVerificationCode :one
 SELECT id, s21_login, code, expires_at, created_at FROM auth_verification_codes
 WHERE s21_login = $1
@@ -1800,6 +2085,107 @@ func (q *Queries) GetMyOpenReviewRequests(ctx context.Context, requesterUserID i
 			&i.ProjectName,
 			&i.ProjectType,
 			&i.AvailabilityText,
+			&i.RequesterTimezone,
+			&i.RequesterTimezoneOffset,
+			&i.Status,
+			&i.ViewCount,
+			&i.ResponseCount,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ClosedAt,
+			&i.RequesterCampusName,
+			&i.RequesterLevel,
+			&i.RequesterTelegramUsername,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getMyOpenTeamSearchRequests = `-- name: GetMyOpenTeamSearchRequests :many
+SELECT
+    tsr.id,
+    tsr.requester_user_id,
+    tsr.requester_s21_login,
+    tsr.requester_campus_id,
+    tsr.project_id,
+    tsr.project_name,
+    tsr.project_type,
+    tsr.planned_start_text,
+    tsr.request_note_text,
+    tsr.requester_timezone,
+    tsr.requester_timezone_offset,
+    tsr.status,
+    tsr.view_count,
+    tsr.response_count,
+    tsr.created_at,
+    tsr.updated_at,
+    tsr.closed_at,
+    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(psc.level::text, '0') AS requester_level,
+    COALESCE(
+        CASE
+            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            ELSE ''::text
+        END,
+        ''
+    ) AS requester_telegram_username
+FROM team_search_requests tsr
+LEFT JOIN campuses c ON tsr.requester_campus_id = c.id
+LEFT JOIN participant_stats_cache psc ON tsr.requester_s21_login = psc.s21_login
+LEFT JOIN user_accounts ua ON tsr.requester_user_id = ua.id AND ua.platform = 'telegram'
+WHERE tsr.requester_user_id = $1
+  AND tsr.status NOT IN ('CLOSED', 'WITHDRAWN')
+ORDER BY tsr.created_at DESC
+`
+
+type GetMyOpenTeamSearchRequestsRow struct {
+	ID                        int64              `json:"id"`
+	RequesterUserID           int64              `json:"requester_user_id"`
+	RequesterS21Login         string             `json:"requester_s21_login"`
+	RequesterCampusID         pgtype.UUID        `json:"requester_campus_id"`
+	ProjectID                 int64              `json:"project_id"`
+	ProjectName               string             `json:"project_name"`
+	ProjectType               string             `json:"project_type"`
+	PlannedStartText          string             `json:"planned_start_text"`
+	RequestNoteText           string             `json:"request_note_text"`
+	RequesterTimezone         string             `json:"requester_timezone"`
+	RequesterTimezoneOffset   string             `json:"requester_timezone_offset"`
+	Status                    EnumReviewStatus   `json:"status"`
+	ViewCount                 int32              `json:"view_count"`
+	ResponseCount             int32              `json:"response_count"`
+	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
+	ClosedAt                  pgtype.Timestamptz `json:"closed_at"`
+	RequesterCampusName       string             `json:"requester_campus_name"`
+	RequesterLevel            interface{}        `json:"requester_level"`
+	RequesterTelegramUsername interface{}        `json:"requester_telegram_username"`
+}
+
+func (q *Queries) GetMyOpenTeamSearchRequests(ctx context.Context, requesterUserID int64) ([]GetMyOpenTeamSearchRequestsRow, error) {
+	rows, err := q.db.Query(ctx, getMyOpenTeamSearchRequests, requesterUserID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetMyOpenTeamSearchRequestsRow
+	for rows.Next() {
+		var i GetMyOpenTeamSearchRequestsRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.RequesterUserID,
+			&i.RequesterS21Login,
+			&i.RequesterCampusID,
+			&i.ProjectID,
+			&i.ProjectName,
+			&i.ProjectType,
+			&i.PlannedStartText,
+			&i.RequestNoteText,
 			&i.RequesterTimezone,
 			&i.RequesterTimezoneOffset,
 			&i.Status,
@@ -2010,6 +2396,116 @@ func (q *Queries) GetMyReviewRequestByID(ctx context.Context, arg GetMyReviewReq
 	return i, err
 }
 
+const getMyTeamSearchRequestByID = `-- name: GetMyTeamSearchRequestByID :one
+SELECT
+    tsr.id,
+    tsr.requester_user_id,
+    tsr.requester_s21_login,
+    tsr.requester_campus_id,
+    tsr.project_id,
+    tsr.project_name,
+    tsr.project_type,
+    tsr.planned_start_text,
+    tsr.request_note_text,
+    tsr.requester_timezone,
+    tsr.requester_timezone_offset,
+    tsr.status,
+    tsr.view_count,
+    tsr.response_count,
+    tsr.negotiating_peer_user_id,
+    COALESCE(tsr.negotiating_peer_s21_login, '') AS negotiating_peer_s21_login,
+    COALESCE(tsr.negotiating_peer_telegram_username, '') AS negotiating_peer_telegram_username,
+    COALESCE(tsr.negotiating_peer_rocketchat_id, '') AS negotiating_peer_rocketchat_id,
+    COALESCE(tsr.negotiating_peer_alternative_contact, '') AS negotiating_peer_alternative_contact,
+    tsr.negotiating_started_at,
+    tsr.created_at,
+    tsr.updated_at,
+    tsr.closed_at,
+    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(psc.level::text, '0') AS requester_level,
+    COALESCE(
+        CASE
+            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            ELSE ''::text
+        END,
+        ''
+    ) AS requester_telegram_username
+FROM team_search_requests tsr
+LEFT JOIN campuses c ON tsr.requester_campus_id = c.id
+LEFT JOIN participant_stats_cache psc ON tsr.requester_s21_login = psc.s21_login
+LEFT JOIN user_accounts ua ON tsr.requester_user_id = ua.id AND ua.platform = 'telegram'
+WHERE tsr.id = $1
+  AND tsr.requester_user_id = $2
+`
+
+type GetMyTeamSearchRequestByIDParams struct {
+	ID              int64 `json:"id"`
+	RequesterUserID int64 `json:"requester_user_id"`
+}
+
+type GetMyTeamSearchRequestByIDRow struct {
+	ID                                int64              `json:"id"`
+	RequesterUserID                   int64              `json:"requester_user_id"`
+	RequesterS21Login                 string             `json:"requester_s21_login"`
+	RequesterCampusID                 pgtype.UUID        `json:"requester_campus_id"`
+	ProjectID                         int64              `json:"project_id"`
+	ProjectName                       string             `json:"project_name"`
+	ProjectType                       string             `json:"project_type"`
+	PlannedStartText                  string             `json:"planned_start_text"`
+	RequestNoteText                   string             `json:"request_note_text"`
+	RequesterTimezone                 string             `json:"requester_timezone"`
+	RequesterTimezoneOffset           string             `json:"requester_timezone_offset"`
+	Status                            EnumReviewStatus   `json:"status"`
+	ViewCount                         int32              `json:"view_count"`
+	ResponseCount                     int32              `json:"response_count"`
+	NegotiatingPeerUserID             pgtype.Int8        `json:"negotiating_peer_user_id"`
+	NegotiatingPeerS21Login           string             `json:"negotiating_peer_s21_login"`
+	NegotiatingPeerTelegramUsername   string             `json:"negotiating_peer_telegram_username"`
+	NegotiatingPeerRocketchatID       string             `json:"negotiating_peer_rocketchat_id"`
+	NegotiatingPeerAlternativeContact string             `json:"negotiating_peer_alternative_contact"`
+	NegotiatingStartedAt              pgtype.Timestamptz `json:"negotiating_started_at"`
+	CreatedAt                         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                         pgtype.Timestamptz `json:"updated_at"`
+	ClosedAt                          pgtype.Timestamptz `json:"closed_at"`
+	RequesterCampusName               string             `json:"requester_campus_name"`
+	RequesterLevel                    interface{}        `json:"requester_level"`
+	RequesterTelegramUsername         interface{}        `json:"requester_telegram_username"`
+}
+
+func (q *Queries) GetMyTeamSearchRequestByID(ctx context.Context, arg GetMyTeamSearchRequestByIDParams) (GetMyTeamSearchRequestByIDRow, error) {
+	row := q.db.QueryRow(ctx, getMyTeamSearchRequestByID, arg.ID, arg.RequesterUserID)
+	var i GetMyTeamSearchRequestByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.RequesterUserID,
+		&i.RequesterS21Login,
+		&i.RequesterCampusID,
+		&i.ProjectID,
+		&i.ProjectName,
+		&i.ProjectType,
+		&i.PlannedStartText,
+		&i.RequestNoteText,
+		&i.RequesterTimezone,
+		&i.RequesterTimezoneOffset,
+		&i.Status,
+		&i.ViewCount,
+		&i.ResponseCount,
+		&i.NegotiatingPeerUserID,
+		&i.NegotiatingPeerS21Login,
+		&i.NegotiatingPeerTelegramUsername,
+		&i.NegotiatingPeerRocketchatID,
+		&i.NegotiatingPeerAlternativeContact,
+		&i.NegotiatingStartedAt,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ClosedAt,
+		&i.RequesterCampusName,
+		&i.RequesterLevel,
+		&i.RequesterTelegramUsername,
+	)
+	return i, err
+}
+
 const getOpenReviewRequestsByProject = `-- name: GetOpenReviewRequestsByProject :many
 SELECT
     rr.id,
@@ -2086,6 +2582,107 @@ func (q *Queries) GetOpenReviewRequestsByProject(ctx context.Context, projectID 
 			&i.ProjectName,
 			&i.ProjectType,
 			&i.AvailabilityText,
+			&i.RequesterTimezone,
+			&i.RequesterTimezoneOffset,
+			&i.Status,
+			&i.ViewCount,
+			&i.ResponseCount,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.ClosedAt,
+			&i.RequesterCampusName,
+			&i.RequesterLevel,
+			&i.RequesterTelegramUsername,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getOpenTeamSearchRequestsByProject = `-- name: GetOpenTeamSearchRequestsByProject :many
+SELECT
+    tsr.id,
+    tsr.requester_user_id,
+    tsr.requester_s21_login,
+    tsr.requester_campus_id,
+    tsr.project_id,
+    tsr.project_name,
+    tsr.project_type,
+    tsr.planned_start_text,
+    tsr.request_note_text,
+    tsr.requester_timezone,
+    tsr.requester_timezone_offset,
+    tsr.status,
+    tsr.view_count,
+    tsr.response_count,
+    tsr.created_at,
+    tsr.updated_at,
+    tsr.closed_at,
+    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(psc.level::text, '0') AS requester_level,
+    COALESCE(
+        CASE
+            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            ELSE ''::text
+        END,
+        ''
+    ) AS requester_telegram_username
+FROM team_search_requests tsr
+LEFT JOIN campuses c ON tsr.requester_campus_id = c.id
+LEFT JOIN participant_stats_cache psc ON tsr.requester_s21_login = psc.s21_login
+LEFT JOIN user_accounts ua ON tsr.requester_user_id = ua.id AND ua.platform = 'telegram'
+WHERE tsr.project_id = $1
+  AND tsr.status = 'SEARCHING'
+ORDER BY tsr.created_at DESC
+`
+
+type GetOpenTeamSearchRequestsByProjectRow struct {
+	ID                        int64              `json:"id"`
+	RequesterUserID           int64              `json:"requester_user_id"`
+	RequesterS21Login         string             `json:"requester_s21_login"`
+	RequesterCampusID         pgtype.UUID        `json:"requester_campus_id"`
+	ProjectID                 int64              `json:"project_id"`
+	ProjectName               string             `json:"project_name"`
+	ProjectType               string             `json:"project_type"`
+	PlannedStartText          string             `json:"planned_start_text"`
+	RequestNoteText           string             `json:"request_note_text"`
+	RequesterTimezone         string             `json:"requester_timezone"`
+	RequesterTimezoneOffset   string             `json:"requester_timezone_offset"`
+	Status                    EnumReviewStatus   `json:"status"`
+	ViewCount                 int32              `json:"view_count"`
+	ResponseCount             int32              `json:"response_count"`
+	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
+	ClosedAt                  pgtype.Timestamptz `json:"closed_at"`
+	RequesterCampusName       string             `json:"requester_campus_name"`
+	RequesterLevel            interface{}        `json:"requester_level"`
+	RequesterTelegramUsername interface{}        `json:"requester_telegram_username"`
+}
+
+func (q *Queries) GetOpenTeamSearchRequestsByProject(ctx context.Context, projectID int64) ([]GetOpenTeamSearchRequestsByProjectRow, error) {
+	rows, err := q.db.Query(ctx, getOpenTeamSearchRequestsByProject, projectID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetOpenTeamSearchRequestsByProjectRow
+	for rows.Next() {
+		var i GetOpenTeamSearchRequestsByProjectRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.RequesterUserID,
+			&i.RequesterS21Login,
+			&i.RequesterCampusID,
+			&i.ProjectID,
+			&i.ProjectName,
+			&i.ProjectType,
+			&i.PlannedStartText,
+			&i.RequestNoteText,
 			&i.RequesterTimezone,
 			&i.RequesterTimezoneOffset,
 			&i.Status,
@@ -2576,8 +3173,137 @@ func (q *Queries) GetRoomByID(ctx context.Context, arg GetRoomByIDParams) (Room,
 	return i, err
 }
 
+const getTeamSearchRequestByID = `-- name: GetTeamSearchRequestByID :one
+SELECT
+    tsr.id,
+    tsr.requester_user_id,
+    tsr.requester_s21_login,
+    tsr.requester_campus_id,
+    tsr.project_id,
+    tsr.project_name,
+    tsr.project_type,
+    tsr.planned_start_text,
+    tsr.request_note_text,
+    tsr.requester_timezone,
+    tsr.requester_timezone_offset,
+    tsr.status,
+    tsr.view_count,
+    tsr.response_count,
+    tsr.created_at,
+    tsr.updated_at,
+    tsr.closed_at,
+    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(psc.level::text, '0') AS requester_level,
+    COALESCE(
+        CASE
+            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            ELSE ''::text
+        END,
+        ''
+    ) AS requester_telegram_username
+FROM team_search_requests tsr
+LEFT JOIN campuses c ON tsr.requester_campus_id = c.id
+LEFT JOIN participant_stats_cache psc ON tsr.requester_s21_login = psc.s21_login
+LEFT JOIN user_accounts ua ON tsr.requester_user_id = ua.id AND ua.platform = 'telegram'
+WHERE tsr.id = $1
+`
+
+type GetTeamSearchRequestByIDRow struct {
+	ID                        int64              `json:"id"`
+	RequesterUserID           int64              `json:"requester_user_id"`
+	RequesterS21Login         string             `json:"requester_s21_login"`
+	RequesterCampusID         pgtype.UUID        `json:"requester_campus_id"`
+	ProjectID                 int64              `json:"project_id"`
+	ProjectName               string             `json:"project_name"`
+	ProjectType               string             `json:"project_type"`
+	PlannedStartText          string             `json:"planned_start_text"`
+	RequestNoteText           string             `json:"request_note_text"`
+	RequesterTimezone         string             `json:"requester_timezone"`
+	RequesterTimezoneOffset   string             `json:"requester_timezone_offset"`
+	Status                    EnumReviewStatus   `json:"status"`
+	ViewCount                 int32              `json:"view_count"`
+	ResponseCount             int32              `json:"response_count"`
+	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
+	ClosedAt                  pgtype.Timestamptz `json:"closed_at"`
+	RequesterCampusName       string             `json:"requester_campus_name"`
+	RequesterLevel            interface{}        `json:"requester_level"`
+	RequesterTelegramUsername interface{}        `json:"requester_telegram_username"`
+}
+
+func (q *Queries) GetTeamSearchRequestByID(ctx context.Context, id int64) (GetTeamSearchRequestByIDRow, error) {
+	row := q.db.QueryRow(ctx, getTeamSearchRequestByID, id)
+	var i GetTeamSearchRequestByIDRow
+	err := row.Scan(
+		&i.ID,
+		&i.RequesterUserID,
+		&i.RequesterS21Login,
+		&i.RequesterCampusID,
+		&i.ProjectID,
+		&i.ProjectName,
+		&i.ProjectType,
+		&i.PlannedStartText,
+		&i.RequestNoteText,
+		&i.RequesterTimezone,
+		&i.RequesterTimezoneOffset,
+		&i.Status,
+		&i.ViewCount,
+		&i.ResponseCount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.ClosedAt,
+		&i.RequesterCampusName,
+		&i.RequesterLevel,
+		&i.RequesterTelegramUsername,
+	)
+	return i, err
+}
+
+const getTeamSearchRequestsForCleanup = `-- name: GetTeamSearchRequestsForCleanup :many
+SELECT
+    id,
+    requester_s21_login,
+    project_id
+FROM team_search_requests
+WHERE status NOT IN ('CLOSED', 'WITHDRAWN')
+  AND updated_at < $1
+ORDER BY updated_at ASC
+LIMIT $2
+`
+
+type GetTeamSearchRequestsForCleanupParams struct {
+	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
+	Limit     int32              `json:"limit"`
+}
+
+type GetTeamSearchRequestsForCleanupRow struct {
+	ID                int64  `json:"id"`
+	RequesterS21Login string `json:"requester_s21_login"`
+	ProjectID         int64  `json:"project_id"`
+}
+
+func (q *Queries) GetTeamSearchRequestsForCleanup(ctx context.Context, arg GetTeamSearchRequestsForCleanupParams) ([]GetTeamSearchRequestsForCleanupRow, error) {
+	rows, err := q.db.Query(ctx, getTeamSearchRequestsForCleanup, arg.UpdatedAt, arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetTeamSearchRequestsForCleanupRow
+	for rows.Next() {
+		var i GetTeamSearchRequestsForCleanupRow
+		if err := rows.Scan(&i.ID, &i.RequesterS21Login, &i.ProjectID); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTelegramGroupByChatID = `-- name: GetTelegramGroupByChatID :one
-SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior FROM telegram_groups
+SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior, moderation_commands_enabled, team_notifications_enabled, team_notifications_thread_id, team_notifications_thread_label, team_withdrawn_behavior FROM telegram_groups
 WHERE chat_id = $1
 `
 
@@ -2603,6 +3329,11 @@ func (q *Queries) GetTelegramGroupByChatID(ctx context.Context, chatID int64) (T
 		&i.PrrNotificationsThreadID,
 		&i.PrrNotificationsThreadLabel,
 		&i.PrrWithdrawnBehavior,
+		&i.ModerationCommandsEnabled,
+		&i.TeamNotificationsEnabled,
+		&i.TeamNotificationsThreadID,
+		&i.TeamNotificationsThreadLabel,
+		&i.TeamWithdrawnBehavior,
 	)
 	return i, err
 }
@@ -2892,6 +3623,21 @@ func (q *Queries) IncrementReviewRequestViewCount(ctx context.Context, id int64)
 	return view_count, err
 }
 
+const incrementTeamSearchRequestViewCount = `-- name: IncrementTeamSearchRequestViewCount :one
+UPDATE team_search_requests
+SET view_count = view_count + 1,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+RETURNING view_count
+`
+
+func (q *Queries) IncrementTeamSearchRequestViewCount(ctx context.Context, id int64) (int32, error) {
+	row := q.db.QueryRow(ctx, incrementTeamSearchRequestViewCount, id)
+	var view_count int32
+	err := row.Scan(&view_count)
+	return view_count, err
+}
+
 const insertTelegramGroupLog = `-- name: InsertTelegramGroupLog :exec
 INSERT INTO telegram_group_logs (
     chat_id, source, telegram_user_id, action, reason, details
@@ -2953,7 +3699,7 @@ func (q *Queries) ListCoalitionsByCampus(ctx context.Context, campusID pgtype.UU
 }
 
 const listMemberTagGroupsByTelegramUser = `-- name: ListMemberTagGroupsByTelegramUser :many
-SELECT g.chat_id, g.chat_title, g.owner_telegram_user_id, g.owner_telegram_username, g.is_initialized, g.is_active, g.created_at, g.updated_at, g.member_tags_enabled, g.member_tag_format, g.defender_enabled, g.defender_remove_blocked, g.defender_ban_duration_sec, g.is_forum, g.prr_notifications_enabled, g.prr_notifications_thread_id, g.prr_notifications_thread_label, g.prr_withdrawn_behavior
+SELECT g.chat_id, g.chat_title, g.owner_telegram_user_id, g.owner_telegram_username, g.is_initialized, g.is_active, g.created_at, g.updated_at, g.member_tags_enabled, g.member_tag_format, g.defender_enabled, g.defender_remove_blocked, g.defender_ban_duration_sec, g.is_forum, g.prr_notifications_enabled, g.prr_notifications_thread_id, g.prr_notifications_thread_label, g.prr_withdrawn_behavior, g.moderation_commands_enabled, g.team_notifications_enabled, g.team_notifications_thread_id, g.team_notifications_thread_label, g.team_withdrawn_behavior
 FROM telegram_groups g
 JOIN telegram_group_members m ON m.chat_id = g.chat_id
 WHERE m.telegram_user_id = $1
@@ -2992,6 +3738,11 @@ func (q *Queries) ListMemberTagGroupsByTelegramUser(ctx context.Context, telegra
 			&i.PrrNotificationsThreadID,
 			&i.PrrNotificationsThreadLabel,
 			&i.PrrWithdrawnBehavior,
+			&i.ModerationCommandsEnabled,
+			&i.TeamNotificationsEnabled,
+			&i.TeamNotificationsThreadID,
+			&i.TeamNotificationsThreadLabel,
+			&i.TeamWithdrawnBehavior,
 		); err != nil {
 			return nil, err
 		}
@@ -3240,6 +3991,104 @@ func (q *Queries) ListTelegramGroupPRRProjectFilters(ctx context.Context, chatID
 	return items, nil
 }
 
+const listTelegramGroupTeamCampusFilters = `-- name: ListTelegramGroupTeamCampusFilters :many
+SELECT id, chat_id, campus_id, created_at FROM telegram_group_team_campus_filters
+WHERE chat_id = $1
+ORDER BY created_at ASC, campus_id
+`
+
+func (q *Queries) ListTelegramGroupTeamCampusFilters(ctx context.Context, chatID int64) ([]TelegramGroupTeamCampusFilter, error) {
+	rows, err := q.db.Query(ctx, listTelegramGroupTeamCampusFilters, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TelegramGroupTeamCampusFilter
+	for rows.Next() {
+		var i TelegramGroupTeamCampusFilter
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.CampusID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTelegramGroupTeamMessagesByRequest = `-- name: ListTelegramGroupTeamMessagesByRequest :many
+SELECT id, team_search_request_id, chat_id, message_id, message_thread_id, last_rendered_status, last_rendered_at, created_at, updated_at FROM telegram_group_team_messages
+WHERE team_search_request_id = $1
+ORDER BY created_at ASC
+`
+
+func (q *Queries) ListTelegramGroupTeamMessagesByRequest(ctx context.Context, teamSearchRequestID int64) ([]TelegramGroupTeamMessage, error) {
+	rows, err := q.db.Query(ctx, listTelegramGroupTeamMessagesByRequest, teamSearchRequestID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TelegramGroupTeamMessage
+	for rows.Next() {
+		var i TelegramGroupTeamMessage
+		if err := rows.Scan(
+			&i.ID,
+			&i.TeamSearchRequestID,
+			&i.ChatID,
+			&i.MessageID,
+			&i.MessageThreadID,
+			&i.LastRenderedStatus,
+			&i.LastRenderedAt,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTelegramGroupTeamProjectFilters = `-- name: ListTelegramGroupTeamProjectFilters :many
+SELECT id, chat_id, project_id, created_at FROM telegram_group_team_project_filters
+WHERE chat_id = $1
+ORDER BY created_at ASC, project_id
+`
+
+func (q *Queries) ListTelegramGroupTeamProjectFilters(ctx context.Context, chatID int64) ([]TelegramGroupTeamProjectFilter, error) {
+	rows, err := q.db.Query(ctx, listTelegramGroupTeamProjectFilters, chatID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TelegramGroupTeamProjectFilter
+	for rows.Next() {
+		var i TelegramGroupTeamProjectFilter
+		if err := rows.Scan(
+			&i.ID,
+			&i.ChatID,
+			&i.ProjectID,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listTelegramGroupWhitelists = `-- name: ListTelegramGroupWhitelists :many
 SELECT id, chat_id, telegram_user_id, added_by_account_id, created_at FROM telegram_group_whitelists
 WHERE chat_id = $1
@@ -3279,7 +4128,7 @@ func (q *Queries) ListTelegramGroupWhitelists(ctx context.Context, arg ListTeleg
 }
 
 const listTelegramGroupsByOwner = `-- name: ListTelegramGroupsByOwner :many
-SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior FROM telegram_groups
+SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior, moderation_commands_enabled, team_notifications_enabled, team_notifications_thread_id, team_notifications_thread_label, team_withdrawn_behavior FROM telegram_groups
 WHERE owner_telegram_user_id = $1
   AND is_active = true
   AND is_initialized = true
@@ -3314,6 +4163,11 @@ func (q *Queries) ListTelegramGroupsByOwner(ctx context.Context, ownerTelegramUs
 			&i.PrrNotificationsThreadID,
 			&i.PrrNotificationsThreadLabel,
 			&i.PrrWithdrawnBehavior,
+			&i.ModerationCommandsEnabled,
+			&i.TeamNotificationsEnabled,
+			&i.TeamNotificationsThreadID,
+			&i.TeamNotificationsThreadLabel,
+			&i.TeamWithdrawnBehavior,
 		); err != nil {
 			return nil, err
 		}
@@ -3326,7 +4180,7 @@ func (q *Queries) ListTelegramGroupsByOwner(ctx context.Context, ownerTelegramUs
 }
 
 const listTelegramGroupsWithPRRNotifications = `-- name: ListTelegramGroupsWithPRRNotifications :many
-SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior FROM telegram_groups
+SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior, moderation_commands_enabled, team_notifications_enabled, team_notifications_thread_id, team_notifications_thread_label, team_withdrawn_behavior FROM telegram_groups
 WHERE is_active = true
   AND is_initialized = true
   AND prr_notifications_enabled = true
@@ -3361,6 +4215,63 @@ func (q *Queries) ListTelegramGroupsWithPRRNotifications(ctx context.Context) ([
 			&i.PrrNotificationsThreadID,
 			&i.PrrNotificationsThreadLabel,
 			&i.PrrWithdrawnBehavior,
+			&i.ModerationCommandsEnabled,
+			&i.TeamNotificationsEnabled,
+			&i.TeamNotificationsThreadID,
+			&i.TeamNotificationsThreadLabel,
+			&i.TeamWithdrawnBehavior,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listTelegramGroupsWithTeamNotifications = `-- name: ListTelegramGroupsWithTeamNotifications :many
+SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior, moderation_commands_enabled, team_notifications_enabled, team_notifications_thread_id, team_notifications_thread_label, team_withdrawn_behavior FROM telegram_groups
+WHERE is_active = true
+  AND is_initialized = true
+  AND team_notifications_enabled = true
+ORDER BY chat_title
+`
+
+func (q *Queries) ListTelegramGroupsWithTeamNotifications(ctx context.Context) ([]TelegramGroup, error) {
+	rows, err := q.db.Query(ctx, listTelegramGroupsWithTeamNotifications)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TelegramGroup
+	for rows.Next() {
+		var i TelegramGroup
+		if err := rows.Scan(
+			&i.ChatID,
+			&i.ChatTitle,
+			&i.OwnerTelegramUserID,
+			&i.OwnerTelegramUsername,
+			&i.IsInitialized,
+			&i.IsActive,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.MemberTagsEnabled,
+			&i.MemberTagFormat,
+			&i.DefenderEnabled,
+			&i.DefenderRemoveBlocked,
+			&i.DefenderBanDurationSec,
+			&i.IsForum,
+			&i.PrrNotificationsEnabled,
+			&i.PrrNotificationsThreadID,
+			&i.PrrNotificationsThreadLabel,
+			&i.PrrWithdrawnBehavior,
+			&i.ModerationCommandsEnabled,
+			&i.TeamNotificationsEnabled,
+			&i.TeamNotificationsThreadID,
+			&i.TeamNotificationsThreadLabel,
+			&i.TeamWithdrawnBehavior,
 		); err != nil {
 			return nil, err
 		}
@@ -3412,6 +4323,50 @@ func (q *Queries) MarkReviewRequestNegotiatingAndIncrementResponses(ctx context.
 		arg.NegotiatingReviewerAlternativeContact,
 	)
 	var i MarkReviewRequestNegotiatingAndIncrementResponsesRow
+	err := row.Scan(&i.ResponseCount, &i.Status)
+	return i, err
+}
+
+const markTeamSearchRequestNegotiatingAndIncrementResponses = `-- name: MarkTeamSearchRequestNegotiatingAndIncrementResponses :one
+UPDATE team_search_requests
+SET response_count = response_count + 1,
+    status = 'NEGOTIATING',
+    updated_at = CURRENT_TIMESTAMP,
+    negotiating_peer_user_id = $2,
+    negotiating_peer_s21_login = $3,
+    negotiating_peer_telegram_username = $4,
+    negotiating_peer_rocketchat_id = $5,
+    negotiating_peer_alternative_contact = $6,
+    negotiating_started_at = CURRENT_TIMESTAMP
+WHERE id = $1
+  AND status = 'SEARCHING'
+RETURNING response_count, status
+`
+
+type MarkTeamSearchRequestNegotiatingAndIncrementResponsesParams struct {
+	ID                                int64       `json:"id"`
+	NegotiatingPeerUserID             pgtype.Int8 `json:"negotiating_peer_user_id"`
+	NegotiatingPeerS21Login           pgtype.Text `json:"negotiating_peer_s21_login"`
+	NegotiatingPeerTelegramUsername   pgtype.Text `json:"negotiating_peer_telegram_username"`
+	NegotiatingPeerRocketchatID       pgtype.Text `json:"negotiating_peer_rocketchat_id"`
+	NegotiatingPeerAlternativeContact pgtype.Text `json:"negotiating_peer_alternative_contact"`
+}
+
+type MarkTeamSearchRequestNegotiatingAndIncrementResponsesRow struct {
+	ResponseCount int32            `json:"response_count"`
+	Status        EnumReviewStatus `json:"status"`
+}
+
+func (q *Queries) MarkTeamSearchRequestNegotiatingAndIncrementResponses(ctx context.Context, arg MarkTeamSearchRequestNegotiatingAndIncrementResponsesParams) (MarkTeamSearchRequestNegotiatingAndIncrementResponsesRow, error) {
+	row := q.db.QueryRow(ctx, markTeamSearchRequestNegotiatingAndIncrementResponses,
+		arg.ID,
+		arg.NegotiatingPeerUserID,
+		arg.NegotiatingPeerS21Login,
+		arg.NegotiatingPeerTelegramUsername,
+		arg.NegotiatingPeerRocketchatID,
+		arg.NegotiatingPeerAlternativeContact,
+	)
+	var i MarkTeamSearchRequestNegotiatingAndIncrementResponsesRow
 	err := row.Scan(&i.ResponseCount, &i.Status)
 	return i, err
 }
@@ -3851,6 +4806,43 @@ func (q *Queries) SetReviewRequestStatus(ctx context.Context, arg SetReviewReque
 	return i, err
 }
 
+const setTeamSearchRequestStatus = `-- name: SetTeamSearchRequestStatus :one
+UPDATE team_search_requests
+SET status = $3::enum_review_status,
+    updated_at = CURRENT_TIMESTAMP,
+    closed_at = CASE
+        WHEN $3::enum_review_status IN ('CLOSED', 'WITHDRAWN') THEN CURRENT_TIMESTAMP
+        ELSE NULL
+    END,
+    negotiating_peer_user_id = CASE WHEN $3::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_peer_user_id END,
+    negotiating_peer_s21_login = CASE WHEN $3::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_peer_s21_login END,
+    negotiating_peer_telegram_username = CASE WHEN $3::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_peer_telegram_username END,
+    negotiating_peer_rocketchat_id = CASE WHEN $3::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_peer_rocketchat_id END,
+    negotiating_peer_alternative_contact = CASE WHEN $3::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_peer_alternative_contact END,
+    negotiating_started_at = CASE WHEN $3::enum_review_status = 'SEARCHING' THEN NULL ELSE negotiating_started_at END
+WHERE id = $1
+  AND requester_user_id = $2
+RETURNING id, status
+`
+
+type SetTeamSearchRequestStatusParams struct {
+	ID              int64            `json:"id"`
+	RequesterUserID int64            `json:"requester_user_id"`
+	Status          EnumReviewStatus `json:"status"`
+}
+
+type SetTeamSearchRequestStatusRow struct {
+	ID     int64            `json:"id"`
+	Status EnumReviewStatus `json:"status"`
+}
+
+func (q *Queries) SetTeamSearchRequestStatus(ctx context.Context, arg SetTeamSearchRequestStatusParams) (SetTeamSearchRequestStatusRow, error) {
+	row := q.db.QueryRow(ctx, setTeamSearchRequestStatus, arg.ID, arg.RequesterUserID, arg.Status)
+	var i SetTeamSearchRequestStatusRow
+	err := row.Scan(&i.ID, &i.Status)
+	return i, err
+}
+
 const unlinkTelegramGroupOwner = `-- name: UnlinkTelegramGroupOwner :exec
 UPDATE telegram_groups
 SET owner_telegram_user_id = 0,
@@ -4120,6 +5112,99 @@ type UpdateTelegramGroupPRRWithdrawnBehaviorByOwnerParams struct {
 
 func (q *Queries) UpdateTelegramGroupPRRWithdrawnBehaviorByOwner(ctx context.Context, arg UpdateTelegramGroupPRRWithdrawnBehaviorByOwnerParams) (int64, error) {
 	result, err := q.db.Exec(ctx, updateTelegramGroupPRRWithdrawnBehaviorByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.PrrWithdrawnBehavior)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateTelegramGroupTeamMessageStatus = `-- name: UpdateTelegramGroupTeamMessageStatus :exec
+UPDATE telegram_group_team_messages
+SET last_rendered_status = $3,
+    last_rendered_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+WHERE team_search_request_id = $1
+  AND chat_id = $2
+`
+
+type UpdateTelegramGroupTeamMessageStatusParams struct {
+	TeamSearchRequestID int64            `json:"team_search_request_id"`
+	ChatID              int64            `json:"chat_id"`
+	LastRenderedStatus  EnumReviewStatus `json:"last_rendered_status"`
+}
+
+func (q *Queries) UpdateTelegramGroupTeamMessageStatus(ctx context.Context, arg UpdateTelegramGroupTeamMessageStatusParams) error {
+	_, err := q.db.Exec(ctx, updateTelegramGroupTeamMessageStatus, arg.TeamSearchRequestID, arg.ChatID, arg.LastRenderedStatus)
+	return err
+}
+
+const updateTelegramGroupTeamNotificationDestinationByOwner = `-- name: UpdateTelegramGroupTeamNotificationDestinationByOwner :execrows
+UPDATE telegram_groups
+SET team_notifications_thread_id = $3,
+    team_notifications_thread_label = $4,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2
+`
+
+type UpdateTelegramGroupTeamNotificationDestinationByOwnerParams struct {
+	ChatID                       int64  `json:"chat_id"`
+	OwnerTelegramUserID          int64  `json:"owner_telegram_user_id"`
+	TeamNotificationsThreadID    int64  `json:"team_notifications_thread_id"`
+	TeamNotificationsThreadLabel string `json:"team_notifications_thread_label"`
+}
+
+func (q *Queries) UpdateTelegramGroupTeamNotificationDestinationByOwner(ctx context.Context, arg UpdateTelegramGroupTeamNotificationDestinationByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateTelegramGroupTeamNotificationDestinationByOwner,
+		arg.ChatID,
+		arg.OwnerTelegramUserID,
+		arg.TeamNotificationsThreadID,
+		arg.TeamNotificationsThreadLabel,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateTelegramGroupTeamNotificationsEnabledByOwner = `-- name: UpdateTelegramGroupTeamNotificationsEnabledByOwner :execrows
+UPDATE telegram_groups
+SET team_notifications_enabled = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2
+`
+
+type UpdateTelegramGroupTeamNotificationsEnabledByOwnerParams struct {
+	ChatID                   int64 `json:"chat_id"`
+	OwnerTelegramUserID      int64 `json:"owner_telegram_user_id"`
+	TeamNotificationsEnabled bool  `json:"team_notifications_enabled"`
+}
+
+func (q *Queries) UpdateTelegramGroupTeamNotificationsEnabledByOwner(ctx context.Context, arg UpdateTelegramGroupTeamNotificationsEnabledByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateTelegramGroupTeamNotificationsEnabledByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.TeamNotificationsEnabled)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateTelegramGroupTeamWithdrawnBehaviorByOwner = `-- name: UpdateTelegramGroupTeamWithdrawnBehaviorByOwner :execrows
+UPDATE telegram_groups
+SET team_withdrawn_behavior = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2
+`
+
+type UpdateTelegramGroupTeamWithdrawnBehaviorByOwnerParams struct {
+	ChatID                int64  `json:"chat_id"`
+	OwnerTelegramUserID   int64  `json:"owner_telegram_user_id"`
+	TeamWithdrawnBehavior string `json:"team_withdrawn_behavior"`
+}
+
+func (q *Queries) UpdateTelegramGroupTeamWithdrawnBehaviorByOwner(ctx context.Context, arg UpdateTelegramGroupTeamWithdrawnBehaviorByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateTelegramGroupTeamWithdrawnBehaviorByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.TeamWithdrawnBehavior)
 	if err != nil {
 		return 0, err
 	}
@@ -4805,7 +5890,7 @@ ON CONFLICT (chat_id) DO UPDATE SET
     is_initialized = EXCLUDED.is_initialized,
     is_active = EXCLUDED.is_active,
     updated_at = CURRENT_TIMESTAMP
-RETURNING chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior
+RETURNING chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior, moderation_commands_enabled, team_notifications_enabled, team_notifications_thread_id, team_notifications_thread_label, team_withdrawn_behavior
 `
 
 type UpsertTelegramGroupParams struct {
@@ -4846,6 +5931,11 @@ func (q *Queries) UpsertTelegramGroup(ctx context.Context, arg UpsertTelegramGro
 		&i.PrrNotificationsThreadID,
 		&i.PrrNotificationsThreadLabel,
 		&i.PrrWithdrawnBehavior,
+		&i.ModerationCommandsEnabled,
+		&i.TeamNotificationsEnabled,
+		&i.TeamNotificationsThreadID,
+		&i.TeamNotificationsThreadLabel,
+		&i.TeamWithdrawnBehavior,
 	)
 	return i, err
 }
@@ -5025,6 +6115,89 @@ type UpsertTelegramGroupPRRProjectFilterByOwnerParams struct {
 
 func (q *Queries) UpsertTelegramGroupPRRProjectFilterByOwner(ctx context.Context, arg UpsertTelegramGroupPRRProjectFilterByOwnerParams) (int64, error) {
 	result, err := q.db.Exec(ctx, upsertTelegramGroupPRRProjectFilterByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.ProjectID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const upsertTelegramGroupTeamCampusFilterByOwner = `-- name: UpsertTelegramGroupTeamCampusFilterByOwner :execrows
+INSERT INTO telegram_group_team_campus_filters (chat_id, campus_id)
+SELECT g.chat_id, $3
+FROM telegram_groups g
+WHERE g.chat_id = $1
+  AND g.owner_telegram_user_id = $2
+ON CONFLICT (chat_id, campus_id) DO NOTHING
+`
+
+type UpsertTelegramGroupTeamCampusFilterByOwnerParams struct {
+	ChatID              int64       `json:"chat_id"`
+	OwnerTelegramUserID int64       `json:"owner_telegram_user_id"`
+	CampusID            pgtype.UUID `json:"campus_id"`
+}
+
+func (q *Queries) UpsertTelegramGroupTeamCampusFilterByOwner(ctx context.Context, arg UpsertTelegramGroupTeamCampusFilterByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, upsertTelegramGroupTeamCampusFilterByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.CampusID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const upsertTelegramGroupTeamMessage = `-- name: UpsertTelegramGroupTeamMessage :exec
+INSERT INTO telegram_group_team_messages (
+    team_search_request_id,
+    chat_id,
+    message_id,
+    message_thread_id,
+    last_rendered_status
+) VALUES (
+    $1, $2, $3, $4, $5
+)
+ON CONFLICT (team_search_request_id, chat_id) DO UPDATE SET
+    message_id = EXCLUDED.message_id,
+    message_thread_id = EXCLUDED.message_thread_id,
+    last_rendered_status = EXCLUDED.last_rendered_status,
+    last_rendered_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertTelegramGroupTeamMessageParams struct {
+	TeamSearchRequestID int64            `json:"team_search_request_id"`
+	ChatID              int64            `json:"chat_id"`
+	MessageID           int64            `json:"message_id"`
+	MessageThreadID     int64            `json:"message_thread_id"`
+	LastRenderedStatus  EnumReviewStatus `json:"last_rendered_status"`
+}
+
+func (q *Queries) UpsertTelegramGroupTeamMessage(ctx context.Context, arg UpsertTelegramGroupTeamMessageParams) error {
+	_, err := q.db.Exec(ctx, upsertTelegramGroupTeamMessage,
+		arg.TeamSearchRequestID,
+		arg.ChatID,
+		arg.MessageID,
+		arg.MessageThreadID,
+		arg.LastRenderedStatus,
+	)
+	return err
+}
+
+const upsertTelegramGroupTeamProjectFilterByOwner = `-- name: UpsertTelegramGroupTeamProjectFilterByOwner :execrows
+INSERT INTO telegram_group_team_project_filters (chat_id, project_id)
+SELECT g.chat_id, $3
+FROM telegram_groups g
+WHERE g.chat_id = $1
+  AND g.owner_telegram_user_id = $2
+ON CONFLICT (chat_id, project_id) DO NOTHING
+`
+
+type UpsertTelegramGroupTeamProjectFilterByOwnerParams struct {
+	ChatID              int64 `json:"chat_id"`
+	OwnerTelegramUserID int64 `json:"owner_telegram_user_id"`
+	ProjectID           int64 `json:"project_id"`
+}
+
+func (q *Queries) UpsertTelegramGroupTeamProjectFilterByOwner(ctx context.Context, arg UpsertTelegramGroupTeamProjectFilterByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, upsertTelegramGroupTeamProjectFilterByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.ProjectID)
 	if err != nil {
 		return 0, err
 	}

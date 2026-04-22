@@ -434,25 +434,56 @@ type Skill struct {
 	UpdatedAt pgtype.Timestamptz `json:"updated_at"`
 }
 
+type TeamSearchRequest struct {
+	ID                                int64              `json:"id"`
+	RequesterUserID                   int64              `json:"requester_user_id"`
+	RequesterS21Login                 string             `json:"requester_s21_login"`
+	RequesterCampusID                 pgtype.UUID        `json:"requester_campus_id"`
+	ProjectID                         int64              `json:"project_id"`
+	ProjectName                       string             `json:"project_name"`
+	ProjectType                       string             `json:"project_type"`
+	PlannedStartText                  string             `json:"planned_start_text"`
+	RequestNoteText                   string             `json:"request_note_text"`
+	RequesterTimezone                 string             `json:"requester_timezone"`
+	RequesterTimezoneOffset           string             `json:"requester_timezone_offset"`
+	Status                            EnumReviewStatus   `json:"status"`
+	ViewCount                         int32              `json:"view_count"`
+	ResponseCount                     int32              `json:"response_count"`
+	CreatedAt                         pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                         pgtype.Timestamptz `json:"updated_at"`
+	ClosedAt                          pgtype.Timestamptz `json:"closed_at"`
+	NegotiatingPeerUserID             pgtype.Int8        `json:"negotiating_peer_user_id"`
+	NegotiatingPeerS21Login           pgtype.Text        `json:"negotiating_peer_s21_login"`
+	NegotiatingPeerTelegramUsername   pgtype.Text        `json:"negotiating_peer_telegram_username"`
+	NegotiatingPeerRocketchatID       pgtype.Text        `json:"negotiating_peer_rocketchat_id"`
+	NegotiatingPeerAlternativeContact pgtype.Text        `json:"negotiating_peer_alternative_contact"`
+	NegotiatingStartedAt              pgtype.Timestamptz `json:"negotiating_started_at"`
+}
+
 type TelegramGroup struct {
-	ChatID                      int64              `json:"chat_id"`
-	ChatTitle                   string             `json:"chat_title"`
-	OwnerTelegramUserID         int64              `json:"owner_telegram_user_id"`
-	OwnerTelegramUsername       string             `json:"owner_telegram_username"`
-	IsInitialized               bool               `json:"is_initialized"`
-	IsActive                    bool               `json:"is_active"`
-	CreatedAt                   pgtype.Timestamptz `json:"created_at"`
-	UpdatedAt                   pgtype.Timestamptz `json:"updated_at"`
-	MemberTagsEnabled           bool               `json:"member_tags_enabled"`
-	MemberTagFormat             string             `json:"member_tag_format"`
-	DefenderEnabled             bool               `json:"defender_enabled"`
-	DefenderRemoveBlocked       bool               `json:"defender_remove_blocked"`
-	DefenderBanDurationSec      int32              `json:"defender_ban_duration_sec"`
-	IsForum                     bool               `json:"is_forum"`
-	PrrNotificationsEnabled     bool               `json:"prr_notifications_enabled"`
-	PrrNotificationsThreadID    int64              `json:"prr_notifications_thread_id"`
-	PrrNotificationsThreadLabel string             `json:"prr_notifications_thread_label"`
-	PrrWithdrawnBehavior        string             `json:"prr_withdrawn_behavior"`
+	ChatID                       int64              `json:"chat_id"`
+	ChatTitle                    string             `json:"chat_title"`
+	OwnerTelegramUserID          int64              `json:"owner_telegram_user_id"`
+	OwnerTelegramUsername        string             `json:"owner_telegram_username"`
+	IsInitialized                bool               `json:"is_initialized"`
+	IsActive                     bool               `json:"is_active"`
+	CreatedAt                    pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt                    pgtype.Timestamptz `json:"updated_at"`
+	MemberTagsEnabled            bool               `json:"member_tags_enabled"`
+	MemberTagFormat              string             `json:"member_tag_format"`
+	DefenderEnabled              bool               `json:"defender_enabled"`
+	DefenderRemoveBlocked        bool               `json:"defender_remove_blocked"`
+	DefenderBanDurationSec       int32              `json:"defender_ban_duration_sec"`
+	IsForum                      bool               `json:"is_forum"`
+	PrrNotificationsEnabled      bool               `json:"prr_notifications_enabled"`
+	PrrNotificationsThreadID     int64              `json:"prr_notifications_thread_id"`
+	PrrNotificationsThreadLabel  string             `json:"prr_notifications_thread_label"`
+	PrrWithdrawnBehavior         string             `json:"prr_withdrawn_behavior"`
+	ModerationCommandsEnabled    bool               `json:"moderation_commands_enabled"`
+	TeamNotificationsEnabled     bool               `json:"team_notifications_enabled"`
+	TeamNotificationsThreadID    int64              `json:"team_notifications_thread_id"`
+	TeamNotificationsThreadLabel string             `json:"team_notifications_thread_label"`
+	TeamWithdrawnBehavior        string             `json:"team_withdrawn_behavior"`
 }
 
 type TelegramGroupDefenderCampusFilter struct {
@@ -491,6 +522,18 @@ type TelegramGroupMember struct {
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 }
 
+type TelegramGroupModerator struct {
+	ID               int64              `json:"id"`
+	ChatID           int64              `json:"chat_id"`
+	TelegramUserID   int64              `json:"telegram_user_id"`
+	CanBan           bool               `json:"can_ban"`
+	CanMute          bool               `json:"can_mute"`
+	FullAccess       bool               `json:"full_access"`
+	AddedByAccountID int64              `json:"added_by_account_id"`
+	CreatedAt        pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt        pgtype.Timestamptz `json:"updated_at"`
+}
+
 type TelegramGroupPrrCampusFilter struct {
 	ID        int64              `json:"id"`
 	ChatID    int64              `json:"chat_id"`
@@ -511,6 +554,32 @@ type TelegramGroupPrrMessage struct {
 }
 
 type TelegramGroupPrrProjectFilter struct {
+	ID        int64              `json:"id"`
+	ChatID    int64              `json:"chat_id"`
+	ProjectID int64              `json:"project_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type TelegramGroupTeamCampusFilter struct {
+	ID        int64              `json:"id"`
+	ChatID    int64              `json:"chat_id"`
+	CampusID  pgtype.UUID        `json:"campus_id"`
+	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type TelegramGroupTeamMessage struct {
+	ID                  int64              `json:"id"`
+	TeamSearchRequestID int64              `json:"team_search_request_id"`
+	ChatID              int64              `json:"chat_id"`
+	MessageID           int64              `json:"message_id"`
+	MessageThreadID     int64              `json:"message_thread_id"`
+	LastRenderedStatus  EnumReviewStatus   `json:"last_rendered_status"`
+	LastRenderedAt      pgtype.Timestamptz `json:"last_rendered_at"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+}
+
+type TelegramGroupTeamProjectFilter struct {
 	ID        int64              `json:"id"`
 	ChatID    int64              `json:"chat_id"`
 	ProjectID int64              `json:"project_id"`

@@ -16,10 +16,14 @@ type Querier interface {
 	ClearTelegramGroupDefenderTribeFiltersByOwner(ctx context.Context, arg ClearTelegramGroupDefenderTribeFiltersByOwnerParams) (int64, error)
 	ClearTelegramGroupPRRCampusFiltersByOwner(ctx context.Context, arg ClearTelegramGroupPRRCampusFiltersByOwnerParams) (int64, error)
 	ClearTelegramGroupPRRProjectFiltersByOwner(ctx context.Context, arg ClearTelegramGroupPRRProjectFiltersByOwnerParams) (int64, error)
+	ClearTelegramGroupTeamCampusFiltersByOwner(ctx context.Context, arg ClearTelegramGroupTeamCampusFiltersByOwnerParams) (int64, error)
+	ClearTelegramGroupTeamProjectFiltersByOwner(ctx context.Context, arg ClearTelegramGroupTeamProjectFiltersByOwnerParams) (int64, error)
 	CloseReviewRequestByID(ctx context.Context, id int64) error
+	CloseTeamSearchRequestByID(ctx context.Context, id int64) error
 	CountBooksByCampus(ctx context.Context, campusID pgtype.UUID) (CountBooksByCampusRow, error)
 	CountBooksByCategory(ctx context.Context, arg CountBooksByCategoryParams) (int32, error)
 	CountOpenReviewRequestsByUser(ctx context.Context, requesterUserID int64) (int32, error)
+	CountOpenTeamSearchRequestsByUser(ctx context.Context, requesterUserID int64) (int32, error)
 	CountSearchBooks(ctx context.Context, arg CountSearchBooksParams) (int32, error)
 	CountSearchCatalogProjects(ctx context.Context, dollar_1 interface{}) (int32, error)
 	CreateApiKey(ctx context.Context, arg CreateApiKeyParams) (ApiKey, error)
@@ -27,6 +31,7 @@ type Querier interface {
 	CreateBookLoan(ctx context.Context, arg CreateBookLoanParams) (BookLoan, error)
 	CreateReviewRequest(ctx context.Context, arg CreateReviewRequestParams) (ReviewRequest, error)
 	CreateRoomBooking(ctx context.Context, arg CreateRoomBookingParams) (RoomBooking, error)
+	CreateTeamSearchRequest(ctx context.Context, arg CreateTeamSearchRequestParams) (TeamSearchRequest, error)
 	CreateUserAccount(ctx context.Context, arg CreateUserAccountParams) (UserAccount, error)
 	DeactivateBooksByCampus(ctx context.Context, campusID pgtype.UUID) error
 	DeactivateClubsByCampus(ctx context.Context, campusID pgtype.UUID) error
@@ -47,10 +52,15 @@ type Querier interface {
 	DeleteTelegramGroupPRRMessageByReviewRequestAndChat(ctx context.Context, arg DeleteTelegramGroupPRRMessageByReviewRequestAndChatParams) (int64, error)
 	DeleteTelegramGroupPRRMessagesByReviewRequest(ctx context.Context, reviewRequestID int64) error
 	DeleteTelegramGroupPRRProjectFilterByOwner(ctx context.Context, arg DeleteTelegramGroupPRRProjectFilterByOwnerParams) (int64, error)
+	DeleteTelegramGroupTeamCampusFilterByOwner(ctx context.Context, arg DeleteTelegramGroupTeamCampusFilterByOwnerParams) (int64, error)
+	DeleteTelegramGroupTeamMessageByRequestAndChat(ctx context.Context, arg DeleteTelegramGroupTeamMessageByRequestAndChatParams) (int64, error)
+	DeleteTelegramGroupTeamMessagesByRequest(ctx context.Context, teamSearchRequestID int64) error
+	DeleteTelegramGroupTeamProjectFilterByOwner(ctx context.Context, arg DeleteTelegramGroupTeamProjectFilterByOwnerParams) (int64, error)
 	DeleteTelegramGroupWhitelistByOwner(ctx context.Context, arg DeleteTelegramGroupWhitelistByOwnerParams) (int64, error)
 	DeleteUserAccountByExternalId(ctx context.Context, arg DeleteUserAccountByExternalIdParams) error
 	ExistsCoalitionByID(ctx context.Context, arg ExistsCoalitionByIDParams) (bool, error)
 	ExistsOpenReviewRequestByUserAndProject(ctx context.Context, arg ExistsOpenReviewRequestByUserAndProjectParams) (bool, error)
+	ExistsOpenTeamSearchRequestByUserAndProject(ctx context.Context, arg ExistsOpenTeamSearchRequestByUserAndProjectParams) (bool, error)
 	ExistsTelegramGroupWhitelist(ctx context.Context, arg ExistsTelegramGroupWhitelistParams) (bool, error)
 	GetActiveApiKey(ctx context.Context, userAccountID int64) (ApiKey, error)
 	GetActiveRoomsByCampus(ctx context.Context, campusID pgtype.UUID) ([]Room, error)
@@ -73,13 +83,17 @@ type Querier interface {
 	GetFSMState(ctx context.Context, userID int64) (FsmUserState, error)
 	GetGlobalClubs(ctx context.Context) ([]GetGlobalClubsRow, error)
 	GetGlobalReviewProjectGroups(ctx context.Context) ([]GetGlobalReviewProjectGroupsRow, error)
+	GetGlobalTeamProjectGroups(ctx context.Context) ([]GetGlobalTeamProjectGroupsRow, error)
 	GetLastAuthVerificationCode(ctx context.Context, s21Login pgtype.Text) (AuthVerificationCode, error)
 	GetLocalClubs(ctx context.Context, campusID pgtype.UUID) ([]GetLocalClubsRow, error)
 	GetMyOpenReviewRequests(ctx context.Context, requesterUserID int64) ([]GetMyOpenReviewRequestsRow, error)
+	GetMyOpenTeamSearchRequests(ctx context.Context, requesterUserID int64) ([]GetMyOpenTeamSearchRequestsRow, error)
 	// Профиль зарегистрированного пользователя: регистрационные данные + статистика из кеша.
 	GetMyProfile(ctx context.Context, s21Login string) (GetMyProfileRow, error)
 	GetMyReviewRequestByID(ctx context.Context, arg GetMyReviewRequestByIDParams) (GetMyReviewRequestByIDRow, error)
+	GetMyTeamSearchRequestByID(ctx context.Context, arg GetMyTeamSearchRequestByIDParams) (GetMyTeamSearchRequestByIDRow, error)
 	GetOpenReviewRequestsByProject(ctx context.Context, projectID int64) ([]GetOpenReviewRequestsByProjectRow, error)
+	GetOpenTeamSearchRequestsByProject(ctx context.Context, projectID int64) ([]GetOpenTeamSearchRequestsByProjectRow, error)
 	GetParticipantSkills(ctx context.Context, s21Login string) ([]GetParticipantSkillsRow, error)
 	GetParticipantStatsCache(ctx context.Context, s21Login string) (GetParticipantStatsCacheRow, error)
 	// Профиль пира: из кеша статистики + telegram username если зарегистрирован.
@@ -93,6 +107,8 @@ type Querier interface {
 	GetRocketChatCredentials(ctx context.Context, s21Login string) (RocketchatCredential, error)
 	GetRoomBookingsByDate(ctx context.Context, arg GetRoomBookingsByDateParams) ([]GetRoomBookingsByDateRow, error)
 	GetRoomByID(ctx context.Context, arg GetRoomByIDParams) (Room, error)
+	GetTeamSearchRequestByID(ctx context.Context, id int64) (GetTeamSearchRequestByIDRow, error)
+	GetTeamSearchRequestsForCleanup(ctx context.Context, arg GetTeamSearchRequestsForCleanupParams) ([]GetTeamSearchRequestsForCleanupRow, error)
 	GetTelegramGroupByChatID(ctx context.Context, chatID int64) (TelegramGroup, error)
 	GetUserAccountByExternalId(ctx context.Context, arg GetUserAccountByExternalIdParams) (UserAccount, error)
 	GetUserAccountByID(ctx context.Context, id int64) (UserAccount, error)
@@ -106,6 +122,7 @@ type Querier interface {
 	HasActiveBooks(ctx context.Context, campusID pgtype.UUID) (bool, error)
 	HasActiveRooms(ctx context.Context, campusID pgtype.UUID) (bool, error)
 	IncrementReviewRequestViewCount(ctx context.Context, id int64) (int32, error)
+	IncrementTeamSearchRequestViewCount(ctx context.Context, id int64) (int32, error)
 	InsertTelegramGroupLog(ctx context.Context, arg InsertTelegramGroupLogParams) error
 	ListCoalitionsByCampus(ctx context.Context, campusID pgtype.UUID) ([]Coalition, error)
 	ListMemberTagGroupsByTelegramUser(ctx context.Context, telegramUserID int64) ([]TelegramGroup, error)
@@ -116,10 +133,15 @@ type Querier interface {
 	ListTelegramGroupPRRCampusFilters(ctx context.Context, chatID int64) ([]TelegramGroupPrrCampusFilter, error)
 	ListTelegramGroupPRRMessagesByReviewRequest(ctx context.Context, reviewRequestID int64) ([]TelegramGroupPrrMessage, error)
 	ListTelegramGroupPRRProjectFilters(ctx context.Context, chatID int64) ([]TelegramGroupPrrProjectFilter, error)
+	ListTelegramGroupTeamCampusFilters(ctx context.Context, chatID int64) ([]TelegramGroupTeamCampusFilter, error)
+	ListTelegramGroupTeamMessagesByRequest(ctx context.Context, teamSearchRequestID int64) ([]TelegramGroupTeamMessage, error)
+	ListTelegramGroupTeamProjectFilters(ctx context.Context, chatID int64) ([]TelegramGroupTeamProjectFilter, error)
 	ListTelegramGroupWhitelists(ctx context.Context, arg ListTelegramGroupWhitelistsParams) ([]TelegramGroupWhitelist, error)
 	ListTelegramGroupsByOwner(ctx context.Context, ownerTelegramUserID int64) ([]TelegramGroup, error)
 	ListTelegramGroupsWithPRRNotifications(ctx context.Context) ([]TelegramGroup, error)
+	ListTelegramGroupsWithTeamNotifications(ctx context.Context) ([]TelegramGroup, error)
 	MarkReviewRequestNegotiatingAndIncrementResponses(ctx context.Context, arg MarkReviewRequestNegotiatingAndIncrementResponsesParams) (MarkReviewRequestNegotiatingAndIncrementResponsesRow, error)
+	MarkTeamSearchRequestNegotiatingAndIncrementResponses(ctx context.Context, arg MarkTeamSearchRequestNegotiatingAndIncrementResponsesParams) (MarkTeamSearchRequestNegotiatingAndIncrementResponsesRow, error)
 	MarkTelegramGroupMemberLeft(ctx context.Context, arg MarkTelegramGroupMemberLeftParams) error
 	ReturnBookLoan(ctx context.Context, arg ReturnBookLoanParams) error
 	RevokeOldApiKeys(ctx context.Context, userAccountID int64) error
@@ -129,6 +151,7 @@ type Querier interface {
 	SearchCatalogProjects(ctx context.Context, arg SearchCatalogProjectsParams) ([]SearchCatalogProjectsRow, error)
 	SearchCatalogProjectsAll(ctx context.Context, dollar_1 interface{}) ([]SearchCatalogProjectsAllRow, error)
 	SetReviewRequestStatus(ctx context.Context, arg SetReviewRequestStatusParams) (SetReviewRequestStatusRow, error)
+	SetTeamSearchRequestStatus(ctx context.Context, arg SetTeamSearchRequestStatusParams) (SetTeamSearchRequestStatusRow, error)
 	UnlinkTelegramGroupOwner(ctx context.Context, chatID int64) error
 	UnlinkTelegramGroupOwnerIfOwner(ctx context.Context, arg UnlinkTelegramGroupOwnerIfOwnerParams) (int64, error)
 	UpdateRoomBookingDuration(ctx context.Context, arg UpdateRoomBookingDurationParams) error
@@ -142,6 +165,10 @@ type Querier interface {
 	UpdateTelegramGroupPRRNotificationDestinationByOwner(ctx context.Context, arg UpdateTelegramGroupPRRNotificationDestinationByOwnerParams) (int64, error)
 	UpdateTelegramGroupPRRNotificationsEnabledByOwner(ctx context.Context, arg UpdateTelegramGroupPRRNotificationsEnabledByOwnerParams) (int64, error)
 	UpdateTelegramGroupPRRWithdrawnBehaviorByOwner(ctx context.Context, arg UpdateTelegramGroupPRRWithdrawnBehaviorByOwnerParams) (int64, error)
+	UpdateTelegramGroupTeamMessageStatus(ctx context.Context, arg UpdateTelegramGroupTeamMessageStatusParams) error
+	UpdateTelegramGroupTeamNotificationDestinationByOwner(ctx context.Context, arg UpdateTelegramGroupTeamNotificationDestinationByOwnerParams) (int64, error)
+	UpdateTelegramGroupTeamNotificationsEnabledByOwner(ctx context.Context, arg UpdateTelegramGroupTeamNotificationsEnabledByOwnerParams) (int64, error)
+	UpdateTelegramGroupTeamWithdrawnBehaviorByOwner(ctx context.Context, arg UpdateTelegramGroupTeamWithdrawnBehaviorByOwnerParams) (int64, error)
 	UpdateUserAccountSearchableByExternalId(ctx context.Context, arg UpdateUserAccountSearchableByExternalIdParams) (UserAccount, error)
 	UpsertBook(ctx context.Context, arg UpsertBookParams) (Book, error)
 	UpsertCampus(ctx context.Context, arg UpsertCampusParams) (Campuse, error)
@@ -167,6 +194,9 @@ type Querier interface {
 	UpsertTelegramGroupPRRCampusFilterByOwner(ctx context.Context, arg UpsertTelegramGroupPRRCampusFilterByOwnerParams) (int64, error)
 	UpsertTelegramGroupPRRMessage(ctx context.Context, arg UpsertTelegramGroupPRRMessageParams) error
 	UpsertTelegramGroupPRRProjectFilterByOwner(ctx context.Context, arg UpsertTelegramGroupPRRProjectFilterByOwnerParams) (int64, error)
+	UpsertTelegramGroupTeamCampusFilterByOwner(ctx context.Context, arg UpsertTelegramGroupTeamCampusFilterByOwnerParams) (int64, error)
+	UpsertTelegramGroupTeamMessage(ctx context.Context, arg UpsertTelegramGroupTeamMessageParams) error
+	UpsertTelegramGroupTeamProjectFilterByOwner(ctx context.Context, arg UpsertTelegramGroupTeamProjectFilterByOwnerParams) (int64, error)
 	UpsertTelegramGroupWhitelist(ctx context.Context, arg UpsertTelegramGroupWhitelistParams) (TelegramGroupWhitelist, error)
 	UpsertUserBotSettings(ctx context.Context, arg UpsertUserBotSettingsParams) (UserBotSetting, error)
 }
