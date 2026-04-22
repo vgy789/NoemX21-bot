@@ -159,25 +159,34 @@ func (s *OTPService) sendOTPViaRocketChat(ctx context.Context, s21Login, code st
 
 	fullName := strings.TrimSpace(fmt.Sprintf("%s %s", ui.FirstName, ui.LastName))
 	if fullName == "" {
-		fullName = "No Name"
+		fullName = "Unknown"
 	}
+	requestedAt := time.Now().UTC().Format(time.RFC3339)
 
 	fullNameEscaped := escape(fullName)
 	usernameEscaped := escape(ui.Username)
 	platformEscaped := escape(ui.Platform)
+	requestedAtEscaped := escape(requestedAt)
 
 	message := fmt.Sprintf(
-		"🔐 *NOEMX21-BOT* | КОД ПОДТВЕРЖДЕНИЯ: *%s*\n\n"+
-			"---\n"+
-			"Действует: %d минут\n"+
-			"Код запросил пользователь *%s* id: *%d* username: *%s* platform: *%s*\n"+
-			"Не передавай код третьим лицам.\n\n",
+		"🔐 *NOEMX21-BOT* – _Одноразовый код подтверждения_\n\n"+
+			"*Твой код:*\n"+
+			"`%s`\n\n"+
+			"Код действует *%d минут*.\n\n"+
+			"*Данные запроса:*\n"+
+			"Telegram user id: *%d*\n"+
+			"Telegram username: *%s*\n"+
+			"Telegram name: *%s*\n"+
+			"Platform: *%s*\n"+
+			"Requested at \\(UTC\\): *%s*\n\n"+
+			"Не передавайте код третьим лицам. Если это были не вы, просто проигнорируйте это сообщение.",
 		code,
 		otpExpiryMinutes(s.otpExpiresIn()),
-		fullNameEscaped,
 		ui.ID,
 		usernameEscaped,
+		fullNameEscaped,
 		platformEscaped,
+		requestedAtEscaped,
 	)
 	_, err = s.rcClient.SendDirectMessage(ctx, regUser.RocketchatID, message)
 	if err != nil {

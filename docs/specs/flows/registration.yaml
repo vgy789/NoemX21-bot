@@ -269,7 +269,7 @@ states:
       - condition: email_already_registered == true
         next_state: ERROR_EMAIL_ALREADY_REGISTERED
       - condition: rocket_user_found == true
-        next_state: GENERATE_OTP
+        next_state: CONFIRM_ROCKET_OTP_DISCLOSURE
       - condition: rocket_user_not_found == true
         next_state: ROCKET_USER_NOT_FOUND
       - condition: rocket_api_error == true
@@ -279,6 +279,37 @@ states:
       text:
         ru: "📡 *Ищу тебя в Rocket.Chat...* `LOOKING`"
         en: "📡 *Searching for you in Rocket.Chat...* `LOOKING`"
+
+  CONFIRM_ROCKET_OTP_DISCLOSURE:
+    type: interactive
+    description: Подтверждение отправки OTP в Rocket.Chat с раскрытием Telegram данных
+    interface:
+      text:
+        ru: |
+          ⚠️ *Перед отправкой кода*
+
+          Тебе будет отправлен код в Rocket.Chat, но в сообщении будут указаны твои `Telegram user id`, `username`.
+
+          Если ты не хочешь раскрывать свой Telegram профиль в сообщениях Rocket.Chat, выбери другой способ подтверждения.
+        en: |
+          ⚠️ *Before sending the code*
+
+          A code will be sent to you in Rocket.Chat, and the message will include your `Telegram user id`, `username`.
+
+          If you do not want to expose your Telegram profile details in Rocket.Chat messages, choose another verification method.
+      buttons:
+        - id: send
+          label:
+            ru: ✅ Отправляй
+            en: ✅ Send it
+          next_state: GENERATE_OTP
+          row: 1
+        - id: back
+          label:
+            ru: 🔙 Другой способ
+            en: 🔙 Another method
+          next_state: SELECT_OTP_METHOD
+          row: 2
 
   GENERATE_OTP:
     type: system

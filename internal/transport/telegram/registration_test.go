@@ -286,6 +286,12 @@ func TestRegistration_RocketChatOTPDoesNotShowEmailHint(t *testing.T) {
 	render, err = ts.engine.Process(ctx, userID, "auth_rocketchat")
 	require.NoError(t, err)
 	require.NotNil(t, render)
+	assert.Contains(t, render.Text, "Telegram user id")
+	assert.Contains(t, render.Text, "выбери другой способ подтверждения")
+
+	render, err = ts.engine.Process(ctx, userID, "send")
+	require.NoError(t, err)
+	require.NotNil(t, render)
 	assert.Contains(t, render.Text, "Лови код")
 	assert.NotContains(t, render.Text, "Письмо должно прийти с адреса")
 	assert.NotContains(t, render.Text, "Спам")
