@@ -197,13 +197,13 @@ states:
         ru: |
           📞 *Профиль / Запасной контакт*
 
-          Напиши, как ещё с тобой связаться (почта, другой мессенджер, ~номер квартиры~).
+          Напиши, как ещё с тобой связаться (почта, другой мессенджер).
 
           _Максимум 42 символа._
         en: |
           📞 *Profile / Backup Contact*
 
-          Tell us how else to reach you (email, other messenger, apartment number).
+          Tell us how else to reach you (email, other messenger).
 
           _Max 42 characters._
       error_invalid:

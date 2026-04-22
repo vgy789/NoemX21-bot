@@ -96,13 +96,9 @@ states:
     interface:
       text:
         ru: |
-          ✅ Отлично.
-
-          Выбери способ подтверждения:
+          ✅ Отлично. Выбери способ подтверждения:
         en: |
-          ✅ Great.
-
-          Choose verification method:
+          ✅ Great. Choose verification method:
       buttons:
         - id: auth_email
           label:
@@ -117,12 +113,12 @@ states:
             en: 🔐 Rocket.Chat token
           next_state: INPUT_ROCKET_USER_ID
           row: 1
-        - id: auth_rocketchat
-          label:
-            ru: ❌ Rocket.Chat (недоступно)
-            en: ❌ Rocket.Chat (unavailable)
-          next_state: ROCKETCHAT_UNAVAILABLE
-          row: 2
+        #- id: auth_rocketchat
+        #  label:
+        #    ru: ❌ Rocket.Chat (недоступно)
+        #    en: ❌ Rocket.Chat (unavailable)
+        #  next_state: ROCKETCHAT_UNAVAILABLE
+        #  row: 2
         - id: back
           label:
             ru: "🔙 Назад"
@@ -152,9 +148,33 @@ states:
     interface:
       text:
         ru: |
-          🔐 Введи свой `Rocket.Chat user id`.
+          🔐 Введи свой `Rocket.Chat user Id`:
+
+
+          ℹ️ *Как получить ID и Токен*
+
+          1. [Зайди в Rocket через браузер](https://rocketchat-student.21-school.ru/account/tokens) (в мобильном приложении функции нет):
+           `Аватар` → `Настройки` → `Токены для личного доступа`.
+          2. Впиши любое название в поле имени.
+          3. В выпадающем списке рядом с кнопкой выбери *«Игнорировать двухфакторную авторизацию»*.
+          4. Нажми «Добавить», скопируй появившиеся `id` и `Token` и отправь их боту.
+          5. Как только бот подтвердит вход, токен можно сразу удалить (иконка корзины).
+
+          _Бот использует эти данные только один раз для проверки личности и не хранит их у себя._
         en: |
-          🔐 Enter your `Rocket.Chat user id`.
+          🔐 Enter your `Rocket.Chat user Id`:
+
+
+          ℹ️ *How to get your ID and Token*
+
+          1. *[Open Rocket in a browser](https://rocketchat-student.21-school.ru/account/tokens)* (this feature is not available in the mobile app):
+           `Avatar` → `Settings` → `Personal Access Tokens`.
+          2. *Create a token*: enter any name in the "Token Name" field.
+          3. *Bypass 2FA*: in the dropdown menu next to the button, select *"Ignore Two-Factor Authentication."*
+          4. *Save the data*: click "Add," copy the generated `id` and `Token`, and send them to the bot.
+          5. *Delete when done*: once the bot confirms your login, you can immediately delete the token (trash icon).
+
+          _The bot uses this data only once to verify your identity and does not store it._
       error_invalid:
         ru: |
           ❌ Неверный формат user id.
@@ -190,9 +210,9 @@ states:
     interface:
       text:
         ru: |
-          🔑 Теперь введи свой `Rocket.Chat auth token`.
+          🔐 Теперь введи `Token`, полученный в предыдущем шаге:
         en: |
-          🔑 Now enter your `Rocket.Chat auth token`.
+          🔐 Now enter the `Token` you received in the previous step:
       error_invalid:
         ru: |
           ❌ Неверный формат токена.
@@ -206,11 +226,6 @@ states:
             ru: "🔙 Назад"
             en: "🔙 Back"
           next_state: INPUT_ROCKET_USER_ID
-        - id: help_token
-          label:
-            ru: "ℹ️ Где взять токен?"
-            en: "ℹ️ How to get token?"
-          next_state: ROCKET_TOKEN_HELP
     validation:
       regex: ^[A-Za-z0-9_-]{16,300}$
     transitions:
@@ -645,84 +660,23 @@ states:
         ru: |
           ❌ *Токен не подошёл.*
 
-          Проверь `user id` и `auth token` в Rocket.Chat и попробуй снова.
+          Проверь `user Id` и `auth Token` в Rocket.Chat и попробуй снова.
         en: |
           ❌ *Token verification failed.*
 
-          Check your Rocket.Chat `user id` and `auth token`, then try again.
+          Check your Rocket.Chat `user Id` and `auth Token`, then try again.
       buttons:
         - id: retry
           label:
             ru: 🔄 Ввести заново
             en: 🔄 Re-enter
           next_state: INPUT_ROCKET_USER_ID
-        - id: help
-          label:
-            ru: ℹ️ Инструкция по токену
-            en: ℹ️ Token guide
-          next_state: ROCKET_TOKEN_HELP
         - id: back
           label:
             ru: "🔙 Назад"
             en: "🔙 Back"
           next_state: SELECT_OTP_METHOD
 
-  ROCKET_TOKEN_HELP:
-    type: interactive
-    description: Инструкция по получению Rocket.Chat токена
-    interface:
-      text:
-        ru: |
-          🔐 *Как получить Rocket.Chat token*
-
-          1. Открой в браузере:
-          https://rocketchat-student.21-school.ru/account/tokens
-          В мобильном приложении этой функции нет.
-
-          2. Либо открой вручную:
-          `Аватарка → Настройки → Токены для личного доступа`.
-
-          3. В поле имени введи любое случайное название токена.
-
-          4. Рядом с кнопкой добавления переключи выпадающий список на
-          `Игнорировать двухфакторную авторизацию`.
-
-          5. Нажми `Добавить`, затем скопируй `id` и `Token`.
-
-          6. Введи их в боте. После успешного входа токен можно удалить через значок корзины.
-
-          Бот не сохраняет токен у себя: он используется только для подтверждения аккаунта.
-        en: |
-          🔐 *How to create a Rocket.Chat token*
-
-          1. Open in browser:
-          https://rocketchat-student.21-school.ru/account/tokens
-          This is not available in the mobile app.
-
-          2. Or open manually:
-          `Avatar → Settings → Personal Access Tokens`.
-
-          3. Enter any random token name.
-
-          4. Near the Add button, switch dropdown to
-          `Ignore two-factor authentication`.
-
-          5. Click `Add`, then copy both `id` and `Token`.
-
-          6. Enter them in the bot. After successful sign-in, you can delete the token via the trash icon.
-
-          The bot does not store your token; it is used only for account verification.
-      buttons:
-        - id: to_input
-          label:
-            ru: ✍️ Ввести token
-            en: ✍️ Enter token
-          next_state: INPUT_ROCKET_TOKEN
-        - id: back
-          label:
-            ru: "🔙 Назад"
-            en: "🔙 Back"
-          next_state: INPUT_ROCKET_USER_ID
   ERROR_EMAIL_ALREADY_REGISTERED:
     type: interactive
     description: Логин уже зарегистрирован
