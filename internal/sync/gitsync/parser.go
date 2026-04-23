@@ -37,9 +37,15 @@ type RoomsFileYAML struct {
 	Rooms []RoomYAML `yaml:"rooms"`
 }
 
+type CampusNameYAML struct {
+	En string `yaml:"en"`
+	Ru string `yaml:"ru"`
+}
+
 type CampusFileYAML struct {
-	IsActive bool   `yaml:"is_active"`
-	Timezone string `yaml:"timezone"`
+	IsActive bool           `yaml:"is_active"`
+	Name     CampusNameYAML `yaml:"name"`
+	Timezone string         `yaml:"timezone"`
 }
 
 type CatalogProjectYAML struct {

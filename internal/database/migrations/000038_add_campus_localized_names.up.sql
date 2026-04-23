@@ -1,0 +1,3 @@
+ALTER TABLE campuses
+ADD COLUMN name_en VARCHAR(255),
+ADD COLUMN name_ru VARCHAR(255);

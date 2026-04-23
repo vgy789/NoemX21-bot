@@ -234,7 +234,7 @@ func TestQueries_Remaining(t *testing.T) {
 	t.Run("GetCampusByShortName", func(t *testing.T) {
 		mockRow := new(MockRow)
 		mockDB.On("QueryRow", ctx, getCampusByShortName, mock.Anything).Return(mockRow)
-		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		_, _ = q.GetCampusByShortName(ctx, "moscow")
 	})
 
@@ -307,8 +307,8 @@ func TestQueries_MoreTests(t *testing.T) {
 
 	t.Run("UpsertCampus", func(t *testing.T) {
 		mockRow := new(MockRow)
-		mockDB.On("QueryRow", ctx, upsertCampus, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(mockRow)
-		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		mockDB.On("QueryRow", ctx, upsertCampus, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(mockRow)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		_, _ = q.UpsertCampus(ctx, UpsertCampusParams{})
 	})
 
@@ -340,7 +340,7 @@ func TestQueries_MoreTests(t *testing.T) {
 	t.Run("GetCampusByID", func(t *testing.T) {
 		mockRow := new(MockRow)
 		mockDB.On("QueryRow", ctx, getCampusByID, mock.Anything).Return(mockRow)
-		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		_, _ = q.GetCampusByID(ctx, pgtype.UUID{})
 	})
 

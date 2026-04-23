@@ -672,7 +672,7 @@ LIMIT 1;
 SELECT * FROM campuses WHERE short_name = $1;
 
 -- name: GetCampusByID :one
-SELECT id, short_name, full_name, timezone, is_active, leader_name, leader_form_link, created_at, updated_at FROM campuses WHERE id = $1;
+SELECT id, short_name, full_name, name_en, name_ru, timezone, is_active, leader_name, leader_form_link, created_at, updated_at FROM campuses WHERE id = $1;
  
 INSERT INTO club_categories (name) VALUES ($1)
 ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
@@ -720,11 +720,13 @@ WHERE campus_id = $1;
 
 
 -- name: UpsertCampus :one
-INSERT INTO campuses (id, short_name, full_name, timezone, is_active, leader_name, leader_form_link)
-VALUES ($1, $2, $3, $4, $5, $6, $7)
+INSERT INTO campuses (id, short_name, full_name, name_en, name_ru, timezone, is_active, leader_name, leader_form_link)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 ON CONFLICT (id) DO UPDATE SET
     short_name = EXCLUDED.short_name,
     full_name = EXCLUDED.full_name,
+    name_en = COALESCE(EXCLUDED.name_en, campuses.name_en),
+    name_ru = COALESCE(EXCLUDED.name_ru, campuses.name_ru),
     timezone = EXCLUDED.timezone,
     is_active = EXCLUDED.is_active,
     leader_name = COALESCE(EXCLUDED.leader_name, campuses.leader_name),
@@ -756,7 +758,7 @@ WHERE ss.s21_login = $1;
 -- name: GetParticipantStatsCache :one
 SELECT
     c.s21_login,
-    camp.short_name AS campus_name,
+    COALESCE(NULLIF(BTRIM(camp.name_ru), ''), NULLIF(BTRIM(camp.name_en), ''), NULLIF(BTRIM(camp.short_name), ''), '') AS campus_name,
     co.name AS coalition_name,
     c.status,
     c.level,
@@ -814,7 +816,7 @@ SELECT
     r.alternative_contact,
     r.has_coffee_ban,
     camp.id AS campus_id,
-    camp.short_name AS campus_name,
+    COALESCE(NULLIF(BTRIM(camp.name_ru), ''), NULLIF(BTRIM(camp.name_en), ''), NULLIF(BTRIM(camp.short_name), ''), '') AS campus_name,
     co.name AS coalition_name,
     c.status,
     c.level,
@@ -841,7 +843,7 @@ SELECT
     COALESCE(ua.username, '') AS telegram_username,
     COALESCE(ua.external_id, '') AS external_id,
     ua.is_searchable,
-    camp.short_name AS campus_name,
+    COALESCE(NULLIF(BTRIM(camp.name_ru), ''), NULLIF(BTRIM(camp.name_en), ''), NULLIF(BTRIM(camp.short_name), ''), '') AS campus_name,
     co.name AS coalition_name,
     c.status,
     c.level,
@@ -861,7 +863,9 @@ LEFT JOIN coalitions co ON c.campus_id = co.campus_id AND c.coalition_id = co.id
 LEFT JOIN user_accounts ua ON c.s21_login = ua.s21_login AND ua.platform = 'telegram'
 WHERE c.s21_login = $1;
 -- name: GetCampusByShortName :one
-SELECT * FROM campuses WHERE short_name = $1;
+SELECT id, short_name, full_name, name_en, name_ru, timezone, is_active, created_at, updated_at, leader_name, leader_form_link
+FROM campuses
+WHERE short_name = $1;
 
 -- name: UpsertClubCategory :one
 INSERT INTO club_categories (name)
@@ -880,7 +884,7 @@ SELECT
     cat.name as category_name,
     c.is_local,
     c.is_active,
-    camp.short_name as campus_name
+    COALESCE(NULLIF(BTRIM(camp.name_ru), ''), NULLIF(BTRIM(camp.name_en), ''), NULLIF(BTRIM(camp.short_name), ''), '') as campus_name
 FROM clubs c
 JOIN club_categories cat ON c.category_id = cat.id
 JOIN campuses camp ON c.campus_id = camp.id
@@ -897,7 +901,7 @@ SELECT
     cat.name as category_name,
     c.is_local,
     c.is_active,
-    camp.short_name as campus_name
+    COALESCE(NULLIF(BTRIM(camp.name_ru), ''), NULLIF(BTRIM(camp.name_en), ''), NULLIF(BTRIM(camp.short_name), ''), '') as campus_name
 FROM clubs c
 JOIN club_categories cat ON c.category_id = cat.id
 JOIN campuses camp ON c.campus_id = camp.id
@@ -1121,7 +1125,7 @@ AND c.is_active = true
 GROUP BY c.id, c.short_name, c.full_name, c.timezone;
 
 -- name: GetAllActiveCampuses :many
-SELECT id, short_name, full_name, timezone
+SELECT id, short_name, full_name, name_en, name_ru, timezone
 FROM campuses
 WHERE is_active = true
 ORDER BY short_name;
@@ -1194,7 +1198,7 @@ SELECT
     rr.created_at,
     rr.updated_at,
     rr.closed_at,
-    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(NULLIF(BTRIM(c.name_ru), ''), NULLIF(BTRIM(c.name_en), ''), NULLIF(BTRIM(c.short_name), ''), '') AS requester_campus_name,
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
@@ -1241,7 +1245,7 @@ SELECT
     rr.created_at,
     rr.updated_at,
     rr.closed_at,
-    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(NULLIF(BTRIM(c.name_ru), ''), NULLIF(BTRIM(c.name_en), ''), NULLIF(BTRIM(c.short_name), ''), '') AS requester_campus_name,
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
@@ -1283,7 +1287,7 @@ SELECT
     rr.created_at,
     rr.updated_at,
     rr.closed_at,
-    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(NULLIF(BTRIM(c.name_ru), ''), NULLIF(BTRIM(c.name_en), ''), NULLIF(BTRIM(c.short_name), ''), '') AS requester_campus_name,
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
@@ -1318,7 +1322,7 @@ SELECT
     rr.created_at,
     rr.updated_at,
     rr.closed_at,
-    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(NULLIF(BTRIM(c.name_ru), ''), NULLIF(BTRIM(c.name_en), ''), NULLIF(BTRIM(c.short_name), ''), '') AS requester_campus_name,
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
@@ -1449,7 +1453,7 @@ SELECT
     tsr.created_at,
     tsr.updated_at,
     tsr.closed_at,
-    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(NULLIF(BTRIM(c.name_ru), ''), NULLIF(BTRIM(c.name_en), ''), NULLIF(BTRIM(c.short_name), ''), '') AS requester_campus_name,
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
@@ -1496,7 +1500,7 @@ SELECT
     tsr.created_at,
     tsr.updated_at,
     tsr.closed_at,
-    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(NULLIF(BTRIM(c.name_ru), ''), NULLIF(BTRIM(c.name_en), ''), NULLIF(BTRIM(c.short_name), ''), '') AS requester_campus_name,
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
@@ -1538,7 +1542,7 @@ SELECT
     tsr.created_at,
     tsr.updated_at,
     tsr.closed_at,
-    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(NULLIF(BTRIM(c.name_ru), ''), NULLIF(BTRIM(c.name_en), ''), NULLIF(BTRIM(c.short_name), ''), '') AS requester_campus_name,
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
@@ -1573,7 +1577,7 @@ SELECT
     tsr.created_at,
     tsr.updated_at,
     tsr.closed_at,
-    COALESCE(c.short_name, '') AS requester_campus_name,
+    COALESCE(NULLIF(BTRIM(c.name_ru), ''), NULLIF(BTRIM(c.name_en), ''), NULLIF(BTRIM(c.short_name), ''), '') AS requester_campus_name,
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
