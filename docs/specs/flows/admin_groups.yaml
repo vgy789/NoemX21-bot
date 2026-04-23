@@ -496,13 +496,13 @@ states:
         ru: |
           🏫 *Фильтр кампусов для PRR-радара*
 
-          🏫 Текущие кампусы: {current_campus_filters_text}
+          Текущий фильтр: {current_campus_filters_text}
 
           {campus_filter_list_formatted}
         en: |
           🏫 *Campus filters for PRR Radar*
 
-          🏫 Current campuses: {current_campus_filters_text}
+          Current filter: {current_campus_filters_text}
 
           {campus_filter_list_formatted}
       buttons:

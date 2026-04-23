@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/vgy789/noemx21-bot/internal/campuslabel"
 	"github.com/vgy789/noemx21-bot/internal/clients/s21"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
@@ -338,7 +339,7 @@ func Register(
 				state.Context["my_coins"] = points.Coins
 			}
 			if participant.Campus.ID != "" {
-				state.Context["my_campus"] = participant.Campus.ShortName
+				state.Context["my_campus"] = campuslabel.Lookup(ctx, queries, cacheParams.CampusID, participant.Campus.ShortName)
 				b := cacheParams.CampusID.Bytes
 				state.Context["campus_id"] = fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 			}
@@ -419,11 +420,16 @@ func Register(
 			feedback, _ = s21Client.GetParticipantFeedback(ctx, token, login)
 		}
 
+		var peerCampusID pgtype.UUID
+		if participant.Campus.ID != "" {
+			_ = peerCampusID.Scan(participant.Campus.ID)
+		}
+
 		// 3. Prepare variables
 		vars := map[string]any{
 			"peer_found":               true,
 			"peer_login":               strings.ToLower(participant.Login),
-			"peer_campus":              participant.Campus.ShortName,
+			"peer_campus":              campuslabel.Lookup(ctx, queries, peerCampusID, participant.Campus.ShortName),
 			"peer_coalition":           defaultCoalitionValue,
 			"peer_level":               participant.Level,
 			"peer_exp":                 participant.ExpValue,

@@ -437,14 +437,14 @@ states:
     interface:
       text:
         ru: |
-          📁 *Проект: {selected_project_name_md}*
+          📁 Проект: `{selected_project_name}`
           Тип: `{selected_project_type}`
 
           _Выбери пира, которому готов помочь. Утк одобряет взаимовыручку!_ 🦆
 
           {project_prr_list_formatted}
         en: |
-          📁 *Project: {selected_project_name_md}*
+          📁 Project: `{selected_project_name}`
           Type: `{selected_project_type}`
 
           _Pick a peer you're ready to help. Duc approves of peer-to-peer!_ 🦆
@@ -1487,15 +1487,13 @@ states:
     interface:
       text:
         ru: |
-          📁 *Проект: {selected_team_project_name_md}*
-          Тип: `{selected_team_project_type}`
+          📁 Проект: `{selected_team_project_name}`
 
           _Выбери заявку, чтобы посмотреть детали и откликнуться._
 
           {project_team_list_formatted}
         en: |
-          📁 *Project: {selected_team_project_name_md}*
-          Type: `{selected_team_project_type}`
+          📁 Project: `{selected_team_project_name}`
 
           _Pick a request to view details and respond._
 
@@ -1581,7 +1579,6 @@ states:
           👤 {nickname} (lvl {peer_level})
           📍 Кампус: {peer_campus}
           📁 Проект: #{project_name}
-          🧩 Тип: {project_type}
 
           ⏰ *Когда стартуют:*
           {team_planned_start_text}
@@ -1601,7 +1598,6 @@ states:
           👤 {nickname} (lvl {peer_level})
           📍 Campus: {peer_campus}
           📁 #Project: {project_name}
-          🧩 Type: {project_type}
 
           ⏰ *Planned start:*
           {team_planned_start_text}

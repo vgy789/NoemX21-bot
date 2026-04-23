@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/vgy789/noemx21-bot/internal/campuslabel"
 	"github.com/vgy789/noemx21-bot/internal/clients/s21"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
@@ -170,13 +171,17 @@ func registerReviewActions(
 		projects := parseAvailableProjects(payload["available_projects"])
 		page := max(ToInt(payload["page"]), 1)
 		pageItems, page, totalPages, hasPrev, hasNext := paginateProjects(projects, page, reviewsPageSize)
+		pageCaption := ""
+		if totalPages > 1 {
+			pageCaption = fmt.Sprintf("%d/%d", page, totalPages)
+		}
 
 		updates := map[string]any{
 			"available_projects_count":           len(projects),
 			"available_projects_has_prev_page":   hasPrev,
 			"available_projects_has_next_page":   hasNext,
-			"available_projects_page_caption_ru": fmt.Sprintf("%d/%d", page, totalPages),
-			"available_projects_page_caption_en": fmt.Sprintf("%d/%d", page, totalPages),
+			"available_projects_page_caption_ru": pageCaption,
+			"available_projects_page_caption_en": pageCaption,
 			"available_projects_list_hint":       fmt.Sprintf("Всего доступно: %d", len(projects)),
 			"create_prr_projects_page":           page,
 		}
@@ -502,6 +507,7 @@ func registerReviewActions(
 
 		page := max(ToInt(payload["page"]), 1)
 		pageItems, page, totalPages, hasPrev, hasNext := paginateProjectRequests(rows, page, reviewsPageSize)
+		lang := ToString(payload["language"])
 
 		selectedProjectName := normalizeMarkdownEscapes(defaultString(payload["selected_project_name"], "Unknown project"))
 		updates := map[string]any{
@@ -514,14 +520,15 @@ func registerReviewActions(
 			"project_prr_has_next_page":   hasNext,
 			"project_prr_page_caption_ru": fmt.Sprintf("%d/%d", page, totalPages),
 			"project_prr_page_caption_en": fmt.Sprintf("%d/%d", page, totalPages),
-			"project_prr_list_formatted":  formatProjectRequestRows(pageItems),
+			"project_prr_list_formatted":  formatProjectRequestRows(pageItems, lang),
 		}
 		clearProjectRequestVars(updates)
 		for i, row := range pageItems {
 			n := i + 1
 			id := strconv.FormatInt(row.ID, 10)
 			updates[fmt.Sprintf("project_prr_id_%d", n)] = id
-			updates[fmt.Sprintf("project_prr_btn_label_%d", n)] = fmt.Sprintf("%s %s · %s", statusEmoji(row.Status), row.RequesterS21Login, nonEmpty(row.RequesterCampusName, "Unknown campus"))
+			campusName := campuslabel.Localize(row.RequesterCampusName, lang)
+			updates[fmt.Sprintf("project_prr_btn_label_%d", n)] = fmt.Sprintf("%s %s · %s", statusEmoji(row.Status), row.RequesterS21Login, nonEmpty(campusName, "Unknown campus"))
 		}
 		if len(rows) > 0 {
 			updates["selected_project_name"] = normalizeMarkdownEscapes(rows[0].ProjectName)
@@ -1043,7 +1050,7 @@ func registerReviewActions(
 		lang := ToString(payload["language"])
 		page := max(ToInt(payload["page"]), 1)
 
-		items, page, totalPages, hasPrev, hasNext, err := loadCampusFilterCandidates(ctx, queries, selected, page)
+		items, page, totalPages, hasPrev, hasNext, err := loadCampusFilterCandidates(ctx, queries, selected, page, lang)
 		if err != nil {
 			log.Warn("reviews: failed to load campus filter candidates", "error", err)
 		}
@@ -1379,13 +1386,14 @@ func formatProjectGroups(groups []reviewProjectGroup) string {
 	return strings.TrimSpace(b.String())
 }
 
-func formatProjectRequestRows(rows []db.GetOpenReviewRequestsByProjectRow) string {
+func formatProjectRequestRows(rows []db.GetOpenReviewRequestsByProjectRow, lang string) string {
 	if len(rows) == 0 {
 		return "Нет активных заявок для этого проекта."
 	}
 	var b strings.Builder
 	for i, r := range rows {
-		_, _ = fmt.Fprintf(&b, "%s %d. %s, %s, %s\n", statusEmoji(r.Status), i+1, r.RequesterS21Login, nonEmpty(r.RequesterCampusName, "Unknown campus"), nonEmpty(r.AvailabilityText, "Flexible"))
+		campusName := campuslabel.Localize(r.RequesterCampusName, lang)
+		_, _ = fmt.Fprintf(&b, "%s %d. %s, %s, %s\n", statusEmoji(r.Status), i+1, r.RequesterS21Login, nonEmpty(campusName, "Unknown campus"), nonEmpty(r.AvailabilityText, "Flexible"))
 	}
 	return strings.TrimSpace(b.String())
 }
@@ -1403,6 +1411,7 @@ func formatMyRequestRows(rows []db.GetMyOpenReviewRequestsRow) string {
 
 func detailUpdatesFromReviewRow(ctx context.Context, queries db.Querier, row db.GetReviewRequestByIDRow, lang, viewerOffset string) map[string]any {
 	requesterOffset := normalizeUTCOffset(row.RequesterTimezoneOffset)
+	requesterCampus := campuslabel.Localize(row.RequesterCampusName, lang)
 	updates := map[string]any{
 		"selected_prr_id":                    strconv.FormatInt(row.ID, 10),
 		"selected_prr_owner_user_id":         row.RequesterUserID,
@@ -1417,7 +1426,7 @@ func detailUpdatesFromReviewRow(ctx context.Context, queries db.Querier, row db.
 		"requester_rocketchat_id":            "",
 		"requester_alternative_contact":      "",
 		"requester_alternative_contact_line": "",
-		"peer_campus":                        nonEmpty(row.RequesterCampusName, "Unknown campus"),
+		"peer_campus":                        nonEmpty(requesterCampus, "Unknown campus"),
 		"peer_level":                         nonEmpty(strings.TrimSpace(ToString(row.RequesterLevel)), "0"),
 		"time_description":                   nonEmpty(row.AvailabilityText, "Flexible"),
 		"prr_request_note_text":              nonEmpty(strings.TrimSpace(row.RequestNoteText), "—"),
@@ -2354,6 +2363,7 @@ func loadCampusFilterCandidates(
 	queries db.Querier,
 	selected map[string]bool,
 	page int,
+	lang string,
 ) ([]campusFilterCandidate, int, int, bool, bool, error) {
 	rows, err := queries.GetAllActiveCampuses(ctx)
 	if err != nil {
@@ -2366,11 +2376,9 @@ func loadCampusFilterCandidates(
 		if id == "" {
 			continue
 		}
-		shortName := strings.TrimSpace(row.ShortName)
-		fullName := strings.TrimSpace(row.FullName)
-		label := nonEmpty(shortName, id)
-		if fullName != "" && !strings.EqualFold(fullName, shortName) {
-			label = fmt.Sprintf("%s · %s", label, fullName)
+		label := campuslabel.Pick(row.NameEn.String, row.NameRu.String, row.ShortName, row.FullName, lang)
+		if label == "" {
+			label = id
 		}
 		items = append(items, campusFilterCandidate{
 			ID:    id,
@@ -2479,7 +2487,7 @@ func campusFilterText(ctx context.Context, queries db.Querier, selected map[stri
 			if id == "" {
 				continue
 			}
-			lookup[id] = nonEmpty(strings.TrimSpace(row.ShortName), id)
+			lookup[id] = nonEmpty(campuslabel.Pick(row.NameEn.String, row.NameRu.String, row.ShortName, row.FullName, lang), id)
 		}
 	}
 

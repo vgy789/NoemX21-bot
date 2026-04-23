@@ -11,6 +11,7 @@ import (
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/vgy789/noemx21-bot/internal/campuslabel"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 )
@@ -99,6 +100,7 @@ func loadPRRGroupNotificationData(ctx context.Context, queries db.Querier, revie
 	}
 
 	campus := strings.TrimSpace(row.RequesterCampusName)
+	campus = campuslabel.Localize(campus, fsm.LangRu)
 	if campus == "" {
 		campus = "Unknown campus"
 	}

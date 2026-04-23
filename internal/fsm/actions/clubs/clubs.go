@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/vgy789/noemx21-bot/internal/campuslabel"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 	"gopkg.in/yaml.v3"
@@ -68,7 +69,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, variousPath strin
 			"leader_name":           campus.LeaderName.String,
 			"leader_form_link":      campus.LeaderFormLink.String,
 			"campus_id":             campusIDStr, // Ensure it's back in context
-			"my_campus":             campus.ShortName,
+			"my_campus":             campuslabel.Pick(campus.NameEn.String, campus.NameRu.String, campus.ShortName, campus.FullName, stringFromPayload(payload, "language")),
 			"bot_telegram_link":     botTelegramLink,
 			"bot_content_repo_link": botContentRepoLink,
 			"bot_repo_link":         botRepoLink,
@@ -317,7 +318,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, variousPath strin
 					if localClubs, err := queries.GetLocalClubs(ctx, campusUUID); err == nil {
 						for _, c := range localClubs {
 							if c.ID == clubID {
-								card := formatLocalClubCard(c)
+								card := formatLocalClubCard(c, stringFromPayload(payload, "my_campus"), stringFromPayload(payload, "language"))
 								return "", map[string]any{
 									"club_card": card,
 									"club_name": normalizeClubText(c.Name),
@@ -339,7 +340,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, variousPath strin
 		if selectedCampusName != "" {
 			for _, c := range globalClubs {
 				if c.ID == clubID && c.CampusName == selectedCampusName {
-					card := formatClubCard(c)
+					card := formatClubCard(c, stringFromPayload(payload, "language"))
 					return "", map[string]any{
 						"club_card": card,
 						"club_name": normalizeClubText(c.Name),
@@ -352,7 +353,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, variousPath strin
 
 		for _, c := range globalClubs {
 			if c.ID == clubID {
-				card := formatClubCard(c)
+				card := formatClubCard(c, stringFromPayload(payload, "language"))
 				return "", map[string]any{
 					"club_card": card,
 					"club_name": normalizeClubText(c.Name),
@@ -368,7 +369,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, variousPath strin
 				if localClubs, err := queries.GetLocalClubs(ctx, campusUUID); err == nil {
 					for _, c := range localClubs {
 						if c.ID == clubID {
-							card := formatLocalClubCard(c)
+							card := formatLocalClubCard(c, stringFromPayload(payload, "my_campus"), stringFromPayload(payload, "language"))
 							return "", map[string]any{
 								"club_card": card,
 								"club_name": normalizeClubText(c.Name),
@@ -422,7 +423,7 @@ func formatGlobalClubs(clubs []db.GetGlobalClubsRow) string {
 }
 
 // formatClubCard formats a global club as a detailed card
-func formatClubCard(c db.GetGlobalClubsRow) string {
+func formatClubCard(c db.GetGlobalClubsRow, lang string) string {
 	var sb strings.Builder
 	_, _ = fmt.Fprintf(&sb, "*%s*\n\n", escapeClubMarkdown(c.Name))
 
@@ -434,14 +435,14 @@ func formatClubCard(c db.GetGlobalClubsRow) string {
 		_, _ = fmt.Fprintf(&sb, "👤 *Лидер:* %s\n", escapeClubMarkdown(c.LeaderLogin.String))
 	}
 	_, _ = fmt.Fprintf(&sb, "📂 *Категория:* %s\n", escapeClubMarkdown(c.CategoryName))
-	if c.CampusName != "" {
-		_, _ = fmt.Fprintf(&sb, "📍 *Кампус:* %s\n", escapeClubMarkdown(c.CampusName))
+	if campusName := campuslabel.Localize(c.CampusName, lang); campusName != "" {
+		_, _ = fmt.Fprintf(&sb, "📍 *Кампус:* %s\n", escapeClubMarkdown(campusName))
 	}
 	return sb.String()
 }
 
-// formatLocalClubCard formats a local club as a detailed card
-func formatLocalClubCard(c db.GetLocalClubsRow) string {
+// formatLocalClubCard formats a local club as a detailed card.
+func formatLocalClubCard(c db.GetLocalClubsRow, campusName, lang string) string {
 	var sb strings.Builder
 	_, _ = fmt.Fprintf(&sb, "*%s*\n\n", escapeClubMarkdown(c.Name))
 
@@ -453,7 +454,12 @@ func formatLocalClubCard(c db.GetLocalClubsRow) string {
 		_, _ = fmt.Fprintf(&sb, "👤 *Лидер:* %s\n", escapeClubMarkdown(c.LeaderLogin.String))
 	}
 	_, _ = fmt.Fprintf(&sb, "📂 *Категория:* %s\n", escapeClubMarkdown(c.CategoryName))
-	_, _ = fmt.Fprintf(&sb, "📍 *Организовали в:* %s\n", escapeClubMarkdown(c.CampusName))
+	if strings.TrimSpace(campusName) == "" {
+		campusName = c.CampusName
+	}
+	if campusName = campuslabel.Localize(campusName, lang); campusName != "" {
+		_, _ = fmt.Fprintf(&sb, "📍 *Организовали в:* %s\n", escapeClubMarkdown(campusName))
+	}
 	return sb.String()
 }
 

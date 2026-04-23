@@ -10,6 +10,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/vgy789/noemx21-bot/internal/campuslabel"
 	"github.com/vgy789/noemx21-bot/internal/clients/s21"
 	"github.com/vgy789/noemx21-bot/internal/config"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
@@ -431,7 +432,7 @@ func registerTeamActions(
 			"project_team_has_next_page":   hasNext,
 			"project_team_page_caption_ru": fmt.Sprintf("%d/%d", page, totalPages),
 			"project_team_page_caption_en": fmt.Sprintf("%d/%d", page, totalPages),
-			"project_team_list_formatted":  formatProjectTeamRequestRows(pageItems),
+			"project_team_list_formatted":  formatProjectTeamRequestRows(pageItems, ToString(payload["language"])),
 			"selected_team_project_name":   normalizeMarkdownEscapes(defaultString(payload["selected_team_project_name"], "Unknown project")),
 			"selected_team_project_type":   defaultString(payload["selected_team_project_type"], "GROUP"),
 		}
@@ -859,24 +860,25 @@ func formatTeamProjectGroups(groups []reviewProjectGroup) string {
 	}
 	var b strings.Builder
 	for i, g := range groups {
-		_, _ = fmt.Fprintf(&b, "%d. %s (%s) - %d запросов\n", i+1, g.Name, g.Type, g.Count)
+		_, _ = fmt.Fprintf(&b, "%d. %s - %d запросов\n", i+1, g.Name, g.Count)
 	}
 	return strings.TrimSpace(b.String())
 }
 
-func formatProjectTeamRequestRows(rows []db.GetOpenTeamSearchRequestsByProjectRow) string {
+func formatProjectTeamRequestRows(rows []db.GetOpenTeamSearchRequestsByProjectRow, lang string) string {
 	if len(rows) == 0 {
 		return "Нет активных запросов по этому проекту."
 	}
 	var b strings.Builder
 	for i, row := range rows {
+		campusName := campuslabel.Localize(row.RequesterCampusName, lang)
 		_, _ = fmt.Fprintf(
 			&b,
 			"%s %d. %s, %s, старт: %s, %s\n",
 			statusEmoji(row.Status),
 			i+1,
 			row.RequesterS21Login,
-			nonEmpty(row.RequesterCampusName, "Unknown campus"),
+			nonEmpty(campusName, "Unknown campus"),
 			nonEmpty(row.PlannedStartText, "Flexible"),
 			truncateForList(nonEmpty(row.RequestNoteText, "Ищу команду"), 48),
 		)
@@ -950,6 +952,7 @@ func setMyTeamRequestStatus(
 
 func detailUpdatesFromTeamRow(ctx context.Context, queries db.Querier, row db.GetTeamSearchRequestByIDRow, lang, viewerOffset string) map[string]any {
 	requesterOffset := normalizeUTCOffset(row.RequesterTimezoneOffset)
+	requesterCampus := campuslabel.Localize(row.RequesterCampusName, lang)
 	updates := map[string]any{
 		"selected_team_request_id":           strconv.FormatInt(row.ID, 10),
 		"selected_team_request_status":       string(row.Status),
@@ -964,7 +967,7 @@ func detailUpdatesFromTeamRow(ctx context.Context, queries db.Querier, row db.Ge
 		"requester_rocketchat_id":            "",
 		"requester_alternative_contact":      "",
 		"requester_alternative_contact_line": "",
-		"peer_campus":                        nonEmpty(row.RequesterCampusName, "Unknown campus"),
+		"peer_campus":                        nonEmpty(requesterCampus, "Unknown campus"),
 		"peer_level":                         nonEmpty(strings.TrimSpace(ToString(row.RequesterLevel)), "0"),
 		"team_planned_start_text":            nonEmpty(row.PlannedStartText, "Flexible"),
 		"team_request_note_text":             nonEmpty(row.RequestNoteText, "Ищу команду"),

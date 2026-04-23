@@ -218,6 +218,32 @@ func TestBuildPRRGroupStatusMessage_Formats(t *testing.T) {
 	assert.NotContains(t, text, "\\_")
 }
 
+func TestLoadPRRGroupNotificationData_LocalizesCampusName(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	queries := dbmock.NewMockQuerier(ctrl)
+	prrID := int64(999)
+	campusID := mustUUID(t, "44444444-4444-4444-4444-444444444444")
+
+	queries.EXPECT().GetReviewRequestByID(gomock.Any(), prrID).Return(db.GetReviewRequestByIDRow{
+		ID:                  prrID,
+		ProjectID:           15,
+		ProjectName:         "NetPractice",
+		RequesterS21Login:   "student3",
+		RequesterCampusID:   campusID,
+		RequesterCampusName: "Moscow / Москва",
+		RequesterLevel:      "3",
+	}, nil)
+	queries.EXPECT().GetRegisteredUserByS21Login(gomock.Any(), "student3").Return(db.RegisteredUser{
+		S21Login: "student3",
+	}, nil)
+
+	data, err := loadPRRGroupNotificationData(context.Background(), queries, prrID)
+	require.NoError(t, err)
+	require.Equal(t, "Москва", data.RequesterCampus)
+}
+
 func mustUUID(t *testing.T, raw string) pgtype.UUID {
 	t.Helper()
 	var id pgtype.UUID

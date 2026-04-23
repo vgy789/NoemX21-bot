@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/vgy789/noemx21-bot/internal/campuslabel"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 	"github.com/vgy789/noemx21-bot/internal/fsm/actions/common"
@@ -431,7 +432,7 @@ func getUserSummary(ctx context.Context, queries db.Querier, userID int64, paylo
 	if campusUUID.Valid {
 		vars["campus_id"] = campusUUID
 		if campus, err := queries.GetCampusByID(ctx, campusUUID); err == nil {
-			vars["campus_name"] = campus.ShortName
+			vars["campus_name"] = campuslabel.Pick(campus.NameEn.String, campus.NameRu.String, campus.ShortName, campus.FullName, common.ToString(payload["language"]))
 		}
 	}
 

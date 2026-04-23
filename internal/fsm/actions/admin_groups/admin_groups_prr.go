@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/vgy789/noemx21-bot/internal/campuslabel"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 )
@@ -270,22 +271,28 @@ func loadGroupPRRContext(ctx context.Context, queries db.Querier, userID int64, 
 
 	campusSet := map[string]bool{}
 	if len(campusFilters) > 0 {
-		labels := make([]string, 0, len(campusFilters))
+		labelsRU := make([]string, 0, len(campusFilters))
+		labelsEN := make([]string, 0, len(campusFilters))
 		for _, row := range campusFilters {
-			campusSet[uuidToString(row.CampusID)] = true
-			label := uuidToString(row.CampusID)
+			id := uuidToString(row.CampusID)
+			campusSet[id] = true
+			labelRU := id
+			labelEN := id
 			if campus, cErr := queries.GetCampusByID(ctx, row.CampusID); cErr == nil {
-				label = strings.TrimSpace(campus.ShortName)
-				if label == "" {
-					label = strings.TrimSpace(campus.FullName)
+				if resolved := campuslabel.Pick(campus.NameEn.String, campus.NameRu.String, campus.ShortName, campus.FullName, fsm.LangRu); resolved != "" {
+					labelRU = resolved
+				}
+				if resolved := campuslabel.Pick(campus.NameEn.String, campus.NameRu.String, campus.ShortName, campus.FullName, fsm.LangEn); resolved != "" {
+					labelEN = resolved
 				}
 			}
-			labels = append(labels, label)
+			labelsRU = append(labelsRU, labelRU)
+			labelsEN = append(labelsEN, labelEN)
 		}
-		sort.Strings(labels)
-		joined := strings.Join(labels, ", ")
-		updates["group_prr_campus_filters_label_ru"] = joined
-		updates["group_prr_campus_filters_label_en"] = joined
+		sort.Strings(labelsRU)
+		sort.Strings(labelsEN)
+		updates["group_prr_campus_filters_label_ru"] = strings.Join(labelsRU, ", ")
+		updates["group_prr_campus_filters_label_en"] = strings.Join(labelsEN, ", ")
 	}
 
 	updates["filter_project_ids"] = encodeStringSet(projectSet)

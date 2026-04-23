@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgtype"
+	"github.com/vgy789/noemx21-bot/internal/campuslabel"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 )
@@ -158,7 +159,7 @@ func registerDefenderActions(registry *fsm.LogicRegistry, log logger, queries db
 			return "", updates, nil
 		}
 		page := parsePositiveInt(payload["defender_campus_page"], 1)
-		applyDefenderCampusButtons(updates, campuses, campusFilterSet(selectedRows), page)
+		applyDefenderCampusButtons(updates, campuses, campusFilterSet(selectedRows), page, payloadLanguage(payload))
 		return "", updates, nil
 	})
 
@@ -238,7 +239,7 @@ func registerDefenderActions(registry *fsm.LogicRegistry, log logger, queries db
 			selectedRows, err := queries.ListTelegramGroupDefenderCampusFilters(ctx, chatID)
 			if err == nil {
 				page := parsePositiveInt(payload["defender_campus_page"], 1)
-				applyDefenderCampusButtons(updates, campuses, campusFilterSet(selectedRows), page)
+				applyDefenderCampusButtons(updates, campuses, campusFilterSet(selectedRows), page, payloadLanguage(payload))
 			}
 		}
 		return "", updates, nil
@@ -416,7 +417,7 @@ func registerDefenderActions(registry *fsm.LogicRegistry, log logger, queries db
 			selected[uuidToString(selectedCampus)] = struct{}{}
 		}
 		page := parsePositiveInt(payload["defender_campus_page"], 1)
-		applyDefenderCampusButtons(updates, campuses, selected, page)
+		applyDefenderCampusButtons(updates, campuses, selected, page, payloadLanguage(payload))
 		return "", updates, nil
 	})
 
@@ -430,15 +431,16 @@ func registerDefenderActions(registry *fsm.LogicRegistry, log logger, queries db
 		}
 		updates["defender_cleanup_target_campus_id"] = uuidToString(campusID)
 		if campus, err := queries.GetCampusByID(ctx, campusID); err == nil {
-			name := strings.TrimSpace(campus.ShortName)
-			if name == "" {
-				name = strings.TrimSpace(campus.FullName)
+			nameRU := campuslabel.Pick(campus.NameEn.String, campus.NameRu.String, campus.ShortName, campus.FullName, fsm.LangRu)
+			nameEN := campuslabel.Pick(campus.NameEn.String, campus.NameRu.String, campus.ShortName, campus.FullName, fsm.LangEn)
+			if nameRU == "" {
+				nameRU = uuidToString(campusID)
 			}
-			if name == "" {
-				name = uuidToString(campusID)
+			if nameEN == "" {
+				nameEN = uuidToString(campusID)
 			}
-			updates["defender_cleanup_target_campus_label_ru"] = name
-			updates["defender_cleanup_target_campus_label_en"] = name
+			updates["defender_cleanup_target_campus_label_ru"] = nameRU
+			updates["defender_cleanup_target_campus_label_en"] = nameEN
 		}
 		return "", updates, nil
 	})
@@ -1350,27 +1352,30 @@ func applyDefenderFilterLabels(
 	campusFilters []db.TelegramGroupDefenderCampusFilter,
 	tribeFilters []db.TelegramGroupDefenderTribeFilter,
 ) {
-	campusLabels := make([]string, 0, len(campusFilters))
+	campusLabelsRU := make([]string, 0, len(campusFilters))
+	campusLabelsEN := make([]string, 0, len(campusFilters))
 	for _, row := range campusFilters {
-		label := uuidToString(row.CampusID)
+		labelRU := uuidToString(row.CampusID)
+		labelEN := labelRU
 		if campus, err := queries.GetCampusByID(ctx, row.CampusID); err == nil {
-			name := strings.TrimSpace(campus.ShortName)
-			if name == "" {
-				name = strings.TrimSpace(campus.FullName)
+			if name := campuslabel.Pick(campus.NameEn.String, campus.NameRu.String, campus.ShortName, campus.FullName, fsm.LangRu); name != "" {
+				labelRU = name
 			}
-			if name != "" {
-				label = name
+			if name := campuslabel.Pick(campus.NameEn.String, campus.NameRu.String, campus.ShortName, campus.FullName, fsm.LangEn); name != "" {
+				labelEN = name
 			}
 		}
-		campusLabels = append(campusLabels, label)
+		campusLabelsRU = append(campusLabelsRU, labelRU)
+		campusLabelsEN = append(campusLabelsEN, labelEN)
 	}
-	sort.Strings(campusLabels)
+	sort.Strings(campusLabelsRU)
+	sort.Strings(campusLabelsEN)
 
 	campusLabelRU := "Все кампусы"
 	campusLabelEN := "All campuses"
-	if len(campusLabels) > 0 {
-		campusLabelRU = strings.Join(campusLabels, ", ")
-		campusLabelEN = campusLabelRU
+	if len(campusLabelsRU) > 0 {
+		campusLabelRU = strings.Join(campusLabelsRU, ", ")
+		campusLabelEN = strings.Join(campusLabelsEN, ", ")
 	}
 
 	type coalitionMap map[int16]string
@@ -1407,7 +1412,7 @@ func applyDefenderFilterLabels(
 	updates["defender_filter_tribe_label_en"] = tribeLabelEN
 }
 
-func applyDefenderCampusButtons(updates map[string]any, campuses []db.GetAllActiveCampusesRow, selectedCampuses map[string]struct{}, page int) {
+func applyDefenderCampusButtons(updates map[string]any, campuses []db.GetAllActiveCampusesRow, selectedCampuses map[string]struct{}, page int, lang string) {
 	resetDefenderCampusSlots(updates)
 	orderedCampuses := orderCampusesSelectedFirst(campuses, selectedCampuses)
 	totalPages := 1
@@ -1435,10 +1440,7 @@ func applyDefenderCampusButtons(updates map[string]any, campuses []db.GetAllActi
 		if row.ID.Valid && campusSetHas(selectedCampuses, row.ID) {
 			check = "✅"
 		}
-		label := strings.TrimSpace(row.ShortName)
-		if label == "" {
-			label = strings.TrimSpace(row.FullName)
-		}
+		label := campuslabel.Pick(row.NameEn.String, row.NameRu.String, row.ShortName, row.FullName, lang)
 		if label == "" {
 			label = uuidToString(row.ID)
 		}
@@ -1620,6 +1622,10 @@ func parsePositiveInt(v any, fallback int) int {
 		return fallback
 	}
 	return n
+}
+
+func payloadLanguage(payload map[string]any) string {
+	return strings.TrimSpace(fmt.Sprintf("%v", payload["language"]))
 }
 
 func normalizeDefenderBanDurationSec(sec int32) int32 {

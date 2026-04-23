@@ -15,7 +15,7 @@ func TestFormatClubCard_NormalizesLegacyMarkdownEscapes(t *testing.T) {
 		LeaderLogin:  pgtype.Text{String: "peer\\_reviewer", Valid: true},
 		CategoryName: "Dev\\_Club",
 		CampusName:   "24\\_04\\_NSK",
-	})
+	}, "ru")
 
 	require.Contains(t, card, "*CPP2\\_s21\\_containers*")
 	require.Contains(t, card, "Проект про C\\_containers")
@@ -23,6 +23,24 @@ func TestFormatClubCard_NormalizesLegacyMarkdownEscapes(t *testing.T) {
 	require.Contains(t, card, "Dev\\_Club")
 	require.Contains(t, card, "24\\_04\\_NSK")
 	require.NotContains(t, card, "\\\\\\_")
+}
+
+func TestFormatClubCard_LocalizesCampusName(t *testing.T) {
+	cardRu := formatClubCard(db.GetGlobalClubsRow{
+		Name:         "Club",
+		CategoryName: "Dev",
+		CampusName:   "Moscow / Москва",
+	}, "ru")
+	cardEn := formatClubCard(db.GetGlobalClubsRow{
+		Name:         "Club",
+		CategoryName: "Dev",
+		CampusName:   "Moscow / Москва",
+	}, "en")
+
+	require.Contains(t, cardRu, "📍 *Кампус:* Москва")
+	require.NotContains(t, cardRu, "Moscow / Москва")
+	require.Contains(t, cardEn, "📍 *Кампус:* Moscow")
+	require.NotContains(t, cardEn, "Moscow / Москва")
 }
 
 func TestClubData_NormalizesLegacyMarkdownEscapesForButtons(t *testing.T) {
