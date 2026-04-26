@@ -1,3 +1,5 @@
+//go:build identity
+
 package service
 
 import (

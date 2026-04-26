@@ -1,5 +1,5 @@
 CREATE TABLE club_categories (
-    id SMALLSERIAL PRIMARY KEY,
+    id SERIAL PRIMARY KEY,
     name VARCHAR(255) NOT NULL UNIQUE,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
 );
@@ -10,7 +10,7 @@ CREATE TABLE clubs (
     leader_login VARCHAR(255),
     name VARCHAR(255) NOT NULL,
     description TEXT,
-    category_id SMALLINT NOT NULL REFERENCES club_categories(id),
+    category_id INTEGER NOT NULL REFERENCES club_categories(id),
     external_link TEXT,
     is_local BOOLEAN DEFAULT true,
     is_active BOOLEAN DEFAULT true,

@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/go-git/go-git/v5"
@@ -28,6 +29,7 @@ type Service struct {
 	queries db.Querier
 	log     *slog.Logger
 	cron    *cron.Cron
+	syncMu  sync.Mutex
 }
 
 func New(cfg config.GitSync, queries db.Querier, log *slog.Logger) *Service {
@@ -75,6 +77,12 @@ func (s *Service) Stop() {
 }
 
 func (s *Service) Sync(ctx context.Context) error {
+	if !s.syncMu.TryLock() {
+		s.log.Warn("git sync already running, skipping overlapping run")
+		return nil
+	}
+	defer s.syncMu.Unlock()
+
 	s.log.Info("starting git sync")
 
 	// 1. Update repo
@@ -477,11 +485,6 @@ func (s *Service) syncClubs(ctx context.Context, campus *db.Campuse, clubsPath s
 	var clubsYAML ClubsFileYAML
 	if err := yaml.Unmarshal(data, &clubsYAML); err != nil {
 		return fmt.Errorf("failed to parse clubs.yaml: %w", err)
-	}
-
-	// Mark all clubs in this campus as inactive first
-	if err := s.queries.DeactivateClubsByCampus(ctx, campus.ID); err != nil {
-		return err
 	}
 
 	// Update campus leader info

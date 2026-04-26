@@ -167,25 +167,31 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, variousPath strin
 		campusIDStr := ensureCampusID(ctx, queries, userID, payload)
 
 		if isLocal && campusIDStr != "" {
-			if campusUUID, err := parseCampusUUID(campusIDStr); err == nil {
-				if clubs, err := queries.GetLocalClubs(ctx, campusUUID); err == nil {
-					for _, c := range clubs {
-						categoryName := normalizeClubText(c.CategoryName)
-						if !categoryMap[categoryName] {
-							categoryMap[categoryName] = true
-							categories = append(categories, categoryName)
-						}
-					}
+			campusUUID, err := parseCampusUUID(campusIDStr)
+			if err != nil {
+				return "", nil, fmt.Errorf("invalid campus_id for local club categories: %w", err)
+			}
+			clubs, err := queries.GetLocalClubs(ctx, campusUUID)
+			if err != nil {
+				return "", nil, fmt.Errorf("failed to fetch local club categories: %w", err)
+			}
+			for _, c := range clubs {
+				categoryName := normalizeClubText(c.CategoryName)
+				if categoryName != "" && !categoryMap[categoryName] {
+					categoryMap[categoryName] = true
+					categories = append(categories, categoryName)
 				}
 			}
 		} else if !isLocal {
-			if clubs, err := queries.GetGlobalClubs(ctx); err == nil {
-				for _, c := range clubs {
-					categoryName := normalizeClubText(c.CategoryName)
-					if !categoryMap[categoryName] {
-						categoryMap[categoryName] = true
-						categories = append(categories, categoryName)
-					}
+			clubs, err := queries.GetGlobalClubs(ctx)
+			if err != nil {
+				return "", nil, fmt.Errorf("failed to fetch global club categories: %w", err)
+			}
+			for _, c := range clubs {
+				categoryName := normalizeClubText(c.CategoryName)
+				if categoryName != "" && !categoryMap[categoryName] {
+					categoryMap[categoryName] = true
+					categories = append(categories, categoryName)
 				}
 			}
 		}
