@@ -1483,8 +1483,8 @@ states:
         ru: |
           ⚙️ *Настройки автоматического фейс-контроля*
 
-          По умолчанию я проверяю только новые входы и заявки на вступление. Проверку людей, которые уже есть в чате, можно включить отдельной настройкой ниже.
-          Если группа использует заявки на вступление, перед отклонением заявки я напишу пользователю в личку, почему его не пустили и что нужно исправить. Это возможно только для заявок на вступление!
+          *По умолчанию* я проверяю только новые входы и заявки на вступление и не трогаю тех, кто уже есть в группе.
+          Когда группа использует *заявки на вступление*, перед отклонением заявки я напишу пользователю в личку, почему его не пустили и что нужно исправить (подробнее в «📌 Рекомендация»).
 
           🛡 *Мои фильтры:*
 
@@ -1495,35 +1495,35 @@ states:
           `{defender_remove_blocked_label_ru}` _(Если вкл: не пускаю отчисленных и заблокированных студентов)_
 
           *3. Фильтр по кампусам:*
-          `{defender_filter_campus_label_ru}` _(Можно выбрать несколько. Если выбран: пускаю только из этих кампусов)_
+          Разрешить `{defender_filter_campus_label_ru}` _(Можно выбрать несколько. Если выбран: пускаю только из этих кампусов)_
 
           *4. Фильтр по трайбам:*
-          `{defender_filter_tribe_label_ru}` _(Можно выбрать несколько, но только из твоего кампуса. При выборе трайбов фильтр №3 фиксируется *на твоём* кампусе)_
+          Разрешить `{defender_filter_tribe_label_ru}` _(Можно выбрать несколько, но только из твоего кампуса. При выборе трайбов фильтр №3 фиксируется *на твоём* кампусе)_
 
           *5. Проверять уже вошедших:*
-          `{defender_recheck_known_members_label_ru}` _(Если вкл: буду удалять известных участников, которые написали в чат или попали в фоновую проверку и больше не проходят фильтры. Для защиты от мгновенного возврата используется временная блокировка на 5 минут.)_
+          `{defender_recheck_known_members_label_ru}` _(Если вкл: буду удалять участников, которые написали в чат или попали в фоновую проверку и больше не проходят включенные фильтры)_
         en: |
-          ⚙️ *Gatekeeper Settings*
+          ⚙️ *Auto Face-Control Settings*
 
-          When enabled, I check new joins and join requests by default. Rechecking people who are already in the chat is controlled by a separate setting below.
-          If the group uses join requests, I will DM the user before declining the request and explain why they were not accepted. This is only available for join requests.
+          *By default*, I only check new joins and join requests and do not touch those who are already in the group.
+          When the group uses *join requests*, before declining a request, I will message the user privately to explain why they were not let in and what needs to be fixed (more details in "📌 Recommendation").
 
-          🛡 *Filters:*
+          🛡 *My filters:*
 
-          *1. Bot Registration:*
-          `{defender_enabled_label_en}` _(Keep out users who haven't logged into the bot)_
+          *1. Registration in the bot:*
+          `{defender_enabled_label_en}` _(If enabled: I do not let in those who have not logged into the bot)_
 
-          *2. Status (Blocked/Expelled):*
-          `{defender_remove_blocked_label_en}` _(Keep out expelled students)_
+          *2. Status (Banned/Expelled):*
+          `{defender_remove_blocked_label_en}` _(If enabled: I do not let in expelled and banned students)_
 
-          *3. Campus Filter:*
-          `{defender_filter_campus_label_en}` _(Multi-select. If set — allow only these campuses.)_
+          *3. Campus filter:*
+          Allow `{defender_filter_campus_label_en}` _(You can select multiple. If selected: I only let in people from these campuses)_
 
-          *4. Tribe Filter:*
-          `{defender_filter_tribe_label_en}` _(Multi-select, but only from your campus. Enabling tribe filters locks campus to yours.)_
+          *4. Tribe filter:*
+          Allow `{defender_filter_tribe_label_en}` _(You can select multiple, but only from your campus. When selecting tribes, filter #3 is locked to *your* campus)_
 
-          *5. Recheck existing members:*
-          `{defender_recheck_known_members_label_en}` _(If enabled, I will remove known members who write in chat or are seen by the background sweep and no longer match the filters. To prevent an immediate rejoin, removal uses a fixed 5-minute temporary ban.)_
+          *5. Check already joined members:*
+          `{defender_recheck_known_members_label_en}` _(If enabled: I will remove members who write in the chat or undergo a background check and no longer pass the enabled filters)_
       buttons:
         - id: def_enable_on
           label:
@@ -1608,11 +1608,11 @@ states:
         ru: |
           📌 *Рекомендация*
 
-          Представь гипотетическую ситуацию: бот перестал работать, и все новички могут свободно проходить мимо фейс-контроля.
+          Представь ситуации: 
+          – бот перестал работать, и все новички могут свободно проходить мимо фейс-контроля;
+          – перед входом пир не зарегистрировался в боте, а тот его *без объяснений* мгновенно удалил из группы.
 
-          Чтобы этого не допустить, рекомендуется включить функцию *«Заявки на вступление»*.
-
-          Если бот сдохнет, админ группы сможет вручную обработать заявки, или просто дождаться, когда бот заработает и сам одобрит/отклонит заявки.
+          Чтобы этого не допустить, *крайне рекомендуется включить* функцию *«Заявки на вступление»*.
 
           *Как включить:*
           1. Открой свою группу → нажми на название группы вверху.
@@ -1623,12 +1623,32 @@ states:
           6. Сохрани ссылку.
 
           Теперь все, кто перейдёт по этой ссылке, будут видеть кнопку *«Подать заявку»* вместо автоматического вступления.
+
+          Если бот внезапно отключился, то админ группы сможет вручную обработать заявки. Или он может дождаться когда бот заработает снова, отклонить новые заявки, и в ЛС пользователей попросить подать её снова (т.к. бот может только *перехватывать* заявки в реальном времени).
+
+          📌 Не забудь указать новую ссылку на группу в разделе *Клубы*.
         en: |
           📌 *Recommendation*
 
-          Enable *Join Requests* for invite links so newcomers do not bypass face control during bot downtime.
+          Imagine these situations:
+          – The bot stops working, and all newcomers can freely bypass the face control;
+          – A user didn't register in the bot before entering, and the bot instantly removes them from the group *without explanation*.
 
-          Then an group admin can approve/decline manually, or wait until the bot is back and it will process requests automatically.
+          To prevent this from happening, it is *highly recommended to enable* the *«Request Admin Approval»* feature. 
+
+          *How to enable:*
+          1. Open your group → tap on the group name at the top.
+          2. Tap *«Manage Group»* (or *«Edit»* → *«Group Info»*).
+          3. Go to the *«Invite Links»* section.
+          4. Tap *«Create a New Link»* (or edit an existing one).
+          5. Turn on the *«Request Admin Approval»* toggle.
+          6. Save the link.
+
+          Now, everyone who follows this link will see the *«Request to Join»* button instead of joining automatically.
+
+          If the bot suddenly goes offline, the group admin can process the requests manually. Alternatively, they can wait for the bot to come back online, decline the new requests, and ask the users via private message to submit them again (as the bot can only *intercept* requests in real time).
+
+          📌 Don't forget to specify the link to the new group in the Clubs section.
       buttons:
         - id: recommendation_ok
           label:
