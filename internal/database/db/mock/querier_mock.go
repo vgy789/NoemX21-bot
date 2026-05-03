@@ -730,6 +730,21 @@ func (mr *MockQuerierMockRecorder) DeleteTelegramGroupTeamProjectFilterByOwner(c
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTelegramGroupTeamProjectFilterByOwner", reflect.TypeOf((*MockQuerier)(nil).DeleteTelegramGroupTeamProjectFilterByOwner), ctx, arg)
 }
 
+// DeleteTelegramGroupWhitelistByChatAndUser mocks base method.
+func (m *MockQuerier) DeleteTelegramGroupWhitelistByChatAndUser(ctx context.Context, arg db.DeleteTelegramGroupWhitelistByChatAndUserParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteTelegramGroupWhitelistByChatAndUser", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteTelegramGroupWhitelistByChatAndUser indicates an expected call of DeleteTelegramGroupWhitelistByChatAndUser.
+func (mr *MockQuerierMockRecorder) DeleteTelegramGroupWhitelistByChatAndUser(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTelegramGroupWhitelistByChatAndUser", reflect.TypeOf((*MockQuerier)(nil).DeleteTelegramGroupWhitelistByChatAndUser), ctx, arg)
+}
+
 // DeleteTelegramGroupWhitelistByOwner mocks base method.
 func (m *MockQuerier) DeleteTelegramGroupWhitelistByOwner(ctx context.Context, arg db.DeleteTelegramGroupWhitelistByOwnerParams) (int64, error) {
 	m.ctrl.T.Helper()

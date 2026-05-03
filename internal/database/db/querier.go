@@ -58,6 +58,7 @@ type Querier interface {
 	DeleteTelegramGroupTeamMessageByRequestAndChat(ctx context.Context, arg DeleteTelegramGroupTeamMessageByRequestAndChatParams) (int64, error)
 	DeleteTelegramGroupTeamMessagesByRequest(ctx context.Context, teamSearchRequestID int64) error
 	DeleteTelegramGroupTeamProjectFilterByOwner(ctx context.Context, arg DeleteTelegramGroupTeamProjectFilterByOwnerParams) (int64, error)
+	DeleteTelegramGroupWhitelistByChatAndUser(ctx context.Context, arg DeleteTelegramGroupWhitelistByChatAndUserParams) (int64, error)
 	DeleteTelegramGroupWhitelistByOwner(ctx context.Context, arg DeleteTelegramGroupWhitelistByOwnerParams) (int64, error)
 	DeleteUserAccountByExternalId(ctx context.Context, arg DeleteUserAccountByExternalIdParams) error
 	ExistsCoalitionByID(ctx context.Context, arg ExistsCoalitionByIDParams) (bool, error)

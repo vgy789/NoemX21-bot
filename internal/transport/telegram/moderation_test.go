@@ -442,6 +442,10 @@ func TestHandleBanCommand_ByUsernameFallbackToKnownMembers(t *testing.T) {
 	}, nil)
 	queries.EXPECT().MarkTelegramGroupMemberLeft(gomock.Any(), gomock.Any()).Return(nil)
 	queries.EXPECT().UpsertTelegramGroupMember(gomock.Any(), gomock.Any()).Return(db.TelegramGroupMember{}, nil)
+	queries.EXPECT().DeleteTelegramGroupWhitelistByChatAndUser(gomock.Any(), db.DeleteTelegramGroupWhitelistByChatAndUserParams{
+		ChatID:         chatID,
+		TelegramUserID: targetID,
+	}).Return(int64(1), nil)
 
 	ctx := makeGroupCommandContext(bot, chatID, ownerID, "/ban @"+username, 0, "")
 	err := s.handleBanCommand(bot, ctx)

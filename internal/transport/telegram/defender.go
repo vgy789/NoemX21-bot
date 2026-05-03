@@ -19,10 +19,6 @@ const (
 	defenderSourceAutoJoinRequest = "auto_join_request"
 	defenderSourceManualRun       = "manual_run"
 
-	defenderBanDefaultSec = int32(24 * 60 * 60)
-	defenderBanMinSec     = int32(5 * 60)
-	defenderBanMaxSec     = int32(30 * 24 * 60 * 60)
-
 	defenderActionRemoved          = "removed"
 	defenderActionApproved         = "approved"
 	defenderActionDeclined         = "declined"
@@ -89,6 +85,20 @@ func (r *telegramDefenderRunner) ResolveGroupMemberIdentity(ctx context.Context,
 		return "", "", errors.New("group access denied")
 	}
 	return r.svc.getChatMemberIdentity(ctx, r.bot, chatID, telegramUserID)
+}
+
+func (r *telegramDefenderRunner) UnbanGroupMember(ctx context.Context, ownerTelegramUserID, chatID, telegramUserID int64) error {
+	if r == nil || r.svc == nil || r.svc.queries == nil || r.bot == nil {
+		return errors.New("defender dependencies are not ready")
+	}
+	group, err := r.svc.queries.GetTelegramGroupByChatID(ctx, chatID)
+	if err != nil {
+		return fmt.Errorf("failed to load group: %w", err)
+	}
+	if group.OwnerTelegramUserID != ownerTelegramUserID || !group.IsActive || !group.IsInitialized {
+		return errors.New("group access denied")
+	}
+	return r.svc.unbanChatMember(ctx, r.bot, chatID, telegramUserID, false)
 }
 
 func (s *telegramService) runGroupDefender(ctx context.Context, b *gotgbot.Bot, ownerTelegramUserID, chatID int64) (fsm.DefenderRunResult, error) {
@@ -178,15 +188,13 @@ func (s *telegramService) runGroupDefender(ctx context.Context, b *gotgbot.Bot, 
 			continue
 		}
 
-		banDurationSec := normalizeDefenderBanDurationSec(group.DefenderBanDurationSec)
-		untilUTC, err := s.banChatMemberForDuration(ctx, b, chatID, known.TelegramUserID, banDurationSec)
-		if err != nil {
+		if err := s.removeChatMember(ctx, b, chatID, known.TelegramUserID); err != nil {
 			result.Errors++
 			s.logDefenderAction(ctx, chatID, defenderSourceManualRun, known.TelegramUserID, defenderActionSkippedNoRights, defenderReasonBotRights, err.Error())
 			continue
 		}
-		s.markKnownGroupMemberLeft(ctx, chatID, known.TelegramUserID, gotgbot.ChatMemberStatusBanned)
-		s.logDefenderAction(ctx, chatID, defenderSourceManualRun, known.TelegramUserID, defenderActionRemoved, decision.Reason, formatDefenderBanDetails(banDurationSec, untilUTC))
+		s.markKnownGroupMemberLeft(ctx, chatID, known.TelegramUserID, gotgbot.ChatMemberStatusLeft)
+		s.logDefenderAction(ctx, chatID, defenderSourceManualRun, known.TelegramUserID, defenderActionRemoved, decision.Reason, "removed_without_blacklist=true")
 		result.Removed++
 		if decision.RemovedAs == defenderReasonUnregistered {
 			result.SkippedUnregistered++
@@ -355,14 +363,12 @@ func (s *telegramService) tryAutoDefenderForKnownGroup(ctx context.Context, b *g
 		return
 	}
 
-	banDurationSec := normalizeDefenderBanDurationSec(group.DefenderBanDurationSec)
-	untilUTC, err := s.banChatMemberForDuration(ctx, b, group.ChatID, telegramUserID, banDurationSec)
-	if err != nil {
+	if err := s.removeChatMember(ctx, b, group.ChatID, telegramUserID); err != nil {
 		s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoin, telegramUserID, defenderActionSkippedNoRights, defenderReasonBotRights, err.Error())
 		return
 	}
-	s.markKnownGroupMemberLeft(ctx, group.ChatID, telegramUserID, gotgbot.ChatMemberStatusBanned)
-	s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoin, telegramUserID, defenderActionRemoved, decision.Reason, formatDefenderBanDetails(banDurationSec, untilUTC))
+	s.markKnownGroupMemberLeft(ctx, group.ChatID, telegramUserID, gotgbot.ChatMemberStatusLeft)
+	s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoin, telegramUserID, defenderActionRemoved, decision.Reason, "removed_without_blacklist=true")
 }
 
 func (s *telegramService) tryAutoDefenderForJoinRequest(ctx context.Context, b *gotgbot.Bot, group db.TelegramGroup, telegramUserID, userChatID int64) {
@@ -689,43 +695,6 @@ func canManageJoinRequests(member rawChatMember) bool {
 	default:
 		return false
 	}
-}
-
-func normalizeDefenderBanDurationSec(sec int32) int32 {
-	if sec < defenderBanMinSec || sec > defenderBanMaxSec {
-		return defenderBanDefaultSec
-	}
-	return sec
-}
-
-func formatDefenderBanDetails(durationSec int32, untilUTC time.Time) string {
-	return fmt.Sprintf("duration_sec=%d; until_utc=%s", durationSec, untilUTC.UTC().Format(time.RFC3339))
-}
-
-func (s *telegramService) banChatMemberForDuration(ctx context.Context, b *gotgbot.Bot, chatID, userID int64, durationSec int32) (time.Time, error) {
-	if b == nil {
-		return time.Time{}, errors.New("bot is nil")
-	}
-	safeDuration := normalizeDefenderBanDurationSec(durationSec)
-	untilUTC := time.Now().UTC().Add(time.Duration(safeDuration) * time.Second)
-
-	banResp, err := b.RequestWithContext(ctx, "banChatMember", map[string]any{
-		"chat_id":         chatID,
-		"user_id":         userID,
-		"revoke_messages": true,
-		"until_date":      untilUTC.Unix(),
-	}, nil)
-	if err != nil {
-		return time.Time{}, err
-	}
-	var banned bool
-	if err := json.Unmarshal(banResp, &banned); err != nil {
-		return time.Time{}, fmt.Errorf("failed to decode banChatMember response: %w", err)
-	}
-	if !banned {
-		return time.Time{}, errors.New("banChatMember returned false")
-	}
-	return untilUTC, nil
 }
 
 func (s *telegramService) approveChatJoinRequest(ctx context.Context, b *gotgbot.Bot, chatID, userID int64) error {

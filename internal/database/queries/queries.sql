@@ -506,6 +506,11 @@ WHERE w.chat_id = $1
   AND g.chat_id = w.chat_id
   AND g.owner_telegram_user_id = $3;
 
+-- name: DeleteTelegramGroupWhitelistByChatAndUser :execrows
+DELETE FROM telegram_group_whitelists
+WHERE chat_id = $1
+  AND telegram_user_id = $2;
+
 -- name: ListTelegramGroupWhitelists :many
 SELECT * FROM telegram_group_whitelists
 WHERE chat_id = $1

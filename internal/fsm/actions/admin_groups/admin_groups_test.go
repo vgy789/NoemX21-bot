@@ -37,6 +37,7 @@ type fakeDefenderRunner struct {
 	err             error
 	resolveDisplay  string
 	resolveUsername string
+	unbanCalls      []int64
 }
 
 type querierWithUsernameResolver struct {
@@ -58,6 +59,11 @@ func (f *fakeDefenderRunner) PreviewGroupDefenderCandidates(_ context.Context, _
 
 func (f *fakeDefenderRunner) ResolveGroupMemberIdentity(_ context.Context, _, _, _ int64) (string, string, error) {
 	return f.resolveDisplay, f.resolveUsername, nil
+}
+
+func (f *fakeDefenderRunner) UnbanGroupMember(_ context.Context, _ int64, _ int64, telegramUserID int64) error {
+	f.unbanCalls = append(f.unbanCalls, telegramUserID)
+	return nil
 }
 
 func (q *querierWithUsernameResolver) GetTelegramUserAccountByUsername(_ context.Context, username string) (db.UserAccount, error) {
@@ -887,12 +893,15 @@ func TestAddGroupDefenderWhitelistFromInput_ByUsername(t *testing.T) {
 	}).Return(db.UserAccount{}, pgx.ErrNoRows)
 	base.EXPECT().ListTelegramGroupLogs(gomock.Any(), gomock.Any()).Return([]db.TelegramGroupLog{}, nil)
 
-	_, updates, err := action(context.Background(), 42, map[string]any{
+	runner := &fakeDefenderRunner{}
+	ctx := context.WithValue(context.Background(), fsm.ContextKeyDefenderRunner, runner)
+	_, updates, err := action(ctx, 42, map[string]any{
 		"selected_group_chat_id": "-100920",
 		"id":                     "@vgy789",
 	})
 	require.NoError(t, err)
 	require.Equal(t, "vgy789", q.lastUsername)
+	require.Equal(t, []int64{1001}, runner.unbanCalls)
 	require.Contains(t, updates["defender_preview_summary_ru"].(string), "@vgy789")
 	require.Contains(t, updates["defender_preview_summary_ru"].(string), "`1001`")
 }

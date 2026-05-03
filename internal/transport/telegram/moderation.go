@@ -127,6 +127,12 @@ func (s *telegramService) handleBanCommand(b *gotgbot.Bot, ctx *ext.Context) err
 		return nil
 	}
 	s.markKnownGroupMemberLeft(context.Background(), group.ChatID, target.TelegramUserID, gotgbot.ChatMemberStatusBanned)
+	if _, err := s.queries.DeleteTelegramGroupWhitelistByChatAndUser(context.Background(), db.DeleteTelegramGroupWhitelistByChatAndUserParams{
+		ChatID:         group.ChatID,
+		TelegramUserID: target.TelegramUserID,
+	}); err != nil {
+		s.log.Warn("failed to remove banned member from group whitelist", "chat_id", group.ChatID, "target_user_id", target.TelegramUserID, "error", err)
+	}
 
 	_, _ = s.getSender(b).SendMessage(group.ChatID, fmt.Sprintf("Участник заблокирован: %s.", describeModerationTarget(target)), nil)
 	return nil
@@ -189,6 +195,16 @@ func (s *telegramService) handleKickCommand(b *gotgbot.Bot, ctx *ext.Context) er
 	s.markKnownGroupMemberLeft(context.Background(), group.ChatID, target.TelegramUserID, gotgbot.ChatMemberStatusLeft)
 
 	_, _ = s.getSender(b).SendMessage(group.ChatID, fmt.Sprintf("🦆 %s покидает наш уютный пруд и улетает в тёплые края.", moderationTargetDisplayName(target)), nil)
+	return nil
+}
+
+func (s *telegramService) removeChatMember(ctx context.Context, b *gotgbot.Bot, chatID, userID int64) error {
+	if err := s.banChatMember(ctx, b, chatID, userID); err != nil {
+		return err
+	}
+	if err := s.unbanChatMember(ctx, b, chatID, userID, true); err != nil {
+		return fmt.Errorf("failed to unban removed member: %w", err)
+	}
 	return nil
 }
 

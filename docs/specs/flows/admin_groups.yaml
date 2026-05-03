@@ -1359,8 +1359,8 @@ states:
           `/unmute <ник|@username|id>` — снять мут по явной цели.
           `/ban` — заблокировать участника по reply.
           `/ban <ник|@username|id>` — заблокировать по явной цели.
-          `/eban` — снять блокировку по reply.
-          `/eban <ник|@username|id>` — снять блокировку по явной цели.
+          `/unban` или `/eban` — снять блокировку по reply.
+          `/unban <ник|@username|id>` или `/eban <ник|@username|id>` — снять блокировку по явной цели.
           `/kick` — исключить участника по reply.
           `/kick <ник|@username|id>` — исключить по явной цели.
 
@@ -1374,8 +1374,8 @@ states:
           `/unmute <login|@username|id>` — unmute explicit target.
           `/ban` — ban by reply.
           `/ban <login|@username|id>` — ban explicit target.
-          `/eban` — unban by reply.
-          `/eban <login|@username|id>` — unban explicit target.
+          `/unban` or `/eban` — unban by reply.
+          `/unban <login|@username|id>` or `/eban <login|@username|id>` — unban explicit target.
           `/kick` — kick by reply.
           `/kick <login|@username|id>` — kick explicit target.
 
@@ -1505,10 +1505,7 @@ states:
           `{defender_filter_tribe_label_ru}` _(Можно выбрать несколько, но только из твоего кампуса. При выборе трайбов фильтр №3 фиксируется *на твоём* кампусе)_
 
           *5. Проверять уже вошедших:*
-          `{defender_recheck_known_members_label_ru}` _(Если вкл: буду удалять известных участников, которые написали в чат или попали в фоновую проверку и больше не проходят фильтры)_
-
-          *6. Срок блокировки:*
-          `{defender_ban_duration_label_ru}` _(Используется при удалении уже вошедших участников. После истечения срока Telegram разбанит пользователя автоматически)_
+          `{defender_recheck_known_members_label_ru}` _(Если вкл: буду удалять известных участников, которые написали в чат или попали в фоновую проверку и больше не проходят фильтры. Удаление не оставляет пользователя в чёрном списке группы.)_
         en: |
           ⚙️ *Gatekeeper Settings*
 
@@ -1530,10 +1527,7 @@ states:
           `{defender_filter_tribe_label_en}` _(Multi-select, but only from your campus. Enabling tribe filters locks campus to yours.)_
 
           *5. Recheck existing members:*
-          `{defender_recheck_known_members_label_en}` _(If enabled, I will remove known members who write in chat or are seen by the background sweep and no longer match the filters.)_
-
-          *6. Ban Duration:*
-          `{defender_ban_duration_label_en}` _(Used when removing already joined members. Telegram will automatically unban the user after this time.)_
+          `{defender_recheck_known_members_label_en}` _(If enabled, I will remove known members who write in chat or are seen by the background sweep and no longer match the filters. Removal does not leave the user in the group blacklist.)_
       buttons:
         - id: def_enable_on
           label:
@@ -1581,13 +1575,6 @@ states:
           condition: "can_manage_selected_group == true"
           next_state: GROUP_DEFENDER_FILTER_TRIBE
           row: 4
-        - id: def_ban_custom
-          label:
-            ru: 6. Ввести срок блокировки
-            en: 6. Enter ban duration
-          condition: "can_manage_selected_group == true"
-          next_state: GROUP_DEFENDER_BAN_DURATION_INPUT
-          row: 6
         - id: def_recheck_known_on
           label:
             ru: 5. Проверять уже вошедших
@@ -1891,10 +1878,12 @@ states:
           🚀 *Генеральная уборка* (Ручной фейс-контроль)
 
           Выбери режим очистки. Перед очисткой будет предложен предпросмотр кандидатов «на вылет».
+          Удаление не блокирует пользователя в группе: бот исключает участника и сразу снимает Telegram-ban.
         en: |
           🚀 *Full Cleanup*
 
           Select a cleanup mode. You will be able to preview the list of users to be removed before starting.
+          Removal does not block the user in the group: the bot kicks the member and immediately clears the Telegram ban.
       buttons:
         - id: def_clean_unreg
           label:
@@ -2424,14 +2413,14 @@ states:
         ru: |
           ⏳ *Срок временной блокировки*
 
-          Этот срок применяется, когда бот удаляет уже вошедшего участника. Заявки на вступление, которые не прошли фильтры, просто отклоняются без бана.
+          Историческая настройка. Сейчас фейс-контроль и ручная уборка удаляют участников без блокировки: бот исключает участника и сразу снимает Telegram-ban. Заявки на вступление, которые не прошли фильтры, просто отклоняются без бана.
 
           Введи срок в формате: `5m`, `24h`, `3d`.
           Допустимый диапазон: от `5m` до `30d`.
         en: |
           ⏳ *Temporary ban duration*
 
-          This duration is used when the bot removes an already joined member. Join requests that do not match filters are declined without a ban.
+          Legacy setting. Face control and manual cleanup now remove members without blocking them: the bot kicks the member and immediately clears the Telegram ban. Join requests that do not match filters are declined without a ban.
 
           Enter duration in format: `5m`, `24h`, `3d`.
           Allowed range: from `5m` to `30d`.

@@ -1003,6 +1003,25 @@ func (q *Queries) DeleteTelegramGroupTeamProjectFilterByOwner(ctx context.Contex
 	return result.RowsAffected(), nil
 }
 
+const deleteTelegramGroupWhitelistByChatAndUser = `-- name: DeleteTelegramGroupWhitelistByChatAndUser :execrows
+DELETE FROM telegram_group_whitelists
+WHERE chat_id = $1
+  AND telegram_user_id = $2
+`
+
+type DeleteTelegramGroupWhitelistByChatAndUserParams struct {
+	ChatID         int64 `json:"chat_id"`
+	TelegramUserID int64 `json:"telegram_user_id"`
+}
+
+func (q *Queries) DeleteTelegramGroupWhitelistByChatAndUser(ctx context.Context, arg DeleteTelegramGroupWhitelistByChatAndUserParams) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteTelegramGroupWhitelistByChatAndUser, arg.ChatID, arg.TelegramUserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteTelegramGroupWhitelistByOwner = `-- name: DeleteTelegramGroupWhitelistByOwner :execrows
 DELETE FROM telegram_group_whitelists w
 USING telegram_groups g

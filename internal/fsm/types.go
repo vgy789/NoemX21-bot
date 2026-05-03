@@ -212,6 +212,7 @@ type DefenderRunner interface {
 	RunGroupDefender(ctx context.Context, ownerTelegramUserID, chatID int64) (DefenderRunResult, error)
 	PreviewGroupDefenderCandidates(ctx context.Context, ownerTelegramUserID, chatID int64) ([]DefenderPreviewItem, error)
 	ResolveGroupMemberIdentity(ctx context.Context, ownerTelegramUserID, chatID, telegramUserID int64) (displayName, username string, err error)
+	UnbanGroupMember(ctx context.Context, ownerTelegramUserID, chatID, telegramUserID int64) error
 }
 
 // NotifierFromContext extracts a Notifier from context.

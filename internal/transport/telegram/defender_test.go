@@ -61,9 +61,13 @@ func (f *fakeDefenderBotClient) RequestWithContext(_ context.Context, _ string, 
 		if !ok {
 			return nil, fmt.Errorf("invalid user_id param type: %T", params["user_id"])
 		}
-		untilDate, ok := toInt64(params["until_date"])
-		if !ok || untilDate <= 0 {
-			return nil, fmt.Errorf("missing or invalid until_date: %#v", params["until_date"])
+		untilDate := int64(0)
+		if rawUntilDate, exists := params["until_date"]; exists {
+			var ok bool
+			untilDate, ok = toInt64(rawUntilDate)
+			if !ok || untilDate <= 0 {
+				return nil, fmt.Errorf("invalid until_date: %#v", rawUntilDate)
+			}
 		}
 		f.banCalls = append(f.banCalls, fakeDefenderBanCall{userID: userID, untilDate: untilDate})
 		member := f.members[userID]
@@ -177,16 +181,16 @@ func TestHandleChatMember_AutoDefenderRemovesUnregistered(t *testing.T) {
 	err := s.handleChatMember(bot, ctx)
 	require.NoError(t, err)
 	require.Len(t, client.banCalls, 1)
-	require.Len(t, client.unbanCalls, 0)
+	require.Len(t, client.unbanCalls, 1)
 	assert.Equal(t, userID, client.banCalls[0].userID)
-	assert.NotZero(t, client.banCalls[0].untilDate)
+	assert.Zero(t, client.banCalls[0].untilDate)
+	assert.Equal(t, userID, client.unbanCalls[0])
 	require.NotEmpty(t, logRows)
 	foundRemoved := false
 	for _, row := range logRows {
 		if row.Action == "removed" && row.Reason == "unregistered" {
 			foundRemoved = true
-			assert.Contains(t, row.Details, "duration_sec=")
-			assert.Contains(t, row.Details, "until_utc=")
+			assert.Contains(t, row.Details, "removed_without_blacklist=true")
 		}
 	}
 	assert.True(t, foundRemoved)
@@ -496,7 +500,9 @@ func TestAutoModerationConsistency_RemovesKnownMemberWhenRecheckEnabled(t *testi
 	s.tryAutoModerationConsistencyForSender(context.Background(), bot, chatID, userID)
 
 	require.Len(t, client.banCalls, 1)
+	require.Len(t, client.unbanCalls, 1)
 	assert.Equal(t, userID, client.banCalls[0].userID)
+	assert.Equal(t, userID, client.unbanCalls[0])
 }
 
 func TestDefenderRunner_ManualRunBlockedUser(t *testing.T) {
@@ -560,14 +566,14 @@ func TestDefenderRunner_ManualRunBlockedUser(t *testing.T) {
 	assert.Equal(t, 1, result.Removed)
 	assert.Equal(t, 1, result.SkippedBlocked)
 	require.Len(t, client.banCalls, 1)
-	require.Len(t, client.unbanCalls, 0)
+	require.Len(t, client.unbanCalls, 1)
+	assert.Equal(t, userID, client.unbanCalls[0])
 	require.NotEmpty(t, logRows)
 	foundRemoved := false
 	for _, row := range logRows {
 		if row.Action == "removed" && row.Reason == "blocked" {
 			foundRemoved = true
-			assert.Contains(t, row.Details, "duration_sec=")
-			assert.Contains(t, row.Details, "until_utc=")
+			assert.Contains(t, row.Details, "removed_without_blacklist=true")
 		}
 	}
 	assert.True(t, foundRemoved)

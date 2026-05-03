@@ -89,6 +89,7 @@ func (s *telegramService) registerHandlers(d *ext.Dispatcher) {
 	d.AddHandler(handlers.NewCommand("mute", s.handleMuteCommand))
 	d.AddHandler(handlers.NewCommand("unmute", s.handleUnmuteCommand))
 	d.AddHandler(handlers.NewCommand("ban", s.handleBanCommand))
+	d.AddHandler(handlers.NewCommand("unban", s.handleEbanCommand))
 	d.AddHandler(handlers.NewCommand("eban", s.handleEbanCommand))
 	d.AddHandler(handlers.NewCommand("kick", s.handleKickCommand))
 	d.AddHandler(handlers.NewMyChatMember(chatmemberfilters.All, s.handleMyChatMember))

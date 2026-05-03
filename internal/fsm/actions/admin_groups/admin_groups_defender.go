@@ -819,6 +819,7 @@ func registerDefenderActions(registry *fsm.LogicRegistry, log logger, queries db
 				TelegramUserID:   id,
 				AddedByAccountID: addedByID,
 			}); err == nil {
+				unbanWhitelistedGroupMember(ctx, log, userID, chatID, id)
 				added++
 			}
 		}
@@ -869,6 +870,7 @@ func registerDefenderActions(registry *fsm.LogicRegistry, log logger, queries db
 			updates["defender_preview_summary_en"] = "Failed to add ID to whitelist."
 			return "", updates, nil
 		}
+		unbanWhitelistedGroupMember(ctx, log, userID, chatID, tgID)
 
 		updates := buildDefenderContextUpdates(ctx, userID, payload, log, queries)
 		if uname != "" {
@@ -914,6 +916,16 @@ type logger interface {
 
 type telegramUserAccountByUsernameResolver interface {
 	GetTelegramUserAccountByUsername(ctx context.Context, username string) (db.UserAccount, error)
+}
+
+func unbanWhitelistedGroupMember(ctx context.Context, log logger, ownerTelegramUserID, chatID, telegramUserID int64) {
+	runner, ok := fsm.DefenderRunnerFromContext(ctx)
+	if !ok {
+		return
+	}
+	if err := runner.UnbanGroupMember(ctx, ownerTelegramUserID, chatID, telegramUserID); err != nil && log != nil {
+		log.Warn("admin groups: failed to unban whitelisted group member", "chat_id", chatID, "telegram_user_id", telegramUserID, "error", err)
+	}
 }
 
 func buildDefenderContextUpdates(ctx context.Context, userID int64, payload map[string]any, log logger, queries db.Querier) map[string]any {
