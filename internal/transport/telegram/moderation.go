@@ -198,16 +198,6 @@ func (s *telegramService) handleKickCommand(b *gotgbot.Bot, ctx *ext.Context) er
 	return nil
 }
 
-func (s *telegramService) removeChatMember(ctx context.Context, b *gotgbot.Bot, chatID, userID int64) error {
-	if err := s.banChatMember(ctx, b, chatID, userID); err != nil {
-		return err
-	}
-	if err := s.unbanChatMember(ctx, b, chatID, userID, true); err != nil {
-		return fmt.Errorf("failed to unban removed member: %w", err)
-	}
-	return nil
-}
-
 type moderationPermission string
 
 const (

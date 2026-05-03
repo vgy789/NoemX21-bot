@@ -140,13 +140,6 @@ SET defender_recheck_known_members = $3,
 WHERE chat_id = $1
   AND owner_telegram_user_id = $2;
 
--- name: UpdateTelegramGroupDefenderBanDurationSecByOwner :execrows
-UPDATE telegram_groups
-SET defender_ban_duration_sec = $3,
-    updated_at = CURRENT_TIMESTAMP
-WHERE chat_id = $1
-  AND owner_telegram_user_id = $2;
-
 -- name: UpdateTelegramGroupForumFlagsByChatID :execrows
 UPDATE telegram_groups
 SET is_forum = $2,

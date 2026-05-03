@@ -181,16 +181,16 @@ func TestHandleChatMember_AutoDefenderRemovesUnregistered(t *testing.T) {
 	err := s.handleChatMember(bot, ctx)
 	require.NoError(t, err)
 	require.Len(t, client.banCalls, 1)
-	require.Len(t, client.unbanCalls, 1)
+	require.Len(t, client.unbanCalls, 0)
 	assert.Equal(t, userID, client.banCalls[0].userID)
-	assert.Zero(t, client.banCalls[0].untilDate)
-	assert.Equal(t, userID, client.unbanCalls[0])
+	assert.NotZero(t, client.banCalls[0].untilDate)
 	require.NotEmpty(t, logRows)
 	foundRemoved := false
 	for _, row := range logRows {
 		if row.Action == "removed" && row.Reason == "unregistered" {
 			foundRemoved = true
-			assert.Contains(t, row.Details, "removed_without_blacklist=true")
+			assert.Contains(t, row.Details, "duration_sec=300")
+			assert.Contains(t, row.Details, "until_utc=")
 		}
 	}
 	assert.True(t, foundRemoved)
@@ -500,9 +500,8 @@ func TestAutoModerationConsistency_RemovesKnownMemberWhenRecheckEnabled(t *testi
 	s.tryAutoModerationConsistencyForSender(context.Background(), bot, chatID, userID)
 
 	require.Len(t, client.banCalls, 1)
-	require.Len(t, client.unbanCalls, 1)
+	require.Len(t, client.unbanCalls, 0)
 	assert.Equal(t, userID, client.banCalls[0].userID)
-	assert.Equal(t, userID, client.unbanCalls[0])
 }
 
 func TestDefenderRunner_ManualRunBlockedUser(t *testing.T) {
@@ -566,14 +565,14 @@ func TestDefenderRunner_ManualRunBlockedUser(t *testing.T) {
 	assert.Equal(t, 1, result.Removed)
 	assert.Equal(t, 1, result.SkippedBlocked)
 	require.Len(t, client.banCalls, 1)
-	require.Len(t, client.unbanCalls, 1)
-	assert.Equal(t, userID, client.unbanCalls[0])
+	require.Len(t, client.unbanCalls, 0)
 	require.NotEmpty(t, logRows)
 	foundRemoved := false
 	for _, row := range logRows {
 		if row.Action == "removed" && row.Reason == "blocked" {
 			foundRemoved = true
-			assert.Contains(t, row.Details, "removed_without_blacklist=true")
+			assert.Contains(t, row.Details, "duration_sec=300")
+			assert.Contains(t, row.Details, "until_utc=")
 		}
 	}
 	assert.True(t, foundRemoved)

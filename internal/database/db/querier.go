@@ -158,7 +158,6 @@ type Querier interface {
 	UnlinkTelegramGroupOwner(ctx context.Context, chatID int64) error
 	UnlinkTelegramGroupOwnerIfOwner(ctx context.Context, arg UnlinkTelegramGroupOwnerIfOwnerParams) (int64, error)
 	UpdateRoomBookingDuration(ctx context.Context, arg UpdateRoomBookingDurationParams) error
-	UpdateTelegramGroupDefenderBanDurationSecByOwner(ctx context.Context, arg UpdateTelegramGroupDefenderBanDurationSecByOwnerParams) (int64, error)
 	UpdateTelegramGroupDefenderEnabledByOwner(ctx context.Context, arg UpdateTelegramGroupDefenderEnabledByOwnerParams) (int64, error)
 	UpdateTelegramGroupDefenderRecheckKnownMembersByOwner(ctx context.Context, arg UpdateTelegramGroupDefenderRecheckKnownMembersByOwnerParams) (int64, error)
 	UpdateTelegramGroupDefenderRemoveBlockedByOwner(ctx context.Context, arg UpdateTelegramGroupDefenderRemoveBlockedByOwnerParams) (int64, error)

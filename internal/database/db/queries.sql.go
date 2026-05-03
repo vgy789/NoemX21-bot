@@ -4987,28 +4987,6 @@ func (q *Queries) UpdateRoomBookingDuration(ctx context.Context, arg UpdateRoomB
 	return err
 }
 
-const updateTelegramGroupDefenderBanDurationSecByOwner = `-- name: UpdateTelegramGroupDefenderBanDurationSecByOwner :execrows
-UPDATE telegram_groups
-SET defender_ban_duration_sec = $3,
-    updated_at = CURRENT_TIMESTAMP
-WHERE chat_id = $1
-  AND owner_telegram_user_id = $2
-`
-
-type UpdateTelegramGroupDefenderBanDurationSecByOwnerParams struct {
-	ChatID                 int64 `json:"chat_id"`
-	OwnerTelegramUserID    int64 `json:"owner_telegram_user_id"`
-	DefenderBanDurationSec int32 `json:"defender_ban_duration_sec"`
-}
-
-func (q *Queries) UpdateTelegramGroupDefenderBanDurationSecByOwner(ctx context.Context, arg UpdateTelegramGroupDefenderBanDurationSecByOwnerParams) (int64, error) {
-	result, err := q.db.Exec(ctx, updateTelegramGroupDefenderBanDurationSecByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.DefenderBanDurationSec)
-	if err != nil {
-		return 0, err
-	}
-	return result.RowsAffected(), nil
-}
-
 const updateTelegramGroupDefenderEnabledByOwner = `-- name: UpdateTelegramGroupDefenderEnabledByOwner :execrows
 UPDATE telegram_groups
 SET defender_enabled = $3,

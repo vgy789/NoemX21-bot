@@ -19,6 +19,8 @@ const (
 	defenderSourceAutoJoinRequest = "auto_join_request"
 	defenderSourceManualRun       = "manual_run"
 
+	defenderRemovalBanDuration = 5 * time.Minute
+
 	defenderActionRemoved          = "removed"
 	defenderActionApproved         = "approved"
 	defenderActionDeclined         = "declined"
@@ -188,13 +190,14 @@ func (s *telegramService) runGroupDefender(ctx context.Context, b *gotgbot.Bot, 
 			continue
 		}
 
-		if err := s.removeChatMember(ctx, b, chatID, known.TelegramUserID); err != nil {
+		untilUTC, err := s.banChatMemberForDuration(ctx, b, chatID, known.TelegramUserID, defenderRemovalBanDuration)
+		if err != nil {
 			result.Errors++
 			s.logDefenderAction(ctx, chatID, defenderSourceManualRun, known.TelegramUserID, defenderActionSkippedNoRights, defenderReasonBotRights, err.Error())
 			continue
 		}
-		s.markKnownGroupMemberLeft(ctx, chatID, known.TelegramUserID, gotgbot.ChatMemberStatusLeft)
-		s.logDefenderAction(ctx, chatID, defenderSourceManualRun, known.TelegramUserID, defenderActionRemoved, decision.Reason, "removed_without_blacklist=true")
+		s.markKnownGroupMemberLeft(ctx, chatID, known.TelegramUserID, gotgbot.ChatMemberStatusBanned)
+		s.logDefenderAction(ctx, chatID, defenderSourceManualRun, known.TelegramUserID, defenderActionRemoved, decision.Reason, formatDefenderBanDetails(defenderRemovalBanDuration, untilUTC))
 		result.Removed++
 		if decision.RemovedAs == defenderReasonUnregistered {
 			result.SkippedUnregistered++
@@ -363,12 +366,13 @@ func (s *telegramService) tryAutoDefenderForKnownGroup(ctx context.Context, b *g
 		return
 	}
 
-	if err := s.removeChatMember(ctx, b, group.ChatID, telegramUserID); err != nil {
+	untilUTC, err := s.banChatMemberForDuration(ctx, b, group.ChatID, telegramUserID, defenderRemovalBanDuration)
+	if err != nil {
 		s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoin, telegramUserID, defenderActionSkippedNoRights, defenderReasonBotRights, err.Error())
 		return
 	}
-	s.markKnownGroupMemberLeft(ctx, group.ChatID, telegramUserID, gotgbot.ChatMemberStatusLeft)
-	s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoin, telegramUserID, defenderActionRemoved, decision.Reason, "removed_without_blacklist=true")
+	s.markKnownGroupMemberLeft(ctx, group.ChatID, telegramUserID, gotgbot.ChatMemberStatusBanned)
+	s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoin, telegramUserID, defenderActionRemoved, decision.Reason, formatDefenderBanDetails(defenderRemovalBanDuration, untilUTC))
 }
 
 func (s *telegramService) tryAutoDefenderForJoinRequest(ctx context.Context, b *gotgbot.Bot, group db.TelegramGroup, telegramUserID, userChatID int64) {
@@ -695,6 +699,35 @@ func canManageJoinRequests(member rawChatMember) bool {
 	default:
 		return false
 	}
+}
+
+func formatDefenderBanDetails(duration time.Duration, untilUTC time.Time) string {
+	return fmt.Sprintf("duration_sec=%d; until_utc=%s", int64(duration.Seconds()), untilUTC.UTC().Format(time.RFC3339))
+}
+
+func (s *telegramService) banChatMemberForDuration(ctx context.Context, b *gotgbot.Bot, chatID, userID int64, duration time.Duration) (time.Time, error) {
+	if b == nil {
+		return time.Time{}, errors.New("bot is nil")
+	}
+	untilUTC := time.Now().UTC().Add(duration)
+
+	banResp, err := b.RequestWithContext(ctx, "banChatMember", map[string]any{
+		"chat_id":         chatID,
+		"user_id":         userID,
+		"revoke_messages": true,
+		"until_date":      untilUTC.Unix(),
+	}, nil)
+	if err != nil {
+		return time.Time{}, err
+	}
+	var banned bool
+	if err := json.Unmarshal(banResp, &banned); err != nil {
+		return time.Time{}, fmt.Errorf("failed to decode banChatMember response: %w", err)
+	}
+	if !banned {
+		return time.Time{}, errors.New("banChatMember returned false")
+	}
+	return untilUTC, nil
 }
 
 func (s *telegramService) approveChatJoinRequest(ctx context.Context, b *gotgbot.Bot, chatID, userID int64) error {

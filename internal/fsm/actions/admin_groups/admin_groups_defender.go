@@ -22,9 +22,6 @@ const (
 	maxDefenderTribePageSize    = 10
 	defenderWhitelistLoadLimit  = 100
 	defenderLogsLoadLimit       = 10
-	defenderBanDefaultSec       = int32(24 * 60 * 60)
-	defenderBanMinSec           = int32(5 * 60)
-	defenderBanMaxSec           = int32(30 * 24 * 60 * 60)
 
 	defenderReasonUnregistered = "unregistered"
 	defenderReasonBlocked      = "blocked"
@@ -122,53 +119,6 @@ func registerDefenderActions(registry *fsm.LogicRegistry, log logger, queries db
 			}); err != nil {
 				log.Warn("admin groups: failed to auto-enable defender", "chat_id", chatID, "user_id", userID, "error", err)
 			}
-		}
-		return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
-	})
-
-	registry.Register("set_group_defender_ban_duration", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		chatID, err := parseSelectedGroupChatID(payload)
-		if err != nil {
-			return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
-		}
-
-		durationSec, ok := parseDefenderBanDurationButtonID(fmt.Sprintf("%v", payload["id"]))
-		if !ok {
-			return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
-		}
-
-		if _, err := queries.UpdateTelegramGroupDefenderBanDurationSecByOwner(ctx, db.UpdateTelegramGroupDefenderBanDurationSecByOwnerParams{
-			ChatID:                 chatID,
-			OwnerTelegramUserID:    userID,
-			DefenderBanDurationSec: normalizeDefenderBanDurationSec(durationSec),
-		}); err != nil {
-			log.Warn("admin groups: failed to update defender_ban_duration_sec", "chat_id", chatID, "user_id", userID, "error", err)
-		}
-		return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
-	})
-
-	registry.Register("set_group_defender_ban_duration_from_input", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		chatID, err := parseSelectedGroupChatID(payload)
-		if err != nil {
-			return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
-		}
-
-		raw := strings.TrimSpace(fmt.Sprintf("%v", payload["id"]))
-		durationSec, errRU, errEN := parseDefenderBanDurationInput(raw)
-		if errRU != "" {
-			alert := errRU
-			if strings.TrimSpace(fmt.Sprintf("%v", payload["language"])) == fsm.LangEn {
-				alert = errEN
-			}
-			return "GROUP_DEFENDER_BAN_DURATION_INPUT", map[string]any{"_alert": alert}, nil
-		}
-
-		if _, err := queries.UpdateTelegramGroupDefenderBanDurationSecByOwner(ctx, db.UpdateTelegramGroupDefenderBanDurationSecByOwnerParams{
-			ChatID:                 chatID,
-			OwnerTelegramUserID:    userID,
-			DefenderBanDurationSec: normalizeDefenderBanDurationSec(durationSec),
-		}); err != nil {
-			log.Warn("admin groups: failed to update defender_ban_duration_sec from input", "chat_id", chatID, "user_id", userID, "error", err)
 		}
 		return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
 	})
@@ -1003,9 +953,6 @@ func mergeDefenderDefaults(updates map[string]any, payload map[string]any) {
 	updates["defender_recheck_known_members"] = false
 	updates["defender_recheck_known_members_label_ru"] = "❌ Выключено"
 	updates["defender_recheck_known_members_label_en"] = "❌ Disabled"
-	updates["defender_ban_duration_sec"] = defenderBanDefaultSec
-	updates["defender_ban_duration_label_ru"] = formatDefenderBanDurationLabel(defenderBanDefaultSec, fsm.LangRu)
-	updates["defender_ban_duration_label_en"] = formatDefenderBanDurationLabel(defenderBanDefaultSec, fsm.LangEn)
 	updates["defender_whitelist_count"] = 0
 	updates["defender_whitelist_list_ru"] = "Пусто"
 	updates["defender_whitelist_list_en"] = "Empty"
@@ -1137,8 +1084,6 @@ func buildDefenderSettingsUpdates(group db.TelegramGroup) map[string]any {
 		recheckKnownEN = "✅ Enabled"
 	}
 
-	banDurationSec := normalizeDefenderBanDurationSec(group.DefenderBanDurationSec)
-
 	return map[string]any{
 		"defender_enabled":                        group.DefenderEnabled,
 		"defender_enabled_label_ru":               enabledRU,
@@ -1149,9 +1094,6 @@ func buildDefenderSettingsUpdates(group db.TelegramGroup) map[string]any {
 		"defender_recheck_known_members":          group.DefenderRecheckKnownMembers,
 		"defender_recheck_known_members_label_ru": recheckKnownRU,
 		"defender_recheck_known_members_label_en": recheckKnownEN,
-		"defender_ban_duration_sec":               banDurationSec,
-		"defender_ban_duration_label_ru":          formatDefenderBanDurationLabel(banDurationSec, fsm.LangRu),
-		"defender_ban_duration_label_en":          formatDefenderBanDurationLabel(banDurationSec, fsm.LangEn),
 	}
 }
 
@@ -1684,86 +1626,6 @@ func parsePositiveInt(v any, fallback int) int {
 
 func payloadLanguage(payload map[string]any) string {
 	return strings.TrimSpace(fmt.Sprintf("%v", payload["language"]))
-}
-
-func normalizeDefenderBanDurationSec(sec int32) int32 {
-	if sec < defenderBanMinSec || sec > defenderBanMaxSec {
-		return defenderBanDefaultSec
-	}
-	return sec
-}
-
-func parseDefenderBanDurationButtonID(buttonID string) (int32, bool) {
-	switch strings.TrimSpace(buttonID) {
-	case "def_ban_1h":
-		return 60 * 60, true
-	case "def_ban_6h":
-		return 6 * 60 * 60, true
-	case "def_ban_24h":
-		return 24 * 60 * 60, true
-	case "def_ban_3d":
-		return 3 * 24 * 60 * 60, true
-	case "def_ban_7d":
-		return 7 * 24 * 60 * 60, true
-	case "def_ban_30d":
-		return 30 * 24 * 60 * 60, true
-	default:
-		return 0, false
-	}
-}
-
-func parseDefenderBanDurationInput(raw string) (int32, string, string) {
-	normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(raw), " ", ""))
-	if len(normalized) < 2 {
-		return 0, "Неверный формат. Используй, например: `5m`, `24h`, `3d`.", "Invalid format. Use for example: `5m`, `24h`, `3d`."
-	}
-
-	unit := normalized[len(normalized)-1]
-	valueRaw := normalized[:len(normalized)-1]
-	value, err := strconv.Atoi(valueRaw)
-	if err != nil || value <= 0 {
-		return 0, "Неверный формат. Используй, например: `5m`, `24h`, `3d`.", "Invalid format. Use for example: `5m`, `24h`, `3d`."
-	}
-
-	var sec int32
-	switch unit {
-	case 'm':
-		sec = int32(value * 60)
-	case 'h':
-		sec = int32(value * 60 * 60)
-	case 'd':
-		sec = int32(value * 24 * 60 * 60)
-	default:
-		return 0, "Неверная единица. Разрешено: `m`, `h`, `d`.", "Invalid unit. Allowed: `m`, `h`, `d`."
-	}
-
-	if sec < defenderBanMinSec || sec > defenderBanMaxSec {
-		return 0, "Срок должен быть в диапазоне от `5m` до `30d`.", "Duration must be between `5m` and `30d`."
-	}
-	return sec, "", ""
-}
-
-func formatDefenderBanDurationLabel(sec int32, language string) string {
-	safe := normalizeDefenderBanDurationSec(sec)
-	if safe%(24*60*60) == 0 {
-		value := safe / (24 * 60 * 60)
-		if language == fsm.LangEn {
-			return fmt.Sprintf("%dd", value)
-		}
-		return fmt.Sprintf("%dд", value)
-	}
-	if safe%(60*60) == 0 {
-		value := safe / (60 * 60)
-		if language == fsm.LangEn {
-			return fmt.Sprintf("%dh", value)
-		}
-		return fmt.Sprintf("%dч", value)
-	}
-	value := safe / 60
-	if language == fsm.LangEn {
-		return fmt.Sprintf("%dm", value)
-	}
-	return fmt.Sprintf("%dм", value)
 }
 
 func buildDefenderManualFilterFromPayload(payload map[string]any) (fsm.DefenderManualFilter, bool, string, string) {
