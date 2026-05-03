@@ -487,6 +487,7 @@ type TelegramGroup struct {
 	TeamNotificationsThreadID    int64              `json:"team_notifications_thread_id"`
 	TeamNotificationsThreadLabel string             `json:"team_notifications_thread_label"`
 	TeamWithdrawnBehavior        string             `json:"team_withdrawn_behavior"`
+	DefenderRecheckKnownMembers  bool               `json:"defender_recheck_known_members"`
 }
 
 type TelegramGroupDefenderCampusFilter struct {

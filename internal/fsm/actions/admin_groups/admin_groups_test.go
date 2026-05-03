@@ -472,12 +472,13 @@ func TestLoadGroupDefenderContext_Owner(t *testing.T) {
 	chatID := int64(-100808)
 	expectEmptyDefenderFilterLists(q, chatID)
 	q.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
-		ChatID:                chatID,
-		OwnerTelegramUserID:   42,
-		IsInitialized:         true,
-		IsActive:              true,
-		DefenderEnabled:       true,
-		DefenderRemoveBlocked: true,
+		ChatID:                      chatID,
+		OwnerTelegramUserID:         42,
+		IsInitialized:               true,
+		IsActive:                    true,
+		DefenderEnabled:             true,
+		DefenderRemoveBlocked:       true,
+		DefenderRecheckKnownMembers: true,
 	}, nil)
 	q.EXPECT().ListTelegramGroupWhitelists(gomock.Any(), db.ListTelegramGroupWhitelistsParams{
 		ChatID:   chatID,
@@ -514,6 +515,7 @@ func TestLoadGroupDefenderContext_Owner(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, true, updates["defender_enabled"])
 	require.Equal(t, true, updates["defender_remove_blocked"])
+	require.Equal(t, true, updates["defender_recheck_known_members"])
 	require.Equal(t, 1, updates["defender_whitelist_count"])
 	require.True(t, strings.Contains(updates["defender_whitelist_list_ru"].(string), "[saha](tg://openmessage?user_id=1001)"))
 	require.True(t, strings.Contains(updates["defender_whitelist_list_ru"].(string), "@vgy789"))
@@ -585,6 +587,11 @@ func TestSetGroupDefenderEnabled_OffAutoDisablesRemoveBlocked(t *testing.T) {
 		OwnerTelegramUserID:   42,
 		DefenderRemoveBlocked: false,
 	}).Return(int64(1), nil)
+	q.EXPECT().UpdateTelegramGroupDefenderRecheckKnownMembersByOwner(gomock.Any(), db.UpdateTelegramGroupDefenderRecheckKnownMembersByOwnerParams{
+		ChatID:                      chatID,
+		OwnerTelegramUserID:         42,
+		DefenderRecheckKnownMembers: false,
+	}).Return(int64(1), nil)
 	q.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
 		ChatID:                chatID,
 		OwnerTelegramUserID:   42,
@@ -603,6 +610,50 @@ func TestSetGroupDefenderEnabled_OffAutoDisablesRemoveBlocked(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, false, updates["defender_enabled"])
 	require.Equal(t, false, updates["defender_remove_blocked"])
+}
+
+func TestSetGroupDefenderRecheckKnownMembers_AutoEnablesDefender(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	reg := fsm.NewLogicRegistry()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	Register(reg, &config.Config{}, logger, q, nil)
+
+	action, ok := reg.Get("set_group_defender_recheck_known_members")
+	require.True(t, ok)
+
+	chatID := int64(-100814)
+	expectEmptyDefenderFilterLists(q, chatID)
+	q.EXPECT().UpdateTelegramGroupDefenderRecheckKnownMembersByOwner(gomock.Any(), db.UpdateTelegramGroupDefenderRecheckKnownMembersByOwnerParams{
+		ChatID:                      chatID,
+		OwnerTelegramUserID:         42,
+		DefenderRecheckKnownMembers: true,
+	}).Return(int64(1), nil)
+	q.EXPECT().UpdateTelegramGroupDefenderEnabledByOwner(gomock.Any(), db.UpdateTelegramGroupDefenderEnabledByOwnerParams{
+		ChatID:              chatID,
+		OwnerTelegramUserID: 42,
+		DefenderEnabled:     true,
+	}).Return(int64(1), nil)
+	q.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
+		ChatID:                      chatID,
+		OwnerTelegramUserID:         42,
+		IsInitialized:               true,
+		IsActive:                    true,
+		DefenderEnabled:             true,
+		DefenderRecheckKnownMembers: true,
+	}, nil)
+	q.EXPECT().ListTelegramGroupWhitelists(gomock.Any(), gomock.Any()).Return([]db.TelegramGroupWhitelist{}, nil)
+	q.EXPECT().ListTelegramGroupLogs(gomock.Any(), gomock.Any()).Return([]db.TelegramGroupLog{}, nil)
+
+	_, updates, err := action(context.Background(), 42, map[string]any{
+		"selected_group_chat_id": "-100814",
+		"id":                     "def_recheck_known_on",
+	})
+	require.NoError(t, err)
+	require.Equal(t, true, updates["defender_recheck_known_members"])
+	require.Equal(t, true, updates["defender_enabled"])
 }
 
 func TestSetGroupDefenderRemoveBlocked_AutoEnablesDefender(t *testing.T) {

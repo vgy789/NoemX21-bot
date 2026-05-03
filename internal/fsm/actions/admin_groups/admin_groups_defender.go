@@ -63,6 +63,13 @@ func registerDefenderActions(registry *fsm.LogicRegistry, log logger, queries db
 			}); err != nil {
 				log.Warn("admin groups: failed to auto-disable defender_remove_blocked", "chat_id", chatID, "user_id", userID, "error", err)
 			}
+			if _, err := queries.UpdateTelegramGroupDefenderRecheckKnownMembersByOwner(ctx, db.UpdateTelegramGroupDefenderRecheckKnownMembersByOwnerParams{
+				ChatID:                      chatID,
+				OwnerTelegramUserID:         userID,
+				DefenderRecheckKnownMembers: false,
+			}); err != nil {
+				log.Warn("admin groups: failed to auto-disable defender_recheck_known_members", "chat_id", chatID, "user_id", userID, "error", err)
+			}
 		}
 		return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
 	})
@@ -80,6 +87,32 @@ func registerDefenderActions(registry *fsm.LogicRegistry, log logger, queries db
 			DefenderRemoveBlocked: enable,
 		}); err != nil {
 			log.Warn("admin groups: failed to update defender_remove_blocked", "chat_id", chatID, "user_id", userID, "error", err)
+		}
+		if enable {
+			if _, err := queries.UpdateTelegramGroupDefenderEnabledByOwner(ctx, db.UpdateTelegramGroupDefenderEnabledByOwnerParams{
+				ChatID:              chatID,
+				OwnerTelegramUserID: userID,
+				DefenderEnabled:     true,
+			}); err != nil {
+				log.Warn("admin groups: failed to auto-enable defender", "chat_id", chatID, "user_id", userID, "error", err)
+			}
+		}
+		return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
+	})
+
+	registry.Register("set_group_defender_recheck_known_members", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		chatID, err := parseSelectedGroupChatID(payload)
+		if err != nil {
+			return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
+		}
+
+		enable := strings.TrimSpace(fmt.Sprintf("%v", payload["id"])) == "def_recheck_known_on"
+		if _, err := queries.UpdateTelegramGroupDefenderRecheckKnownMembersByOwner(ctx, db.UpdateTelegramGroupDefenderRecheckKnownMembersByOwnerParams{
+			ChatID:                      chatID,
+			OwnerTelegramUserID:         userID,
+			DefenderRecheckKnownMembers: enable,
+		}); err != nil {
+			log.Warn("admin groups: failed to update defender_recheck_known_members", "chat_id", chatID, "user_id", userID, "error", err)
 		}
 		if enable {
 			if _, err := queries.UpdateTelegramGroupDefenderEnabledByOwner(ctx, db.UpdateTelegramGroupDefenderEnabledByOwnerParams{
@@ -955,6 +988,9 @@ func mergeDefenderDefaults(updates map[string]any, payload map[string]any) {
 	updates["defender_remove_blocked"] = false
 	updates["defender_remove_blocked_label_ru"] = "❌ Выключено"
 	updates["defender_remove_blocked_label_en"] = "❌ Disabled"
+	updates["defender_recheck_known_members"] = false
+	updates["defender_recheck_known_members_label_ru"] = "❌ Выключено"
+	updates["defender_recheck_known_members_label_en"] = "❌ Disabled"
 	updates["defender_ban_duration_sec"] = defenderBanDefaultSec
 	updates["defender_ban_duration_label_ru"] = formatDefenderBanDurationLabel(defenderBanDefaultSec, fsm.LangRu)
 	updates["defender_ban_duration_label_en"] = formatDefenderBanDurationLabel(defenderBanDefaultSec, fsm.LangEn)
@@ -1082,18 +1118,28 @@ func buildDefenderSettingsUpdates(group db.TelegramGroup) map[string]any {
 		blockedEN = "✅ Enabled"
 	}
 
+	recheckKnownRU := "❌ Выключено"
+	recheckKnownEN := "❌ Disabled"
+	if group.DefenderRecheckKnownMembers {
+		recheckKnownRU = "✅ Включено"
+		recheckKnownEN = "✅ Enabled"
+	}
+
 	banDurationSec := normalizeDefenderBanDurationSec(group.DefenderBanDurationSec)
 
 	return map[string]any{
-		"defender_enabled":                 group.DefenderEnabled,
-		"defender_enabled_label_ru":        enabledRU,
-		"defender_enabled_label_en":        enabledEN,
-		"defender_remove_blocked":          group.DefenderRemoveBlocked,
-		"defender_remove_blocked_label_ru": blockedRU,
-		"defender_remove_blocked_label_en": blockedEN,
-		"defender_ban_duration_sec":        banDurationSec,
-		"defender_ban_duration_label_ru":   formatDefenderBanDurationLabel(banDurationSec, fsm.LangRu),
-		"defender_ban_duration_label_en":   formatDefenderBanDurationLabel(banDurationSec, fsm.LangEn),
+		"defender_enabled":                        group.DefenderEnabled,
+		"defender_enabled_label_ru":               enabledRU,
+		"defender_enabled_label_en":               enabledEN,
+		"defender_remove_blocked":                 group.DefenderRemoveBlocked,
+		"defender_remove_blocked_label_ru":        blockedRU,
+		"defender_remove_blocked_label_en":        blockedEN,
+		"defender_recheck_known_members":          group.DefenderRecheckKnownMembers,
+		"defender_recheck_known_members_label_ru": recheckKnownRU,
+		"defender_recheck_known_members_label_en": recheckKnownEN,
+		"defender_ban_duration_sec":               banDurationSec,
+		"defender_ban_duration_label_ru":          formatDefenderBanDurationLabel(banDurationSec, fsm.LangRu),
+		"defender_ban_duration_label_en":          formatDefenderBanDurationLabel(banDurationSec, fsm.LangEn),
 	}
 }
 

@@ -16,19 +16,20 @@ SELECT
     g.updated_at,
     g.member_tags_enabled,
     g.member_tag_format,
-    g.defender_enabled,
-    g.defender_remove_blocked,
-    g.defender_ban_duration_sec,
+	    g.defender_enabled,
+	    g.defender_remove_blocked,
+	    g.defender_ban_duration_sec,
     g.is_forum,
     g.prr_notifications_enabled,
     g.prr_notifications_thread_id,
     g.prr_notifications_thread_label,
     g.prr_withdrawn_behavior,
     g.moderation_commands_enabled,
-    g.team_notifications_enabled,
-    g.team_notifications_thread_id,
-    g.team_notifications_thread_label,
-    g.team_withdrawn_behavior
+	    g.team_notifications_enabled,
+	    g.team_notifications_thread_id,
+	    g.team_notifications_thread_label,
+	    g.team_withdrawn_behavior,
+	    g.defender_recheck_known_members
 FROM telegram_groups g
 WHERE g.is_active = true
   AND g.is_initialized = true
@@ -151,6 +152,7 @@ func (q *Queries) ListTelegramGroupsManagedByUser(ctx context.Context, telegramU
 			&i.TeamNotificationsThreadID,
 			&i.TeamNotificationsThreadLabel,
 			&i.TeamWithdrawnBehavior,
+			&i.DefenderRecheckKnownMembers,
 		); err != nil {
 			return nil, err
 		}

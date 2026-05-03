@@ -295,6 +295,7 @@ package "Community_Social" {
         defender_enabled : boolean
         defender_remove_blocked : boolean
         defender_ban_duration_sec : int
+        defender_recheck_known_members : boolean
         is_forum : boolean
         prr_notifications_enabled : boolean
         prr_notifications_thread_id : bigint

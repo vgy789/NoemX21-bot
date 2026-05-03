@@ -1170,6 +1170,7 @@ states:
 
           - Автоматический фейс-контроль: `{defender_enabled_label_ru}`
           - Удалять ЗАБЛОКИРОВАН/ОТЧИСЛЕН: `{defender_remove_blocked_label_ru}`
+          - Проверять уже вошедших: `{defender_recheck_known_members_label_ru}`
           - Фильтр по кампусу: `{defender_filter_campus_label_ru}`
           - Фильтр по трайбу: `{defender_filter_tribe_label_ru}`
           - Whitelist: `{defender_whitelist_count}`
@@ -1181,6 +1182,7 @@ states:
 
           - **Automatic gatekeeper:** `{defender_enabled_label_en}`
           - **Expelled filter:** `{defender_remove_blocked_label_en}`
+          - **Recheck existing members:** `{defender_recheck_known_members_label_en}`
           - **Campus filter:** `{defender_filter_campus_label_en}`
           - **Tribe filter:** `{defender_filter_tribe_label_en}`
           - **Whitelist:** `{defender_whitelist_count}`
@@ -1485,7 +1487,7 @@ states:
         ru: |
           ⚙️ *Настройки автоматического фейс-контроля*
 
-          ⚠️ *Не затрагивает тех, кто уже в чате.* Т.е. я буду проверять новых людей, приходящих в группу.
+          По умолчанию я проверяю только новые входы и заявки на вступление. Проверку людей, которые уже есть в чате, можно включить отдельной настройкой ниже.
           Если группа использует заявки на вступление, перед отклонением заявки я напишу пользователю в личку, почему его не пустили и что нужно исправить. Это возможно только для заявок на вступление!
 
           🛡 *Мои фильтры:*
@@ -1502,13 +1504,15 @@ states:
           *4. Фильтр по трайбам:*
           `{defender_filter_tribe_label_ru}` _(Можно выбрать несколько, но только из твоего кампуса. При выборе трайбов фильтр №3 фиксируется *на твоём* кампусе)_
 
-          *5. Срок блокировки:*
-          `{defender_ban_duration_label_ru}` _(После истечения срока Telegram разбанит пользователя автоматически)_
+          *5. Проверять уже вошедших:*
+          `{defender_recheck_known_members_label_ru}` _(Если вкл: буду удалять известных участников, которые написали в чат или попали в фоновую проверку и больше не проходят фильтры)_
+
+          *6. Срок блокировки:*
+          `{defender_ban_duration_label_ru}` _(Используется при удалении уже вошедших участников. После истечения срока Telegram разбанит пользователя автоматически)_
         en: |
           ⚙️ *Gatekeeper Settings*
 
-          When enabled, I check every newcomer at the "gate".
-          ⚠️ *Auto-mode does not affect existing group members.*  In other words, I'll be vetting the people who join the group.
+          When enabled, I check new joins and join requests by default. Rechecking people who are already in the chat is controlled by a separate setting below.
           If the group uses join requests, I will DM the user before declining the request and explain why they were not accepted. This is only available for join requests.
 
           🛡 *Filters:*
@@ -1525,8 +1529,11 @@ states:
           *4. Tribe Filter:*
           `{defender_filter_tribe_label_en}` _(Multi-select, but only from your campus. Enabling tribe filters locks campus to yours.)_
 
-          *5. Ban Duration:*
-          `{defender_ban_duration_label_en}` _(User will be automatically unbanned by Telegram after this time)_
+          *5. Recheck existing members:*
+          `{defender_recheck_known_members_label_en}` _(If enabled, I will remove known members who write in chat or are seen by the background sweep and no longer match the filters.)_
+
+          *6. Ban Duration:*
+          `{defender_ban_duration_label_en}` _(Used when removing already joined members. Telegram will automatically unban the user after this time.)_
       buttons:
         - id: def_enable_on
           label:
@@ -1576,10 +1583,26 @@ states:
           row: 4
         - id: def_ban_custom
           label:
-            ru: 5. Ввести срок блокировки
-            en: 5. Enter ban duration
+            ru: 6. Ввести срок блокировки
+            en: 6. Enter ban duration
           condition: "can_manage_selected_group == true"
           next_state: GROUP_DEFENDER_BAN_DURATION_INPUT
+          row: 6
+        - id: def_recheck_known_on
+          label:
+            ru: 5. Проверять уже вошедших
+            en: 5. Recheck existing members
+          action: set_group_defender_recheck_known_members
+          condition: "can_manage_selected_group == true && defender_recheck_known_members == false"
+          next_state: GROUP_DEFENDER_AUTOMODE
+          row: 5
+        - id: def_recheck_known_off
+          label:
+            ru: 5. Не трогать уже вошедших
+            en: 5. Do not recheck existing members
+          action: set_group_defender_recheck_known_members
+          condition: "can_manage_selected_group == true && defender_recheck_known_members == true"
+          next_state: GROUP_DEFENDER_AUTOMODE
           row: 5
         - id: show_recommendation
           label:
@@ -2401,12 +2424,14 @@ states:
         ru: |
           ⏳ *Срок временной блокировки*
 
-          Пользователь может *снова попытыться войти* в группу через указанное время. Справедливо, если человек стал подходить по фильтрам фейс-контроля (например станет пиром кампуса).
+          Этот срок применяется, когда бот удаляет уже вошедшего участника. Заявки на вступление, которые не прошли фильтры, просто отклоняются без бана.
 
           Введи срок в формате: `5m`, `24h`, `3d`.
           Допустимый диапазон: от `5m` до `30d`.
         en: |
           ⏳ *Temporary ban duration*
+
+          This duration is used when the bot removes an already joined member. Join requests that do not match filters are declined without a ban.
 
           Enter duration in format: `5m`, `24h`, `3d`.
           Allowed range: from `5m` to `30d`.

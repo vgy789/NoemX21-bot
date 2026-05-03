@@ -422,6 +422,83 @@ func TestHandleChatJoinRequest_AutoDefenderSkipsWithoutInviteRights(t *testing.T
 	assert.Equal(t, "bot_rights", logRows[0].Reason)
 }
 
+func TestAutoModerationConsistency_SkipsKnownMemberWhenRecheckDisabled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	queries := dbmock.NewMockQuerier(ctrl)
+	userSvc := serviceMock.NewMockUserService(ctrl)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	s := &telegramService{log: log, queries: queries, userSvc: userSvc}
+
+	chatID := int64(-100904)
+	userID := int64(1904)
+	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
+		ChatID:                      chatID,
+		IsInitialized:               true,
+		IsActive:                    true,
+		DefenderEnabled:             true,
+		DefenderRecheckKnownMembers: false,
+	}, nil)
+
+	client := &fakeDefenderBotClient{members: map[int64]rawChatMember{}}
+	bot := &gotgbot.Bot{Token: "test-token", User: gotgbot.User{Id: 9000, IsBot: true}, BotClient: client}
+
+	s.tryAutoModerationConsistencyForSender(context.Background(), bot, chatID, userID)
+
+	require.Empty(t, client.banCalls)
+}
+
+func TestAutoModerationConsistency_RemovesKnownMemberWhenRecheckEnabled(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	queries := dbmock.NewMockQuerier(ctrl)
+	userSvc := serviceMock.NewMockUserService(ctrl)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+	s := &telegramService{log: log, queries: queries, userSvc: userSvc}
+
+	chatID := int64(-100905)
+	userID := int64(1905)
+	expectEmptyDefenderFilters(queries, chatID)
+	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
+		ChatID:                      chatID,
+		IsInitialized:               true,
+		IsActive:                    true,
+		DefenderEnabled:             true,
+		DefenderRemoveBlocked:       true,
+		DefenderRecheckKnownMembers: true,
+	}, nil)
+	queries.EXPECT().ExistsTelegramGroupWhitelist(gomock.Any(), db.ExistsTelegramGroupWhitelistParams{
+		ChatID:         chatID,
+		TelegramUserID: userID,
+	}).Return(false, nil)
+	queries.EXPECT().MarkTelegramGroupMemberLeft(gomock.Any(), gomock.Any()).Return(nil)
+	queries.EXPECT().UpsertTelegramGroupMember(gomock.Any(), gomock.Any()).Return(db.TelegramGroupMember{}, nil)
+	queries.EXPECT().InsertTelegramGroupLog(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	userSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), userID).Return(&service.UserProfile{
+		Login:  "blocked_user",
+		Status: db.EnumStudentStatusBLOCKED,
+	}, nil)
+
+	client := &fakeDefenderBotClient{members: map[int64]rawChatMember{
+		9000: {Status: gotgbot.ChatMemberStatusAdministrator, CanRestrict: true, User: struct {
+			ID    int64 `json:"id"`
+			IsBot bool  `json:"is_bot"`
+		}{ID: 9000, IsBot: true}},
+		userID: {Status: gotgbot.ChatMemberStatusMember, User: struct {
+			ID    int64 `json:"id"`
+			IsBot bool  `json:"is_bot"`
+		}{ID: userID, IsBot: false}},
+	}}
+	bot := &gotgbot.Bot{Token: "test-token", User: gotgbot.User{Id: 9000, IsBot: true}, BotClient: client}
+
+	s.tryAutoModerationConsistencyForSender(context.Background(), bot, chatID, userID)
+
+	require.Len(t, client.banCalls, 1)
+	assert.Equal(t, userID, client.banCalls[0].userID)
+}
+
 func TestDefenderRunner_ManualRunBlockedUser(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

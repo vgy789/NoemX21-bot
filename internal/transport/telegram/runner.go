@@ -358,7 +358,7 @@ func (s *telegramService) startConsistencySweep(parentCtx context.Context, b *go
 			default:
 			}
 
-			if !group.DefenderEnabled && !group.MemberTagsEnabled {
+			if (!group.DefenderEnabled || !group.DefenderRecheckKnownMembers) && !group.MemberTagsEnabled {
 				continue
 			}
 			if err := s.reconcileKnownGroupMembers(sweepCtx, b, group); err != nil {
@@ -392,7 +392,7 @@ func (s *telegramService) reconcileKnownGroupMembers(ctx context.Context, b *got
 			continue
 		}
 
-		if group.DefenderEnabled {
+		if group.DefenderEnabled && group.DefenderRecheckKnownMembers {
 			s.tryAutoDefenderForKnownGroup(ctx, b, group, known.TelegramUserID)
 		}
 		if group.MemberTagsEnabled {

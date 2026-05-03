@@ -109,7 +109,7 @@ func (s *telegramService) tryAutoModerationConsistencyForSender(ctx context.Cont
 		return
 	}
 
-	if group.DefenderEnabled {
+	if group.DefenderEnabled && group.DefenderRecheckKnownMembers {
 		s.tryAutoDefenderForKnownGroup(ctx, b, group, telegramUserID)
 	}
 	if group.MemberTagsEnabled {

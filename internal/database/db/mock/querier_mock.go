@@ -2193,6 +2193,21 @@ func (mr *MockQuerierMockRecorder) UpdateTelegramGroupDefenderEnabledByOwner(ctx
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTelegramGroupDefenderEnabledByOwner", reflect.TypeOf((*MockQuerier)(nil).UpdateTelegramGroupDefenderEnabledByOwner), ctx, arg)
 }
 
+// UpdateTelegramGroupDefenderRecheckKnownMembersByOwner mocks base method.
+func (m *MockQuerier) UpdateTelegramGroupDefenderRecheckKnownMembersByOwner(ctx context.Context, arg db.UpdateTelegramGroupDefenderRecheckKnownMembersByOwnerParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTelegramGroupDefenderRecheckKnownMembersByOwner", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateTelegramGroupDefenderRecheckKnownMembersByOwner indicates an expected call of UpdateTelegramGroupDefenderRecheckKnownMembersByOwner.
+func (mr *MockQuerierMockRecorder) UpdateTelegramGroupDefenderRecheckKnownMembersByOwner(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTelegramGroupDefenderRecheckKnownMembersByOwner", reflect.TypeOf((*MockQuerier)(nil).UpdateTelegramGroupDefenderRecheckKnownMembersByOwner), ctx, arg)
+}
+
 // UpdateTelegramGroupDefenderRemoveBlockedByOwner mocks base method.
 func (m *MockQuerier) UpdateTelegramGroupDefenderRemoveBlockedByOwner(ctx context.Context, arg db.UpdateTelegramGroupDefenderRemoveBlockedByOwnerParams) (int64, error) {
 	m.ctrl.T.Helper()
