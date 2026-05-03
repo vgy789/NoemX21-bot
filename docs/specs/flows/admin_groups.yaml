@@ -1353,33 +1353,29 @@ states:
         ru: |
           📑 *Команды модерации*
 
-          `/mute <время>` — выдать мут по reply.
-          `/mute <ник|@username|id> <время>` — выдать мут по явной цели.
-          `/unmute` — снять мут по reply.
-          `/unmute <ник|@username|id>` — снять мут по явной цели.
-          `/ban` — заблокировать участника по reply.
-          `/ban <ник|@username|id>` — заблокировать по явной цели.
-          `/unban` или `/eban` — снять блокировку по reply.
-          `/unban <ник|@username|id>` или `/eban <ник|@username|id>` — снять блокировку по явной цели.
-          `/kick` — исключить участника по reply.
-          `/kick <ник|@username|id>` — исключить по явной цели.
+          💡 _Любую команду можно использовать в ответ на сообщение пользователя (reply) или просто указав его данные после команды:_ `<ник | @username | id>`
 
-          _Примеры времени:_ `10m`, `10минут`, `2 hours`, `2 Ч`, `6 Days`,`6 дней`.
+          `/mute [время]` — запретить писать сообщения на указанный срок.
+          `/unmute` — досрочно разрешить писать сообщения.
+          `/kick` — выгнать участника из группы (он сможет вернуться обратно по ссылке).
+          `/ban` — заблокировать участника (он добавляется в чёрный список и не сможет вернуться).
+          `/unban` или `/eban` — снять блокировку (удалить из чёрного списка).
+          `/white` — добавить участника в белый список и полностью снять блокировку в группе.
+
+          _Примеры времени:_ `10m`, `10минут`, `2 hours`, `2 Ч`, `6 Days`, `6 дней`.
         en: |
           📑 *Moderation Commands*
 
-          `/mute <duration>` — mute by reply.
-          `/mute <login|@username|id> <duration>` — mute explicit target.
-          `/unmute` — unmute by reply.
-          `/unmute <login|@username|id>` — unmute explicit target.
-          `/ban` — ban by reply.
-          `/ban <login|@username|id>` — ban explicit target.
-          `/unban` or `/eban` — unban by reply.
-          `/unban <login|@username|id>` or `/eban <login|@username|id>` — unban explicit target.
-          `/kick` — kick by reply.
-          `/kick <login|@username|id>` — kick explicit target.
+          💡 _Any command can be used by replying to a user's message or by explicitly specifying their target after the command:_ `<login | @username | id>`
 
-          _Duration examples_ `10m`, `10минут`, `2 hours`, `2 Ч`, `6 Days`,`6 дней`.
+          `/mute [duration]` — restrict the user from sending messages for a specific time.
+          `/unmute` — remove message restrictions early.
+          `/kick` — remove the user from the group (they can rejoin via an invite link).
+          `/ban` — ban the user (adds them to the blacklist so they cannot rejoin).
+          `/unban` or `/eban` — unban the user (removes them from the blacklist).
+          `/white` — add the user to the whitelist and clear all group bans.
+
+          _Duration examples:_ `10m`, `10минут`, `2 hours`, `2 Ч`, `6 Days`, `6 дней`.
       buttons:
         - id: back
           label:

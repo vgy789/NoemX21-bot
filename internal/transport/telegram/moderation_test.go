@@ -553,6 +553,69 @@ func TestHandleKickCommand_BanThenUnban(t *testing.T) {
 	assert.True(t, client.unbanCalls[0].onlyIfBanned)
 }
 
+func TestHandleWhiteCommand_AddsWhitelistAndUnbans(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	const (
+		chatID         = int64(-100117)
+		ownerID        = int64(5007)
+		ownerAccountID = int64(7007)
+		targetID       = int64(2307)
+		botID          = int64(9000)
+	)
+
+	queries := dbmock.NewMockQuerier(ctrl)
+	sender := &recordingSender{}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	client := &fakeModerationBotClient{
+		members: map[int64]rawChatMember{
+			botID: {
+				Status:      gotgbot.ChatMemberStatusAdministrator,
+				CanRestrict: true,
+				User: struct {
+					ID    int64 `json:"id"`
+					IsBot bool  `json:"is_bot"`
+				}{ID: botID, IsBot: true},
+			},
+		},
+	}
+
+	s := &telegramService{log: log, sender: sender, queries: queries}
+	bot := &gotgbot.Bot{Token: "test-token", User: gotgbot.User{Id: botID, IsBot: true}, BotClient: client}
+
+	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
+		ChatID:              chatID,
+		OwnerTelegramUserID: ownerID,
+		IsInitialized:       true,
+		IsActive:            true,
+	}, nil)
+	queries.EXPECT().GetUserAccountIDByExternalId(gomock.Any(), db.GetUserAccountIDByExternalIdParams{
+		Platform:   db.EnumPlatformTelegram,
+		ExternalID: strconv.FormatInt(ownerID, 10),
+	}).Return(ownerAccountID, nil)
+	queries.EXPECT().UpsertTelegramGroupWhitelist(gomock.Any(), db.UpsertTelegramGroupWhitelistParams{
+		ChatID:           chatID,
+		TelegramUserID:   targetID,
+		AddedByAccountID: ownerAccountID,
+	}).Return(db.TelegramGroupWhitelist{
+		ChatID:           chatID,
+		TelegramUserID:   targetID,
+		AddedByAccountID: ownerAccountID,
+	}, nil)
+
+	ctx := makeGroupCommandContext(bot, chatID, ownerID, "/white", targetID, "target_user")
+	err := s.handleWhiteCommand(bot, ctx)
+	require.NoError(t, err)
+
+	require.Len(t, client.unbanCalls, 1)
+	assert.Equal(t, targetID, client.unbanCalls[0].userID)
+	assert.False(t, client.unbanCalls[0].onlyIfBanned)
+	require.Len(t, sender.texts, 1)
+	assert.Contains(t, sender.texts[0], "добавлен в whitelist")
+}
+
 func TestHandleUnmuteCommand_ByReply(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

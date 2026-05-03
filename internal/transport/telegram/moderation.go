@@ -198,6 +198,52 @@ func (s *telegramService) handleKickCommand(b *gotgbot.Bot, ctx *ext.Context) er
 	return nil
 }
 
+func (s *telegramService) handleWhiteCommand(b *gotgbot.Bot, ctx *ext.Context) error {
+	group, ok := s.requireGroupModerationAccess(b, ctx, moderationPermissionBan)
+	if !ok {
+		return nil
+	}
+
+	target, err := s.resolveModerationTargetForSimpleCommand(context.Background(), b, group.ChatID, ctx.EffectiveMessage, extractCommandArgs(ctx.EffectiveMessage), "/white")
+	if err != nil {
+		_, _ = s.getSender(b).SendMessage(group.ChatID, err.Error(), nil)
+		return nil
+	}
+
+	addedByID, err := s.queries.GetUserAccountIDByExternalId(context.Background(), db.GetUserAccountIDByExternalIdParams{
+		Platform:   db.EnumPlatformTelegram,
+		ExternalID: strconv.FormatInt(ctx.EffectiveUser.Id, 10),
+	})
+	if err != nil {
+		s.log.Warn("failed to resolve whitelist admin account", "chat_id", group.ChatID, "admin_user_id", ctx.EffectiveUser.Id, "error", err)
+		_, _ = s.getSender(b).SendMessage(group.ChatID, "Не удалось добавить в whitelist: администратор не найден в базе бота.", nil)
+		return nil
+	}
+
+	if _, err := s.queries.UpsertTelegramGroupWhitelist(context.Background(), db.UpsertTelegramGroupWhitelistParams{
+		ChatID:           group.ChatID,
+		TelegramUserID:   target.TelegramUserID,
+		AddedByAccountID: addedByID,
+	}); err != nil {
+		s.log.Warn("failed to add group whitelist member", "chat_id", group.ChatID, "target_user_id", target.TelegramUserID, "error", err)
+		_, _ = s.getSender(b).SendMessage(group.ChatID, "Не удалось добавить участника в whitelist.", nil)
+		return nil
+	}
+
+	unbanFailed := false
+	if err := s.unbanChatMember(context.Background(), b, group.ChatID, target.TelegramUserID, false); err != nil {
+		unbanFailed = true
+		s.log.Warn("failed to unban whitelisted member", "chat_id", group.ChatID, "target_user_id", target.TelegramUserID, "error", err)
+	}
+
+	message := fmt.Sprintf("Участник добавлен в whitelist: %s.", describeModerationTarget(target))
+	if unbanFailed {
+		message += " Но не удалось убрать его из чёрного списка Telegram-группы: проверьте права бота."
+	}
+	_, _ = s.getSender(b).SendMessage(group.ChatID, message, nil)
+	return nil
+}
+
 type moderationPermission string
 
 const (
