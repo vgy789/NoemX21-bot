@@ -227,16 +227,8 @@ func TestHandleGroupInit_OldOwnerRevokedImmediately(t *testing.T) {
 		OwnerTelegramUserID: int64(3003),
 	}).Return(int64(1), nil)
 
-	var msgText string
-	sender.EXPECT().SendMessage(chatID, gomock.Any(), gomock.Nil()).DoAndReturn(func(_ int64, text string, _ *gotgbot.SendMessageOpts) (*gotgbot.Message, error) {
-		msgText = text
-		return nil, nil
-	})
-
 	err := s.handleGroupInit(bot, ctx)
 	require.NoError(t, err)
-	assert.Contains(t, msgText, "привязка к админке")
-	assert.Contains(t, msgText, "Бот продолжает работать")
 }
 
 func TestHandleChatMember_AutoUnlinkWhenStoredOwnerLosesCreator(t *testing.T) {

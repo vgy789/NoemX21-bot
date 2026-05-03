@@ -150,11 +150,20 @@ func (r *recordingSender) AnswerCallbackQuery(_ string, _ *gotgbot.AnswerCallbac
 
 type queriesWithModerationCommandsConfig struct {
 	db.Querier
-	enabled bool
+	enabled    bool
+	moderators map[int64]db.TelegramGroupModerator
 }
 
 func (q *queriesWithModerationCommandsConfig) GetTelegramGroupModerationCommandsEnabledByChatID(_ context.Context, _ int64) (bool, error) {
 	return q.enabled, nil
+}
+
+func (q *queriesWithModerationCommandsConfig) GetTelegramGroupModeratorByChatAndUser(_ context.Context, _ int64, telegramUserID int64) (db.TelegramGroupModerator, error) {
+	moderator, ok := q.moderators[telegramUserID]
+	if !ok {
+		return db.TelegramGroupModerator{}, assert.AnError
+	}
+	return moderator, nil
 }
 
 func TestHandleMuteCommand_ReplyDuration(t *testing.T) {
@@ -205,6 +214,126 @@ func TestHandleMuteCommand_ReplyDuration(t *testing.T) {
 	assert.True(t, client.restrictCalls[0].untilDate > before)
 	require.NotEmpty(t, sender.texts)
 	assert.Contains(t, sender.texts[len(sender.texts)-1], "пускать пузыри под водой")
+}
+
+func TestHandleMuteCommand_GroupModeratorWithMutePermission(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	const (
+		chatID      = int64(-100118)
+		ownerID     = int64(5008)
+		moderatorID = int64(6008)
+		replyID     = int64(1208)
+		botID       = int64(9000)
+	)
+
+	baseQueries := dbmock.NewMockQuerier(ctrl)
+	queries := &queriesWithModerationCommandsConfig{
+		Querier: baseQueries,
+		enabled: true,
+		moderators: map[int64]db.TelegramGroupModerator{
+			moderatorID: {
+				ChatID:         chatID,
+				TelegramUserID: moderatorID,
+				CanMute:        true,
+			},
+		},
+	}
+	sender := &recordingSender{}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	client := &fakeModerationBotClient{
+		members: map[int64]rawChatMember{
+			botID: {
+				Status:      gotgbot.ChatMemberStatusAdministrator,
+				CanRestrict: true,
+				User: struct {
+					ID    int64 `json:"id"`
+					IsBot bool  `json:"is_bot"`
+				}{ID: botID, IsBot: true},
+			},
+			replyID: {Status: gotgbot.ChatMemberStatusMember},
+		},
+		usernames: map[int64]string{replyID: "reply_user"},
+	}
+
+	s := &telegramService{log: log, sender: sender, queries: queries}
+	bot := &gotgbot.Bot{Token: "test-token", User: gotgbot.User{Id: botID, IsBot: true}, BotClient: client}
+
+	baseQueries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
+		ChatID:              chatID,
+		OwnerTelegramUserID: ownerID,
+		IsInitialized:       true,
+		IsActive:            true,
+	}, nil)
+
+	ctx := makeGroupCommandContext(bot, chatID, moderatorID, "/mute 10m", replyID, "reply_user")
+	err := s.handleMuteCommand(bot, ctx)
+	require.NoError(t, err)
+
+	require.Len(t, client.restrictCalls, 1)
+	assert.Equal(t, replyID, client.restrictCalls[0].userID)
+	require.NotEmpty(t, sender.texts)
+}
+
+func TestHandleBanCommand_GroupModeratorWithoutBanPermissionIsIgnored(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	const (
+		chatID      = int64(-100119)
+		ownerID     = int64(5009)
+		moderatorID = int64(6009)
+		targetID    = int64(1209)
+		botID       = int64(9000)
+	)
+
+	baseQueries := dbmock.NewMockQuerier(ctrl)
+	queries := &queriesWithModerationCommandsConfig{
+		Querier: baseQueries,
+		enabled: true,
+		moderators: map[int64]db.TelegramGroupModerator{
+			moderatorID: {
+				ChatID:         chatID,
+				TelegramUserID: moderatorID,
+				CanMute:        true,
+			},
+		},
+	}
+	sender := &recordingSender{}
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	client := &fakeModerationBotClient{
+		members: map[int64]rawChatMember{
+			botID: {
+				Status:      gotgbot.ChatMemberStatusAdministrator,
+				CanRestrict: true,
+				User: struct {
+					ID    int64 `json:"id"`
+					IsBot bool  `json:"is_bot"`
+				}{ID: botID, IsBot: true},
+			},
+			targetID: {Status: gotgbot.ChatMemberStatusMember},
+		},
+	}
+
+	s := &telegramService{log: log, sender: sender, queries: queries}
+	bot := &gotgbot.Bot{Token: "test-token", User: gotgbot.User{Id: botID, IsBot: true}, BotClient: client}
+
+	baseQueries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
+		ChatID:              chatID,
+		OwnerTelegramUserID: ownerID,
+		IsInitialized:       true,
+		IsActive:            true,
+	}, nil)
+
+	ctx := makeGroupCommandContext(bot, chatID, moderatorID, "/ban", targetID, "target_user")
+	err := s.handleBanCommand(bot, ctx)
+	require.NoError(t, err)
+
+	require.Empty(t, client.banCalls)
+	require.Empty(t, sender.texts)
 }
 
 func TestHandleMuteCommand_ExplicitTargetOverridesReply(t *testing.T) {
@@ -515,8 +644,7 @@ func TestHandleMuteCommand_WhenModerationCommandsDisabled(t *testing.T) {
 	require.NoError(t, err)
 
 	require.Empty(t, client.restrictCalls)
-	require.NotEmpty(t, sender.texts)
-	assert.Contains(t, sender.texts[len(sender.texts)-1], "Команды модерации выключены")
+	require.Empty(t, sender.texts)
 }
 
 func makeGroupCommandContext(bot *gotgbot.Bot, chatID, fromUserID int64, text string, replyFromID int64, replyUsername string) *ext.Context {

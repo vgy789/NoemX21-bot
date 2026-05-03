@@ -232,7 +232,22 @@ func (s *telegramService) handleGroupStart(b *gotgbot.Bot, ctx *ext.Context) err
 	if !isGroupChat(ctx.EffectiveChat) {
 		return nil
 	}
-	_, err := s.getSender(b).SendMessage(ctx.EffectiveChat.Id,
+	if b == nil || ctx.EffectiveUser == nil || ctx.EffectiveChat == nil || s.queries == nil {
+		return nil
+	}
+
+	chatID := ctx.EffectiveChat.Id
+	group, err := s.queries.GetTelegramGroupByChatID(context.Background(), chatID)
+	if err == nil && group.IsActive && group.IsInitialized {
+		return nil
+	}
+
+	member, err := b.GetChatMember(chatID, ctx.EffectiveUser.Id, nil)
+	if err != nil || member == nil || member.GetStatus() != gotgbot.ChatMemberStatusOwner {
+		return nil
+	}
+
+	_, err = s.getSender(b).SendMessage(ctx.EffectiveChat.Id,
 		"Бот добавлен в группу.\n\nВладелец группы должен выполнить команду /init, чтобы завершить инициализацию.",
 		nil,
 	)
@@ -241,7 +256,6 @@ func (s *telegramService) handleGroupStart(b *gotgbot.Bot, ctx *ext.Context) err
 
 func (s *telegramService) handleGroupInit(b *gotgbot.Bot, ctx *ext.Context) error {
 	if !isGroupChat(ctx.EffectiveChat) {
-		_, _ = s.getSender(b).SendMessage(ctx.EffectiveChat.Id, "Эта команда доступна только в группе.", nil)
 		return nil
 	}
 	if b == nil || ctx.EffectiveUser == nil || ctx.EffectiveChat == nil {
@@ -271,10 +285,8 @@ func (s *telegramService) handleGroupInit(b *gotgbot.Bot, ctx *ext.Context) erro
 			s.log.Warn("failed to unlink stale owner access", "chat_id", chatID, "user_id", userID, "error", revokeErr)
 		}
 		if rows > 0 {
-			_, _ = s.getSender(b).SendMessage(chatID, "Владелец группы изменился. Твоя привязка к админке этой группы снята. Бот продолжает работать. Новый владелец должен выполнить /init.", nil)
 			return nil
 		}
-		_, _ = s.getSender(b).SendMessage(chatID, "Инициализацию может выполнить только владелец группы.", nil)
 		return nil
 	}
 
@@ -324,7 +336,7 @@ func (s *telegramService) handleGroupInit(b *gotgbot.Bot, ctx *ext.Context) erro
 	}
 
 	_, err = s.getSender(b).SendMessage(chatID,
-		"Группа успешно инициализирована.\nПрава управления закреплены за текущим владельцем (инициатором /init).\n\nОткрой личный чат с ботом → Настройки → Настройка групп. Там появилась кнопка для настройки.",
+		"Группа успешно инициализирована.\nПрава управления закреплены за текущим владельцем группы.\n\nОткрой личный чат с ботом → Настройки → Настройка групп. Там появилась кнопка для настройки возможностей бота.",
 		nil,
 	)
 	return err
@@ -344,11 +356,9 @@ func (s *telegramService) handlePRRHere(b *gotgbot.Bot, ctx *ext.Context) error 
 
 	group, err := s.queries.GetTelegramGroupByChatID(context.Background(), chatID)
 	if err != nil || !group.IsActive || !group.IsInitialized {
-		_, _ = s.getSender(b).SendMessage(chatID, "Группа не инициализирована. Сначала выполни /init.", nil)
 		return nil
 	}
 	if group.OwnerTelegramUserID != userID {
-		_, _ = s.getSender(b).SendMessage(chatID, "Только владелец группы может настраивать PRR-радар.", nil)
 		return nil
 	}
 
@@ -391,11 +401,9 @@ func (s *telegramService) handleTeamHere(b *gotgbot.Bot, ctx *ext.Context) error
 
 	group, err := s.queries.GetTelegramGroupByChatID(context.Background(), chatID)
 	if err != nil || !group.IsActive || !group.IsInitialized {
-		_, _ = s.getSender(b).SendMessage(chatID, "Группа не инициализирована. Сначала выполни /init.", nil)
 		return nil
 	}
 	if group.OwnerTelegramUserID != userID {
-		_, _ = s.getSender(b).SendMessage(chatID, "Только владелец группы может настраивать радар команды.", nil)
 		return nil
 	}
 

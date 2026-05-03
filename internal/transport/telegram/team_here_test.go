@@ -138,7 +138,6 @@ func TestHandleTeamHere_DeniesNonOwner(t *testing.T) {
 		IsInitialized:       true,
 		IsActive:            true,
 	}, nil)
-	sender.EXPECT().SendMessage(chatID, gomock.Any(), gomock.Any()).Return(nil, nil)
 
 	update := &gotgbot.Update{
 		Message: &gotgbot.Message{
