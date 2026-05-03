@@ -99,7 +99,7 @@ func loadPRRGroupNotificationData(ctx context.Context, queries db.Querier, revie
 		level = "0"
 	}
 
-	campus := strings.TrimSpace(row.RequesterCampusName)
+	campus := strings.TrimSpace(campusNameString(row.RequesterCampusName))
 	campus = campuslabel.Localize(campus, fsm.LangRu)
 	if campus == "" {
 		campus = "Unknown campus"

@@ -110,8 +110,8 @@ func registerReviewActions(
 		if profileErr == nil {
 			timezoneName = resolveCampusAwareTimezone(ctx, queries, strings.TrimSpace(profile.Timezone), profile.CampusID)
 			timezoneOffset = zoneOffsetString(timezoneName)
-			if profile.CampusName.Valid && strings.TrimSpace(profile.CampusName.String) != "" {
-				campusName = strings.TrimSpace(profile.CampusName.String)
+			if profileCampusName := strings.TrimSpace(campusNameString(profile.CampusName)); profileCampusName != "" {
+				campusName = profileCampusName
 			}
 			if profile.Level.Valid {
 				level = strconv.FormatInt(int64(profile.Level.Int32), 10)
@@ -527,7 +527,7 @@ func registerReviewActions(
 			n := i + 1
 			id := strconv.FormatInt(row.ID, 10)
 			updates[fmt.Sprintf("project_prr_id_%d", n)] = id
-			campusName := campuslabel.Localize(row.RequesterCampusName, lang)
+			campusName := campuslabel.Localize(campusNameString(row.RequesterCampusName), lang)
 			updates[fmt.Sprintf("project_prr_btn_label_%d", n)] = fmt.Sprintf("%s %s · %s", statusEmoji(row.Status), row.RequesterS21Login, nonEmpty(campusName, "Unknown campus"))
 		}
 		if len(rows) > 0 {
@@ -1392,7 +1392,7 @@ func formatProjectRequestRows(rows []db.GetOpenReviewRequestsByProjectRow, lang 
 	}
 	var b strings.Builder
 	for i, r := range rows {
-		campusName := campuslabel.Localize(r.RequesterCampusName, lang)
+		campusName := campuslabel.Localize(campusNameString(r.RequesterCampusName), lang)
 		_, _ = fmt.Fprintf(&b, "%s %d. %s, %s, %s\n", statusEmoji(r.Status), i+1, r.RequesterS21Login, nonEmpty(campusName, "Unknown campus"), nonEmpty(r.AvailabilityText, "Flexible"))
 	}
 	return strings.TrimSpace(b.String())
@@ -1411,7 +1411,7 @@ func formatMyRequestRows(rows []db.GetMyOpenReviewRequestsRow) string {
 
 func detailUpdatesFromReviewRow(ctx context.Context, queries db.Querier, row db.GetReviewRequestByIDRow, lang, viewerOffset string) map[string]any {
 	requesterOffset := normalizeUTCOffset(row.RequesterTimezoneOffset)
-	requesterCampus := campuslabel.Localize(row.RequesterCampusName, lang)
+	requesterCampus := campuslabel.Localize(campusNameString(row.RequesterCampusName), lang)
 	updates := map[string]any{
 		"selected_prr_id":                    strconv.FormatInt(row.ID, 10),
 		"selected_prr_owner_user_id":         row.RequesterUserID,

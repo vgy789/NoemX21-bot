@@ -76,7 +76,7 @@ type Querier interface {
 	GetBooksByCampusAndAuthor(ctx context.Context, arg GetBooksByCampusAndAuthorParams) ([]GetBooksByCampusAndAuthorRow, error)
 	GetBooksByCampusAndCategory(ctx context.Context, arg GetBooksByCampusAndCategoryParams) ([]GetBooksByCampusAndCategoryRow, error)
 	GetCampusByID(ctx context.Context, id pgtype.UUID) (GetCampusByIDRow, error)
-	GetCampusByShortName(ctx context.Context, shortName string) (Campuse, error)
+	GetCampusByShortName(ctx context.Context, shortName string) (GetCampusByShortNameRow, error)
 	GetCampusesWithBookingsForTimezone(ctx context.Context, timezone pgtype.Text) ([]GetCampusesWithBookingsForTimezoneRow, error)
 	GetCatalogProjectIDsByCourse(ctx context.Context, courseID pgtype.Int8) ([]int64, error)
 	GetCatalogProjectIDsByNodeRecursive(ctx context.Context, id int64) ([]int64, error)

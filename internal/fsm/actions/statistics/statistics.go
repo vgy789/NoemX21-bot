@@ -49,6 +49,26 @@ const (
 
 var latinLoginRegex = regexp.MustCompile(`[a-z]+`)
 
+func campusNameString(name any) string {
+	switch v := name.(type) {
+	case string:
+		return v
+	case []byte:
+		return string(v)
+	case pgtype.Text:
+		if v.Valid {
+			return v.String
+		}
+		return ""
+	case interface{ String() string }:
+		return v.String()
+	case nil:
+		return ""
+	default:
+		return fmt.Sprint(v)
+	}
+}
+
 // Register registers statistics-related actions.
 func Register(
 	registry *fsm.LogicRegistry,
@@ -730,8 +750,8 @@ func getStatsFromDB(ctx context.Context, s21Login string, queries db.Querier, lo
 		vars["my_status"] = string(profile.Status.EnumStudentStatus)
 	}
 
-	if profile.CampusName.Valid && profile.CampusName.String != "" {
-		vars["my_campus"] = profile.CampusName.String
+	if campusName := campusNameString(profile.CampusName); campusName != "" {
+		vars["my_campus"] = campusName
 	}
 	if profile.CampusID.Valid {
 		b := profile.CampusID.Bytes
@@ -795,8 +815,8 @@ func getPeerStatsFromCache(ctx context.Context, lang string, login string, row d
 		"alternative_contact":      "",
 		"alternative_contact_line": "",
 	}
-	if row.CampusName.Valid {
-		vars["peer_campus"] = row.CampusName.String
+	if campusName := campusNameString(row.CampusName); campusName != "" {
+		vars["peer_campus"] = campusName
 	}
 	if row.CoalitionName.Valid {
 		vars["peer_coalition"] = row.CoalitionName.String
@@ -869,8 +889,8 @@ func getPeerStatsFromDB(ctx context.Context, lang string, login string, queries 
 		"alternative_contact_line": "",
 	}
 
-	if profile.CampusName.Valid {
-		vars["peer_campus"] = profile.CampusName.String
+	if campusName := campusNameString(profile.CampusName); campusName != "" {
+		vars["peer_campus"] = campusName
 	}
 	if profile.CoalitionName.Valid {
 		vars["peer_coalition"] = profile.CoalitionName.String

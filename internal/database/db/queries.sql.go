@@ -1611,12 +1611,28 @@ func (q *Queries) GetCampusByID(ctx context.Context, id pgtype.UUID) (GetCampusB
 }
 
 const getCampusByShortName = `-- name: GetCampusByShortName :one
-SELECT id, short_name, full_name, name_en, name_ru, timezone, is_active, created_at, updated_at, leader_name, leader_form_link FROM campuses WHERE short_name = $1
+SELECT id, short_name, full_name, name_en, name_ru, timezone, is_active, created_at, updated_at, leader_name, leader_form_link
+FROM campuses
+WHERE short_name = $1
 `
 
-func (q *Queries) GetCampusByShortName(ctx context.Context, shortName string) (Campuse, error) {
+type GetCampusByShortNameRow struct {
+	ID             pgtype.UUID        `json:"id"`
+	ShortName      string             `json:"short_name"`
+	FullName       string             `json:"full_name"`
+	NameEn         pgtype.Text        `json:"name_en"`
+	NameRu         pgtype.Text        `json:"name_ru"`
+	Timezone       pgtype.Text        `json:"timezone"`
+	IsActive       bool               `json:"is_active"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+	LeaderName     pgtype.Text        `json:"leader_name"`
+	LeaderFormLink pgtype.Text        `json:"leader_form_link"`
+}
+
+func (q *Queries) GetCampusByShortName(ctx context.Context, shortName string) (GetCampusByShortNameRow, error) {
 	row := q.db.QueryRow(ctx, getCampusByShortName, shortName)
-	var i Campuse
+	var i GetCampusByShortNameRow
 	err := row.Scan(
 		&i.ID,
 		&i.ShortName,
@@ -1822,7 +1838,7 @@ func (q *Queries) GetFSMState(ctx context.Context, userID int64) (FsmUserState, 
 }
 
 const getGlobalClubs = `-- name: GetGlobalClubs :many
-SELECT
+SELECT 
     c.id,
     c.name,
     c.description,
@@ -1848,7 +1864,7 @@ type GetGlobalClubsRow struct {
 	CategoryName string      `json:"category_name"`
 	IsLocal      pgtype.Bool `json:"is_local"`
 	IsActive     pgtype.Bool `json:"is_active"`
-	CampusName   string      `json:"campus_name"`
+	CampusName   interface{} `json:"campus_name"`
 }
 
 func (q *Queries) GetGlobalClubs(ctx context.Context) ([]GetGlobalClubsRow, error) {
@@ -2016,7 +2032,7 @@ type GetLocalClubsRow struct {
 	CategoryName string      `json:"category_name"`
 	IsLocal      pgtype.Bool `json:"is_local"`
 	IsActive     pgtype.Bool `json:"is_active"`
-	CampusName   string      `json:"campus_name"`
+	CampusName   interface{} `json:"campus_name"`
 }
 
 func (q *Queries) GetLocalClubs(ctx context.Context, campusID pgtype.UUID) ([]GetLocalClubsRow, error) {
@@ -2104,7 +2120,7 @@ type GetMyOpenReviewRequestsRow struct {
 	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
 	ClosedAt                  pgtype.Timestamptz `json:"closed_at"`
-	RequesterCampusName       string             `json:"requester_campus_name"`
+	RequesterCampusName       interface{}        `json:"requester_campus_name"`
 	RequesterLevel            interface{}        `json:"requester_level"`
 	RequesterTelegramUsername interface{}        `json:"requester_telegram_username"`
 }
@@ -2205,7 +2221,7 @@ type GetMyOpenTeamSearchRequestsRow struct {
 	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
 	ClosedAt                  pgtype.Timestamptz `json:"closed_at"`
-	RequesterCampusName       string             `json:"requester_campus_name"`
+	RequesterCampusName       interface{}        `json:"requester_campus_name"`
 	RequesterLevel            interface{}        `json:"requester_level"`
 	RequesterTelegramUsername interface{}        `json:"requester_telegram_username"`
 }
@@ -2287,7 +2303,7 @@ type GetMyProfileRow struct {
 	AlternativeContact pgtype.Text           `json:"alternative_contact"`
 	HasCoffeeBan       pgtype.Bool           `json:"has_coffee_ban"`
 	CampusID           pgtype.UUID           `json:"campus_id"`
-	CampusName         pgtype.Text           `json:"campus_name"`
+	CampusName         interface{}           `json:"campus_name"`
 	CoalitionName      pgtype.Text           `json:"coalition_name"`
 	Status             NullEnumStudentStatus `json:"status"`
 	Level              pgtype.Int4           `json:"level"`
@@ -2403,7 +2419,7 @@ type GetMyReviewRequestByIDRow struct {
 	CreatedAt                             pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                             pgtype.Timestamptz `json:"updated_at"`
 	ClosedAt                              pgtype.Timestamptz `json:"closed_at"`
-	RequesterCampusName                   string             `json:"requester_campus_name"`
+	RequesterCampusName                   interface{}        `json:"requester_campus_name"`
 	RequesterLevel                        interface{}        `json:"requester_level"`
 	RequesterTelegramUsername             interface{}        `json:"requester_telegram_username"`
 }
@@ -2513,7 +2529,7 @@ type GetMyTeamSearchRequestByIDRow struct {
 	CreatedAt                         pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                         pgtype.Timestamptz `json:"updated_at"`
 	ClosedAt                          pgtype.Timestamptz `json:"closed_at"`
-	RequesterCampusName               string             `json:"requester_campus_name"`
+	RequesterCampusName               interface{}        `json:"requester_campus_name"`
 	RequesterLevel                    interface{}        `json:"requester_level"`
 	RequesterTelegramUsername         interface{}        `json:"requester_telegram_username"`
 }
@@ -2607,7 +2623,7 @@ type GetOpenReviewRequestsByProjectRow struct {
 	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
 	ClosedAt                  pgtype.Timestamptz `json:"closed_at"`
-	RequesterCampusName       string             `json:"requester_campus_name"`
+	RequesterCampusName       interface{}        `json:"requester_campus_name"`
 	RequesterLevel            interface{}        `json:"requester_level"`
 	RequesterTelegramUsername interface{}        `json:"requester_telegram_username"`
 }
@@ -2708,7 +2724,7 @@ type GetOpenTeamSearchRequestsByProjectRow struct {
 	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
 	ClosedAt                  pgtype.Timestamptz `json:"closed_at"`
-	RequesterCampusName       string             `json:"requester_campus_name"`
+	RequesterCampusName       interface{}        `json:"requester_campus_name"`
 	RequesterLevel            interface{}        `json:"requester_level"`
 	RequesterTelegramUsername interface{}        `json:"requester_telegram_username"`
 }
@@ -2814,7 +2830,7 @@ WHERE c.s21_login = $1
 
 type GetParticipantStatsCacheRow struct {
 	S21Login      string             `json:"s21_login"`
-	CampusName    pgtype.Text        `json:"campus_name"`
+	CampusName    interface{}        `json:"campus_name"`
 	CoalitionName pgtype.Text        `json:"coalition_name"`
 	Status        EnumStudentStatus  `json:"status"`
 	Level         int32              `json:"level"`
@@ -2889,7 +2905,7 @@ type GetPeerProfileRow struct {
 	TelegramUsername string            `json:"telegram_username"`
 	ExternalID       string            `json:"external_id"`
 	IsSearchable     pgtype.Bool       `json:"is_searchable"`
-	CampusName       pgtype.Text       `json:"campus_name"`
+	CampusName       interface{}       `json:"campus_name"`
 	CoalitionName    pgtype.Text       `json:"coalition_name"`
 	Status           EnumStudentStatus `json:"status"`
 	Level            int32             `json:"level"`
@@ -3048,7 +3064,7 @@ type GetReviewRequestByIDRow struct {
 	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
 	ClosedAt                  pgtype.Timestamptz `json:"closed_at"`
-	RequesterCampusName       string             `json:"requester_campus_name"`
+	RequesterCampusName       interface{}        `json:"requester_campus_name"`
 	RequesterLevel            interface{}        `json:"requester_level"`
 	RequesterTelegramUsername interface{}        `json:"requester_telegram_username"`
 }
@@ -3278,7 +3294,7 @@ type GetTeamSearchRequestByIDRow struct {
 	CreatedAt                 pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
 	ClosedAt                  pgtype.Timestamptz `json:"closed_at"`
-	RequesterCampusName       string             `json:"requester_campus_name"`
+	RequesterCampusName       interface{}        `json:"requester_campus_name"`
 	RequesterLevel            interface{}        `json:"requester_level"`
 	RequesterTelegramUsername interface{}        `json:"requester_telegram_username"`
 }
@@ -5360,7 +5376,7 @@ ON CONFLICT (id) DO UPDATE SET
     leader_name = COALESCE(EXCLUDED.leader_name, campuses.leader_name),
     leader_form_link = COALESCE(EXCLUDED.leader_form_link, campuses.leader_form_link),
     updated_at = CURRENT_TIMESTAMP
-RETURNING id, short_name, full_name, name_en, name_ru, timezone, is_active, created_at, updated_at, leader_name, leader_form_link
+RETURNING id, short_name, full_name, timezone, is_active, created_at, updated_at, leader_name, leader_form_link, name_en, name_ru
 `
 
 type UpsertCampusParams struct {
@@ -5392,14 +5408,14 @@ func (q *Queries) UpsertCampus(ctx context.Context, arg UpsertCampusParams) (Cam
 		&i.ID,
 		&i.ShortName,
 		&i.FullName,
-		&i.NameEn,
-		&i.NameRu,
 		&i.Timezone,
 		&i.IsActive,
 		&i.CreatedAt,
 		&i.UpdatedAt,
 		&i.LeaderName,
 		&i.LeaderFormLink,
+		&i.NameEn,
+		&i.NameRu,
 	)
 	return i, err
 }
@@ -5429,7 +5445,7 @@ type UpsertClubParams struct {
 	LeaderLogin  pgtype.Text `json:"leader_login"`
 	Name         string      `json:"name"`
 	Description  pgtype.Text `json:"description"`
-	CategoryID   int16       `json:"category_id"`
+	CategoryID   int32       `json:"category_id"`
 	ExternalLink pgtype.Text `json:"external_link"`
 	IsLocal      pgtype.Bool `json:"is_local"`
 	IsActive     pgtype.Bool `json:"is_active"`

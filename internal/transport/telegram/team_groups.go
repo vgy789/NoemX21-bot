@@ -86,7 +86,7 @@ func loadTeamGroupNotificationData(ctx context.Context, queries db.Querier, requ
 		level = "0"
 	}
 
-	campus := campuslabel.Localize(row.RequesterCampusName, fsm.LangRu)
+	campus := campuslabel.Localize(campusNameString(row.RequesterCampusName), fsm.LangRu)
 	if campus == "" {
 		campus = "Unknown campus"
 	}

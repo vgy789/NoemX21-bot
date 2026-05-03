@@ -345,7 +345,7 @@ func Register(registry *fsm.LogicRegistry, queries db.Querier, variousPath strin
 
 		if selectedCampusName != "" {
 			for _, c := range globalClubs {
-				if c.ID == clubID && c.CampusName == selectedCampusName {
+				if c.ID == clubID && campusNameString(c.CampusName) == selectedCampusName {
 					card := formatClubCard(c, stringFromPayload(payload, "language"))
 					return "", map[string]any{
 						"club_card": card,
@@ -441,7 +441,7 @@ func formatClubCard(c db.GetGlobalClubsRow, lang string) string {
 		_, _ = fmt.Fprintf(&sb, "👤 *Лидер:* %s\n", escapeClubMarkdown(c.LeaderLogin.String))
 	}
 	_, _ = fmt.Fprintf(&sb, "📂 *Категория:* %s\n", escapeClubMarkdown(c.CategoryName))
-	if campusName := campuslabel.Localize(c.CampusName, lang); campusName != "" {
+	if campusName := campuslabel.Localize(campusNameString(c.CampusName), lang); campusName != "" {
 		_, _ = fmt.Fprintf(&sb, "📍 *Кампус:* %s\n", escapeClubMarkdown(campusName))
 	}
 	return sb.String()
@@ -461,7 +461,7 @@ func formatLocalClubCard(c db.GetLocalClubsRow, campusName, lang string) string 
 	}
 	_, _ = fmt.Fprintf(&sb, "📂 *Категория:* %s\n", escapeClubMarkdown(c.CategoryName))
 	if strings.TrimSpace(campusName) == "" {
-		campusName = c.CampusName
+		campusName = campusNameString(c.CampusName)
 	}
 	if campusName = campuslabel.Localize(campusName, lang); campusName != "" {
 		_, _ = fmt.Fprintf(&sb, "📍 *Организовали в:* %s\n", escapeClubMarkdown(campusName))
@@ -563,18 +563,31 @@ func clubData(club any) clubButtonData {
 		return clubButtonData{
 			Name:       normalizeClubText(c.Name),
 			ID:         c.ID,
-			CampusName: c.CampusName,
+			CampusName: campusNameString(c.CampusName),
 			IsLocal:    true,
 		}
 	case db.GetGlobalClubsRow:
 		return clubButtonData{
 			Name:       normalizeClubText(c.Name),
 			ID:         c.ID,
-			CampusName: c.CampusName,
+			CampusName: campusNameString(c.CampusName),
 			IsLocal:    false,
 		}
 	default:
 		return clubButtonData{}
+	}
+}
+
+func campusNameString(name any) string {
+	switch v := name.(type) {
+	case string:
+		return v
+	case []byte:
+		return string(v)
+	case nil:
+		return ""
+	default:
+		return fmt.Sprint(v)
 	}
 }
 

@@ -102,8 +102,8 @@ func registerTeamActions(
 		if profileErr == nil {
 			timezoneName = resolveCampusAwareTimezone(ctx, queries, strings.TrimSpace(profile.Timezone), profile.CampusID)
 			timezoneOffset = zoneOffsetString(timezoneName)
-			if profile.CampusName.Valid && strings.TrimSpace(profile.CampusName.String) != "" {
-				campusName = strings.TrimSpace(profile.CampusName.String)
+			if profileCampusName := strings.TrimSpace(campusNameString(profile.CampusName)); profileCampusName != "" {
+				campusName = profileCampusName
 			}
 			if profile.Level.Valid {
 				level = strconv.FormatInt(int64(profile.Level.Int32), 10)
@@ -871,7 +871,7 @@ func formatProjectTeamRequestRows(rows []db.GetOpenTeamSearchRequestsByProjectRo
 	}
 	var b strings.Builder
 	for i, row := range rows {
-		campusName := campuslabel.Localize(row.RequesterCampusName, lang)
+		campusName := campuslabel.Localize(campusNameString(row.RequesterCampusName), lang)
 		_, _ = fmt.Fprintf(
 			&b,
 			"%s %d. %s, %s, старт: %s, %s\n",
@@ -952,7 +952,7 @@ func setMyTeamRequestStatus(
 
 func detailUpdatesFromTeamRow(ctx context.Context, queries db.Querier, row db.GetTeamSearchRequestByIDRow, lang, viewerOffset string) map[string]any {
 	requesterOffset := normalizeUTCOffset(row.RequesterTimezoneOffset)
-	requesterCampus := campuslabel.Localize(row.RequesterCampusName, lang)
+	requesterCampus := campuslabel.Localize(campusNameString(row.RequesterCampusName), lang)
 	updates := map[string]any{
 		"selected_team_request_id":           strconv.FormatInt(row.ID, 10),
 		"selected_team_request_status":       string(row.Status),

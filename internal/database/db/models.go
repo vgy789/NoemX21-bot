@@ -233,14 +233,14 @@ type Campuse struct {
 	ID             pgtype.UUID        `json:"id"`
 	ShortName      string             `json:"short_name"`
 	FullName       string             `json:"full_name"`
-	NameEn         pgtype.Text        `json:"name_en"`
-	NameRu         pgtype.Text        `json:"name_ru"`
 	Timezone       pgtype.Text        `json:"timezone"`
 	IsActive       bool               `json:"is_active"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
 	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
 	LeaderName     pgtype.Text        `json:"leader_name"`
 	LeaderFormLink pgtype.Text        `json:"leader_form_link"`
+	NameEn         pgtype.Text        `json:"name_en"`
+	NameRu         pgtype.Text        `json:"name_ru"`
 }
 
 type Club struct {
@@ -249,7 +249,7 @@ type Club struct {
 	LeaderLogin  pgtype.Text        `json:"leader_login"`
 	Name         string             `json:"name"`
 	Description  pgtype.Text        `json:"description"`
-	CategoryID   int16              `json:"category_id"`
+	CategoryID   int32              `json:"category_id"`
 	ExternalLink pgtype.Text        `json:"external_link"`
 	IsLocal      pgtype.Bool        `json:"is_local"`
 	IsActive     pgtype.Bool        `json:"is_active"`
@@ -258,7 +258,7 @@ type Club struct {
 }
 
 type ClubCategory struct {
-	ID        int16              `json:"id"`
+	ID        int32              `json:"id"`
 	Name      string             `json:"name"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
 }

@@ -134,7 +134,8 @@ func (s *Service) Sync(ctx context.Context) error {
 			}
 		}
 
-		if err := s.syncCampus(ctx, &campus, filepath.Join(campusesPath, entry.Name())); err != nil {
+		campusModel := campusRowToModel(campus)
+		if err := s.syncCampus(ctx, &campusModel, filepath.Join(campusesPath, entry.Name())); err != nil {
 			s.log.Error("failed to sync campus", "campus", campusName, "error", err)
 		} else {
 			synced++
@@ -143,6 +144,22 @@ func (s *Service) Sync(ctx context.Context) error {
 
 	s.log.Info("git sync completed")
 	return nil
+}
+
+func campusRowToModel(campus db.GetCampusByShortNameRow) db.Campuse {
+	return db.Campuse{
+		ID:             campus.ID,
+		ShortName:      campus.ShortName,
+		FullName:       campus.FullName,
+		Timezone:       campus.Timezone,
+		IsActive:       campus.IsActive,
+		CreatedAt:      campus.CreatedAt,
+		UpdatedAt:      campus.UpdatedAt,
+		LeaderName:     campus.LeaderName,
+		LeaderFormLink: campus.LeaderFormLink,
+		NameEn:         campus.NameEn,
+		NameRu:         campus.NameRu,
+	}
 }
 
 const (

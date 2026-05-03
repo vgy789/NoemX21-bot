@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 )
 
@@ -66,7 +67,7 @@ func (s *userService) GetProfileByExternalID(ctx context.Context, platform db.En
 		Login:         profile.S21Login,
 		Status:        profile.Status.EnumStudentStatus,
 		CampusID:      campusIDStr,
-		CampusName:    profile.CampusName.String,
+		CampusName:    campusNameString(profile.CampusName),
 		CoalitionName: profile.CoalitionName.String,
 		Level:         profile.Level.Int32,
 		Exp:           profile.ExpValue.Int32,
@@ -74,4 +75,24 @@ func (s *userService) GetProfileByExternalID(ctx context.Context, platform db.En
 		CRP:           profile.Crp.Int32,
 		Coins:         profile.Coins.Int32,
 	}, nil
+}
+
+func campusNameString(name any) string {
+	switch v := name.(type) {
+	case string:
+		return v
+	case []byte:
+		return string(v)
+	case pgtype.Text:
+		if v.Valid {
+			return v.String
+		}
+		return ""
+	case interface{ String() string }:
+		return v.String()
+	case nil:
+		return ""
+	default:
+		return fmt.Sprint(v)
+	}
 }
