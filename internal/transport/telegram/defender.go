@@ -365,7 +365,7 @@ func (s *telegramService) tryAutoDefenderForKnownGroup(ctx context.Context, b *g
 	s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoin, telegramUserID, defenderActionRemoved, decision.Reason, formatDefenderBanDetails(banDurationSec, untilUTC))
 }
 
-func (s *telegramService) tryAutoDefenderForJoinRequest(ctx context.Context, b *gotgbot.Bot, group db.TelegramGroup, telegramUserID int64) {
+func (s *telegramService) tryAutoDefenderForJoinRequest(ctx context.Context, b *gotgbot.Bot, group db.TelegramGroup, telegramUserID, userChatID int64) {
 	if s == nil || s.queries == nil || s.userSvc == nil || b == nil || telegramUserID == 0 {
 		return
 	}
@@ -414,6 +414,7 @@ func (s *telegramService) tryAutoDefenderForJoinRequest(ctx context.Context, b *
 	}
 
 	if decision.ShouldRemove {
+		s.notifyDeclinedJoinRequest(b, group, userChatID, decision.Reason)
 		if err := s.declineChatJoinRequest(ctx, b, group.ChatID, telegramUserID); err != nil {
 			s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoinRequest, telegramUserID, defenderActionSkippedNoRights, defenderReasonBotRights, err.Error())
 			return
@@ -427,6 +428,44 @@ func (s *telegramService) tryAutoDefenderForJoinRequest(ctx context.Context, b *
 		return
 	}
 	s.logDefenderAction(ctx, group.ChatID, defenderSourceAutoJoinRequest, telegramUserID, defenderActionApproved, defenderReasonPassed, "")
+}
+
+func (s *telegramService) notifyDeclinedJoinRequest(b *gotgbot.Bot, group db.TelegramGroup, userChatID int64, reason string) {
+	if userChatID == 0 {
+		return
+	}
+	text := defenderJoinRequestDeclineMessage(group, reason)
+	if strings.TrimSpace(text) == "" {
+		return
+	}
+	if _, err := s.getSender(b).SendMessage(userChatID, text, nil); err != nil && s.log != nil {
+		s.log.Warn("defender: failed to notify declined join request user", "chat_id", group.ChatID, "user_chat_id", userChatID, "reason", reason, "error", err)
+	}
+}
+
+func defenderJoinRequestDeclineMessage(group db.TelegramGroup, reason string) string {
+	groupName := strings.TrimSpace(group.ChatTitle)
+	if groupName == "" {
+		groupName = "группу"
+	} else {
+		groupName = fmt.Sprintf("группу «%s»", groupName)
+	}
+
+	reasonText := "твой профиль не подходит под текущие фильтры группы."
+	switch reason {
+	case defenderReasonUnregistered:
+		reasonText = "нужно подтвердить что ты ученик Школы. Напиши /start для начала регистрации. Затем можно отправить заявку повторно."
+	case defenderReasonBlocked:
+		reasonText = "твой профиль на платформе в статусе ЗАБЛОКИРОВАН."
+	case defenderReasonExpelled:
+		reasonText = "твой профиль на платформе в статусе ОТЧИСЛЕН"
+	case defenderReasonCampusFilter, defenderReasonCampusTarget:
+		reasonText = "твой кампус не подходит под текущие фильтры группы."
+	case defenderReasonTribeFilter, defenderReasonTribeTarget:
+		reasonText = "твой трайб не подходит под текущие фильтры группы."
+	}
+
+	return fmt.Sprintf("Привет! Я не могу принять твою заявку на вступление в %s: %s", groupName, reasonText)
 }
 
 func (s *telegramService) evaluateDefenderDecision(

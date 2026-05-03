@@ -1486,6 +1486,7 @@ states:
           ⚙️ *Настройки автоматического фейс-контроля*
 
           ⚠️ *Не затрагивает тех, кто уже в чате.* Т.е. я буду проверять новых людей, приходящих в группу.
+          Если группа использует заявки на вступление, перед отклонением заявки я напишу пользователю в личку, почему его не пустили и что нужно исправить. Это возможно только для заявок на вступление!
 
           🛡 *Мои фильтры:*
 
@@ -1508,6 +1509,7 @@ states:
 
           When enabled, I check every newcomer at the "gate".
           ⚠️ *Auto-mode does not affect existing group members.*  In other words, I'll be vetting the people who join the group.
+          If the group uses join requests, I will DM the user before declining the request and explain why they were not accepted. This is only available for join requests.
 
           🛡 *Filters:*
 

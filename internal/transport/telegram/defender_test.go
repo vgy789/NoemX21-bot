@@ -20,11 +20,13 @@ import (
 )
 
 type fakeDefenderBotClient struct {
-	members      map[int64]rawChatMember
-	banCalls     []fakeDefenderBanCall
-	unbanCalls   []int64
-	approveCalls []int64
-	declineCalls []int64
+	members          map[int64]rawChatMember
+	banCalls         []fakeDefenderBanCall
+	unbanCalls       []int64
+	approveCalls     []int64
+	declineCalls     []int64
+	sendMessageCalls []fakeDefenderSendMessageCall
+	methodCalls      []string
 }
 
 type fakeDefenderBanCall struct {
@@ -32,7 +34,13 @@ type fakeDefenderBanCall struct {
 	untilDate int64
 }
 
+type fakeDefenderSendMessageCall struct {
+	chatID int64
+	text   string
+}
+
 func (f *fakeDefenderBotClient) RequestWithContext(_ context.Context, _ string, method string, params map[string]any, _ *gotgbot.RequestOpts) (json.RawMessage, error) {
+	f.methodCalls = append(f.methodCalls, method)
 	switch method {
 	case "getChatMember":
 		userID, ok := toInt64(params["user_id"])
@@ -86,6 +94,14 @@ func (f *fakeDefenderBotClient) RequestWithContext(_ context.Context, _ string, 
 		}
 		f.declineCalls = append(f.declineCalls, userID)
 		return json.Marshal(true)
+	case "sendMessage":
+		chatID, ok := toInt64(params["chat_id"])
+		if !ok {
+			return nil, fmt.Errorf("invalid chat_id param type: %T", params["chat_id"])
+		}
+		text, _ := params["text"].(string)
+		f.sendMessageCalls = append(f.sendMessageCalls, fakeDefenderSendMessageCall{chatID: chatID, text: text})
+		return json.Marshal(gotgbot.Message{MessageId: 1, Chat: gotgbot.Chat{Id: chatID, Type: "private"}, Text: text})
 	default:
 		return nil, fmt.Errorf("unexpected method: %s", method)
 	}
@@ -230,6 +246,7 @@ func TestHandleChatJoinRequest_AutoDefenderDeclinesUnregistered(t *testing.T) {
 
 	chatID := int64(-100912)
 	userID := int64(1912)
+	userChatID := int64(8912)
 	expectEmptyDefenderFilters(queries, chatID)
 	group := db.TelegramGroup{
 		ChatID:          chatID,
@@ -265,8 +282,9 @@ func TestHandleChatJoinRequest_AutoDefenderDeclinesUnregistered(t *testing.T) {
 	bot := &gotgbot.Bot{Token: "test-token", User: gotgbot.User{Id: 9000, IsBot: true}, BotClient: client}
 
 	ctx := ext.NewContext(bot, &gotgbot.Update{ChatJoinRequest: &gotgbot.ChatJoinRequest{
-		Chat: gotgbot.Chat{Id: chatID, Type: "supergroup"},
-		From: gotgbot.User{Id: userID, IsBot: false},
+		Chat:       gotgbot.Chat{Id: chatID, Type: "supergroup"},
+		From:       gotgbot.User{Id: userID, IsBot: false},
+		UserChatId: userChatID,
 	}}, nil)
 
 	err := s.handleChatJoinRequest(bot, ctx)
@@ -274,10 +292,24 @@ func TestHandleChatJoinRequest_AutoDefenderDeclinesUnregistered(t *testing.T) {
 	require.Len(t, client.approveCalls, 0)
 	require.Len(t, client.declineCalls, 1)
 	assert.Equal(t, userID, client.declineCalls[0])
+	require.Len(t, client.sendMessageCalls, 1)
+	assert.Equal(t, userChatID, client.sendMessageCalls[0].chatID)
+	assert.NotEqual(t, userID, client.sendMessageCalls[0].chatID)
+	assert.Contains(t, client.sendMessageCalls[0].text, "/start")
+	assert.Less(t, methodCallIndex(client.methodCalls, "sendMessage"), methodCallIndex(client.methodCalls, "declineChatJoinRequest"))
 	require.NotEmpty(t, logRows)
 	assert.Equal(t, "auto_join_request", logRows[0].Source)
 	assert.Equal(t, "declined", logRows[0].Action)
 	assert.Equal(t, "unregistered", logRows[0].Reason)
+}
+
+func methodCallIndex(calls []string, method string) int {
+	for i, call := range calls {
+		if call == method {
+			return i
+		}
+	}
+	return len(calls)
 }
 
 func TestHandleChatJoinRequest_AutoDefenderApprovesWhitelisted(t *testing.T) {

@@ -516,7 +516,7 @@ func (s *telegramService) handleChatJoinRequest(b *gotgbot.Bot, ctx *ext.Context
 		return nil
 	}
 
-	s.tryAutoDefenderForJoinRequest(context.Background(), b, group, ctx.ChatJoinRequest.From.Id)
+	s.tryAutoDefenderForJoinRequest(context.Background(), b, group, ctx.ChatJoinRequest.From.Id, ctx.ChatJoinRequest.UserChatId)
 	return nil
 }
 
