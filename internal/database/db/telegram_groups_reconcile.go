@@ -3,7 +3,7 @@ package db
 import "context"
 
 const listActiveInitializedTelegramGroups = `
-	SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior, defender_recheck_known_members
+	SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior, defender_recheck_known_members, welcome_enabled, welcome_thread_id, welcome_thread_label, welcome_delete_service_messages
 FROM telegram_groups
 WHERE is_active = true
   AND is_initialized = true
@@ -42,6 +42,10 @@ func (q *Queries) ListActiveInitializedTelegramGroups(ctx context.Context) ([]Te
 			&i.PrrNotificationsThreadLabel,
 			&i.PrrWithdrawnBehavior,
 			&i.DefenderRecheckKnownMembers,
+			&i.WelcomeEnabled,
+			&i.WelcomeThreadID,
+			&i.WelcomeThreadLabel,
+			&i.WelcomeDeleteServiceMessages,
 		); err != nil {
 			return nil, err
 		}

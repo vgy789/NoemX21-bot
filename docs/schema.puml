@@ -301,6 +301,10 @@ package "Community_Social" {
         prr_notifications_thread_id : bigint
         prr_notifications_thread_label : text
         prr_withdrawn_behavior : text
+        welcome_enabled : boolean
+        welcome_thread_id : bigint
+        welcome_thread_label : text
+        welcome_delete_service_messages : boolean
         created_at : timestamptz
         updated_at : timestamptz
     }

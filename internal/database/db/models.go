@@ -488,6 +488,10 @@ type TelegramGroup struct {
 	TeamNotificationsThreadLabel string             `json:"team_notifications_thread_label"`
 	TeamWithdrawnBehavior        string             `json:"team_withdrawn_behavior"`
 	DefenderRecheckKnownMembers  bool               `json:"defender_recheck_known_members"`
+	WelcomeEnabled               bool               `json:"welcome_enabled"`
+	WelcomeThreadID              int64              `json:"welcome_thread_id"`
+	WelcomeThreadLabel           string             `json:"welcome_thread_label"`
+	WelcomeDeleteServiceMessages bool               `json:"welcome_delete_service_messages"`
 }
 
 type TelegramGroupDefenderCampusFilter struct {

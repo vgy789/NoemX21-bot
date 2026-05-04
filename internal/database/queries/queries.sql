@@ -190,6 +190,28 @@ SET team_withdrawn_behavior = $3,
 WHERE chat_id = $1
   AND owner_telegram_user_id = $2;
 
+-- name: UpdateTelegramGroupWelcomeEnabledByOwner :execrows
+UPDATE telegram_groups
+SET welcome_enabled = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2;
+
+-- name: UpdateTelegramGroupWelcomeDeleteServiceMessagesByOwner :execrows
+UPDATE telegram_groups
+SET welcome_delete_service_messages = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2;
+
+-- name: UpdateTelegramGroupWelcomeDestinationByOwner :execrows
+UPDATE telegram_groups
+SET welcome_thread_id = $3,
+    welcome_thread_label = $4,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2;
+
 -- name: ListTelegramGroupsWithPRRNotifications :many
 SELECT * FROM telegram_groups
 WHERE is_active = true

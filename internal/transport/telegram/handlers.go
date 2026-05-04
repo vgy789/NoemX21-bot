@@ -86,6 +86,7 @@ func (s *telegramService) registerHandlers(d *ext.Dispatcher) {
 	d.AddHandler(handlers.NewCommand("group_init", s.handleGroupInit))
 	d.AddHandler(handlers.NewCommand("prr_here", s.handlePRRHere))
 	d.AddHandler(handlers.NewCommand("team_here", s.handleTeamHere))
+	d.AddHandler(handlers.NewCommand("welcome_here", s.handleWelcomeHere))
 	d.AddHandler(handlers.NewCommand("mute", s.handleMuteCommand))
 	d.AddHandler(handlers.NewCommand("unmute", s.handleUnmuteCommand))
 	d.AddHandler(handlers.NewCommand("ban", s.handleBanCommand))
@@ -434,6 +435,51 @@ func (s *telegramService) handleTeamHere(b *gotgbot.Bot, ctx *ext.Context) error
 	return nil
 }
 
+func (s *telegramService) handleWelcomeHere(b *gotgbot.Bot, ctx *ext.Context) error {
+	if !isGroupChat(ctx.EffectiveChat) {
+		_, _ = s.getSender(b).SendMessage(ctx.EffectiveChat.Id, "Эта команда доступна только в группе.", nil)
+		return nil
+	}
+	if b == nil || ctx.EffectiveUser == nil || ctx.EffectiveChat == nil || ctx.EffectiveMessage == nil || s.queries == nil {
+		return nil
+	}
+
+	chatID := ctx.EffectiveChat.Id
+	userID := ctx.EffectiveUser.Id
+
+	group, err := s.queries.GetTelegramGroupByChatID(context.Background(), chatID)
+	if err != nil || !group.IsActive || !group.IsInitialized {
+		return nil
+	}
+	if group.OwnerTelegramUserID != userID {
+		return nil
+	}
+
+	_, _ = s.queries.UpdateTelegramGroupForumFlagsByChatID(context.Background(), db.UpdateTelegramGroupForumFlagsByChatIDParams{
+		ChatID:  chatID,
+		IsForum: ctx.EffectiveChat.IsForum,
+	})
+
+	threadID := int64(ctx.EffectiveMessage.MessageThreadId)
+	threadLabel := normalizeThreadLabel(threadID)
+
+	_, updateErr := s.queries.UpdateTelegramGroupWelcomeDestinationByOwner(context.Background(), db.UpdateTelegramGroupWelcomeDestinationByOwnerParams{
+		ChatID:              chatID,
+		OwnerTelegramUserID: userID,
+		WelcomeThreadID:     threadID,
+		WelcomeThreadLabel:  threadLabel,
+	})
+	if updateErr != nil {
+		s.log.Warn("failed to store welcome topic", "chat_id", chatID, "thread_id", threadID, "error", updateErr)
+		_, _ = s.getSender(b).SendMessage(chatID, "Не удалось сохранить тред для автоприветствия.", nil)
+		return nil
+	}
+
+	text := fmt.Sprintf("Цель автоприветствия сохранена: `%s`.", fsm.EscapeMarkdownCode(threadLabel))
+	_, _ = s.getSender(b).SendMessage(chatID, text, &gotgbot.SendMessageOpts{ParseMode: "Markdown"})
+	return nil
+}
+
 func registrationRequiredGroupInitText(b *gotgbot.Bot) string {
 	base := "Для инициализации владелец группы должен быть зарегистрирован в боте.\n\n" +
 		"1) Открой личный чат с ботом\n" +
@@ -567,6 +613,7 @@ func (s *telegramService) handleTextMessage(b *gotgbot.Bot, ctx *ext.Context) er
 	if !isPrivateChat(ctx.EffectiveChat) {
 		if ctx.Message != nil {
 			s.captureKnownMembersFromGroupMessage(context.Background(), b, ctx.Message)
+			s.handleGroupWelcome(context.Background(), b, ctx.Message)
 		}
 		return nil
 	}

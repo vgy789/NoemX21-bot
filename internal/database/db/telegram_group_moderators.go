@@ -29,7 +29,11 @@ SELECT
 	    g.team_notifications_thread_id,
 	    g.team_notifications_thread_label,
 	    g.team_withdrawn_behavior,
-	    g.defender_recheck_known_members
+	    g.defender_recheck_known_members,
+	    g.welcome_enabled,
+	    g.welcome_thread_id,
+	    g.welcome_thread_label,
+	    g.welcome_delete_service_messages
 FROM telegram_groups g
 WHERE g.is_active = true
   AND g.is_initialized = true
@@ -153,6 +157,10 @@ func (q *Queries) ListTelegramGroupsManagedByUser(ctx context.Context, telegramU
 			&i.TeamNotificationsThreadLabel,
 			&i.TeamWithdrawnBehavior,
 			&i.DefenderRecheckKnownMembers,
+			&i.WelcomeEnabled,
+			&i.WelcomeThreadID,
+			&i.WelcomeThreadLabel,
+			&i.WelcomeDeleteServiceMessages,
 		); err != nil {
 			return nil, err
 		}

@@ -29,6 +29,7 @@ states:
           😛 *Фейс-контоль:* выгоняю «левых» и отчисленных, не пускаю незнакомцев.
           📨 *PRR-радар:* транслирую свежие запросы на ревью прямо в тред.
           👥 *Радар команды:* публикую запросы на поиск команды для групповых проектов.
+          👋 *Автоприветствие:* пишу в чат, когда присоединяется новый участник.
           🏷 *Авто-теги:* ставлю логин и уровень рядом с именем участников.
           👮‍♂️ *Модерация:* поддерживаю /mute и выдаю права модераторам группы.
         en: |
@@ -45,6 +46,7 @@ states:
           😛 *Face Control:* kick out the “leftists” and those who have been expelled, and don't let strangers in.
           📨 *PRR-Radar:* posting the latest review requests directly in this thread.
           👥 *Team Radar:* posting team-finder requests for group projects into a dedicated thread.
+          👋 *Auto Welcome:* posting a message when a new member joins the group.
           🏷 *Member Tags:* I automatically display the username and level next to the participants' names.
           👮‍♂️ *Moderation:* I support the /mute command and grant moderator privileges to group moderators.
       buttons:
@@ -161,6 +163,11 @@ states:
             ru: 👥 Радар команды
             en: 👥 Team Radar
           next_state: GROUP_TEAM_NOTIFICATIONS_MENU
+        - id: open_welcome_settings
+          label:
+            ru: 👋 Автоприветствие
+            en: 👋 Auto Welcome
+          next_state: GROUP_WELCOME_MENU
         - id: open_defender_settings
           label:
             ru: 😛 Фейс-контроль
@@ -188,6 +195,87 @@ states:
             en: ⚙️ Back to settings
           row: 99
           next_state: SETTINGS_MENU
+
+  GROUP_WELCOME_MENU:
+    type: interactive
+    description: Настройки автоприветствия выбранной группы
+    on_enter:
+      - action: load_group_welcome_context
+    interface:
+      text:
+        ru: |
+          👋 *Автоприветствие*
+
+          Когда в группу входит новый участник, я буду писать, что он присоединился к чату.
+
+          Пример:
+          Вертюган @verterT0P (verter) присоединился к чату.
+
+          • Статус: `{welcome_enabled_label_ru}`
+          • Куда: `{welcome_destination_label}`
+          • Удалять системные сообщения Telegram о входе: `{welcome_delete_service_messages_label_ru}`
+
+          💡 Чтобы выбрать отдельный тред, выполни `/welcome_here` в нужной теме группы.
+        en: |
+          👋 *Auto Welcome*
+
+          When a new member joins the group, I will post that they joined the chat.
+
+          Example:
+          Vertyugan @verterT0P (verter) joined the chat.
+
+          • Status: `{welcome_enabled_label_en}`
+          • Destination: `{welcome_destination_label_en}`
+          • Delete Telegram join service messages: `{welcome_delete_service_messages_label_en}`
+
+          💡 To select a specific thread, run `/welcome_here` in that topic inside the group.
+      buttons:
+        - id: welcome_enable_on
+          label:
+            ru: ✅ Включить автоприветствие
+            en: ✅ Enable auto welcome
+          action: set_group_welcome_enabled
+          condition: "can_manage_selected_group == true && welcome_enabled == false"
+          next_state: GROUP_WELCOME_MENU
+          row: 1
+        - id: welcome_enable_off
+          label:
+            ru: ❌ Выключить автоприветствие
+            en: ❌ Disable auto welcome
+          action: set_group_welcome_enabled
+          condition: "can_manage_selected_group == true && welcome_enabled == true"
+          next_state: GROUP_WELCOME_MENU
+          row: 1
+        - id: welcome_delete_service_on
+          label:
+            ru: 🧹 Удалять сообщения Telegram о входе
+            en: 🧹 Delete Telegram join messages
+          action: set_group_welcome_delete_service_messages
+          condition: "can_manage_selected_group == true && welcome_delete_service_messages == false"
+          next_state: GROUP_WELCOME_MENU
+          row: 2
+        - id: welcome_delete_service_off
+          label:
+            ru: 🧹 Не удалять сообщения Telegram о входе
+            en: 🧹 Keep Telegram join messages
+          action: set_group_welcome_delete_service_messages
+          condition: "can_manage_selected_group == true && welcome_delete_service_messages == true"
+          next_state: GROUP_WELCOME_MENU
+          row: 2
+        - id: welcome_destination_general
+          label:
+            ru: 🏠 Писать в общий чат
+            en: 🏠 Use general chat
+          action: set_group_welcome_destination_general
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_WELCOME_MENU
+          row: 3
+        - id: back_group_menu
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          row: 99
+          next_state: GROUP_ADMIN_MENU
 
   GROUP_PRR_NOTIFICATIONS_MENU:
     type: interactive
@@ -1100,7 +1188,7 @@ states:
             ru: 🔙 Назад
             en: 🔙 Back
           row: 99
-          next_state: GROUP_PRR_FILTERS_MENU
+          next_state: GROUP_ADMIN_MENU
 
   GROUP_MEMBER_TAGS_AUTOTAG:
     type: interactive

@@ -2386,6 +2386,51 @@ func (mr *MockQuerierMockRecorder) UpdateTelegramGroupTeamWithdrawnBehaviorByOwn
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTelegramGroupTeamWithdrawnBehaviorByOwner", reflect.TypeOf((*MockQuerier)(nil).UpdateTelegramGroupTeamWithdrawnBehaviorByOwner), ctx, arg)
 }
 
+// UpdateTelegramGroupWelcomeDeleteServiceMessagesByOwner mocks base method.
+func (m *MockQuerier) UpdateTelegramGroupWelcomeDeleteServiceMessagesByOwner(ctx context.Context, arg db.UpdateTelegramGroupWelcomeDeleteServiceMessagesByOwnerParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTelegramGroupWelcomeDeleteServiceMessagesByOwner", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateTelegramGroupWelcomeDeleteServiceMessagesByOwner indicates an expected call of UpdateTelegramGroupWelcomeDeleteServiceMessagesByOwner.
+func (mr *MockQuerierMockRecorder) UpdateTelegramGroupWelcomeDeleteServiceMessagesByOwner(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTelegramGroupWelcomeDeleteServiceMessagesByOwner", reflect.TypeOf((*MockQuerier)(nil).UpdateTelegramGroupWelcomeDeleteServiceMessagesByOwner), ctx, arg)
+}
+
+// UpdateTelegramGroupWelcomeDestinationByOwner mocks base method.
+func (m *MockQuerier) UpdateTelegramGroupWelcomeDestinationByOwner(ctx context.Context, arg db.UpdateTelegramGroupWelcomeDestinationByOwnerParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTelegramGroupWelcomeDestinationByOwner", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateTelegramGroupWelcomeDestinationByOwner indicates an expected call of UpdateTelegramGroupWelcomeDestinationByOwner.
+func (mr *MockQuerierMockRecorder) UpdateTelegramGroupWelcomeDestinationByOwner(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTelegramGroupWelcomeDestinationByOwner", reflect.TypeOf((*MockQuerier)(nil).UpdateTelegramGroupWelcomeDestinationByOwner), ctx, arg)
+}
+
+// UpdateTelegramGroupWelcomeEnabledByOwner mocks base method.
+func (m *MockQuerier) UpdateTelegramGroupWelcomeEnabledByOwner(ctx context.Context, arg db.UpdateTelegramGroupWelcomeEnabledByOwnerParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateTelegramGroupWelcomeEnabledByOwner", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateTelegramGroupWelcomeEnabledByOwner indicates an expected call of UpdateTelegramGroupWelcomeEnabledByOwner.
+func (mr *MockQuerierMockRecorder) UpdateTelegramGroupWelcomeEnabledByOwner(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateTelegramGroupWelcomeEnabledByOwner", reflect.TypeOf((*MockQuerier)(nil).UpdateTelegramGroupWelcomeEnabledByOwner), ctx, arg)
+}
+
 // UpdateUserAccountSearchableByExternalId mocks base method.
 func (m *MockQuerier) UpdateUserAccountSearchableByExternalId(ctx context.Context, arg db.UpdateUserAccountSearchableByExternalIdParams) (db.UserAccount, error) {
 	m.ctrl.T.Helper()

@@ -116,11 +116,14 @@ func (f *fakeModerationBotClient) FileURL(_, _ string, _ *gotgbot.RequestOpts) s
 }
 
 type recordingSender struct {
-	texts []string
+	texts       []string
+	messageOpts []*gotgbot.SendMessageOpts
+	deleted     []int64
 }
 
-func (r *recordingSender) SendMessage(_ int64, text string, _ *gotgbot.SendMessageOpts) (*gotgbot.Message, error) {
+func (r *recordingSender) SendMessage(_ int64, text string, opts *gotgbot.SendMessageOpts) (*gotgbot.Message, error) {
 	r.texts = append(r.texts, text)
+	r.messageOpts = append(r.messageOpts, opts)
 	return &gotgbot.Message{}, nil
 }
 
@@ -140,7 +143,8 @@ func (r *recordingSender) EditMessageReplyMarkup(_ *gotgbot.EditMessageReplyMark
 	return &gotgbot.Message{}, true, nil
 }
 
-func (r *recordingSender) DeleteMessage(_ int64, _ int64) (bool, error) {
+func (r *recordingSender) DeleteMessage(_ int64, messageID int64) (bool, error) {
+	r.deleted = append(r.deleted, messageID)
 	return true, nil
 }
 

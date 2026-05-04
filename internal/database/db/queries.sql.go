@@ -3390,7 +3390,7 @@ func (q *Queries) GetTeamSearchRequestsForCleanup(ctx context.Context, arg GetTe
 }
 
 const getTelegramGroupByChatID = `-- name: GetTelegramGroupByChatID :one
-SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior, moderation_commands_enabled, team_notifications_enabled, team_notifications_thread_id, team_notifications_thread_label, team_withdrawn_behavior, defender_recheck_known_members FROM telegram_groups
+SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior, moderation_commands_enabled, team_notifications_enabled, team_notifications_thread_id, team_notifications_thread_label, team_withdrawn_behavior, defender_recheck_known_members, welcome_enabled, welcome_thread_id, welcome_thread_label, welcome_delete_service_messages FROM telegram_groups
 WHERE chat_id = $1
 `
 
@@ -3422,6 +3422,10 @@ func (q *Queries) GetTelegramGroupByChatID(ctx context.Context, chatID int64) (T
 		&i.TeamNotificationsThreadLabel,
 		&i.TeamWithdrawnBehavior,
 		&i.DefenderRecheckKnownMembers,
+		&i.WelcomeEnabled,
+		&i.WelcomeThreadID,
+		&i.WelcomeThreadLabel,
+		&i.WelcomeDeleteServiceMessages,
 	)
 	return i, err
 }
@@ -3787,7 +3791,7 @@ func (q *Queries) ListCoalitionsByCampus(ctx context.Context, campusID pgtype.UU
 }
 
 const listMemberTagGroupsByTelegramUser = `-- name: ListMemberTagGroupsByTelegramUser :many
-SELECT g.chat_id, g.chat_title, g.owner_telegram_user_id, g.owner_telegram_username, g.is_initialized, g.is_active, g.created_at, g.updated_at, g.member_tags_enabled, g.member_tag_format, g.defender_enabled, g.defender_remove_blocked, g.defender_ban_duration_sec, g.is_forum, g.prr_notifications_enabled, g.prr_notifications_thread_id, g.prr_notifications_thread_label, g.prr_withdrawn_behavior, g.moderation_commands_enabled, g.team_notifications_enabled, g.team_notifications_thread_id, g.team_notifications_thread_label, g.team_withdrawn_behavior, g.defender_recheck_known_members
+SELECT g.chat_id, g.chat_title, g.owner_telegram_user_id, g.owner_telegram_username, g.is_initialized, g.is_active, g.created_at, g.updated_at, g.member_tags_enabled, g.member_tag_format, g.defender_enabled, g.defender_remove_blocked, g.defender_ban_duration_sec, g.is_forum, g.prr_notifications_enabled, g.prr_notifications_thread_id, g.prr_notifications_thread_label, g.prr_withdrawn_behavior, g.moderation_commands_enabled, g.team_notifications_enabled, g.team_notifications_thread_id, g.team_notifications_thread_label, g.team_withdrawn_behavior, g.defender_recheck_known_members, g.welcome_enabled, g.welcome_thread_id, g.welcome_thread_label, g.welcome_delete_service_messages
 FROM telegram_groups g
 JOIN telegram_group_members m ON m.chat_id = g.chat_id
 WHERE m.telegram_user_id = $1
@@ -3832,6 +3836,10 @@ func (q *Queries) ListMemberTagGroupsByTelegramUser(ctx context.Context, telegra
 			&i.TeamNotificationsThreadLabel,
 			&i.TeamWithdrawnBehavior,
 			&i.DefenderRecheckKnownMembers,
+			&i.WelcomeEnabled,
+			&i.WelcomeThreadID,
+			&i.WelcomeThreadLabel,
+			&i.WelcomeDeleteServiceMessages,
 		); err != nil {
 			return nil, err
 		}
@@ -4217,7 +4225,7 @@ func (q *Queries) ListTelegramGroupWhitelists(ctx context.Context, arg ListTeleg
 }
 
 const listTelegramGroupsByOwner = `-- name: ListTelegramGroupsByOwner :many
-SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior, moderation_commands_enabled, team_notifications_enabled, team_notifications_thread_id, team_notifications_thread_label, team_withdrawn_behavior, defender_recheck_known_members FROM telegram_groups
+SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior, moderation_commands_enabled, team_notifications_enabled, team_notifications_thread_id, team_notifications_thread_label, team_withdrawn_behavior, defender_recheck_known_members, welcome_enabled, welcome_thread_id, welcome_thread_label, welcome_delete_service_messages FROM telegram_groups
 WHERE owner_telegram_user_id = $1
   AND is_active = true
   AND is_initialized = true
@@ -4258,6 +4266,10 @@ func (q *Queries) ListTelegramGroupsByOwner(ctx context.Context, ownerTelegramUs
 			&i.TeamNotificationsThreadLabel,
 			&i.TeamWithdrawnBehavior,
 			&i.DefenderRecheckKnownMembers,
+			&i.WelcomeEnabled,
+			&i.WelcomeThreadID,
+			&i.WelcomeThreadLabel,
+			&i.WelcomeDeleteServiceMessages,
 		); err != nil {
 			return nil, err
 		}
@@ -4270,7 +4282,7 @@ func (q *Queries) ListTelegramGroupsByOwner(ctx context.Context, ownerTelegramUs
 }
 
 const listTelegramGroupsWithPRRNotifications = `-- name: ListTelegramGroupsWithPRRNotifications :many
-SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior, moderation_commands_enabled, team_notifications_enabled, team_notifications_thread_id, team_notifications_thread_label, team_withdrawn_behavior, defender_recheck_known_members FROM telegram_groups
+SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior, moderation_commands_enabled, team_notifications_enabled, team_notifications_thread_id, team_notifications_thread_label, team_withdrawn_behavior, defender_recheck_known_members, welcome_enabled, welcome_thread_id, welcome_thread_label, welcome_delete_service_messages FROM telegram_groups
 WHERE is_active = true
   AND is_initialized = true
   AND prr_notifications_enabled = true
@@ -4311,6 +4323,10 @@ func (q *Queries) ListTelegramGroupsWithPRRNotifications(ctx context.Context) ([
 			&i.TeamNotificationsThreadLabel,
 			&i.TeamWithdrawnBehavior,
 			&i.DefenderRecheckKnownMembers,
+			&i.WelcomeEnabled,
+			&i.WelcomeThreadID,
+			&i.WelcomeThreadLabel,
+			&i.WelcomeDeleteServiceMessages,
 		); err != nil {
 			return nil, err
 		}
@@ -4323,7 +4339,7 @@ func (q *Queries) ListTelegramGroupsWithPRRNotifications(ctx context.Context) ([
 }
 
 const listTelegramGroupsWithTeamNotifications = `-- name: ListTelegramGroupsWithTeamNotifications :many
-SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior, moderation_commands_enabled, team_notifications_enabled, team_notifications_thread_id, team_notifications_thread_label, team_withdrawn_behavior, defender_recheck_known_members FROM telegram_groups
+SELECT chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior, moderation_commands_enabled, team_notifications_enabled, team_notifications_thread_id, team_notifications_thread_label, team_withdrawn_behavior, defender_recheck_known_members, welcome_enabled, welcome_thread_id, welcome_thread_label, welcome_delete_service_messages FROM telegram_groups
 WHERE is_active = true
   AND is_initialized = true
   AND team_notifications_enabled = true
@@ -4364,6 +4380,10 @@ func (q *Queries) ListTelegramGroupsWithTeamNotifications(ctx context.Context) (
 			&i.TeamNotificationsThreadLabel,
 			&i.TeamWithdrawnBehavior,
 			&i.DefenderRecheckKnownMembers,
+			&i.WelcomeEnabled,
+			&i.WelcomeThreadID,
+			&i.WelcomeThreadLabel,
+			&i.WelcomeDeleteServiceMessages,
 		); err != nil {
 			return nil, err
 		}
@@ -5303,6 +5323,79 @@ func (q *Queries) UpdateTelegramGroupTeamWithdrawnBehaviorByOwner(ctx context.Co
 	return result.RowsAffected(), nil
 }
 
+const updateTelegramGroupWelcomeDeleteServiceMessagesByOwner = `-- name: UpdateTelegramGroupWelcomeDeleteServiceMessagesByOwner :execrows
+UPDATE telegram_groups
+SET welcome_delete_service_messages = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2
+`
+
+type UpdateTelegramGroupWelcomeDeleteServiceMessagesByOwnerParams struct {
+	ChatID                       int64 `json:"chat_id"`
+	OwnerTelegramUserID          int64 `json:"owner_telegram_user_id"`
+	WelcomeDeleteServiceMessages bool  `json:"welcome_delete_service_messages"`
+}
+
+func (q *Queries) UpdateTelegramGroupWelcomeDeleteServiceMessagesByOwner(ctx context.Context, arg UpdateTelegramGroupWelcomeDeleteServiceMessagesByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateTelegramGroupWelcomeDeleteServiceMessagesByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.WelcomeDeleteServiceMessages)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateTelegramGroupWelcomeDestinationByOwner = `-- name: UpdateTelegramGroupWelcomeDestinationByOwner :execrows
+UPDATE telegram_groups
+SET welcome_thread_id = $3,
+    welcome_thread_label = $4,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2
+`
+
+type UpdateTelegramGroupWelcomeDestinationByOwnerParams struct {
+	ChatID              int64  `json:"chat_id"`
+	OwnerTelegramUserID int64  `json:"owner_telegram_user_id"`
+	WelcomeThreadID     int64  `json:"welcome_thread_id"`
+	WelcomeThreadLabel  string `json:"welcome_thread_label"`
+}
+
+func (q *Queries) UpdateTelegramGroupWelcomeDestinationByOwner(ctx context.Context, arg UpdateTelegramGroupWelcomeDestinationByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateTelegramGroupWelcomeDestinationByOwner,
+		arg.ChatID,
+		arg.OwnerTelegramUserID,
+		arg.WelcomeThreadID,
+		arg.WelcomeThreadLabel,
+	)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateTelegramGroupWelcomeEnabledByOwner = `-- name: UpdateTelegramGroupWelcomeEnabledByOwner :execrows
+UPDATE telegram_groups
+SET welcome_enabled = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1
+  AND owner_telegram_user_id = $2
+`
+
+type UpdateTelegramGroupWelcomeEnabledByOwnerParams struct {
+	ChatID              int64 `json:"chat_id"`
+	OwnerTelegramUserID int64 `json:"owner_telegram_user_id"`
+	WelcomeEnabled      bool  `json:"welcome_enabled"`
+}
+
+func (q *Queries) UpdateTelegramGroupWelcomeEnabledByOwner(ctx context.Context, arg UpdateTelegramGroupWelcomeEnabledByOwnerParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateTelegramGroupWelcomeEnabledByOwner, arg.ChatID, arg.OwnerTelegramUserID, arg.WelcomeEnabled)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const updateUserAccountSearchableByExternalId = `-- name: UpdateUserAccountSearchableByExternalId :one
 UPDATE user_accounts
 SET is_searchable = $3
@@ -5990,7 +6083,7 @@ ON CONFLICT (chat_id) DO UPDATE SET
     is_initialized = EXCLUDED.is_initialized,
     is_active = EXCLUDED.is_active,
     updated_at = CURRENT_TIMESTAMP
-RETURNING chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior, moderation_commands_enabled, team_notifications_enabled, team_notifications_thread_id, team_notifications_thread_label, team_withdrawn_behavior, defender_recheck_known_members
+RETURNING chat_id, chat_title, owner_telegram_user_id, owner_telegram_username, is_initialized, is_active, created_at, updated_at, member_tags_enabled, member_tag_format, defender_enabled, defender_remove_blocked, defender_ban_duration_sec, is_forum, prr_notifications_enabled, prr_notifications_thread_id, prr_notifications_thread_label, prr_withdrawn_behavior, moderation_commands_enabled, team_notifications_enabled, team_notifications_thread_id, team_notifications_thread_label, team_withdrawn_behavior, defender_recheck_known_members, welcome_enabled, welcome_thread_id, welcome_thread_label, welcome_delete_service_messages
 `
 
 type UpsertTelegramGroupParams struct {
@@ -6037,6 +6130,10 @@ func (q *Queries) UpsertTelegramGroup(ctx context.Context, arg UpsertTelegramGro
 		&i.TeamNotificationsThreadLabel,
 		&i.TeamWithdrawnBehavior,
 		&i.DefenderRecheckKnownMembers,
+		&i.WelcomeEnabled,
+		&i.WelcomeThreadID,
+		&i.WelcomeThreadLabel,
+		&i.WelcomeDeleteServiceMessages,
 	)
 	return i, err
 }
