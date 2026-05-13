@@ -53,7 +53,7 @@ func Register(
 		aliasRegistrar("GIVEAWAY_ADMIN_MENU", "giveaway.yaml/GIVEAWAY_ADMIN_MENU")
 	}
 
-	loadMainContext := func(ctx context.Context, payload map[string]any) map[string]any {
+	loadMainContext := func(ctx context.Context, userID int64, payload map[string]any) map[string]any {
 		updates := map[string]any{
 			"is_sapphire":             false,
 			"giveaway_active":         false,
@@ -67,6 +67,21 @@ func Register(
 		isOwner := boolFromAny(payload["is_bot_owner"])
 
 		coalition := strings.TrimSpace(fmt.Sprintf("%v", payload["my_coalition"]))
+		if !isSapphireCoalitionName(coalition) {
+			acc, err := queries.GetUserAccountByExternalId(ctx, db.GetUserAccountByExternalIdParams{
+				Platform:   db.EnumPlatformTelegram,
+				ExternalID: fmt.Sprintf("%d", userID),
+			})
+			if err == nil {
+				if login == "" {
+					login = strings.TrimSpace(acc.S21Login)
+				}
+				profile, profileErr := queries.GetMyProfile(ctx, acc.S21Login)
+				if profileErr == nil && profile.CoalitionName.Valid {
+					coalition = strings.TrimSpace(profile.CoalitionName.String)
+				}
+			}
+		}
 		isSapphire := isSapphireCoalitionName(coalition)
 
 		updates["is_sapphire"] = isSapphire
@@ -113,14 +128,14 @@ func Register(
 	}
 
 	registry.Register("load_sapphire_giveaway_main_context", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		return "", loadMainContext(ctx, payload), nil
+		return "", loadMainContext(ctx, userID, payload), nil
 	})
 
 	registry.Register("load_sapphire_giveaway_join_context", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		updates := map[string]any{
 			"giveaway_join_hint": "Нажми «Участвую!», чтобы зафиксировать старт и baseline по зеленым проектам.",
 		}
-		mainUpdates := loadMainContext(ctx, payload)
+		mainUpdates := loadMainContext(ctx, userID, payload)
 		for k, v := range mainUpdates {
 			updates[k] = v
 		}
@@ -219,7 +234,7 @@ func Register(
 			"giveaway_progress_text": "Пока нет участников.",
 		}
 
-		mainUpdates := loadMainContext(ctx, payload)
+		mainUpdates := loadMainContext(ctx, userID, payload)
 		for k, v := range mainUpdates {
 			updates[k] = v
 		}
