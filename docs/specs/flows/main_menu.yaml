@@ -5,6 +5,7 @@ states:
     description: Главное меню бота
     on_enter:
       - action: get_user_stats
+      - action: load_sapphire_giveaway_main_context
     interface:
       text:
         ru: |-
@@ -60,3 +61,24 @@ states:
             en: 🧶 Clubs
           row: 4
           next_state: CLUBS_MENU
+        - id: giveaway_join
+          label:
+            ru: 🎁 100 коинов! Розыгрыш!
+            en: 🎁 100 Coins Giveaway!
+          row: 5
+          condition: "is_sapphire == true && giveaway_active == true && giveaway_is_participant == false"
+          next_state: GIVEAWAY_MENU
+        - id: giveaway_progress
+          label:
+            ru: 📈 Прогресс в конкурсе
+            en: 📈 Contest Progress
+          row: 5
+          condition: "giveaway_is_participant == true"
+          next_state: GIVEAWAY_PROGRESS
+        - id: giveaway_admin
+          label:
+            ru: 🛠️ Админ конкурса
+            en: 🛠️ Contest Admin
+          row: 6
+          condition: "giveaway_owner == true"
+          next_state: GIVEAWAY_ADMIN_MENU

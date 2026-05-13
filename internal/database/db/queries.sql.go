@@ -534,6 +534,107 @@ func (q *Queries) CreateRoomBooking(ctx context.Context, arg CreateRoomBookingPa
 	return i, err
 }
 
+const createSapphireGiveawayParticipant = `-- name: CreateSapphireGiveawayParticipant :exec
+INSERT INTO sapphire_giveaway_participants (
+    s21_login,
+    telegram_user_id,
+    baseline_project_ids,
+    counted_project_ids,
+    counted_projects_count,
+    joined_at,
+    last_synced_at,
+    last_sync_error
+) VALUES (
+    $1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ''
+)
+ON CONFLICT (s21_login) DO NOTHING
+`
+
+type CreateSapphireGiveawayParticipantParams struct {
+	S21Login             string `json:"s21_login"`
+	TelegramUserID       int64  `json:"telegram_user_id"`
+	BaselineProjectIds   []byte `json:"baseline_project_ids"`
+	CountedProjectIds    []byte `json:"counted_project_ids"`
+	CountedProjectsCount int32  `json:"counted_projects_count"`
+}
+
+func (q *Queries) CreateSapphireGiveawayParticipant(ctx context.Context, arg CreateSapphireGiveawayParticipantParams) error {
+	_, err := q.db.Exec(ctx, createSapphireGiveawayParticipant,
+		arg.S21Login,
+		arg.TelegramUserID,
+		arg.BaselineProjectIds,
+		arg.CountedProjectIds,
+		arg.CountedProjectsCount,
+	)
+	return err
+}
+
+const createSapphireGiveawayStateIfMissing = `-- name: CreateSapphireGiveawayStateIfMissing :exec
+INSERT INTO sapphire_giveaway_state (contest_key, status)
+VALUES ($1, $2)
+ON CONFLICT (contest_key) DO NOTHING
+`
+
+type CreateSapphireGiveawayStateIfMissingParams struct {
+	ContestKey string `json:"contest_key"`
+	Status     string `json:"status"`
+}
+
+func (q *Queries) CreateSapphireGiveawayStateIfMissing(ctx context.Context, arg CreateSapphireGiveawayStateIfMissingParams) error {
+	_, err := q.db.Exec(ctx, createSapphireGiveawayStateIfMissing, arg.ContestKey, arg.Status)
+	return err
+}
+
+const createSapphireGiveawaySyncJob = `-- name: CreateSapphireGiveawaySyncJob :one
+INSERT INTO sapphire_giveaway_sync_jobs (
+    status,
+    total_count,
+    processed_count,
+    failed_count,
+    export_text,
+    requested_by_telegram_user_id,
+    started_at,
+    updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+)
+RETURNING id, status, total_count, processed_count, failed_count, export_text, requested_by_telegram_user_id, started_at, finished_at, updated_at
+`
+
+type CreateSapphireGiveawaySyncJobParams struct {
+	Status                    string `json:"status"`
+	TotalCount                int32  `json:"total_count"`
+	ProcessedCount            int32  `json:"processed_count"`
+	FailedCount               int32  `json:"failed_count"`
+	ExportText                string `json:"export_text"`
+	RequestedByTelegramUserID int64  `json:"requested_by_telegram_user_id"`
+}
+
+func (q *Queries) CreateSapphireGiveawaySyncJob(ctx context.Context, arg CreateSapphireGiveawaySyncJobParams) (SapphireGiveawaySyncJob, error) {
+	row := q.db.QueryRow(ctx, createSapphireGiveawaySyncJob,
+		arg.Status,
+		arg.TotalCount,
+		arg.ProcessedCount,
+		arg.FailedCount,
+		arg.ExportText,
+		arg.RequestedByTelegramUserID,
+	)
+	var i SapphireGiveawaySyncJob
+	err := row.Scan(
+		&i.ID,
+		&i.Status,
+		&i.TotalCount,
+		&i.ProcessedCount,
+		&i.FailedCount,
+		&i.ExportText,
+		&i.RequestedByTelegramUserID,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const createTeamSearchRequest = `-- name: CreateTeamSearchRequest :one
 INSERT INTO team_search_requests (
     requester_user_id,
@@ -1143,6 +1244,36 @@ func (q *Queries) ExistsTelegramGroupWhitelist(ctx context.Context, arg ExistsTe
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const finishSapphireGiveawaySyncJob = `-- name: FinishSapphireGiveawaySyncJob :exec
+UPDATE sapphire_giveaway_sync_jobs
+SET status = $2,
+    processed_count = $3,
+    failed_count = $4,
+    export_text = $5,
+    finished_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+`
+
+type FinishSapphireGiveawaySyncJobParams struct {
+	ID             int64  `json:"id"`
+	Status         string `json:"status"`
+	ProcessedCount int32  `json:"processed_count"`
+	FailedCount    int32  `json:"failed_count"`
+	ExportText     string `json:"export_text"`
+}
+
+func (q *Queries) FinishSapphireGiveawaySyncJob(ctx context.Context, arg FinishSapphireGiveawaySyncJobParams) error {
+	_, err := q.db.Exec(ctx, finishSapphireGiveawaySyncJob,
+		arg.ID,
+		arg.Status,
+		arg.ProcessedCount,
+		arg.FailedCount,
+		arg.ExportText,
+	)
+	return err
 }
 
 const getActiveApiKey = `-- name: GetActiveApiKey :one
@@ -2020,6 +2151,31 @@ func (q *Queries) GetLastAuthVerificationCode(ctx context.Context, s21Login pgty
 		&i.Code,
 		&i.ExpiresAt,
 		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const getLatestSapphireGiveawaySyncJob = `-- name: GetLatestSapphireGiveawaySyncJob :one
+SELECT id, status, total_count, processed_count, failed_count, export_text, requested_by_telegram_user_id, started_at, finished_at, updated_at
+FROM sapphire_giveaway_sync_jobs
+ORDER BY id DESC
+LIMIT 1
+`
+
+func (q *Queries) GetLatestSapphireGiveawaySyncJob(ctx context.Context) (SapphireGiveawaySyncJob, error) {
+	row := q.db.QueryRow(ctx, getLatestSapphireGiveawaySyncJob)
+	var i SapphireGiveawaySyncJob
+	err := row.Scan(
+		&i.ID,
+		&i.Status,
+		&i.TotalCount,
+		&i.ProcessedCount,
+		&i.FailedCount,
+		&i.ExportText,
+		&i.RequestedByTelegramUserID,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.UpdatedAt,
 	)
 	return i, err
 }
@@ -3260,6 +3416,72 @@ func (q *Queries) GetRoomByID(ctx context.Context, arg GetRoomByIDParams) (Room,
 	return i, err
 }
 
+const getSapphireGiveawayParticipantByLogin = `-- name: GetSapphireGiveawayParticipantByLogin :one
+SELECT s21_login, telegram_user_id, baseline_project_ids, counted_project_ids, counted_projects_count, joined_at, last_synced_at, last_sync_error, last_final_sync_job_id
+FROM sapphire_giveaway_participants
+WHERE s21_login = $1
+`
+
+func (q *Queries) GetSapphireGiveawayParticipantByLogin(ctx context.Context, s21Login string) (SapphireGiveawayParticipant, error) {
+	row := q.db.QueryRow(ctx, getSapphireGiveawayParticipantByLogin, s21Login)
+	var i SapphireGiveawayParticipant
+	err := row.Scan(
+		&i.S21Login,
+		&i.TelegramUserID,
+		&i.BaselineProjectIds,
+		&i.CountedProjectIds,
+		&i.CountedProjectsCount,
+		&i.JoinedAt,
+		&i.LastSyncedAt,
+		&i.LastSyncError,
+		&i.LastFinalSyncJobID,
+	)
+	return i, err
+}
+
+const getSapphireGiveawayState = `-- name: GetSapphireGiveawayState :one
+SELECT contest_key, status, final_sync_job_id, created_at, updated_at
+FROM sapphire_giveaway_state
+WHERE contest_key = $1
+`
+
+func (q *Queries) GetSapphireGiveawayState(ctx context.Context, contestKey string) (SapphireGiveawayState, error) {
+	row := q.db.QueryRow(ctx, getSapphireGiveawayState, contestKey)
+	var i SapphireGiveawayState
+	err := row.Scan(
+		&i.ContestKey,
+		&i.Status,
+		&i.FinalSyncJobID,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getSapphireGiveawaySyncJob = `-- name: GetSapphireGiveawaySyncJob :one
+SELECT id, status, total_count, processed_count, failed_count, export_text, requested_by_telegram_user_id, started_at, finished_at, updated_at
+FROM sapphire_giveaway_sync_jobs
+WHERE id = $1
+`
+
+func (q *Queries) GetSapphireGiveawaySyncJob(ctx context.Context, id int64) (SapphireGiveawaySyncJob, error) {
+	row := q.db.QueryRow(ctx, getSapphireGiveawaySyncJob, id)
+	var i SapphireGiveawaySyncJob
+	err := row.Scan(
+		&i.ID,
+		&i.Status,
+		&i.TotalCount,
+		&i.ProcessedCount,
+		&i.FailedCount,
+		&i.ExportText,
+		&i.RequestedByTelegramUserID,
+		&i.StartedAt,
+		&i.FinishedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getTeamSearchRequestByID = `-- name: GetTeamSearchRequestByID :one
 SELECT
     tsr.id,
@@ -3840,6 +4062,68 @@ func (q *Queries) ListMemberTagGroupsByTelegramUser(ctx context.Context, telegra
 			&i.WelcomeThreadID,
 			&i.WelcomeThreadLabel,
 			&i.WelcomeDeleteServiceMessages,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSapphireGiveawayParticipantLogins = `-- name: ListSapphireGiveawayParticipantLogins :many
+SELECT s21_login
+FROM sapphire_giveaway_participants
+ORDER BY s21_login ASC
+`
+
+func (q *Queries) ListSapphireGiveawayParticipantLogins(ctx context.Context) ([]string, error) {
+	rows, err := q.db.Query(ctx, listSapphireGiveawayParticipantLogins)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var s21_login string
+		if err := rows.Scan(&s21_login); err != nil {
+			return nil, err
+		}
+		items = append(items, s21_login)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listSapphireGiveawayParticipants = `-- name: ListSapphireGiveawayParticipants :many
+SELECT s21_login, telegram_user_id, baseline_project_ids, counted_project_ids, counted_projects_count, joined_at, last_synced_at, last_sync_error, last_final_sync_job_id
+FROM sapphire_giveaway_participants
+ORDER BY counted_projects_count DESC, s21_login ASC
+`
+
+func (q *Queries) ListSapphireGiveawayParticipants(ctx context.Context) ([]SapphireGiveawayParticipant, error) {
+	rows, err := q.db.Query(ctx, listSapphireGiveawayParticipants)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []SapphireGiveawayParticipant
+	for rows.Next() {
+		var i SapphireGiveawayParticipant
+		if err := rows.Scan(
+			&i.S21Login,
+			&i.TelegramUserID,
+			&i.BaselineProjectIds,
+			&i.CountedProjectIds,
+			&i.CountedProjectsCount,
+			&i.JoinedAt,
+			&i.LastSyncedAt,
+			&i.LastSyncError,
+			&i.LastFinalSyncJobID,
 		); err != nil {
 			return nil, err
 		}
@@ -4918,6 +5202,39 @@ func (q *Queries) SetReviewRequestStatus(ctx context.Context, arg SetReviewReque
 	return i, err
 }
 
+const setSapphireGiveawayParticipantFinalSyncJob = `-- name: SetSapphireGiveawayParticipantFinalSyncJob :exec
+UPDATE sapphire_giveaway_participants
+SET last_final_sync_job_id = $2
+WHERE s21_login = $1
+`
+
+type SetSapphireGiveawayParticipantFinalSyncJobParams struct {
+	S21Login           string      `json:"s21_login"`
+	LastFinalSyncJobID pgtype.Int8 `json:"last_final_sync_job_id"`
+}
+
+func (q *Queries) SetSapphireGiveawayParticipantFinalSyncJob(ctx context.Context, arg SetSapphireGiveawayParticipantFinalSyncJobParams) error {
+	_, err := q.db.Exec(ctx, setSapphireGiveawayParticipantFinalSyncJob, arg.S21Login, arg.LastFinalSyncJobID)
+	return err
+}
+
+const setSapphireGiveawayStateFinalSyncJob = `-- name: SetSapphireGiveawayStateFinalSyncJob :exec
+UPDATE sapphire_giveaway_state
+SET final_sync_job_id = $2,
+    updated_at = CURRENT_TIMESTAMP
+WHERE contest_key = $1
+`
+
+type SetSapphireGiveawayStateFinalSyncJobParams struct {
+	ContestKey     string      `json:"contest_key"`
+	FinalSyncJobID pgtype.Int8 `json:"final_sync_job_id"`
+}
+
+func (q *Queries) SetSapphireGiveawayStateFinalSyncJob(ctx context.Context, arg SetSapphireGiveawayStateFinalSyncJobParams) error {
+	_, err := q.db.Exec(ctx, setSapphireGiveawayStateFinalSyncJob, arg.ContestKey, arg.FinalSyncJobID)
+	return err
+}
+
 const setTeamSearchRequestStatus = `-- name: SetTeamSearchRequestStatus :one
 UPDATE team_search_requests
 SET status = $3::enum_review_status,
@@ -5004,6 +5321,101 @@ type UpdateRoomBookingDurationParams struct {
 
 func (q *Queries) UpdateRoomBookingDuration(ctx context.Context, arg UpdateRoomBookingDurationParams) error {
 	_, err := q.db.Exec(ctx, updateRoomBookingDuration, arg.ID, arg.UserID, arg.DurationMinutes)
+	return err
+}
+
+const updateSapphireGiveawayParticipantProgress = `-- name: UpdateSapphireGiveawayParticipantProgress :exec
+UPDATE sapphire_giveaway_participants
+SET counted_project_ids = $2,
+    counted_projects_count = $3,
+    last_synced_at = CURRENT_TIMESTAMP,
+    last_sync_error = ''
+WHERE s21_login = $1
+`
+
+type UpdateSapphireGiveawayParticipantProgressParams struct {
+	S21Login             string `json:"s21_login"`
+	CountedProjectIds    []byte `json:"counted_project_ids"`
+	CountedProjectsCount int32  `json:"counted_projects_count"`
+}
+
+func (q *Queries) UpdateSapphireGiveawayParticipantProgress(ctx context.Context, arg UpdateSapphireGiveawayParticipantProgressParams) error {
+	_, err := q.db.Exec(ctx, updateSapphireGiveawayParticipantProgress, arg.S21Login, arg.CountedProjectIds, arg.CountedProjectsCount)
+	return err
+}
+
+const updateSapphireGiveawayParticipantSyncError = `-- name: UpdateSapphireGiveawayParticipantSyncError :exec
+UPDATE sapphire_giveaway_participants
+SET last_synced_at = CURRENT_TIMESTAMP,
+    last_sync_error = $2
+WHERE s21_login = $1
+`
+
+type UpdateSapphireGiveawayParticipantSyncErrorParams struct {
+	S21Login      string `json:"s21_login"`
+	LastSyncError string `json:"last_sync_error"`
+}
+
+func (q *Queries) UpdateSapphireGiveawayParticipantSyncError(ctx context.Context, arg UpdateSapphireGiveawayParticipantSyncErrorParams) error {
+	_, err := q.db.Exec(ctx, updateSapphireGiveawayParticipantSyncError, arg.S21Login, arg.LastSyncError)
+	return err
+}
+
+const updateSapphireGiveawayStateStatus = `-- name: UpdateSapphireGiveawayStateStatus :exec
+UPDATE sapphire_giveaway_state
+SET status = $2,
+    updated_at = CURRENT_TIMESTAMP
+WHERE contest_key = $1
+`
+
+type UpdateSapphireGiveawayStateStatusParams struct {
+	ContestKey string `json:"contest_key"`
+	Status     string `json:"status"`
+}
+
+func (q *Queries) UpdateSapphireGiveawayStateStatus(ctx context.Context, arg UpdateSapphireGiveawayStateStatusParams) error {
+	_, err := q.db.Exec(ctx, updateSapphireGiveawayStateStatus, arg.ContestKey, arg.Status)
+	return err
+}
+
+const updateSapphireGiveawayStateStatusIfCurrent = `-- name: UpdateSapphireGiveawayStateStatusIfCurrent :execrows
+UPDATE sapphire_giveaway_state
+SET status = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE contest_key = $1
+  AND status = $2
+`
+
+type UpdateSapphireGiveawayStateStatusIfCurrentParams struct {
+	ContestKey string `json:"contest_key"`
+	Status     string `json:"status"`
+	Status_2   string `json:"status_2"`
+}
+
+func (q *Queries) UpdateSapphireGiveawayStateStatusIfCurrent(ctx context.Context, arg UpdateSapphireGiveawayStateStatusIfCurrentParams) (int64, error) {
+	result, err := q.db.Exec(ctx, updateSapphireGiveawayStateStatusIfCurrent, arg.ContestKey, arg.Status, arg.Status_2)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const updateSapphireGiveawaySyncJobProgress = `-- name: UpdateSapphireGiveawaySyncJobProgress :exec
+UPDATE sapphire_giveaway_sync_jobs
+SET processed_count = $2,
+    failed_count = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+`
+
+type UpdateSapphireGiveawaySyncJobProgressParams struct {
+	ID             int64 `json:"id"`
+	ProcessedCount int32 `json:"processed_count"`
+	FailedCount    int32 `json:"failed_count"`
+}
+
+func (q *Queries) UpdateSapphireGiveawaySyncJobProgress(ctx context.Context, arg UpdateSapphireGiveawaySyncJobProgressParams) error {
+	_, err := q.db.Exec(ctx, updateSapphireGiveawaySyncJobProgress, arg.ID, arg.ProcessedCount, arg.FailedCount)
 	return err
 }
 

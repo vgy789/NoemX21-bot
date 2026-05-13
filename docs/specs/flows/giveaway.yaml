@@ -1,0 +1,154 @@
+initial_state: GIVEAWAY_MENU
+states:
+  GIVEAWAY_MENU:
+    type: interactive
+    description: Вступление в конкурс
+    on_enter:
+      - action: load_sapphire_giveaway_join_context
+    interface:
+      text:
+        ru: |-
+          🎁 *Розыгрыш 150 коинов*
+
+          Условия:
+          - Участвуют только Сапфиры.
+          - Успешно закрывай проекты. Чем больше закрыто, тем выше шанс твоей победы.
+          - Повторная пересдача проектов не учитывается.
+          - Проекты `Bootcamp` и `экзамены` не учитываются.
+          - Конкурс длится до *30 июня* включительно.
+          - Итоги конкурса будут подведены 1 июля в Rocket.Chat в канале sapphires.
+          - Будет запущено колесо фортуны с выбором победителя 150 коинов.
+          - `jonnabin` обязуется перевести приз на счёт победителя.
+
+          {giveaway_join_hint}
+        en: |-
+          🎁 *150 Coins Giveaway*
+
+          Rules:
+          - Only Sapphires can participate.
+          - Successfully complete projects. The more you complete, the higher your chance to win.
+          - Re-submissions of already passed projects are not counted.
+          - `Bootcamp` and `exam` projects are not counted.
+          - The contest runs through *June 30* (inclusive).
+          - Contest results will be announced on July 1 in the `sapphires` channel in Rocket.Chat.
+          - At the end, a wheel of fortune will be used to pick the winner of 150 coins.
+          - `jonnabin` commits to transferring the prize to the winner's account.
+
+          {giveaway_join_hint}
+      buttons:
+        - id: giveaway_join_confirm
+          label:
+            ru: ✅ Участвую!
+            en: ✅ I'm In!
+          action: join_sapphire_giveaway
+          condition: "giveaway_join_available == true"
+          next_state: MAIN_MENU
+          row: 1
+        - id: giveaway_back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: MAIN_MENU
+          row: 1
+
+  GIVEAWAY_PROGRESS:
+    type: interactive
+    description: Таблица прогресса конкурса
+    on_enter:
+      - action: load_sapphire_giveaway_progress
+    interface:
+      text:
+        ru: |-
+          📈 *Прогресс в конкурсе*
+
+          {giveaway_progress_text}
+        en: |-
+          📈 *Contest Progress*
+
+          {giveaway_progress_text}
+      buttons:
+        - id: giveaway_progress_prev
+          label:
+            ru: ⬅️ Назад
+            en: ⬅️ Prev
+          action: giveaway_progress_prev_page
+          condition: "giveaway_progress_has_prev_page == true"
+          next_state: GIVEAWAY_PROGRESS
+          row: 1
+        - id: giveaway_progress_next
+          label:
+            ru: Вперёд ➡️
+            en: Next ➡️
+          action: giveaway_progress_next_page
+          condition: "giveaway_progress_has_next_page == true"
+          next_state: GIVEAWAY_PROGRESS
+          row: 1
+        - id: giveaway_progress_refresh
+          label:
+            ru: 🔄 Обновить
+            en: 🔄 Refresh
+          next_state: GIVEAWAY_PROGRESS
+          row: 2
+        - id: giveaway_progress_rules
+          label:
+            ru: 📜 Правила
+            en: 📜 Rules
+          next_state: GIVEAWAY_MENU
+          row: 2
+        - id: giveaway_progress_back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: MAIN_MENU
+          row: 3
+
+  GIVEAWAY_ADMIN_MENU:
+    type: interactive
+    description: Админ-панель конкурса
+    on_enter:
+      - action: load_sapphire_giveaway_admin
+    interface:
+      text:
+        ru: |-
+          🛠️ *Админ конкурса*
+
+          Статус конкурса: `{giveaway_admin_status_text}`
+          Последняя job: `{giveaway_admin_job_text}`
+          Обновлено: `{giveaway_admin_refreshed_at}`
+
+          {giveaway_admin_hint_text}
+
+          Экспорт:
+          `{giveaway_export_text}`
+        en: |-
+          🛠️ *Contest Admin*
+
+          Contest status: `{giveaway_admin_status_text}`
+          Last job: `{giveaway_admin_job_text}`
+          Updated at: `{giveaway_admin_refreshed_at}`
+
+          {giveaway_admin_hint_text}
+
+          Export:
+          `{giveaway_export_text}`
+      buttons:
+        - id: giveaway_admin_stop
+          label:
+            ru: ⛔ Остановить и актуализировать
+            en: ⛔ Stop and Final Sync
+          action: start_sapphire_giveaway_final_sync
+          condition: "giveaway_admin_can_stop == true"
+          next_state: GIVEAWAY_ADMIN_MENU
+          row: 1
+        - id: giveaway_admin_refresh
+          label:
+            ru: 🔄 Обновить статус
+            en: 🔄 Refresh Status
+          next_state: GIVEAWAY_ADMIN_MENU
+          row: 1
+        - id: giveaway_admin_back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: MAIN_MENU
+          row: 1

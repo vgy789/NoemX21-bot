@@ -1696,7 +1696,7 @@ states:
         ru: |
           📌 *Рекомендация*
 
-          Представь ситуации: 
+          Представь ситуации:
           – бот перестал работать, и все новички могут свободно проходить мимо фейс-контроля;
           – перед входом пир не зарегистрировался в боте, а тот его *без объяснений* мгновенно удалил из группы.
 
@@ -1722,7 +1722,7 @@ states:
           – The bot stops working, and all newcomers can freely bypass the face control;
           – A user didn't register in the bot before entering, and the bot instantly removes them from the group *without explanation*.
 
-          To prevent this from happening, it is *highly recommended to enable* the *«Request Admin Approval»* feature. 
+          To prevent this from happening, it is *highly recommended to enable* the *«Request Admin Approval»* feature.
 
           *How to enable:*
           1. Open your group → tap on the group name at the top.

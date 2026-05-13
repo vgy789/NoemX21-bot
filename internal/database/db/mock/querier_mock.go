@@ -369,6 +369,49 @@ func (mr *MockQuerierMockRecorder) CreateRoomBooking(ctx, arg any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateRoomBooking", reflect.TypeOf((*MockQuerier)(nil).CreateRoomBooking), ctx, arg)
 }
 
+// CreateSapphireGiveawayParticipant mocks base method.
+func (m *MockQuerier) CreateSapphireGiveawayParticipant(ctx context.Context, arg db.CreateSapphireGiveawayParticipantParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateSapphireGiveawayParticipant", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateSapphireGiveawayParticipant indicates an expected call of CreateSapphireGiveawayParticipant.
+func (mr *MockQuerierMockRecorder) CreateSapphireGiveawayParticipant(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSapphireGiveawayParticipant", reflect.TypeOf((*MockQuerier)(nil).CreateSapphireGiveawayParticipant), ctx, arg)
+}
+
+// CreateSapphireGiveawayStateIfMissing mocks base method.
+func (m *MockQuerier) CreateSapphireGiveawayStateIfMissing(ctx context.Context, arg db.CreateSapphireGiveawayStateIfMissingParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateSapphireGiveawayStateIfMissing", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateSapphireGiveawayStateIfMissing indicates an expected call of CreateSapphireGiveawayStateIfMissing.
+func (mr *MockQuerierMockRecorder) CreateSapphireGiveawayStateIfMissing(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSapphireGiveawayStateIfMissing", reflect.TypeOf((*MockQuerier)(nil).CreateSapphireGiveawayStateIfMissing), ctx, arg)
+}
+
+// CreateSapphireGiveawaySyncJob mocks base method.
+func (m *MockQuerier) CreateSapphireGiveawaySyncJob(ctx context.Context, arg db.CreateSapphireGiveawaySyncJobParams) (db.SapphireGiveawaySyncJob, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateSapphireGiveawaySyncJob", ctx, arg)
+	ret0, _ := ret[0].(db.SapphireGiveawaySyncJob)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateSapphireGiveawaySyncJob indicates an expected call of CreateSapphireGiveawaySyncJob.
+func (mr *MockQuerierMockRecorder) CreateSapphireGiveawaySyncJob(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSapphireGiveawaySyncJob", reflect.TypeOf((*MockQuerier)(nil).CreateSapphireGiveawaySyncJob), ctx, arg)
+}
+
 // CreateTeamSearchRequest mocks base method.
 func (m *MockQuerier) CreateTeamSearchRequest(ctx context.Context, arg db.CreateTeamSearchRequestParams) (db.TeamSearchRequest, error) {
 	m.ctrl.T.Helper()
@@ -834,6 +877,20 @@ func (mr *MockQuerierMockRecorder) ExistsTelegramGroupWhitelist(ctx, arg any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExistsTelegramGroupWhitelist", reflect.TypeOf((*MockQuerier)(nil).ExistsTelegramGroupWhitelist), ctx, arg)
 }
 
+// FinishSapphireGiveawaySyncJob mocks base method.
+func (m *MockQuerier) FinishSapphireGiveawaySyncJob(ctx context.Context, arg db.FinishSapphireGiveawaySyncJobParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FinishSapphireGiveawaySyncJob", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// FinishSapphireGiveawaySyncJob indicates an expected call of FinishSapphireGiveawaySyncJob.
+func (mr *MockQuerierMockRecorder) FinishSapphireGiveawaySyncJob(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FinishSapphireGiveawaySyncJob", reflect.TypeOf((*MockQuerier)(nil).FinishSapphireGiveawaySyncJob), ctx, arg)
+}
+
 // GetActiveApiKey mocks base method.
 func (m *MockQuerier) GetActiveApiKey(ctx context.Context, userAccountID int64) (db.ApiKey, error) {
 	m.ctrl.T.Helper()
@@ -1179,6 +1236,21 @@ func (mr *MockQuerierMockRecorder) GetLastAuthVerificationCode(ctx, s21Login any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastAuthVerificationCode", reflect.TypeOf((*MockQuerier)(nil).GetLastAuthVerificationCode), ctx, s21Login)
 }
 
+// GetLatestSapphireGiveawaySyncJob mocks base method.
+func (m *MockQuerier) GetLatestSapphireGiveawaySyncJob(ctx context.Context) (db.SapphireGiveawaySyncJob, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLatestSapphireGiveawaySyncJob", ctx)
+	ret0, _ := ret[0].(db.SapphireGiveawaySyncJob)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLatestSapphireGiveawaySyncJob indicates an expected call of GetLatestSapphireGiveawaySyncJob.
+func (mr *MockQuerierMockRecorder) GetLatestSapphireGiveawaySyncJob(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestSapphireGiveawaySyncJob", reflect.TypeOf((*MockQuerier)(nil).GetLatestSapphireGiveawaySyncJob), ctx)
+}
+
 // GetLocalClubs mocks base method.
 func (m *MockQuerier) GetLocalClubs(ctx context.Context, campusID pgtype.UUID) ([]db.GetLocalClubsRow, error) {
 	m.ctrl.T.Helper()
@@ -1464,6 +1536,51 @@ func (mr *MockQuerierMockRecorder) GetRoomByID(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRoomByID", reflect.TypeOf((*MockQuerier)(nil).GetRoomByID), ctx, arg)
 }
 
+// GetSapphireGiveawayParticipantByLogin mocks base method.
+func (m *MockQuerier) GetSapphireGiveawayParticipantByLogin(ctx context.Context, s21Login string) (db.SapphireGiveawayParticipant, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSapphireGiveawayParticipantByLogin", ctx, s21Login)
+	ret0, _ := ret[0].(db.SapphireGiveawayParticipant)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSapphireGiveawayParticipantByLogin indicates an expected call of GetSapphireGiveawayParticipantByLogin.
+func (mr *MockQuerierMockRecorder) GetSapphireGiveawayParticipantByLogin(ctx, s21Login any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSapphireGiveawayParticipantByLogin", reflect.TypeOf((*MockQuerier)(nil).GetSapphireGiveawayParticipantByLogin), ctx, s21Login)
+}
+
+// GetSapphireGiveawayState mocks base method.
+func (m *MockQuerier) GetSapphireGiveawayState(ctx context.Context, contestKey string) (db.SapphireGiveawayState, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSapphireGiveawayState", ctx, contestKey)
+	ret0, _ := ret[0].(db.SapphireGiveawayState)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSapphireGiveawayState indicates an expected call of GetSapphireGiveawayState.
+func (mr *MockQuerierMockRecorder) GetSapphireGiveawayState(ctx, contestKey any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSapphireGiveawayState", reflect.TypeOf((*MockQuerier)(nil).GetSapphireGiveawayState), ctx, contestKey)
+}
+
+// GetSapphireGiveawaySyncJob mocks base method.
+func (m *MockQuerier) GetSapphireGiveawaySyncJob(ctx context.Context, id int64) (db.SapphireGiveawaySyncJob, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetSapphireGiveawaySyncJob", ctx, id)
+	ret0, _ := ret[0].(db.SapphireGiveawaySyncJob)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetSapphireGiveawaySyncJob indicates an expected call of GetSapphireGiveawaySyncJob.
+func (mr *MockQuerierMockRecorder) GetSapphireGiveawaySyncJob(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSapphireGiveawaySyncJob", reflect.TypeOf((*MockQuerier)(nil).GetSapphireGiveawaySyncJob), ctx, id)
+}
+
 // GetTeamSearchRequestByID mocks base method.
 func (m *MockQuerier) GetTeamSearchRequestByID(ctx context.Context, id int64) (db.GetTeamSearchRequestByIDRow, error) {
 	m.ctrl.T.Helper()
@@ -1746,6 +1863,36 @@ func (m *MockQuerier) ListMemberTagGroupsByTelegramUser(ctx context.Context, tel
 func (mr *MockQuerierMockRecorder) ListMemberTagGroupsByTelegramUser(ctx, telegramUserID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListMemberTagGroupsByTelegramUser", reflect.TypeOf((*MockQuerier)(nil).ListMemberTagGroupsByTelegramUser), ctx, telegramUserID)
+}
+
+// ListSapphireGiveawayParticipantLogins mocks base method.
+func (m *MockQuerier) ListSapphireGiveawayParticipantLogins(ctx context.Context) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListSapphireGiveawayParticipantLogins", ctx)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListSapphireGiveawayParticipantLogins indicates an expected call of ListSapphireGiveawayParticipantLogins.
+func (mr *MockQuerierMockRecorder) ListSapphireGiveawayParticipantLogins(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSapphireGiveawayParticipantLogins", reflect.TypeOf((*MockQuerier)(nil).ListSapphireGiveawayParticipantLogins), ctx)
+}
+
+// ListSapphireGiveawayParticipants mocks base method.
+func (m *MockQuerier) ListSapphireGiveawayParticipants(ctx context.Context) ([]db.SapphireGiveawayParticipant, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListSapphireGiveawayParticipants", ctx)
+	ret0, _ := ret[0].([]db.SapphireGiveawayParticipant)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListSapphireGiveawayParticipants indicates an expected call of ListSapphireGiveawayParticipants.
+func (mr *MockQuerierMockRecorder) ListSapphireGiveawayParticipants(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListSapphireGiveawayParticipants", reflect.TypeOf((*MockQuerier)(nil).ListSapphireGiveawayParticipants), ctx)
 }
 
 // ListTelegramGroupDefenderCampusFilters mocks base method.
@@ -2120,6 +2267,34 @@ func (mr *MockQuerierMockRecorder) SetReviewRequestStatus(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetReviewRequestStatus", reflect.TypeOf((*MockQuerier)(nil).SetReviewRequestStatus), ctx, arg)
 }
 
+// SetSapphireGiveawayParticipantFinalSyncJob mocks base method.
+func (m *MockQuerier) SetSapphireGiveawayParticipantFinalSyncJob(ctx context.Context, arg db.SetSapphireGiveawayParticipantFinalSyncJobParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSapphireGiveawayParticipantFinalSyncJob", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetSapphireGiveawayParticipantFinalSyncJob indicates an expected call of SetSapphireGiveawayParticipantFinalSyncJob.
+func (mr *MockQuerierMockRecorder) SetSapphireGiveawayParticipantFinalSyncJob(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSapphireGiveawayParticipantFinalSyncJob", reflect.TypeOf((*MockQuerier)(nil).SetSapphireGiveawayParticipantFinalSyncJob), ctx, arg)
+}
+
+// SetSapphireGiveawayStateFinalSyncJob mocks base method.
+func (m *MockQuerier) SetSapphireGiveawayStateFinalSyncJob(ctx context.Context, arg db.SetSapphireGiveawayStateFinalSyncJobParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetSapphireGiveawayStateFinalSyncJob", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetSapphireGiveawayStateFinalSyncJob indicates an expected call of SetSapphireGiveawayStateFinalSyncJob.
+func (mr *MockQuerierMockRecorder) SetSapphireGiveawayStateFinalSyncJob(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetSapphireGiveawayStateFinalSyncJob", reflect.TypeOf((*MockQuerier)(nil).SetSapphireGiveawayStateFinalSyncJob), ctx, arg)
+}
+
 // SetTeamSearchRequestStatus mocks base method.
 func (m *MockQuerier) SetTeamSearchRequestStatus(ctx context.Context, arg db.SetTeamSearchRequestStatusParams) (db.SetTeamSearchRequestStatusRow, error) {
 	m.ctrl.T.Helper()
@@ -2176,6 +2351,77 @@ func (m *MockQuerier) UpdateRoomBookingDuration(ctx context.Context, arg db.Upda
 func (mr *MockQuerierMockRecorder) UpdateRoomBookingDuration(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateRoomBookingDuration", reflect.TypeOf((*MockQuerier)(nil).UpdateRoomBookingDuration), ctx, arg)
+}
+
+// UpdateSapphireGiveawayParticipantProgress mocks base method.
+func (m *MockQuerier) UpdateSapphireGiveawayParticipantProgress(ctx context.Context, arg db.UpdateSapphireGiveawayParticipantProgressParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSapphireGiveawayParticipantProgress", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateSapphireGiveawayParticipantProgress indicates an expected call of UpdateSapphireGiveawayParticipantProgress.
+func (mr *MockQuerierMockRecorder) UpdateSapphireGiveawayParticipantProgress(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSapphireGiveawayParticipantProgress", reflect.TypeOf((*MockQuerier)(nil).UpdateSapphireGiveawayParticipantProgress), ctx, arg)
+}
+
+// UpdateSapphireGiveawayParticipantSyncError mocks base method.
+func (m *MockQuerier) UpdateSapphireGiveawayParticipantSyncError(ctx context.Context, arg db.UpdateSapphireGiveawayParticipantSyncErrorParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSapphireGiveawayParticipantSyncError", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateSapphireGiveawayParticipantSyncError indicates an expected call of UpdateSapphireGiveawayParticipantSyncError.
+func (mr *MockQuerierMockRecorder) UpdateSapphireGiveawayParticipantSyncError(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSapphireGiveawayParticipantSyncError", reflect.TypeOf((*MockQuerier)(nil).UpdateSapphireGiveawayParticipantSyncError), ctx, arg)
+}
+
+// UpdateSapphireGiveawayStateStatus mocks base method.
+func (m *MockQuerier) UpdateSapphireGiveawayStateStatus(ctx context.Context, arg db.UpdateSapphireGiveawayStateStatusParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSapphireGiveawayStateStatus", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateSapphireGiveawayStateStatus indicates an expected call of UpdateSapphireGiveawayStateStatus.
+func (mr *MockQuerierMockRecorder) UpdateSapphireGiveawayStateStatus(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSapphireGiveawayStateStatus", reflect.TypeOf((*MockQuerier)(nil).UpdateSapphireGiveawayStateStatus), ctx, arg)
+}
+
+// UpdateSapphireGiveawayStateStatusIfCurrent mocks base method.
+func (m *MockQuerier) UpdateSapphireGiveawayStateStatusIfCurrent(ctx context.Context, arg db.UpdateSapphireGiveawayStateStatusIfCurrentParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSapphireGiveawayStateStatusIfCurrent", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// UpdateSapphireGiveawayStateStatusIfCurrent indicates an expected call of UpdateSapphireGiveawayStateStatusIfCurrent.
+func (mr *MockQuerierMockRecorder) UpdateSapphireGiveawayStateStatusIfCurrent(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSapphireGiveawayStateStatusIfCurrent", reflect.TypeOf((*MockQuerier)(nil).UpdateSapphireGiveawayStateStatusIfCurrent), ctx, arg)
+}
+
+// UpdateSapphireGiveawaySyncJobProgress mocks base method.
+func (m *MockQuerier) UpdateSapphireGiveawaySyncJobProgress(ctx context.Context, arg db.UpdateSapphireGiveawaySyncJobProgressParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateSapphireGiveawaySyncJobProgress", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateSapphireGiveawaySyncJobProgress indicates an expected call of UpdateSapphireGiveawaySyncJobProgress.
+func (mr *MockQuerierMockRecorder) UpdateSapphireGiveawaySyncJobProgress(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSapphireGiveawaySyncJobProgress", reflect.TypeOf((*MockQuerier)(nil).UpdateSapphireGiveawaySyncJobProgress), ctx, arg)
 }
 
 // UpdateTelegramGroupDefenderEnabledByOwner mocks base method.
