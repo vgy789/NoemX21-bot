@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vgy789/noemx21-bot/internal/clients/rocketchat"
@@ -57,6 +58,12 @@ func prepareRegistrationTestWithOTP(t *testing.T, useMockOTP bool) (*telegramSer
 	crypter, _ := crypto.NewCrypter("12345678123456781234567812345678")
 	credSvc := service.NewCredentialService(mockQuerier, crypter, nil, logger)
 	mockQuerier.EXPECT().GetPlatformCredentials(gomock.Any(), gomock.Any()).Return(db.PlatformCredential{}, fmt.Errorf("not found")).AnyTimes()
+	mockQuerier.EXPECT().CreateSapphireGiveawayStateIfMissing(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockQuerier.EXPECT().GetSapphireGiveawayState(gomock.Any(), gomock.Any()).Return(db.SapphireGiveawayState{
+		ContestKey: "sapphire_100_coins",
+		Status:     "active",
+	}, nil).AnyTimes()
+	mockQuerier.EXPECT().GetSapphireGiveawayParticipantByLogin(gomock.Any(), gomock.Any()).Return(db.SapphireGiveawayParticipant{}, pgx.ErrNoRows).AnyTimes()
 	registrar := actions.NewRegistrar(cfg, logger, mockUserSvc, mockQuerier, mockRCClient, nil, credSvc, otpProvider, repo, nil)
 	registrar.RegisterAll(ts.engine.Registry(), ts.engine.AddAlias)
 
@@ -190,6 +197,12 @@ func TestRegistration_EmailOTPProvisioningFlow(t *testing.T) {
 	otpProvider := service.NewRealOTPProvider(otpSvc)
 
 	mockQuerier.EXPECT().GetPlatformCredentials(gomock.Any(), gomock.Any()).Return(db.PlatformCredential{}, fmt.Errorf("not found")).AnyTimes()
+	mockQuerier.EXPECT().CreateSapphireGiveawayStateIfMissing(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	mockQuerier.EXPECT().GetSapphireGiveawayState(gomock.Any(), gomock.Any()).Return(db.SapphireGiveawayState{
+		ContestKey: "sapphire_100_coins",
+		Status:     "active",
+	}, nil).AnyTimes()
+	mockQuerier.EXPECT().GetSapphireGiveawayParticipantByLogin(gomock.Any(), gomock.Any()).Return(db.SapphireGiveawayParticipant{}, pgx.ErrNoRows).AnyTimes()
 
 	registrar := actions.NewRegistrar(cfg, logger, mockUserSvc, mockQuerier, mockRCClient, nil, credSvc, otpProvider, repo, nil)
 	registrar.RegisterAll(ts.engine.Registry(), ts.engine.AddAlias)

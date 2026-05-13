@@ -12,6 +12,7 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/fsm/actions/booking"
 	"github.com/vgy789/noemx21-bot/internal/fsm/actions/clubs"
 	"github.com/vgy789/noemx21-bot/internal/fsm/actions/common"
+	"github.com/vgy789/noemx21-bot/internal/fsm/actions/giveaway"
 	"github.com/vgy789/noemx21-bot/internal/fsm/actions/library"
 	"github.com/vgy789/noemx21-bot/internal/fsm/actions/registration"
 	"github.com/vgy789/noemx21-bot/internal/fsm/actions/settings"
@@ -63,6 +64,7 @@ func (r *registrar) RegisterAll(registry *fsm.LogicRegistry, aliasRegistrar func
 	common.RegisterBase(registry)
 	common.RegisterMainMenu(registry, aliasRegistrar)
 	common.RegisterReviews(registry, r.cfg, r.queries, r.s21Client, r.credService, r.log, aliasRegistrar)
+	giveaway.Register(registry, r.cfg, r.log, r.queries, r.s21Client, r.credService, aliasRegistrar)
 
 	admin_groups.Register(registry, r.cfg, r.log, r.queries, aliasRegistrar)
 	booking.Register(registry, r.queries, r.cfg, aliasRegistrar, r.scheduleGen)

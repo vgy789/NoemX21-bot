@@ -429,6 +429,39 @@ type RoomBooking struct {
 	CreatedAt       pgtype.Timestamptz `json:"created_at"`
 }
 
+type SapphireGiveawayParticipant struct {
+	S21Login             string             `json:"s21_login"`
+	TelegramUserID       int64              `json:"telegram_user_id"`
+	BaselineProjectIds   []byte             `json:"baseline_project_ids"`
+	CountedProjectIds    []byte             `json:"counted_project_ids"`
+	CountedProjectsCount int32              `json:"counted_projects_count"`
+	JoinedAt             pgtype.Timestamptz `json:"joined_at"`
+	LastSyncedAt         pgtype.Timestamptz `json:"last_synced_at"`
+	LastSyncError        string             `json:"last_sync_error"`
+	LastFinalSyncJobID   pgtype.Int8        `json:"last_final_sync_job_id"`
+}
+
+type SapphireGiveawayState struct {
+	ContestKey     string             `json:"contest_key"`
+	Status         string             `json:"status"`
+	FinalSyncJobID pgtype.Int8        `json:"final_sync_job_id"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type SapphireGiveawaySyncJob struct {
+	ID                        int64              `json:"id"`
+	Status                    string             `json:"status"`
+	TotalCount                int32              `json:"total_count"`
+	ProcessedCount            int32              `json:"processed_count"`
+	FailedCount               int32              `json:"failed_count"`
+	ExportText                string             `json:"export_text"`
+	RequestedByTelegramUserID int64              `json:"requested_by_telegram_user_id"`
+	StartedAt                 pgtype.Timestamptz `json:"started_at"`
+	FinishedAt                pgtype.Timestamptz `json:"finished_at"`
+	UpdatedAt                 pgtype.Timestamptz `json:"updated_at"`
+}
+
 type Skill struct {
 	ID        int32              `json:"id"`
 	Name      string             `json:"name"`

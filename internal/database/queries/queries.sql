@@ -1907,3 +1907,124 @@ SELECT id, title
 FROM projects
 WHERE id = ANY($1::BIGINT[])
 ORDER BY title ASC;
+
+-- name: CreateSapphireGiveawayStateIfMissing :exec
+INSERT INTO sapphire_giveaway_state (contest_key, status)
+VALUES ($1, $2)
+ON CONFLICT (contest_key) DO NOTHING;
+
+-- name: GetSapphireGiveawayState :one
+SELECT contest_key, status, final_sync_job_id, created_at, updated_at
+FROM sapphire_giveaway_state
+WHERE contest_key = $1;
+
+-- name: UpdateSapphireGiveawayStateStatus :exec
+UPDATE sapphire_giveaway_state
+SET status = $2,
+    updated_at = CURRENT_TIMESTAMP
+WHERE contest_key = $1;
+
+-- name: UpdateSapphireGiveawayStateStatusIfCurrent :execrows
+UPDATE sapphire_giveaway_state
+SET status = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE contest_key = $1
+  AND status = $2;
+
+-- name: SetSapphireGiveawayStateFinalSyncJob :exec
+UPDATE sapphire_giveaway_state
+SET final_sync_job_id = $2,
+    updated_at = CURRENT_TIMESTAMP
+WHERE contest_key = $1;
+
+-- name: CreateSapphireGiveawayParticipant :exec
+INSERT INTO sapphire_giveaway_participants (
+    s21_login,
+    telegram_user_id,
+    baseline_project_ids,
+    counted_project_ids,
+    counted_projects_count,
+    joined_at,
+    last_synced_at,
+    last_sync_error
+) VALUES (
+    $1, $2, $3, $4, $5, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, ''
+)
+ON CONFLICT (s21_login) DO NOTHING;
+
+-- name: GetSapphireGiveawayParticipantByLogin :one
+SELECT s21_login, telegram_user_id, baseline_project_ids, counted_project_ids, counted_projects_count, joined_at, last_synced_at, last_sync_error, last_final_sync_job_id
+FROM sapphire_giveaway_participants
+WHERE s21_login = $1;
+
+-- name: ListSapphireGiveawayParticipants :many
+SELECT s21_login, telegram_user_id, baseline_project_ids, counted_project_ids, counted_projects_count, joined_at, last_synced_at, last_sync_error, last_final_sync_job_id
+FROM sapphire_giveaway_participants
+ORDER BY counted_projects_count DESC, s21_login ASC;
+
+-- name: ListSapphireGiveawayParticipantLogins :many
+SELECT s21_login
+FROM sapphire_giveaway_participants
+ORDER BY s21_login ASC;
+
+-- name: UpdateSapphireGiveawayParticipantProgress :exec
+UPDATE sapphire_giveaway_participants
+SET counted_project_ids = $2,
+    counted_projects_count = $3,
+    last_synced_at = CURRENT_TIMESTAMP,
+    last_sync_error = ''
+WHERE s21_login = $1;
+
+-- name: UpdateSapphireGiveawayParticipantSyncError :exec
+UPDATE sapphire_giveaway_participants
+SET last_synced_at = CURRENT_TIMESTAMP,
+    last_sync_error = $2
+WHERE s21_login = $1;
+
+-- name: SetSapphireGiveawayParticipantFinalSyncJob :exec
+UPDATE sapphire_giveaway_participants
+SET last_final_sync_job_id = $2
+WHERE s21_login = $1;
+
+-- name: CreateSapphireGiveawaySyncJob :one
+INSERT INTO sapphire_giveaway_sync_jobs (
+    status,
+    total_count,
+    processed_count,
+    failed_count,
+    export_text,
+    requested_by_telegram_user_id,
+    started_at,
+    updated_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+)
+RETURNING id, status, total_count, processed_count, failed_count, export_text, requested_by_telegram_user_id, started_at, finished_at, updated_at;
+
+-- name: GetSapphireGiveawaySyncJob :one
+SELECT id, status, total_count, processed_count, failed_count, export_text, requested_by_telegram_user_id, started_at, finished_at, updated_at
+FROM sapphire_giveaway_sync_jobs
+WHERE id = $1;
+
+-- name: GetLatestSapphireGiveawaySyncJob :one
+SELECT id, status, total_count, processed_count, failed_count, export_text, requested_by_telegram_user_id, started_at, finished_at, updated_at
+FROM sapphire_giveaway_sync_jobs
+ORDER BY id DESC
+LIMIT 1;
+
+-- name: UpdateSapphireGiveawaySyncJobProgress :exec
+UPDATE sapphire_giveaway_sync_jobs
+SET processed_count = $2,
+    failed_count = $3,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1;
+
+-- name: FinishSapphireGiveawaySyncJob :exec
+UPDATE sapphire_giveaway_sync_jobs
+SET status = $2,
+    processed_count = $3,
+    failed_count = $4,
+    export_text = $5,
+    finished_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id = $1;

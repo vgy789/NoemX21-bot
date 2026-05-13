@@ -33,6 +33,9 @@ type Querier interface {
 	CreateBookLoan(ctx context.Context, arg CreateBookLoanParams) (BookLoan, error)
 	CreateReviewRequest(ctx context.Context, arg CreateReviewRequestParams) (ReviewRequest, error)
 	CreateRoomBooking(ctx context.Context, arg CreateRoomBookingParams) (RoomBooking, error)
+	CreateSapphireGiveawayParticipant(ctx context.Context, arg CreateSapphireGiveawayParticipantParams) error
+	CreateSapphireGiveawayStateIfMissing(ctx context.Context, arg CreateSapphireGiveawayStateIfMissingParams) error
+	CreateSapphireGiveawaySyncJob(ctx context.Context, arg CreateSapphireGiveawaySyncJobParams) (SapphireGiveawaySyncJob, error)
 	CreateTeamSearchRequest(ctx context.Context, arg CreateTeamSearchRequestParams) (TeamSearchRequest, error)
 	CreateUserAccount(ctx context.Context, arg CreateUserAccountParams) (UserAccount, error)
 	DeactivateBooksByCampus(ctx context.Context, campusID pgtype.UUID) error
@@ -65,6 +68,7 @@ type Querier interface {
 	ExistsOpenReviewRequestByUserAndProject(ctx context.Context, arg ExistsOpenReviewRequestByUserAndProjectParams) (bool, error)
 	ExistsOpenTeamSearchRequestByUserAndProject(ctx context.Context, arg ExistsOpenTeamSearchRequestByUserAndProjectParams) (bool, error)
 	ExistsTelegramGroupWhitelist(ctx context.Context, arg ExistsTelegramGroupWhitelistParams) (bool, error)
+	FinishSapphireGiveawaySyncJob(ctx context.Context, arg FinishSapphireGiveawaySyncJobParams) error
 	GetActiveApiKey(ctx context.Context, userAccountID int64) (ApiKey, error)
 	GetActiveRoomsByCampus(ctx context.Context, campusID pgtype.UUID) ([]Room, error)
 	GetAllActiveCampuses(ctx context.Context) ([]GetAllActiveCampusesRow, error)
@@ -88,6 +92,7 @@ type Querier interface {
 	GetGlobalReviewProjectGroups(ctx context.Context) ([]GetGlobalReviewProjectGroupsRow, error)
 	GetGlobalTeamProjectGroups(ctx context.Context) ([]GetGlobalTeamProjectGroupsRow, error)
 	GetLastAuthVerificationCode(ctx context.Context, s21Login pgtype.Text) (AuthVerificationCode, error)
+	GetLatestSapphireGiveawaySyncJob(ctx context.Context) (SapphireGiveawaySyncJob, error)
 	GetLocalClubs(ctx context.Context, campusID pgtype.UUID) ([]GetLocalClubsRow, error)
 	GetMyOpenReviewRequests(ctx context.Context, requesterUserID int64) ([]GetMyOpenReviewRequestsRow, error)
 	GetMyOpenTeamSearchRequests(ctx context.Context, requesterUserID int64) ([]GetMyOpenTeamSearchRequestsRow, error)
@@ -110,6 +115,9 @@ type Querier interface {
 	GetRocketChatCredentials(ctx context.Context, s21Login string) (RocketchatCredential, error)
 	GetRoomBookingsByDate(ctx context.Context, arg GetRoomBookingsByDateParams) ([]GetRoomBookingsByDateRow, error)
 	GetRoomByID(ctx context.Context, arg GetRoomByIDParams) (Room, error)
+	GetSapphireGiveawayParticipantByLogin(ctx context.Context, s21Login string) (SapphireGiveawayParticipant, error)
+	GetSapphireGiveawayState(ctx context.Context, contestKey string) (SapphireGiveawayState, error)
+	GetSapphireGiveawaySyncJob(ctx context.Context, id int64) (SapphireGiveawaySyncJob, error)
 	GetTeamSearchRequestByID(ctx context.Context, id int64) (GetTeamSearchRequestByIDRow, error)
 	GetTeamSearchRequestsForCleanup(ctx context.Context, arg GetTeamSearchRequestsForCleanupParams) ([]GetTeamSearchRequestsForCleanupRow, error)
 	GetTelegramGroupByChatID(ctx context.Context, chatID int64) (TelegramGroup, error)
@@ -129,6 +137,8 @@ type Querier interface {
 	InsertTelegramGroupLog(ctx context.Context, arg InsertTelegramGroupLogParams) error
 	ListCoalitionsByCampus(ctx context.Context, campusID pgtype.UUID) ([]Coalition, error)
 	ListMemberTagGroupsByTelegramUser(ctx context.Context, telegramUserID int64) ([]TelegramGroup, error)
+	ListSapphireGiveawayParticipantLogins(ctx context.Context) ([]string, error)
+	ListSapphireGiveawayParticipants(ctx context.Context) ([]SapphireGiveawayParticipant, error)
 	ListTelegramGroupDefenderCampusFilters(ctx context.Context, chatID int64) ([]TelegramGroupDefenderCampusFilter, error)
 	ListTelegramGroupDefenderTribeFilters(ctx context.Context, chatID int64) ([]TelegramGroupDefenderTribeFilter, error)
 	ListTelegramGroupKnownMembers(ctx context.Context, chatID int64) ([]TelegramGroupMember, error)
@@ -154,10 +164,17 @@ type Querier interface {
 	SearchCatalogProjects(ctx context.Context, arg SearchCatalogProjectsParams) ([]SearchCatalogProjectsRow, error)
 	SearchCatalogProjectsAll(ctx context.Context, dollar_1 interface{}) ([]SearchCatalogProjectsAllRow, error)
 	SetReviewRequestStatus(ctx context.Context, arg SetReviewRequestStatusParams) (SetReviewRequestStatusRow, error)
+	SetSapphireGiveawayParticipantFinalSyncJob(ctx context.Context, arg SetSapphireGiveawayParticipantFinalSyncJobParams) error
+	SetSapphireGiveawayStateFinalSyncJob(ctx context.Context, arg SetSapphireGiveawayStateFinalSyncJobParams) error
 	SetTeamSearchRequestStatus(ctx context.Context, arg SetTeamSearchRequestStatusParams) (SetTeamSearchRequestStatusRow, error)
 	UnlinkTelegramGroupOwner(ctx context.Context, chatID int64) error
 	UnlinkTelegramGroupOwnerIfOwner(ctx context.Context, arg UnlinkTelegramGroupOwnerIfOwnerParams) (int64, error)
 	UpdateRoomBookingDuration(ctx context.Context, arg UpdateRoomBookingDurationParams) error
+	UpdateSapphireGiveawayParticipantProgress(ctx context.Context, arg UpdateSapphireGiveawayParticipantProgressParams) error
+	UpdateSapphireGiveawayParticipantSyncError(ctx context.Context, arg UpdateSapphireGiveawayParticipantSyncErrorParams) error
+	UpdateSapphireGiveawayStateStatus(ctx context.Context, arg UpdateSapphireGiveawayStateStatusParams) error
+	UpdateSapphireGiveawayStateStatusIfCurrent(ctx context.Context, arg UpdateSapphireGiveawayStateStatusIfCurrentParams) (int64, error)
+	UpdateSapphireGiveawaySyncJobProgress(ctx context.Context, arg UpdateSapphireGiveawaySyncJobProgressParams) error
 	UpdateTelegramGroupDefenderEnabledByOwner(ctx context.Context, arg UpdateTelegramGroupDefenderEnabledByOwnerParams) (int64, error)
 	UpdateTelegramGroupDefenderRecheckKnownMembersByOwner(ctx context.Context, arg UpdateTelegramGroupDefenderRecheckKnownMembersByOwnerParams) (int64, error)
 	UpdateTelegramGroupDefenderRemoveBlockedByOwner(ctx context.Context, arg UpdateTelegramGroupDefenderRemoveBlockedByOwnerParams) (int64, error)

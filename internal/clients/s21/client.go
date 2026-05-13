@@ -27,6 +27,7 @@ type ParticipantCampusV1DTO struct {
 type ParticipantProjectV1DTO struct {
 	ID              int64      `json:"id"`
 	Title           string     `json:"title"`
+	CourseTitle     string     `json:"courseTitle"`
 	Type            string     `json:"type"`
 	Status          string     `json:"status"`
 	FinalPercentage *int32     `json:"finalPercentage"`
