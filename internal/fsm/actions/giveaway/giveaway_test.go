@@ -101,3 +101,14 @@ func TestBuildExportTextSortedByLogin(t *testing.T) {
 
 	require.Equal(t, "alpha:5 beta:0 zeta:1", buildExportText(input))
 }
+
+func TestIsSapphireCoalitionName(t *testing.T) {
+	t.Parallel()
+
+	require.True(t, isSapphireCoalitionName("Sapphire"))
+	require.True(t, isSapphireCoalitionName("Sapphires Team"))
+	require.True(t, isSapphireCoalitionName("Сапфиры"))
+	require.True(t, isSapphireCoalitionName("Трайб сапфиров"))
+	require.False(t, isSapphireCoalitionName("Emerald"))
+	require.False(t, isSapphireCoalitionName("—"))
+}

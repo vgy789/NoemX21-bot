@@ -67,7 +67,7 @@ func Register(
 		isOwner := boolFromAny(payload["is_bot_owner"])
 
 		coalition := strings.TrimSpace(fmt.Sprintf("%v", payload["my_coalition"]))
-		isSapphire := strings.Contains(strings.ToLower(coalition), "sapphire")
+		isSapphire := isSapphireCoalitionName(coalition)
 
 		updates["is_sapphire"] = isSapphire
 		updates["giveaway_owner"] = isOwner
@@ -597,4 +597,15 @@ func buildExportText(rows []db.SapphireGiveawayParticipant) string {
 func boolFromAny(v any) bool {
 	b, ok := v.(bool)
 	return ok && b
+}
+
+func isSapphireCoalitionName(name string) bool {
+	v := strings.ToLower(strings.TrimSpace(name))
+	if v == "" || v == "—" || v == "-" {
+		return false
+	}
+	return strings.Contains(v, "sapphire") ||
+		strings.Contains(v, "sapphir") ||
+		strings.Contains(v, "сапфир") ||
+		strings.Contains(v, "сапф")
 }
