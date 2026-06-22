@@ -274,7 +274,7 @@ func buildPRRGroupSearchingMessage(data prrGroupNotificationData) (string, [][]f
 	noteText := fsm.EscapeMarkdown(nonEmpty(data.RequestNoteText, "—"))
 
 	text := fmt.Sprintf(
-		"🟢 *Новый запрос на ревью!*\n\n📁 Проект: #%s\n👤 Студент: %s (lvl %s)\n📍 Кампус: %s\n\n⏰ *Когда ждет:* \"%s\"\n📝 *Доп. информация:* \"%s\"",
+		"🟢 *Новый запрос на ревью!*\n\n📁 Проект: %s\n👤 Студент: %s (lvl %s)\n📍 Кампус: %s\n\n⏰ *Когда ждет:* \"%s\"\n📝 *Доп. информация:* \"%s\"",
 		project,
 		nickname,
 		level,

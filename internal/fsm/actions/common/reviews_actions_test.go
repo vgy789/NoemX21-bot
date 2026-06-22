@@ -50,3 +50,23 @@ func TestPrepareAvailableProjectsForPRR_ShowsPaginationCaptionForMultiplePages(t
 	require.Equal(t, "1/2", updates["available_projects_page_caption_ru"])
 	require.Equal(t, "1/2", updates["available_projects_page_caption_en"])
 }
+
+func TestSelectProject_UpdatesMarkdownProjectName(t *testing.T) {
+	reg := fsm.NewLogicRegistry()
+	registerReviewActions(reg, nil, nil, nil, nil, slog.Default())
+
+	action, ok := reg.Get("select_project")
+	require.True(t, ok)
+
+	_, updates, err := action(context.Background(), 0, map[string]any{
+		"id":                       "42",
+		"selected_project_name_md": "stale\\_project",
+		"available_projects": []any{
+			map[string]any{"id": "42", "name": "AP1_Go_T04B", "type": "INDIVIDUAL"},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, "42", updates["selected_project_id"])
+	require.Equal(t, "AP1_Go_T04B", updates["selected_project_name"])
+	require.Equal(t, "AP1\\_Go\\_T04B", updates["selected_project_name_md"])
+}

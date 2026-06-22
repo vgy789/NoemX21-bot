@@ -197,6 +197,8 @@ func TestBuildPRRGroupStatusMessage_Formats(t *testing.T) {
 
 	text, buttons := buildPRRGroupStatusMessage(db.EnumReviewStatusSEARCHING, data)
 	assert.Contains(t, text, "Новый запрос")
+	assert.Contains(t, text, "📁 Проект: CPP2\\_s21\\_containers")
+	assert.NotContains(t, text, "Проект: #")
 	require.Len(t, buttons, 1)
 	assert.Contains(t, buttons[0][0].URL, "rocketchat")
 

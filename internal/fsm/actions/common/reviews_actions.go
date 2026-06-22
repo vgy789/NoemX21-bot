@@ -247,10 +247,12 @@ func registerReviewActions(
 			}
 		}
 
+		selectedName := normalizeMarkdownEscapes(selected.Name)
 		return "", map[string]any{
-			"selected_project_id":   selected.ID,
-			"selected_project_name": normalizeMarkdownEscapes(selected.Name),
-			"selected_project_type": selected.Type,
+			"selected_project_id":      selected.ID,
+			"selected_project_name":    selectedName,
+			"selected_project_name_md": projectNameMarkdown(selectedName),
+			"selected_project_type":    selected.Type,
 		}, nil
 	})
 
