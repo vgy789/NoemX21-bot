@@ -212,6 +212,37 @@ SET welcome_thread_id = $3,
 WHERE chat_id = $1
   AND owner_telegram_user_id = $2;
 
+-- name: CreateTelegramGroupWelcomeMessage :exec
+INSERT INTO telegram_group_welcome_messages (chat_id, message_id)
+VALUES ($1, $2)
+ON CONFLICT (chat_id, message_id) DO NOTHING;
+
+-- name: ListDueTelegramGroupWelcomeMessages :many
+SELECT
+    m.chat_id,
+    m.message_id,
+    m.attempt_count,
+    g.owner_telegram_user_id
+FROM telegram_group_welcome_messages m
+JOIN telegram_groups g ON g.chat_id = m.chat_id
+WHERE m.delete_after <= CURRENT_TIMESTAMP
+  AND m.next_attempt_at <= CURRENT_TIMESTAMP
+ORDER BY m.next_attempt_at ASC
+LIMIT $1;
+
+-- name: DeleteTelegramGroupWelcomeMessage :exec
+DELETE FROM telegram_group_welcome_messages
+WHERE chat_id = $1
+  AND message_id = $2;
+
+-- name: RetryTelegramGroupWelcomeMessageDeletion :exec
+UPDATE telegram_group_welcome_messages
+SET attempt_count = attempt_count + 1,
+    last_attempt_at = CURRENT_TIMESTAMP,
+    next_attempt_at = CURRENT_TIMESTAMP + INTERVAL '6 hours'
+WHERE chat_id = $1
+  AND message_id = $2;
+
 -- name: ListTelegramGroupsWithPRRNotifications :many
 SELECT * FROM telegram_groups
 WHERE is_active = true

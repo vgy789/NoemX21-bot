@@ -207,6 +207,8 @@ states:
           👋 *Автоприветствие*
 
           Когда в группу входит новый участник, я буду писать, что он присоединился к чату.
+          Сообщение содержит Telegram-имя, username и учебный ник, если он известен,
+          и автоматически удаляется через 30 дней.
 
           Пример:
           Вертюган @verterT0P (verter) присоединился к чату.
@@ -220,6 +222,8 @@ states:
           👋 *Auto Welcome*
 
           When a new member joins the group, I will post that they joined the chat.
+          The message contains their Telegram name, username and school login when known,
+          and is deleted automatically after 30 days.
 
           Example:
           Vertyugan @verterT0P (verter) joined the chat.

@@ -85,19 +85,20 @@ func NewTelegramService(cfg *config.Config, log *slog.Logger, userSvc service.Us
 }
 
 type telegramService struct {
-	cfg         *config.Config
-	log         *slog.Logger
-	userSvc     service.UserService
-	queries     db.Querier
-	engine      *fsm.Engine
-	imgCache    *imgcache.Store
-	sender      Sender // For testing
-	bot         *gotgbot.Bot
-	updater     *ext.Updater
-	updaterMu   sync.RWMutex
-	pollingLock pollingLocker
-	fileIDs     map[string]string
-	fileIDsMu   sync.RWMutex
+	cfg                *config.Config
+	log                *slog.Logger
+	userSvc            service.UserService
+	queries            db.Querier
+	engine             *fsm.Engine
+	imgCache           *imgcache.Store
+	sender             Sender // For testing
+	bot                *gotgbot.Bot
+	updater            *ext.Updater
+	updaterMu          sync.RWMutex
+	pollingLock        pollingLocker
+	fileIDs            map[string]string
+	fileIDsMu          sync.RWMutex
+	welcomeCleanupOnce sync.Once
 }
 
 type activeInitializedTelegramGroupsLister interface {
@@ -205,6 +206,7 @@ func (s *telegramService) Run(ctx context.Context) error {
 		return fmt.Errorf("failed to start polling: %s", errMsg)
 	}
 	s.startConsistencySweep(ctx, tgBot)
+	s.startWelcomeCleanup(ctx, tgBot)
 	s.log.Info("start polling")
 
 	done := make(chan struct{})
@@ -280,6 +282,7 @@ func (s *telegramService) RunWebhook(ctx context.Context) error {
 	}
 
 	s.startConsistencySweep(ctx, tgBot)
+	s.startWelcomeCleanup(ctx, tgBot)
 	s.log.Info("webhook server started", "path", s.cfg.Telegram.Webhook.ListenPath, "addr", listenAddr)
 
 	done := make(chan struct{})

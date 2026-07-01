@@ -124,7 +124,7 @@ type recordingSender struct {
 func (r *recordingSender) SendMessage(_ int64, text string, opts *gotgbot.SendMessageOpts) (*gotgbot.Message, error) {
 	r.texts = append(r.texts, text)
 	r.messageOpts = append(r.messageOpts, opts)
-	return &gotgbot.Message{}, nil
+	return &gotgbot.Message{MessageId: int64(len(r.texts))}, nil
 }
 
 func (r *recordingSender) SendPhoto(_ int64, _ gotgbot.InputFileOrString, _ *gotgbot.SendPhotoOpts) (*gotgbot.Message, error) {

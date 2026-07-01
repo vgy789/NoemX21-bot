@@ -42,6 +42,9 @@ func TestHandleGroupWelcome_SendsMessageAndDeletesServiceMessage(t *testing.T) {
 		Platform:   db.EnumPlatformTelegram,
 		ExternalID: "42001",
 	}).Return(db.UserAccount{S21Login: "clemenhi"}, nil)
+	queries.EXPECT().CreateTelegramGroupWelcomeMessage(gomock.Any(), db.CreateTelegramGroupWelcomeMessageParams{
+		ChatID: chatID, MessageID: 1,
+	}).Return(nil)
 
 	client := &fakeDefenderBotClient{members: map[int64]rawChatMember{
 		userID: {
@@ -71,11 +74,63 @@ func TestHandleGroupWelcome_SendsMessageAndDeletesServiceMessage(t *testing.T) {
 	assert.Contains(t, sender.texts[0], `href="tg://openmessage?user_id=42001"`)
 	assert.Contains(t, sender.texts[0], "Clem Henri")
 	assert.Contains(t, sender.texts[0], "@Akrilly")
-	assert.Contains(t, sender.texts[0], "(A0)")
+	assert.NotContains(t, sender.texts[0], "(A0)")
 	assert.Contains(t, sender.texts[0], "(clemenhi)")
 	assert.Contains(t, sender.texts[0], "присоединился к чату.")
 	require.Len(t, sender.messageOpts, 1)
 	require.NotNil(t, sender.messageOpts[0])
 	assert.Equal(t, "HTML", sender.messageOpts[0].ParseMode)
 	assert.Equal(t, threadID, sender.messageOpts[0].MessageThreadId)
+}
+
+func TestBuildWelcomeMessage_OmitsUnknownLoginAndVisibleNumericFallback(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	queries := dbmock.NewMockQuerier(ctrl)
+	queries.EXPECT().GetUserAccountByExternalId(gomock.Any(), gomock.Any()).Return(db.UserAccount{}, assert.AnError)
+	s := &telegramService{queries: queries}
+
+	text := s.buildWelcomeMessage(context.Background(), gotgbot.User{Id: 42001})
+
+	assert.Contains(t, text, ">Новый участник</a>")
+	assert.NotContains(t, text, ">42001</a>")
+	assert.NotContains(t, text, "(")
+}
+
+func TestHandleGroupWelcome_DisabledDoesNothing(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	queries := dbmock.NewMockQuerier(ctrl)
+	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), int64(-100902)).Return(db.TelegramGroup{
+		ChatID: -100902, IsInitialized: true, IsActive: true, WelcomeEnabled: false,
+	}, nil)
+	sender := &recordingSender{}
+	s := &telegramService{queries: queries, sender: sender}
+
+	s.handleGroupWelcome(context.Background(), &gotgbot.Bot{}, &gotgbot.Message{
+		Chat:           gotgbot.Chat{Id: -100902, Type: "supergroup"},
+		NewChatMembers: []gotgbot.User{{Id: 42, FirstName: "Peer"}},
+	})
+
+	assert.Empty(t, sender.texts)
+}
+
+func TestBuildWelcomeMessage_EscapesPublicFields(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	queries := dbmock.NewMockQuerier(ctrl)
+	queries.EXPECT().GetUserAccountByExternalId(gomock.Any(), gomock.Any()).Return(db.UserAccount{S21Login: "peer<one>"}, nil)
+	s := &telegramService{queries: queries}
+
+	text := s.buildWelcomeMessage(context.Background(), gotgbot.User{
+		Id: 43, FirstName: "<Peer>", Username: "peer&one",
+	})
+
+	assert.Contains(t, text, "&lt;Peer&gt;")
+	assert.Contains(t, text, "@peer&amp;one")
+	assert.Contains(t, text, "(peer&lt;one&gt;)")
+	assert.NotContains(t, text, "<Peer>")
 }
