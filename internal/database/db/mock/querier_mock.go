@@ -427,6 +427,20 @@ func (mr *MockQuerierMockRecorder) CreateTeamSearchRequest(ctx, arg any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateTeamSearchRequest", reflect.TypeOf((*MockQuerier)(nil).CreateTeamSearchRequest), ctx, arg)
 }
 
+// CreateTelegramGroupWelcomeMessage mocks base method.
+func (m *MockQuerier) CreateTelegramGroupWelcomeMessage(ctx context.Context, arg db.CreateTelegramGroupWelcomeMessageParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateTelegramGroupWelcomeMessage", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CreateTelegramGroupWelcomeMessage indicates an expected call of CreateTelegramGroupWelcomeMessage.
+func (mr *MockQuerierMockRecorder) CreateTelegramGroupWelcomeMessage(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateTelegramGroupWelcomeMessage", reflect.TypeOf((*MockQuerier)(nil).CreateTelegramGroupWelcomeMessage), ctx, arg)
+}
+
 // CreateUserAccount mocks base method.
 func (m *MockQuerier) CreateUserAccount(ctx context.Context, arg db.CreateUserAccountParams) (db.UserAccount, error) {
 	m.ctrl.T.Helper()
@@ -771,6 +785,20 @@ func (m *MockQuerier) DeleteTelegramGroupTeamProjectFilterByOwner(ctx context.Co
 func (mr *MockQuerierMockRecorder) DeleteTelegramGroupTeamProjectFilterByOwner(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTelegramGroupTeamProjectFilterByOwner", reflect.TypeOf((*MockQuerier)(nil).DeleteTelegramGroupTeamProjectFilterByOwner), ctx, arg)
+}
+
+// DeleteTelegramGroupWelcomeMessage mocks base method.
+func (m *MockQuerier) DeleteTelegramGroupWelcomeMessage(ctx context.Context, arg db.DeleteTelegramGroupWelcomeMessageParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteTelegramGroupWelcomeMessage", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteTelegramGroupWelcomeMessage indicates an expected call of DeleteTelegramGroupWelcomeMessage.
+func (mr *MockQuerierMockRecorder) DeleteTelegramGroupWelcomeMessage(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteTelegramGroupWelcomeMessage", reflect.TypeOf((*MockQuerier)(nil).DeleteTelegramGroupWelcomeMessage), ctx, arg)
 }
 
 // DeleteTelegramGroupWhitelistByChatAndUser mocks base method.
@@ -1850,6 +1878,21 @@ func (mr *MockQuerierMockRecorder) ListCoalitionsByCampus(ctx, campusID any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCoalitionsByCampus", reflect.TypeOf((*MockQuerier)(nil).ListCoalitionsByCampus), ctx, campusID)
 }
 
+// ListDueTelegramGroupWelcomeMessages mocks base method.
+func (m *MockQuerier) ListDueTelegramGroupWelcomeMessages(ctx context.Context, limit int32) ([]db.ListDueTelegramGroupWelcomeMessagesRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListDueTelegramGroupWelcomeMessages", ctx, limit)
+	ret0, _ := ret[0].([]db.ListDueTelegramGroupWelcomeMessagesRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListDueTelegramGroupWelcomeMessages indicates an expected call of ListDueTelegramGroupWelcomeMessages.
+func (mr *MockQuerierMockRecorder) ListDueTelegramGroupWelcomeMessages(ctx, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListDueTelegramGroupWelcomeMessages", reflect.TypeOf((*MockQuerier)(nil).ListDueTelegramGroupWelcomeMessages), ctx, limit)
+}
+
 // ListMemberTagGroupsByTelegramUser mocks base method.
 func (m *MockQuerier) ListMemberTagGroupsByTelegramUser(ctx context.Context, telegramUserID int64) ([]db.TelegramGroup, error) {
 	m.ctrl.T.Helper()
@@ -2147,6 +2190,20 @@ func (m *MockQuerier) MarkTelegramGroupMemberLeft(ctx context.Context, arg db.Ma
 func (mr *MockQuerierMockRecorder) MarkTelegramGroupMemberLeft(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkTelegramGroupMemberLeft", reflect.TypeOf((*MockQuerier)(nil).MarkTelegramGroupMemberLeft), ctx, arg)
+}
+
+// RetryTelegramGroupWelcomeMessageDeletion mocks base method.
+func (m *MockQuerier) RetryTelegramGroupWelcomeMessageDeletion(ctx context.Context, arg db.RetryTelegramGroupWelcomeMessageDeletionParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RetryTelegramGroupWelcomeMessageDeletion", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RetryTelegramGroupWelcomeMessageDeletion indicates an expected call of RetryTelegramGroupWelcomeMessageDeletion.
+func (mr *MockQuerierMockRecorder) RetryTelegramGroupWelcomeMessageDeletion(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryTelegramGroupWelcomeMessageDeletion", reflect.TypeOf((*MockQuerier)(nil).RetryTelegramGroupWelcomeMessageDeletion), ctx, arg)
 }
 
 // ReturnBookLoan mocks base method.

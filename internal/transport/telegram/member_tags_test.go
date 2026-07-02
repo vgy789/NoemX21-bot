@@ -81,6 +81,58 @@ func (f *fakeMemberTagsBotClient) FileURL(_, _ string, _ *gotgbot.RequestOpts) s
 	return ""
 }
 
+func TestBuildMemberTag(t *testing.T) {
+	tests := []struct {
+		name    string
+		profile *service.UserProfile
+		format  string
+		want    string
+	}{
+		{
+			name:    "active login",
+			profile: &service.UserProfile{Login: "jonnabin", Status: db.EnumStudentStatusACTIVE, Level: 7},
+			format:  memberTagFormatLogin,
+			want:    "jonnabin",
+		},
+		{
+			name:    "inactive login and level",
+			profile: &service.UserProfile{Login: "jonnabin", Status: db.EnumStudentStatusEXPELLED, Level: 7},
+			format:  memberTagFormatLoginLevel,
+			want:    "jonnabin~ [7]",
+		},
+		{
+			name:    "english campus",
+			profile: &service.UserProfile{Login: "jonnabin", Status: db.EnumStudentStatusACTIVE, CampusShortNameEn: "NSK"},
+			format:  memberTagFormatLoginCampusEn,
+			want:    "jonnabin NSK",
+		},
+		{
+			name:    "russian campus for inactive profile",
+			profile: &service.UserProfile{Login: "jonnabin", Status: db.EnumStudentStatusFROZEN, CampusShortNameRu: "НСК"},
+			format:  memberTagFormatLoginCampusRu,
+			want:    "jonnabin~ НСК",
+		},
+		{
+			name:    "campus omitted when full tag exceeds limit",
+			profile: &service.UserProfile{Login: "longstudentlog", Status: db.EnumStudentStatusACTIVE, CampusShortNameEn: "24.04"},
+			format:  memberTagFormatLoginCampusEn,
+			want:    "longstudentlog",
+		},
+		{
+			name:    "inactive marker has priority over campus",
+			profile: &service.UserProfile{Login: "longstudentlog", Status: db.EnumStudentStatusBLOCKED, CampusShortNameEn: "24.04"},
+			format:  memberTagFormatLoginCampusEn,
+			want:    "longstudentlog~",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, buildMemberTag(tt.profile, tt.format))
+		})
+	}
+}
+
 func TestHandleChatMember_AutoTagOnJoinWhenEnabled(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -96,7 +148,7 @@ func TestHandleChatMember_AutoTagOnJoinWhenEnabled(t *testing.T) {
 
 	queries.EXPECT().UpsertTelegramGroupMember(gomock.Any(), gomock.Any()).Return(db.TelegramGroupMember{}, nil)
 	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(group, nil)
-	userSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), userID).Return(&service.UserProfile{Login: "peer", Level: 21}, nil)
+	userSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), userID).Return(&service.UserProfile{Login: "peer", Status: db.EnumStudentStatusACTIVE, Level: 21}, nil)
 
 	client := &fakeMemberTagsBotClient{members: map[int64]rawChatMember{
 		9000: {Status: gotgbot.ChatMemberStatusAdministrator, CanManageTags: true, User: struct {
@@ -218,7 +270,7 @@ func TestMemberTagRunner_SyncMemberTagsForRegisteredUser(t *testing.T) {
 		IsActive:        true,
 		MemberTagFormat: memberTagFormatLoginLevel,
 	}}, nil)
-	userSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), userID).Return(&service.UserProfile{Login: "peer", Level: 21}, nil)
+	userSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), userID).Return(&service.UserProfile{Login: "peer", Status: db.EnumStudentStatusACTIVE, Level: 21}, nil)
 
 	client := &fakeMemberTagsBotClient{members: map[int64]rawChatMember{
 		9000: {Status: gotgbot.ChatMemberStatusAdministrator, CanManageTags: true, User: struct {
@@ -265,7 +317,7 @@ func TestMemberTagRunner_ManualKeepExisting(t *testing.T) {
 		{ChatID: chatID, TelegramUserID: user1, IsMember: true},
 		{ChatID: chatID, TelegramUserID: user2, IsMember: true},
 	}, nil)
-	userSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), user2).Return(&service.UserProfile{Login: "fresh", Level: 7}, nil)
+	userSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), user2).Return(&service.UserProfile{Login: "fresh", Status: db.EnumStudentStatusACTIVE, Level: 7}, nil)
 
 	client := &fakeMemberTagsBotClient{members: map[int64]rawChatMember{
 		9000: {Status: gotgbot.ChatMemberStatusAdministrator, CanManageTags: true, User: struct {
@@ -316,7 +368,7 @@ func TestMemberTagRunner_ManualClearThenApply(t *testing.T) {
 	queries.EXPECT().ListTelegramGroupKnownMembers(gomock.Any(), chatID).Return([]db.TelegramGroupMember{{
 		ChatID: chatID, TelegramUserID: userID, IsMember: true,
 	}}, nil)
-	userSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), userID).Return(&service.UserProfile{Login: "gehnaeli", Level: 11}, nil)
+	userSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), userID).Return(&service.UserProfile{Login: "gehnaeli", Status: db.EnumStudentStatusACTIVE, Level: 11}, nil)
 
 	client := &fakeMemberTagsBotClient{members: map[int64]rawChatMember{
 		9000: {Status: gotgbot.ChatMemberStatusAdministrator, CanManageTags: true, User: struct {
@@ -363,7 +415,7 @@ func TestMemberTagRunner_ManualRollbackRestoresPreviousTag(t *testing.T) {
 	queries.EXPECT().ListTelegramGroupKnownMembers(gomock.Any(), chatID).Return([]db.TelegramGroupMember{{
 		ChatID: chatID, TelegramUserID: userID, IsMember: true,
 	}}, nil)
-	userSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), userID).Return(&service.UserProfile{Login: "gehnaeli", Level: 11}, nil)
+	userSvc.EXPECT().GetProfileByTelegramID(gomock.Any(), userID).Return(&service.UserProfile{Login: "gehnaeli", Status: db.EnumStudentStatusACTIVE, Level: 11}, nil)
 
 	client := &fakeMemberTagsBotClient{members: map[int64]rawChatMember{
 		9000: {Status: gotgbot.ChatMemberStatusAdministrator, CanManageTags: true, User: struct {

@@ -12,16 +12,18 @@ import (
 
 // UserProfile represents the domain model for a user profile.
 type UserProfile struct {
-	Login         string
-	Status        db.EnumStudentStatus
-	CampusID      string
-	CampusName    string
-	CoalitionName string
-	Level         int32
-	Exp           int32
-	PRP           int32
-	CRP           int32
-	Coins         int32
+	Login             string
+	Status            db.EnumStudentStatus
+	CampusID          string
+	CampusName        string
+	CampusShortNameEn string
+	CampusShortNameRu string
+	CoalitionName     string
+	Level             int32
+	Exp               int32
+	PRP               int32
+	CRP               int32
+	Coins             int32
 }
 
 // UserService defines business logic for users.
@@ -64,16 +66,18 @@ func (s *userService) GetProfileByExternalID(ctx context.Context, platform db.En
 	campusIDStr := fmt.Sprintf("%08x-%04x-%04x-%04x-%012x", b[0:4], b[4:6], b[6:8], b[8:10], b[10:16])
 
 	return &UserProfile{
-		Login:         profile.S21Login,
-		Status:        profile.Status.EnumStudentStatus,
-		CampusID:      campusIDStr,
-		CampusName:    campusNameString(profile.CampusName),
-		CoalitionName: profile.CoalitionName.String,
-		Level:         profile.Level.Int32,
-		Exp:           profile.ExpValue.Int32,
-		PRP:           profile.Prp.Int32,
-		CRP:           profile.Crp.Int32,
-		Coins:         profile.Coins.Int32,
+		Login:             profile.S21Login,
+		Status:            profile.Status.EnumStudentStatus,
+		CampusID:          campusIDStr,
+		CampusName:        campusNameString(profile.CampusName),
+		CampusShortNameEn: profile.CampusShortNameEn,
+		CampusShortNameRu: profile.CampusShortNameRu,
+		CoalitionName:     profile.CoalitionName.String,
+		Level:             profile.Level.Int32,
+		Exp:               profile.ExpValue.Int32,
+		PRP:               profile.Prp.Int32,
+		CRP:               profile.Crp.Int32,
+		Coins:             profile.Coins.Int32,
 	}, nil
 }
 

@@ -730,7 +730,7 @@ LIMIT 1;
 SELECT * FROM campuses WHERE short_name = $1;
 
 -- name: GetCampusByID :one
-SELECT id, short_name, full_name, name_en, name_ru, timezone, is_active, leader_name, leader_form_link, created_at, updated_at FROM campuses WHERE id = $1;
+SELECT id, short_name, full_name, name_en, name_ru, short_name_en, short_name_ru, timezone, is_active, leader_name, leader_form_link, created_at, updated_at FROM campuses WHERE id = $1;
  
 INSERT INTO club_categories (name) VALUES ($1)
 ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
@@ -778,13 +778,15 @@ WHERE campus_id = $1;
 
 
 -- name: UpsertCampus :one
-INSERT INTO campuses (id, short_name, full_name, name_en, name_ru, timezone, is_active, leader_name, leader_form_link)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO campuses (id, short_name, full_name, name_en, name_ru, short_name_en, short_name_ru, timezone, is_active, leader_name, leader_form_link)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 ON CONFLICT (id) DO UPDATE SET
     short_name = EXCLUDED.short_name,
     full_name = EXCLUDED.full_name,
     name_en = COALESCE(EXCLUDED.name_en, campuses.name_en),
     name_ru = COALESCE(EXCLUDED.name_ru, campuses.name_ru),
+    short_name_en = COALESCE(EXCLUDED.short_name_en, campuses.short_name_en),
+    short_name_ru = COALESCE(EXCLUDED.short_name_ru, campuses.short_name_ru),
     timezone = EXCLUDED.timezone,
     is_active = EXCLUDED.is_active,
     leader_name = COALESCE(EXCLUDED.leader_name, campuses.leader_name),
@@ -817,6 +819,8 @@ WHERE ss.s21_login = $1;
 SELECT
     c.s21_login,
     COALESCE(NULLIF(BTRIM(camp.name_ru), ''), NULLIF(BTRIM(camp.name_en), ''), NULLIF(BTRIM(camp.short_name), ''), '') AS campus_name,
+    COALESCE(NULLIF(BTRIM(camp.short_name_en), ''), '') AS campus_short_name_en,
+    COALESCE(NULLIF(BTRIM(camp.short_name_ru), ''), '') AS campus_short_name_ru,
     co.name AS coalition_name,
     c.status,
     c.level,
@@ -875,6 +879,8 @@ SELECT
     r.has_coffee_ban,
     camp.id AS campus_id,
     COALESCE(NULLIF(BTRIM(camp.name_ru), ''), NULLIF(BTRIM(camp.name_en), ''), NULLIF(BTRIM(camp.short_name), ''), '') AS campus_name,
+    COALESCE(NULLIF(BTRIM(camp.short_name_en), ''), '')::text AS campus_short_name_en,
+    COALESCE(NULLIF(BTRIM(camp.short_name_ru), ''), '')::text AS campus_short_name_ru,
     co.name AS coalition_name,
     c.status,
     c.level,
@@ -921,7 +927,7 @@ LEFT JOIN coalitions co ON c.campus_id = co.campus_id AND c.coalition_id = co.id
 LEFT JOIN user_accounts ua ON c.s21_login = ua.s21_login AND ua.platform = 'telegram'
 WHERE c.s21_login = $1;
 -- name: GetCampusByShortName :one
-SELECT id, short_name, full_name, name_en, name_ru, timezone, is_active, created_at, updated_at, leader_name, leader_form_link
+SELECT id, short_name, full_name, name_en, name_ru, short_name_en, short_name_ru, timezone, is_active, created_at, updated_at, leader_name, leader_form_link
 FROM campuses
 WHERE short_name = $1;
 

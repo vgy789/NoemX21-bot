@@ -19,10 +19,12 @@ import (
 const maxManagedGroups = 10
 
 const (
-	memberTagFormatLogin      = "login"
-	memberTagFormatLoginLevel = "login_level"
-	alertMemberTagNoRightsRU  = "Нужно право на Member Tags. Включите для бота в админах группы разрешение на изменение плашек и повторите."
-	memberTagRollbackStateKey = "member_tags_last_manual_snapshot"
+	memberTagFormatLogin         = "login"
+	memberTagFormatLoginLevel    = "login_level"
+	memberTagFormatLoginCampusEn = "login_campus_en"
+	memberTagFormatLoginCampusRu = "login_campus_ru"
+	alertMemberTagNoRightsRU     = "Нужно право на Member Tags. Включите для бота в админах группы разрешение на изменение плашек и повторите."
+	memberTagRollbackStateKey    = "member_tags_last_manual_snapshot"
 )
 
 var errGroupAccessDenied = errors.New("group access denied")
@@ -193,8 +195,13 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 		}
 
 		format := memberTagFormatLogin
-		if strings.TrimSpace(fmt.Sprintf("%v", payload["id"])) == "tags_fmt_login_level" {
+		switch strings.TrimSpace(fmt.Sprintf("%v", payload["id"])) {
+		case "tags_fmt_login_level":
 			format = memberTagFormatLoginLevel
+		case "tags_fmt_login_campus_en":
+			format = memberTagFormatLoginCampusEn
+		case "tags_fmt_login_campus_ru":
+			format = memberTagFormatLoginCampusRu
 		}
 
 		updatedRows, err := queries.UpdateTelegramGroupMemberTagFormatByOwner(ctx, db.UpdateTelegramGroupMemberTagFormatByOwnerParams{
@@ -467,6 +474,10 @@ func mergeMemberTagSettingsDefaults(updates map[string]any) {
 	updates["member_tag_login_option_label_en"] = "✅ login"
 	updates["member_tag_login_level_option_label_ru"] = "⬜ login [lvl]"
 	updates["member_tag_login_level_option_label_en"] = "⬜ login [lvl]"
+	updates["member_tag_login_campus_en_option_label_ru"] = "⬜ login NSK"
+	updates["member_tag_login_campus_en_option_label_en"] = "⬜ login NSK"
+	updates["member_tag_login_campus_ru_option_label_ru"] = "⬜ login НСК"
+	updates["member_tag_login_campus_ru_option_label_en"] = "⬜ login НСК"
 }
 
 func mergeRunSummaryDefaults(updates map[string]any, payload map[string]any) {
@@ -486,13 +497,17 @@ func mergeRunSummaryDefaults(updates map[string]any, payload map[string]any) {
 
 func buildMemberTagSettingsUpdates(group db.TelegramGroup) map[string]any {
 	format := strings.TrimSpace(group.MemberTagFormat)
-	if format != memberTagFormatLoginLevel {
+	if format != memberTagFormatLoginLevel && format != memberTagFormatLoginCampusEn && format != memberTagFormatLoginCampusRu {
 		format = memberTagFormatLogin
 	}
 
 	formatLabel := "login"
 	if format == memberTagFormatLoginLevel {
 		formatLabel = "login [lvl]"
+	} else if format == memberTagFormatLoginCampusEn {
+		formatLabel = "login short_name EN"
+	} else if format == memberTagFormatLoginCampusRu {
+		formatLabel = "login short_name RU"
 	}
 
 	enabledLabelRU := "❌ Выключено"
@@ -510,26 +525,40 @@ func buildMemberTagSettingsUpdates(group db.TelegramGroup) map[string]any {
 	loginOptionEN := "✅ login"
 	loginLvlOptionRU := "⬜ login [lvl]"
 	loginLvlOptionEN := "⬜ login [lvl]"
+	loginCampusEnOption := "⬜ login NSK"
+	loginCampusRuOption := "⬜ login НСК"
 	if format == memberTagFormatLoginLevel {
 		loginOptionRU = "⬜ login"
 		loginOptionEN = "⬜ login"
 		loginLvlOptionRU = "✅ login [lvl]"
 		loginLvlOptionEN = "✅ login [lvl]"
+	} else if format == memberTagFormatLoginCampusEn {
+		loginOptionRU = "⬜ login"
+		loginOptionEN = "⬜ login"
+		loginCampusEnOption = "✅ login NSK"
+	} else if format == memberTagFormatLoginCampusRu {
+		loginOptionRU = "⬜ login"
+		loginOptionEN = "⬜ login"
+		loginCampusRuOption = "✅ login НСК"
 	}
 
 	return map[string]any{
-		"member_tags_enabled":                    group.MemberTagsEnabled,
-		"member_tags_enabled_label_ru":           enabledLabelRU,
-		"member_tags_enabled_label_en":           enabledLabelEN,
-		"member_tags_toggle_button_label_ru":     toggleLabelRU,
-		"member_tags_toggle_button_label_en":     toggleLabelEN,
-		"member_tag_format":                      format,
-		"member_tag_format_label_ru":             formatLabel,
-		"member_tag_format_label_en":             formatLabel,
-		"member_tag_login_option_label_ru":       loginOptionRU,
-		"member_tag_login_option_label_en":       loginOptionEN,
-		"member_tag_login_level_option_label_ru": loginLvlOptionRU,
-		"member_tag_login_level_option_label_en": loginLvlOptionEN,
+		"member_tags_enabled":                        group.MemberTagsEnabled,
+		"member_tags_enabled_label_ru":               enabledLabelRU,
+		"member_tags_enabled_label_en":               enabledLabelEN,
+		"member_tags_toggle_button_label_ru":         toggleLabelRU,
+		"member_tags_toggle_button_label_en":         toggleLabelEN,
+		"member_tag_format":                          format,
+		"member_tag_format_label_ru":                 formatLabel,
+		"member_tag_format_label_en":                 formatLabel,
+		"member_tag_login_option_label_ru":           loginOptionRU,
+		"member_tag_login_option_label_en":           loginOptionEN,
+		"member_tag_login_level_option_label_ru":     loginLvlOptionRU,
+		"member_tag_login_level_option_label_en":     loginLvlOptionEN,
+		"member_tag_login_campus_en_option_label_ru": loginCampusEnOption,
+		"member_tag_login_campus_en_option_label_en": loginCampusEnOption,
+		"member_tag_login_campus_ru_option_label_ru": loginCampusRuOption,
+		"member_tag_login_campus_ru_option_label_en": loginCampusRuOption,
 	}
 }
 

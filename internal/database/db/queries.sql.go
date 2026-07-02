@@ -709,6 +709,22 @@ func (q *Queries) CreateTeamSearchRequest(ctx context.Context, arg CreateTeamSea
 	return i, err
 }
 
+const createTelegramGroupWelcomeMessage = `-- name: CreateTelegramGroupWelcomeMessage :exec
+INSERT INTO telegram_group_welcome_messages (chat_id, message_id)
+VALUES ($1, $2)
+ON CONFLICT (chat_id, message_id) DO NOTHING
+`
+
+type CreateTelegramGroupWelcomeMessageParams struct {
+	ChatID    int64 `json:"chat_id"`
+	MessageID int64 `json:"message_id"`
+}
+
+func (q *Queries) CreateTelegramGroupWelcomeMessage(ctx context.Context, arg CreateTelegramGroupWelcomeMessageParams) error {
+	_, err := q.db.Exec(ctx, createTelegramGroupWelcomeMessage, arg.ChatID, arg.MessageID)
+	return err
+}
+
 const createUserAccount = `-- name: CreateUserAccount :one
 INSERT INTO user_accounts (
     s21_login, platform, external_id, username, is_searchable, role
@@ -1102,6 +1118,22 @@ func (q *Queries) DeleteTelegramGroupTeamProjectFilterByOwner(ctx context.Contex
 		return 0, err
 	}
 	return result.RowsAffected(), nil
+}
+
+const deleteTelegramGroupWelcomeMessage = `-- name: DeleteTelegramGroupWelcomeMessage :exec
+DELETE FROM telegram_group_welcome_messages
+WHERE chat_id = $1
+  AND message_id = $2
+`
+
+type DeleteTelegramGroupWelcomeMessageParams struct {
+	ChatID    int64 `json:"chat_id"`
+	MessageID int64 `json:"message_id"`
+}
+
+func (q *Queries) DeleteTelegramGroupWelcomeMessage(ctx context.Context, arg DeleteTelegramGroupWelcomeMessageParams) error {
+	_, err := q.db.Exec(ctx, deleteTelegramGroupWelcomeMessage, arg.ChatID, arg.MessageID)
+	return err
 }
 
 const deleteTelegramGroupWhitelistByChatAndUser = `-- name: DeleteTelegramGroupWhitelistByChatAndUser :execrows
@@ -1724,7 +1756,7 @@ func (q *Queries) GetBooksByCampusAndCategory(ctx context.Context, arg GetBooksB
 }
 
 const getCampusByID = `-- name: GetCampusByID :one
-SELECT id, short_name, full_name, name_en, name_ru, timezone, is_active, leader_name, leader_form_link, created_at, updated_at FROM campuses WHERE id = $1
+SELECT id, short_name, full_name, name_en, name_ru, short_name_en, short_name_ru, timezone, is_active, leader_name, leader_form_link, created_at, updated_at FROM campuses WHERE id = $1
 `
 
 type GetCampusByIDRow struct {
@@ -1733,6 +1765,8 @@ type GetCampusByIDRow struct {
 	FullName       string             `json:"full_name"`
 	NameEn         pgtype.Text        `json:"name_en"`
 	NameRu         pgtype.Text        `json:"name_ru"`
+	ShortNameEn    pgtype.Text        `json:"short_name_en"`
+	ShortNameRu    pgtype.Text        `json:"short_name_ru"`
 	Timezone       pgtype.Text        `json:"timezone"`
 	IsActive       bool               `json:"is_active"`
 	LeaderName     pgtype.Text        `json:"leader_name"`
@@ -1750,6 +1784,8 @@ func (q *Queries) GetCampusByID(ctx context.Context, id pgtype.UUID) (GetCampusB
 		&i.FullName,
 		&i.NameEn,
 		&i.NameRu,
+		&i.ShortNameEn,
+		&i.ShortNameRu,
 		&i.Timezone,
 		&i.IsActive,
 		&i.LeaderName,
@@ -1761,7 +1797,7 @@ func (q *Queries) GetCampusByID(ctx context.Context, id pgtype.UUID) (GetCampusB
 }
 
 const getCampusByShortName = `-- name: GetCampusByShortName :one
-SELECT id, short_name, full_name, name_en, name_ru, timezone, is_active, created_at, updated_at, leader_name, leader_form_link
+SELECT id, short_name, full_name, name_en, name_ru, short_name_en, short_name_ru, timezone, is_active, created_at, updated_at, leader_name, leader_form_link
 FROM campuses
 WHERE short_name = $1
 `
@@ -1772,6 +1808,8 @@ type GetCampusByShortNameRow struct {
 	FullName       string             `json:"full_name"`
 	NameEn         pgtype.Text        `json:"name_en"`
 	NameRu         pgtype.Text        `json:"name_ru"`
+	ShortNameEn    pgtype.Text        `json:"short_name_en"`
+	ShortNameRu    pgtype.Text        `json:"short_name_ru"`
 	Timezone       pgtype.Text        `json:"timezone"`
 	IsActive       bool               `json:"is_active"`
 	CreatedAt      pgtype.Timestamptz `json:"created_at"`
@@ -1789,6 +1827,8 @@ func (q *Queries) GetCampusByShortName(ctx context.Context, shortName string) (G
 		&i.FullName,
 		&i.NameEn,
 		&i.NameRu,
+		&i.ShortNameEn,
+		&i.ShortNameRu,
 		&i.Timezone,
 		&i.IsActive,
 		&i.CreatedAt,
@@ -2451,6 +2491,8 @@ SELECT
     r.has_coffee_ban,
     camp.id AS campus_id,
     COALESCE(NULLIF(BTRIM(camp.name_ru), ''), NULLIF(BTRIM(camp.name_en), ''), NULLIF(BTRIM(camp.short_name), ''), '') AS campus_name,
+    COALESCE(NULLIF(BTRIM(camp.short_name_en), ''), '')::text AS campus_short_name_en,
+    COALESCE(NULLIF(BTRIM(camp.short_name_ru), ''), '')::text AS campus_short_name_ru,
     co.name AS coalition_name,
     c.status,
     c.level,
@@ -2479,6 +2521,8 @@ type GetMyProfileRow struct {
 	HasCoffeeBan       pgtype.Bool           `json:"has_coffee_ban"`
 	CampusID           pgtype.UUID           `json:"campus_id"`
 	CampusName         interface{}           `json:"campus_name"`
+	CampusShortNameEn  string                `json:"campus_short_name_en"`
+	CampusShortNameRu  string                `json:"campus_short_name_ru"`
 	CoalitionName      pgtype.Text           `json:"coalition_name"`
 	Status             NullEnumStudentStatus `json:"status"`
 	Level              pgtype.Int4           `json:"level"`
@@ -2506,6 +2550,8 @@ func (q *Queries) GetMyProfile(ctx context.Context, s21Login string) (GetMyProfi
 		&i.HasCoffeeBan,
 		&i.CampusID,
 		&i.CampusName,
+		&i.CampusShortNameEn,
+		&i.CampusShortNameRu,
 		&i.CoalitionName,
 		&i.Status,
 		&i.Level,
@@ -2982,6 +3028,8 @@ const getParticipantStatsCache = `-- name: GetParticipantStatsCache :one
 SELECT
     c.s21_login,
     COALESCE(NULLIF(BTRIM(camp.name_ru), ''), NULLIF(BTRIM(camp.name_en), ''), NULLIF(BTRIM(camp.short_name), ''), '') AS campus_name,
+    COALESCE(NULLIF(BTRIM(camp.short_name_en), ''), '') AS campus_short_name_en,
+    COALESCE(NULLIF(BTRIM(camp.short_name_ru), ''), '') AS campus_short_name_ru,
     co.name AS coalition_name,
     c.status,
     c.level,
@@ -3004,23 +3052,25 @@ WHERE c.s21_login = $1
 `
 
 type GetParticipantStatsCacheRow struct {
-	S21Login      string             `json:"s21_login"`
-	CampusName    interface{}        `json:"campus_name"`
-	CoalitionName pgtype.Text        `json:"coalition_name"`
-	Status        EnumStudentStatus  `json:"status"`
-	Level         int32              `json:"level"`
-	ExpValue      int32              `json:"exp_value"`
-	Prp           int32              `json:"prp"`
-	Crp           int32              `json:"crp"`
-	Coins         int32              `json:"coins"`
-	ParallelName  pgtype.Text        `json:"parallel_name"`
-	ClassName     pgtype.Text        `json:"class_name"`
-	Integrity     pgtype.Float4      `json:"integrity"`
-	Friendliness  pgtype.Float4      `json:"friendliness"`
-	Punctuality   pgtype.Float4      `json:"punctuality"`
-	Thoroughness  pgtype.Float4      `json:"thoroughness"`
-	UpdatedAt     pgtype.Timestamptz `json:"updated_at"`
-	LatSyncedAt   pgtype.Timestamptz `json:"lat_synced_at"`
+	S21Login          string             `json:"s21_login"`
+	CampusName        interface{}        `json:"campus_name"`
+	CampusShortNameEn interface{}        `json:"campus_short_name_en"`
+	CampusShortNameRu interface{}        `json:"campus_short_name_ru"`
+	CoalitionName     pgtype.Text        `json:"coalition_name"`
+	Status            EnumStudentStatus  `json:"status"`
+	Level             int32              `json:"level"`
+	ExpValue          int32              `json:"exp_value"`
+	Prp               int32              `json:"prp"`
+	Crp               int32              `json:"crp"`
+	Coins             int32              `json:"coins"`
+	ParallelName      pgtype.Text        `json:"parallel_name"`
+	ClassName         pgtype.Text        `json:"class_name"`
+	Integrity         pgtype.Float4      `json:"integrity"`
+	Friendliness      pgtype.Float4      `json:"friendliness"`
+	Punctuality       pgtype.Float4      `json:"punctuality"`
+	Thoroughness      pgtype.Float4      `json:"thoroughness"`
+	UpdatedAt         pgtype.Timestamptz `json:"updated_at"`
+	LatSyncedAt       pgtype.Timestamptz `json:"lat_synced_at"`
 }
 
 func (q *Queries) GetParticipantStatsCache(ctx context.Context, s21Login string) (GetParticipantStatsCacheRow, error) {
@@ -3029,6 +3079,8 @@ func (q *Queries) GetParticipantStatsCache(ctx context.Context, s21Login string)
 	err := row.Scan(
 		&i.S21Login,
 		&i.CampusName,
+		&i.CampusShortNameEn,
+		&i.CampusShortNameRu,
 		&i.CoalitionName,
 		&i.Status,
 		&i.Level,
@@ -4012,6 +4064,52 @@ func (q *Queries) ListCoalitionsByCampus(ctx context.Context, campusID pgtype.UU
 	return items, nil
 }
 
+const listDueTelegramGroupWelcomeMessages = `-- name: ListDueTelegramGroupWelcomeMessages :many
+SELECT
+    m.chat_id,
+    m.message_id,
+    m.attempt_count,
+    g.owner_telegram_user_id
+FROM telegram_group_welcome_messages m
+JOIN telegram_groups g ON g.chat_id = m.chat_id
+WHERE m.delete_after <= CURRENT_TIMESTAMP
+  AND m.next_attempt_at <= CURRENT_TIMESTAMP
+ORDER BY m.next_attempt_at ASC
+LIMIT $1
+`
+
+type ListDueTelegramGroupWelcomeMessagesRow struct {
+	ChatID              int64 `json:"chat_id"`
+	MessageID           int64 `json:"message_id"`
+	AttemptCount        int32 `json:"attempt_count"`
+	OwnerTelegramUserID int64 `json:"owner_telegram_user_id"`
+}
+
+func (q *Queries) ListDueTelegramGroupWelcomeMessages(ctx context.Context, limit int32) ([]ListDueTelegramGroupWelcomeMessagesRow, error) {
+	rows, err := q.db.Query(ctx, listDueTelegramGroupWelcomeMessages, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []ListDueTelegramGroupWelcomeMessagesRow
+	for rows.Next() {
+		var i ListDueTelegramGroupWelcomeMessagesRow
+		if err := rows.Scan(
+			&i.ChatID,
+			&i.MessageID,
+			&i.AttemptCount,
+			&i.OwnerTelegramUserID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listMemberTagGroupsByTelegramUser = `-- name: ListMemberTagGroupsByTelegramUser :many
 SELECT g.chat_id, g.chat_title, g.owner_telegram_user_id, g.owner_telegram_username, g.is_initialized, g.is_active, g.created_at, g.updated_at, g.member_tags_enabled, g.member_tag_format, g.defender_enabled, g.defender_remove_blocked, g.defender_ban_duration_sec, g.is_forum, g.prr_notifications_enabled, g.prr_notifications_thread_id, g.prr_notifications_thread_label, g.prr_withdrawn_behavior, g.moderation_commands_enabled, g.team_notifications_enabled, g.team_notifications_thread_id, g.team_notifications_thread_label, g.team_withdrawn_behavior, g.defender_recheck_known_members, g.welcome_enabled, g.welcome_thread_id, g.welcome_thread_label, g.welcome_delete_service_messages
 FROM telegram_groups g
@@ -4791,6 +4889,25 @@ func (q *Queries) MarkTelegramGroupMemberLeft(ctx context.Context, arg MarkTeleg
 		arg.LastStatus,
 		arg.LastSeenAt,
 	)
+	return err
+}
+
+const retryTelegramGroupWelcomeMessageDeletion = `-- name: RetryTelegramGroupWelcomeMessageDeletion :exec
+UPDATE telegram_group_welcome_messages
+SET attempt_count = attempt_count + 1,
+    last_attempt_at = CURRENT_TIMESTAMP,
+    next_attempt_at = CURRENT_TIMESTAMP + INTERVAL '6 hours'
+WHERE chat_id = $1
+  AND message_id = $2
+`
+
+type RetryTelegramGroupWelcomeMessageDeletionParams struct {
+	ChatID    int64 `json:"chat_id"`
+	MessageID int64 `json:"message_id"`
+}
+
+func (q *Queries) RetryTelegramGroupWelcomeMessageDeletion(ctx context.Context, arg RetryTelegramGroupWelcomeMessageDeletionParams) error {
+	_, err := q.db.Exec(ctx, retryTelegramGroupWelcomeMessageDeletion, arg.ChatID, arg.MessageID)
 	return err
 }
 
@@ -5893,19 +6010,21 @@ func (q *Queries) UpsertBook(ctx context.Context, arg UpsertBookParams) (Book, e
 }
 
 const upsertCampus = `-- name: UpsertCampus :one
-INSERT INTO campuses (id, short_name, full_name, name_en, name_ru, timezone, is_active, leader_name, leader_form_link)
-VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+INSERT INTO campuses (id, short_name, full_name, name_en, name_ru, short_name_en, short_name_ru, timezone, is_active, leader_name, leader_form_link)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 ON CONFLICT (id) DO UPDATE SET
     short_name = EXCLUDED.short_name,
     full_name = EXCLUDED.full_name,
     name_en = COALESCE(EXCLUDED.name_en, campuses.name_en),
     name_ru = COALESCE(EXCLUDED.name_ru, campuses.name_ru),
+    short_name_en = COALESCE(EXCLUDED.short_name_en, campuses.short_name_en),
+    short_name_ru = COALESCE(EXCLUDED.short_name_ru, campuses.short_name_ru),
     timezone = EXCLUDED.timezone,
     is_active = EXCLUDED.is_active,
     leader_name = COALESCE(EXCLUDED.leader_name, campuses.leader_name),
     leader_form_link = COALESCE(EXCLUDED.leader_form_link, campuses.leader_form_link),
     updated_at = CURRENT_TIMESTAMP
-RETURNING id, short_name, full_name, timezone, is_active, created_at, updated_at, leader_name, leader_form_link, name_en, name_ru
+RETURNING id, short_name, full_name, timezone, is_active, created_at, updated_at, leader_name, leader_form_link, name_en, name_ru, short_name_en, short_name_ru
 `
 
 type UpsertCampusParams struct {
@@ -5914,6 +6033,8 @@ type UpsertCampusParams struct {
 	FullName       string      `json:"full_name"`
 	NameEn         pgtype.Text `json:"name_en"`
 	NameRu         pgtype.Text `json:"name_ru"`
+	ShortNameEn    pgtype.Text `json:"short_name_en"`
+	ShortNameRu    pgtype.Text `json:"short_name_ru"`
 	Timezone       pgtype.Text `json:"timezone"`
 	IsActive       bool        `json:"is_active"`
 	LeaderName     pgtype.Text `json:"leader_name"`
@@ -5927,6 +6048,8 @@ func (q *Queries) UpsertCampus(ctx context.Context, arg UpsertCampusParams) (Cam
 		arg.FullName,
 		arg.NameEn,
 		arg.NameRu,
+		arg.ShortNameEn,
+		arg.ShortNameRu,
 		arg.Timezone,
 		arg.IsActive,
 		arg.LeaderName,
@@ -5945,6 +6068,8 @@ func (q *Queries) UpsertCampus(ctx context.Context, arg UpsertCampusParams) (Cam
 		&i.LeaderFormLink,
 		&i.NameEn,
 		&i.NameRu,
+		&i.ShortNameEn,
+		&i.ShortNameRu,
 	)
 	return i, err
 }

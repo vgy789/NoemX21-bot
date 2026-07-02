@@ -37,6 +37,7 @@ type Querier interface {
 	CreateSapphireGiveawayStateIfMissing(ctx context.Context, arg CreateSapphireGiveawayStateIfMissingParams) error
 	CreateSapphireGiveawaySyncJob(ctx context.Context, arg CreateSapphireGiveawaySyncJobParams) (SapphireGiveawaySyncJob, error)
 	CreateTeamSearchRequest(ctx context.Context, arg CreateTeamSearchRequestParams) (TeamSearchRequest, error)
+	CreateTelegramGroupWelcomeMessage(ctx context.Context, arg CreateTelegramGroupWelcomeMessageParams) error
 	CreateUserAccount(ctx context.Context, arg CreateUserAccountParams) (UserAccount, error)
 	DeactivateBooksByCampus(ctx context.Context, campusID pgtype.UUID) error
 	DeactivateClubsByCampus(ctx context.Context, campusID pgtype.UUID) error
@@ -61,6 +62,7 @@ type Querier interface {
 	DeleteTelegramGroupTeamMessageByRequestAndChat(ctx context.Context, arg DeleteTelegramGroupTeamMessageByRequestAndChatParams) (int64, error)
 	DeleteTelegramGroupTeamMessagesByRequest(ctx context.Context, teamSearchRequestID int64) error
 	DeleteTelegramGroupTeamProjectFilterByOwner(ctx context.Context, arg DeleteTelegramGroupTeamProjectFilterByOwnerParams) (int64, error)
+	DeleteTelegramGroupWelcomeMessage(ctx context.Context, arg DeleteTelegramGroupWelcomeMessageParams) error
 	DeleteTelegramGroupWhitelistByChatAndUser(ctx context.Context, arg DeleteTelegramGroupWhitelistByChatAndUserParams) (int64, error)
 	DeleteTelegramGroupWhitelistByOwner(ctx context.Context, arg DeleteTelegramGroupWhitelistByOwnerParams) (int64, error)
 	DeleteUserAccountByExternalId(ctx context.Context, arg DeleteUserAccountByExternalIdParams) error
@@ -136,6 +138,7 @@ type Querier interface {
 	IncrementTeamSearchRequestViewCount(ctx context.Context, id int64) (int32, error)
 	InsertTelegramGroupLog(ctx context.Context, arg InsertTelegramGroupLogParams) error
 	ListCoalitionsByCampus(ctx context.Context, campusID pgtype.UUID) ([]Coalition, error)
+	ListDueTelegramGroupWelcomeMessages(ctx context.Context, limit int32) ([]ListDueTelegramGroupWelcomeMessagesRow, error)
 	ListMemberTagGroupsByTelegramUser(ctx context.Context, telegramUserID int64) ([]TelegramGroup, error)
 	ListSapphireGiveawayParticipantLogins(ctx context.Context) ([]string, error)
 	ListSapphireGiveawayParticipants(ctx context.Context) ([]SapphireGiveawayParticipant, error)
@@ -156,6 +159,7 @@ type Querier interface {
 	MarkReviewRequestNegotiatingAndIncrementResponses(ctx context.Context, arg MarkReviewRequestNegotiatingAndIncrementResponsesParams) (MarkReviewRequestNegotiatingAndIncrementResponsesRow, error)
 	MarkTeamSearchRequestNegotiatingAndIncrementResponses(ctx context.Context, arg MarkTeamSearchRequestNegotiatingAndIncrementResponsesParams) (MarkTeamSearchRequestNegotiatingAndIncrementResponsesRow, error)
 	MarkTelegramGroupMemberLeft(ctx context.Context, arg MarkTelegramGroupMemberLeftParams) error
+	RetryTelegramGroupWelcomeMessageDeletion(ctx context.Context, arg RetryTelegramGroupWelcomeMessageDeletionParams) error
 	ReturnBookLoan(ctx context.Context, arg ReturnBookLoanParams) error
 	RevokeOldApiKeys(ctx context.Context, userAccountID int64) error
 	SearchBooks(ctx context.Context, arg SearchBooksParams) ([]SearchBooksRow, error)

@@ -13,12 +13,15 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
+	"github.com/vgy789/noemx21-bot/internal/service"
 )
 
 const (
-	memberTagFormatLogin      = "login"
-	memberTagFormatLoginLevel = "login_level"
-	memberTagMaxRunes         = 16
+	memberTagFormatLogin         = "login"
+	memberTagFormatLoginLevel    = "login_level"
+	memberTagFormatLoginCampusEn = "login_campus_en"
+	memberTagFormatLoginCampusRu = "login_campus_ru"
+	memberTagMaxRunes            = 16
 )
 
 type rawChatMember struct {
@@ -233,7 +236,7 @@ func (s *telegramService) runGroupMemberTagsWithRollback(ctx context.Context, b 
 			continue
 		}
 
-		tag := buildMemberTag(profile.Login, profile.Level, tagFormat)
+		tag := buildMemberTag(profile, tagFormat)
 		if tag == "" {
 			result.SkippedUnregistered++
 			continue
@@ -355,7 +358,7 @@ func (s *telegramService) syncMemberTagsForRegisteredUser(ctx context.Context, b
 			continue
 		}
 
-		tag := buildMemberTag(profile.Login, profile.Level, normalizeMemberTagFormat(group.MemberTagFormat))
+		tag := buildMemberTag(profile, normalizeMemberTagFormat(group.MemberTagFormat))
 		if tag == "" {
 			continue
 		}
@@ -412,7 +415,7 @@ func (s *telegramService) tryAutoAssignMemberTagForKnownGroup(ctx context.Contex
 		return
 	}
 
-	tag := buildMemberTag(profile.Login, profile.Level, normalizeMemberTagFormat(group.MemberTagFormat))
+	tag := buildMemberTag(profile, normalizeMemberTagFormat(group.MemberTagFormat))
 	if tag == "" {
 		return
 	}
@@ -524,37 +527,46 @@ func isChatMemberActive(member gotgbot.ChatMember) bool {
 }
 
 func normalizeMemberTagFormat(format string) string {
-	if strings.TrimSpace(format) == memberTagFormatLoginLevel {
-		return memberTagFormatLoginLevel
+	switch strings.TrimSpace(format) {
+	case memberTagFormatLoginLevel, memberTagFormatLoginCampusEn, memberTagFormatLoginCampusRu:
+		return strings.TrimSpace(format)
 	}
 	return memberTagFormatLogin
 }
 
-func buildMemberTag(login string, level int32, format string) string {
-	login = strings.TrimSpace(login)
+func buildMemberTag(profile *service.UserProfile, format string) string {
+	if profile == nil {
+		return ""
+	}
+	login := strings.TrimSpace(profile.Login)
 	if login == "" {
 		return ""
 	}
+	if profile.Status != db.EnumStudentStatusACTIVE {
+		login += "~"
+	}
+	if runeCount(login) > memberTagMaxRunes {
+		return trimRunes(login, memberTagMaxRunes)
+	}
 
 	suffix := ""
-	if normalizeMemberTagFormat(format) == memberTagFormatLoginLevel {
-		suffix = fmt.Sprintf(" [%d]", level)
+	switch normalizeMemberTagFormat(format) {
+	case memberTagFormatLoginLevel:
+		suffix = fmt.Sprintf(" [%d]", profile.Level)
+	case memberTagFormatLoginCampusEn:
+		if shortName := strings.TrimSpace(profile.CampusShortNameEn); shortName != "" {
+			suffix = " " + shortName
+		}
+	case memberTagFormatLoginCampusRu:
+		if shortName := strings.TrimSpace(profile.CampusShortNameRu); shortName != "" {
+			suffix = " " + shortName
+		}
 	}
 
-	maxLoginRunes := memberTagMaxRunes - len([]rune(suffix))
-	if maxLoginRunes <= 0 {
-		maxLoginRunes = memberTagMaxRunes
+	if runeCount(login+suffix) > memberTagMaxRunes {
 		suffix = ""
 	}
-	if runeCount(login) > maxLoginRunes {
-		login = trimRunes(login, maxLoginRunes)
-	}
-
-	tag := login + suffix
-	if runeCount(tag) > memberTagMaxRunes {
-		tag = trimRunes(tag, memberTagMaxRunes)
-	}
-	return tag
+	return login + suffix
 }
 
 func trimRunes(value string, limit int) string {

@@ -2620,6 +2620,10 @@ states:
 
           1️⃣ `login` — просто логин (коротко и ясно).
           2️⃣ `login [lvl]` — логин и уровень (сразу видно дедов).
+          3️⃣ `login NSK` — логин и сокращение кампуса на английском.
+          4️⃣ `login НСК` — логин и сокращение кампуса на русском.
+
+          Для любого статуса кроме ACTIVE после логина добавляется `~`.
 
           Сейчас выбрано: `{member_tag_format_label_ru}`
         en: |
@@ -2629,6 +2633,10 @@ states:
 
           1️⃣ `login` — just login (clean).
           2️⃣ `login [lvl]` — login and level (shows experience).
+          3️⃣ `login NSK` — login and English campus short name.
+          4️⃣ `login НСК` — login and Russian campus short name.
+
+          Every status except ACTIVE adds `~` directly after the login.
 
           Currently: `{member_tag_format_label_en}`
       buttons:
@@ -2648,6 +2656,22 @@ states:
           condition: "can_manage_selected_group == true"
           next_state: GROUP_MEMBER_TAGS_FORMAT
           row: 1
+        - id: tags_fmt_login_campus_en
+          label:
+            ru: "{member_tag_login_campus_en_option_label_ru}"
+            en: "{member_tag_login_campus_en_option_label_en}"
+          action: set_group_member_tag_format
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_MEMBER_TAGS_FORMAT
+          row: 2
+        - id: tags_fmt_login_campus_ru
+          label:
+            ru: "{member_tag_login_campus_ru_option_label_ru}"
+            en: "{member_tag_login_campus_ru_option_label_en}"
+          action: set_group_member_tag_format
+          condition: "can_manage_selected_group == true"
+          next_state: GROUP_MEMBER_TAGS_FORMAT
+          row: 2
         - id: tags_back_menu
           label:
             ru: 🔙 Назад

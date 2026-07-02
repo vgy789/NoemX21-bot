@@ -43,9 +43,10 @@ type CampusNameYAML struct {
 }
 
 type CampusFileYAML struct {
-	IsActive bool           `yaml:"is_active"`
-	Name     CampusNameYAML `yaml:"name"`
-	Timezone string         `yaml:"timezone"`
+	IsActive  bool           `yaml:"is_active"`
+	Name      CampusNameYAML `yaml:"name"`
+	ShortName CampusNameYAML `yaml:"short_name"`
+	Timezone  string         `yaml:"timezone"`
 }
 
 type CatalogProjectYAML struct {

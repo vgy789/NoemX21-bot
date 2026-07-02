@@ -18,6 +18,8 @@ package "Identity_Auth" {
         --
         * short_name : string <<UK>>
         * full_name : string
+        short_name_en : string
+        short_name_ru : string
         timezone : string
         is_active : boolean
         leader_name : string

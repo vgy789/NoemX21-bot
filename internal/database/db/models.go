@@ -241,6 +241,8 @@ type Campuse struct {
 	LeaderFormLink pgtype.Text        `json:"leader_form_link"`
 	NameEn         pgtype.Text        `json:"name_en"`
 	NameRu         pgtype.Text        `json:"name_ru"`
+	ShortNameEn    pgtype.Text        `json:"short_name_en"`
+	ShortNameRu    pgtype.Text        `json:"short_name_ru"`
 }
 
 type Club struct {
@@ -625,6 +627,16 @@ type TelegramGroupTeamProjectFilter struct {
 	ChatID    int64              `json:"chat_id"`
 	ProjectID int64              `json:"project_id"`
 	CreatedAt pgtype.Timestamptz `json:"created_at"`
+}
+
+type TelegramGroupWelcomeMessage struct {
+	ChatID        int64              `json:"chat_id"`
+	MessageID     int64              `json:"message_id"`
+	DeleteAfter   pgtype.Timestamptz `json:"delete_after"`
+	NextAttemptAt pgtype.Timestamptz `json:"next_attempt_at"`
+	AttemptCount  int32              `json:"attempt_count"`
+	LastAttemptAt pgtype.Timestamptz `json:"last_attempt_at"`
+	CreatedAt     pgtype.Timestamptz `json:"created_at"`
 }
 
 type TelegramGroupWhitelist struct {

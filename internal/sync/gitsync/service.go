@@ -159,6 +159,8 @@ func campusRowToModel(campus db.GetCampusByShortNameRow) db.Campuse {
 		LeaderFormLink: campus.LeaderFormLink,
 		NameEn:         campus.NameEn,
 		NameRu:         campus.NameRu,
+		ShortNameEn:    campus.ShortNameEn,
+		ShortNameRu:    campus.ShortNameRu,
 	}
 }
 
@@ -451,6 +453,8 @@ func (s *Service) syncCampus(ctx context.Context, campus *db.Campuse, path strin
 					FullName:       campus.FullName,
 					NameEn:         toText(campusFile.Name.En),
 					NameRu:         toText(campusFile.Name.Ru),
+					ShortNameEn:    toText(campusFile.ShortName.En),
+					ShortNameRu:    toText(campusFile.ShortName.Ru),
 					Timezone:       campus.Timezone,
 					IsActive:       campus.IsActive,
 					LeaderName:     pgtype.Text{Valid: false},
