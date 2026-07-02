@@ -21,6 +21,21 @@ func TestFlowParser_GetFlow(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, flow)
 		assert.Contains(t, flow.States, "MAIN_MENU")
+
+		mainMenu := flow.States["MAIN_MENU"]
+		require.NotNil(t, mainMenu.Interface)
+		for _, button := range mainMenu.Interface.Buttons {
+			assert.NotContains(t, []string{
+				"library",
+				"booking",
+				"giveaway_join",
+				"giveaway_progress",
+				"giveaway_admin",
+			}, button.ID)
+		}
+		for _, action := range mainMenu.OnEnter {
+			assert.NotEqual(t, "load_sapphire_giveaway_main_context", action.Action)
+		}
 	})
 
 	t.Run("load settings flow", func(t *testing.T) {
