@@ -38,12 +38,41 @@ states:
             en: "🌐 Lang: {my_lang_emoji}"
           next_state: SET_LANGUAGE
           row: 2
+        - id: member_tag_import
+          label:
+            ru: 📥 Импорт тегов
+            en: 📥 Import member tags
+          condition: "is_bot_owner == true"
+          next_state: MEMBER_TAG_IMPORT
+          row: 3
         - id: back
           label:
             ru: 🏠 На главную
             en: 🏠 Main menu
           next_state: MAIN_MENU
           row: 2
+
+  MEMBER_TAG_IMPORT:
+    type: interactive
+    description: Owner-only import of legacy Telegram ID to login mappings
+    interface:
+      text:
+        ru: |
+          📥 *Импорт тегов*
+
+          Отправь JSON-файл до 2 МБ. Допустимые строки будут сразу импортированы.
+          Бот не сохраняет исходный файл локально. Telegram обрабатывает его как обычный документ.
+        en: |
+          📥 *Member tag import*
+
+          Send a JSON file up to 2 MiB. Valid rows will be imported immediately.
+          The bot keeps no local source-file copy. Telegram processes it as a regular document.
+      buttons:
+        - id: back
+          label:
+            ru: ⚙️ Назад
+            en: ⚙️ Back
+          next_state: SETTINGS_MENU
 
   PROFILE_SETTINGS:
     type: interactive

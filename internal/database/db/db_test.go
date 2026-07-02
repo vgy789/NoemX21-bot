@@ -2,6 +2,7 @@ package db
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"github.com/jackc/pgx/v5"
@@ -96,6 +97,10 @@ func TestQueries_GetMyProfile(t *testing.T) {
 
 	_, err := q.GetMyProfile(ctx, "testuser")
 	assert.NoError(t, err)
+}
+
+func TestPeerSearchDoesNotReadLegacyMemberTagMappings(t *testing.T) {
+	assert.NotContains(t, strings.ToLower(getPeerProfile), "legacy_member_tag")
 }
 
 func TestQueries_UpsertPlatformCredentials(t *testing.T) {

@@ -80,6 +80,7 @@ func NewTelegramService(cfg *config.Config, log *slog.Logger, userSvc service.Us
 		engine:      engine,
 		imgCache:    cache,
 		pollingLock: newPollingLocker(pool, log),
+		pool:        pool,
 		fileIDs:     make(map[string]string),
 	}
 }
@@ -96,9 +97,11 @@ type telegramService struct {
 	updater            *ext.Updater
 	updaterMu          sync.RWMutex
 	pollingLock        pollingLocker
+	pool               *pgxpool.Pool
 	fileIDs            map[string]string
 	fileIDsMu          sync.RWMutex
 	welcomeCleanupOnce sync.Once
+	memberTagQueueOnce sync.Once
 }
 
 type activeInitializedTelegramGroupsLister interface {
@@ -207,6 +210,7 @@ func (s *telegramService) Run(ctx context.Context) error {
 	}
 	s.startConsistencySweep(ctx, tgBot)
 	s.startWelcomeCleanup(ctx, tgBot)
+	s.startLegacyMemberTagQueue(ctx, tgBot)
 	s.log.Info("start polling")
 
 	done := make(chan struct{})
@@ -283,6 +287,7 @@ func (s *telegramService) RunWebhook(ctx context.Context) error {
 
 	s.startConsistencySweep(ctx, tgBot)
 	s.startWelcomeCleanup(ctx, tgBot)
+	s.startLegacyMemberTagQueue(ctx, tgBot)
 	s.log.Info("webhook server started", "path", s.cfg.Telegram.Webhook.ListenPath, "addr", listenAddr)
 
 	done := make(chan struct{})

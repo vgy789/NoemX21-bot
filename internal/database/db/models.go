@@ -290,6 +290,37 @@ type FsmUserState struct {
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
+type LegacyMemberTagMapping struct {
+	TelegramUserID     int64              `json:"telegram_user_id"`
+	S21Login           string             `json:"s21_login"`
+	ActiveSnapshot     bool               `json:"active_snapshot"`
+	SnapshotObservedAt pgtype.Timestamptz `json:"snapshot_observed_at"`
+	SourceDigest       string             `json:"source_digest"`
+	ImportedAt         pgtype.Timestamptz `json:"imported_at"`
+	UpdatedAt          pgtype.Timestamptz `json:"updated_at"`
+}
+
+type LegacyMemberTagQueue struct {
+	ChatID         int64              `json:"chat_id"`
+	TelegramUserID int64              `json:"telegram_user_id"`
+	DesiredAction  string             `json:"desired_action"`
+	State          string             `json:"state"`
+	LastAppliedTag string             `json:"last_applied_tag"`
+	AttemptCount   int32              `json:"attempt_count"`
+	NextAttemptAt  pgtype.Timestamptz `json:"next_attempt_at"`
+	LastErrorCode  string             `json:"last_error_code"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt      pgtype.Timestamptz `json:"updated_at"`
+}
+
+type LegacyMemberTagSuppression struct {
+	ID             int64              `json:"id"`
+	TelegramUserID pgtype.Int8        `json:"telegram_user_id"`
+	S21Login       pgtype.Text        `json:"s21_login"`
+	Reason         string             `json:"reason"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type Node struct {
 	ID          int64              `json:"id"`
 	Name        string             `json:"name"`

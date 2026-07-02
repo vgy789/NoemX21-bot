@@ -867,6 +867,21 @@ func (q *Queries) DeleteExpiredAuthVerificationCodes(ctx context.Context) error 
 	return err
 }
 
+const deleteLegacyMemberTagMappingByLoginExceptTelegram = `-- name: DeleteLegacyMemberTagMappingByLoginExceptTelegram :exec
+DELETE FROM legacy_member_tag_mappings
+WHERE LOWER(s21_login) = LOWER($1) AND telegram_user_id <> $2
+`
+
+type DeleteLegacyMemberTagMappingByLoginExceptTelegramParams struct {
+	S21Login       string `json:"s21_login"`
+	TelegramUserID int64  `json:"telegram_user_id"`
+}
+
+func (q *Queries) DeleteLegacyMemberTagMappingByLoginExceptTelegram(ctx context.Context, arg DeleteLegacyMemberTagMappingByLoginExceptTelegramParams) error {
+	_, err := q.db.Exec(ctx, deleteLegacyMemberTagMappingByLoginExceptTelegram, arg.S21Login, arg.TelegramUserID)
+	return err
+}
+
 const deleteStaleCoursesCatalog = `-- name: DeleteStaleCoursesCatalog :exec
 DELETE FROM courses
 WHERE sync_batch_id <> $1
@@ -1191,6 +1206,85 @@ type DeleteUserAccountByExternalIdParams struct {
 func (q *Queries) DeleteUserAccountByExternalId(ctx context.Context, arg DeleteUserAccountByExternalIdParams) error {
 	_, err := q.db.Exec(ctx, deleteUserAccountByExternalId, arg.Platform, arg.ExternalID)
 	return err
+}
+
+const enqueueKnownLegacyMemberTags = `-- name: EnqueueKnownLegacyMemberTags :execrows
+INSERT INTO legacy_member_tag_queue (chat_id, telegram_user_id, desired_action, state, next_attempt_at, updated_at)
+SELECT gm.chat_id, gm.telegram_user_id, 'apply', 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+FROM telegram_group_members gm
+JOIN telegram_groups g ON g.chat_id = gm.chat_id
+JOIN legacy_member_tag_mappings m ON m.telegram_user_id = gm.telegram_user_id
+WHERE gm.is_member = true AND gm.is_bot = false AND g.is_active = true AND g.is_initialized = true
+  AND NOT EXISTS (
+      SELECT 1 FROM legacy_member_tag_suppressions s
+      WHERE s.telegram_user_id = m.telegram_user_id OR LOWER(s.s21_login) = LOWER(m.s21_login)
+  )
+ON CONFLICT (chat_id, telegram_user_id) DO UPDATE SET
+    desired_action = 'apply', state = 'pending', next_attempt_at = CURRENT_TIMESTAMP,
+    attempt_count = 0, last_error_code = '', updated_at = CURRENT_TIMESTAMP
+`
+
+func (q *Queries) EnqueueKnownLegacyMemberTags(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, enqueueKnownLegacyMemberTags)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const enqueueLegacyMemberTag = `-- name: EnqueueLegacyMemberTag :exec
+INSERT INTO legacy_member_tag_queue (chat_id, telegram_user_id, desired_action, state, next_attempt_at, updated_at)
+VALUES ($1, $2, 'apply', 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON CONFLICT (chat_id, telegram_user_id) DO UPDATE SET
+    desired_action = 'apply', state = 'pending', next_attempt_at = CURRENT_TIMESTAMP,
+    attempt_count = 0, last_error_code = '', updated_at = CURRENT_TIMESTAMP
+`
+
+type EnqueueLegacyMemberTagParams struct {
+	ChatID         int64 `json:"chat_id"`
+	TelegramUserID int64 `json:"telegram_user_id"`
+}
+
+func (q *Queries) EnqueueLegacyMemberTag(ctx context.Context, arg EnqueueLegacyMemberTagParams) error {
+	_, err := q.db.Exec(ctx, enqueueLegacyMemberTag, arg.ChatID, arg.TelegramUserID)
+	return err
+}
+
+const enqueueSuppressedLegacyMemberTagsByLogin = `-- name: EnqueueSuppressedLegacyMemberTagsByLogin :execrows
+UPDATE legacy_member_tag_queue q
+SET desired_action = 'clear', state = 'pending', next_attempt_at = CURRENT_TIMESTAMP,
+    attempt_count = 0, last_error_code = '', updated_at = CURRENT_TIMESTAMP
+WHERE EXISTS (
+    SELECT 1 FROM legacy_member_tag_mappings m
+    WHERE m.telegram_user_id = q.telegram_user_id AND LOWER(m.s21_login) = LOWER($1)
+) OR EXISTS (
+    SELECT 1 FROM user_accounts ua
+    WHERE ua.platform = 'telegram' AND ua.external_id = q.telegram_user_id::text
+      AND LOWER(ua.s21_login) = LOWER($1)
+)
+`
+
+func (q *Queries) EnqueueSuppressedLegacyMemberTagsByLogin(ctx context.Context, lower string) (int64, error) {
+	result, err := q.db.Exec(ctx, enqueueSuppressedLegacyMemberTagsByLogin, lower)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const enqueueSuppressedLegacyMemberTagsByTelegram = `-- name: EnqueueSuppressedLegacyMemberTagsByTelegram :execrows
+UPDATE legacy_member_tag_queue
+SET desired_action = 'clear', state = 'pending', next_attempt_at = CURRENT_TIMESTAMP,
+    attempt_count = 0, last_error_code = '', updated_at = CURRENT_TIMESTAMP
+WHERE telegram_user_id = $1
+`
+
+func (q *Queries) EnqueueSuppressedLegacyMemberTagsByTelegram(ctx context.Context, telegramUserID int64) (int64, error) {
+	result, err := q.db.Exec(ctx, enqueueSuppressedLegacyMemberTagsByTelegram, telegramUserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const existsCoalitionByID = `-- name: ExistsCoalitionByID :one
@@ -2220,6 +2314,27 @@ func (q *Queries) GetLatestSapphireGiveawaySyncJob(ctx context.Context) (Sapphir
 	return i, err
 }
 
+const getLegacyMemberTagMapping = `-- name: GetLegacyMemberTagMapping :one
+
+SELECT telegram_user_id, s21_login, active_snapshot, snapshot_observed_at, source_digest, imported_at, updated_at FROM legacy_member_tag_mappings WHERE telegram_user_id = $1
+`
+
+// queries.sql
+func (q *Queries) GetLegacyMemberTagMapping(ctx context.Context, telegramUserID int64) (LegacyMemberTagMapping, error) {
+	row := q.db.QueryRow(ctx, getLegacyMemberTagMapping, telegramUserID)
+	var i LegacyMemberTagMapping
+	err := row.Scan(
+		&i.TelegramUserID,
+		&i.S21Login,
+		&i.ActiveSnapshot,
+		&i.SnapshotObservedAt,
+		&i.SourceDigest,
+		&i.ImportedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
 const getLocalClubs = `-- name: GetLocalClubs :many
 SELECT 
     c.id,
@@ -3218,11 +3333,9 @@ func (q *Queries) GetRegisteredUserByRocketChatId(ctx context.Context, rocketcha
 }
 
 const getRegisteredUserByS21Login = `-- name: GetRegisteredUserByS21Login :one
-
 SELECT s21_login, rocketchat_id, timezone, alternative_contact, has_coffee_ban, created_at, updated_at FROM registered_users WHERE s21_login = $1
 `
 
-// queries.sql
 func (q *Queries) GetRegisteredUserByS21Login(ctx context.Context, s21Login string) (RegisteredUser, error) {
 	row := q.db.QueryRow(ctx, getRegisteredUserByS21Login, s21Login)
 	var i RegisteredUser
@@ -4033,6 +4146,25 @@ func (q *Queries) InsertTelegramGroupLog(ctx context.Context, arg InsertTelegram
 	return err
 }
 
+const isLegacyMemberTagSuppressed = `-- name: IsLegacyMemberTagSuppressed :one
+SELECT EXISTS (
+    SELECT 1 FROM legacy_member_tag_suppressions
+    WHERE telegram_user_id = $1 OR (s21_login IS NOT NULL AND LOWER(s21_login) = LOWER($2))
+)
+`
+
+type IsLegacyMemberTagSuppressedParams struct {
+	TelegramUserID pgtype.Int8 `json:"telegram_user_id"`
+	Lower          string      `json:"lower"`
+}
+
+func (q *Queries) IsLegacyMemberTagSuppressed(ctx context.Context, arg IsLegacyMemberTagSuppressedParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isLegacyMemberTagSuppressed, arg.TelegramUserID, arg.Lower)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const listCoalitionsByCampus = `-- name: ListCoalitionsByCampus :many
 SELECT campus_id, id, name, created_at FROM coalitions
 WHERE campus_id = $1
@@ -4053,6 +4185,44 @@ func (q *Queries) ListCoalitionsByCampus(ctx context.Context, campusID pgtype.UU
 			&i.ID,
 			&i.Name,
 			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDueLegacyMemberTags = `-- name: ListDueLegacyMemberTags :many
+SELECT chat_id, telegram_user_id, desired_action, state, last_applied_tag, attempt_count, next_attempt_at, last_error_code, created_at, updated_at FROM legacy_member_tag_queue
+WHERE state = 'pending' AND next_attempt_at <= CURRENT_TIMESTAMP
+ORDER BY next_attempt_at, chat_id, telegram_user_id
+LIMIT $1
+`
+
+func (q *Queries) ListDueLegacyMemberTags(ctx context.Context, limit int32) ([]LegacyMemberTagQueue, error) {
+	rows, err := q.db.Query(ctx, listDueLegacyMemberTags, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []LegacyMemberTagQueue
+	for rows.Next() {
+		var i LegacyMemberTagQueue
+		if err := rows.Scan(
+			&i.ChatID,
+			&i.TelegramUserID,
+			&i.DesiredAction,
+			&i.State,
+			&i.LastAppliedTag,
+			&i.AttemptCount,
+			&i.NextAttemptAt,
+			&i.LastErrorCode,
+			&i.CreatedAt,
+			&i.UpdatedAt,
 		); err != nil {
 			return nil, err
 		}
@@ -4777,6 +4947,57 @@ func (q *Queries) ListTelegramGroupsWithTeamNotifications(ctx context.Context) (
 	return items, nil
 }
 
+const markLegacyMemberTagApplied = `-- name: MarkLegacyMemberTagApplied :exec
+UPDATE legacy_member_tag_queue
+SET state = 'applied', last_applied_tag = $3, attempt_count = 0,
+    last_error_code = '', updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1 AND telegram_user_id = $2
+`
+
+type MarkLegacyMemberTagAppliedParams struct {
+	ChatID         int64  `json:"chat_id"`
+	TelegramUserID int64  `json:"telegram_user_id"`
+	LastAppliedTag string `json:"last_applied_tag"`
+}
+
+func (q *Queries) MarkLegacyMemberTagApplied(ctx context.Context, arg MarkLegacyMemberTagAppliedParams) error {
+	_, err := q.db.Exec(ctx, markLegacyMemberTagApplied, arg.ChatID, arg.TelegramUserID, arg.LastAppliedTag)
+	return err
+}
+
+const markLegacyMemberTagSkipped = `-- name: MarkLegacyMemberTagSkipped :exec
+UPDATE legacy_member_tag_queue
+SET state = 'applied', attempt_count = 0, last_error_code = '', updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1 AND telegram_user_id = $2
+`
+
+type MarkLegacyMemberTagSkippedParams struct {
+	ChatID         int64 `json:"chat_id"`
+	TelegramUserID int64 `json:"telegram_user_id"`
+}
+
+func (q *Queries) MarkLegacyMemberTagSkipped(ctx context.Context, arg MarkLegacyMemberTagSkippedParams) error {
+	_, err := q.db.Exec(ctx, markLegacyMemberTagSkipped, arg.ChatID, arg.TelegramUserID)
+	return err
+}
+
+const markLegacyMemberTagSuppressed = `-- name: MarkLegacyMemberTagSuppressed :exec
+UPDATE legacy_member_tag_queue
+SET state = 'suppressed', last_applied_tag = '', attempt_count = 0,
+    last_error_code = '', updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1 AND telegram_user_id = $2
+`
+
+type MarkLegacyMemberTagSuppressedParams struct {
+	ChatID         int64 `json:"chat_id"`
+	TelegramUserID int64 `json:"telegram_user_id"`
+}
+
+func (q *Queries) MarkLegacyMemberTagSuppressed(ctx context.Context, arg MarkLegacyMemberTagSuppressedParams) error {
+	_, err := q.db.Exec(ctx, markLegacyMemberTagSuppressed, arg.ChatID, arg.TelegramUserID)
+	return err
+}
+
 const markReviewRequestNegotiatingAndIncrementResponses = `-- name: MarkReviewRequestNegotiatingAndIncrementResponses :one
 UPDATE review_requests
 SET response_count = response_count + 1,
@@ -4889,6 +5110,26 @@ func (q *Queries) MarkTelegramGroupMemberLeft(ctx context.Context, arg MarkTeleg
 		arg.LastStatus,
 		arg.LastSeenAt,
 	)
+	return err
+}
+
+const retryLegacyMemberTag = `-- name: RetryLegacyMemberTag :exec
+UPDATE legacy_member_tag_queue
+SET state = CASE WHEN attempt_count + 1 >= 12 THEN 'failed' ELSE 'pending' END,
+    attempt_count = attempt_count + 1,
+    next_attempt_at = CURRENT_TIMESTAMP + (LEAST(attempt_count + 1, 12) * INTERVAL '5 minutes'),
+    last_error_code = $3, updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1 AND telegram_user_id = $2
+`
+
+type RetryLegacyMemberTagParams struct {
+	ChatID         int64  `json:"chat_id"`
+	TelegramUserID int64  `json:"telegram_user_id"`
+	LastErrorCode  string `json:"last_error_code"`
+}
+
+func (q *Queries) RetryLegacyMemberTag(ctx context.Context, arg RetryLegacyMemberTagParams) error {
+	_, err := q.db.Exec(ctx, retryLegacyMemberTag, arg.ChatID, arg.TelegramUserID, arg.LastErrorCode)
 	return err
 }
 
@@ -5387,6 +5628,40 @@ func (q *Queries) SetTeamSearchRequestStatus(ctx context.Context, arg SetTeamSea
 	var i SetTeamSearchRequestStatusRow
 	err := row.Scan(&i.ID, &i.Status)
 	return i, err
+}
+
+const suppressLegacyMemberTagByLogin = `-- name: SuppressLegacyMemberTagByLogin :exec
+INSERT INTO legacy_member_tag_suppressions (s21_login, reason)
+VALUES (LOWER($1), $2)
+ON CONFLICT (LOWER(s21_login)) WHERE s21_login IS NOT NULL
+DO UPDATE SET reason = EXCLUDED.reason
+`
+
+type SuppressLegacyMemberTagByLoginParams struct {
+	Lower  string `json:"lower"`
+	Reason string `json:"reason"`
+}
+
+func (q *Queries) SuppressLegacyMemberTagByLogin(ctx context.Context, arg SuppressLegacyMemberTagByLoginParams) error {
+	_, err := q.db.Exec(ctx, suppressLegacyMemberTagByLogin, arg.Lower, arg.Reason)
+	return err
+}
+
+const suppressLegacyMemberTagByTelegram = `-- name: SuppressLegacyMemberTagByTelegram :exec
+INSERT INTO legacy_member_tag_suppressions (telegram_user_id, reason)
+VALUES ($1, $2)
+ON CONFLICT (telegram_user_id) WHERE telegram_user_id IS NOT NULL
+DO UPDATE SET reason = EXCLUDED.reason
+`
+
+type SuppressLegacyMemberTagByTelegramParams struct {
+	TelegramUserID pgtype.Int8 `json:"telegram_user_id"`
+	Reason         string      `json:"reason"`
+}
+
+func (q *Queries) SuppressLegacyMemberTagByTelegram(ctx context.Context, arg SuppressLegacyMemberTagByTelegramParams) error {
+	_, err := q.db.Exec(ctx, suppressLegacyMemberTagByTelegram, arg.TelegramUserID, arg.Reason)
+	return err
 }
 
 const unlinkTelegramGroupOwner = `-- name: UnlinkTelegramGroupOwner :exec
@@ -6229,6 +6504,38 @@ func (q *Queries) UpsertFSMState(ctx context.Context, arg UpsertFSMStateParams) 
 		arg.CurrentState,
 		arg.Context,
 		arg.Language,
+	)
+	return err
+}
+
+const upsertLegacyMemberTagMapping = `-- name: UpsertLegacyMemberTagMapping :exec
+INSERT INTO legacy_member_tag_mappings (
+    telegram_user_id, s21_login, active_snapshot, snapshot_observed_at, source_digest
+) VALUES ($1, LOWER($2), $3, $4, $5)
+ON CONFLICT (telegram_user_id) DO UPDATE SET
+    s21_login = EXCLUDED.s21_login,
+    active_snapshot = EXCLUDED.active_snapshot,
+    snapshot_observed_at = EXCLUDED.snapshot_observed_at,
+    source_digest = EXCLUDED.source_digest,
+    imported_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP
+`
+
+type UpsertLegacyMemberTagMappingParams struct {
+	TelegramUserID     int64              `json:"telegram_user_id"`
+	S21Login           string             `json:"s21_login"`
+	ActiveSnapshot     bool               `json:"active_snapshot"`
+	SnapshotObservedAt pgtype.Timestamptz `json:"snapshot_observed_at"`
+	SourceDigest       string             `json:"source_digest"`
+}
+
+func (q *Queries) UpsertLegacyMemberTagMapping(ctx context.Context, arg UpsertLegacyMemberTagMappingParams) error {
+	_, err := q.db.Exec(ctx, upsertLegacyMemberTagMapping,
+		arg.TelegramUserID,
+		arg.S21Login,
+		arg.ActiveSnapshot,
+		arg.SnapshotObservedAt,
+		arg.SourceDigest,
 	)
 	return err
 }

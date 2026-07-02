@@ -1,5 +1,114 @@
 -- queries.sql
 
+-- name: GetLegacyMemberTagMapping :one
+SELECT * FROM legacy_member_tag_mappings WHERE telegram_user_id = $1;
+
+-- name: IsLegacyMemberTagSuppressed :one
+SELECT EXISTS (
+    SELECT 1 FROM legacy_member_tag_suppressions
+    WHERE telegram_user_id = $1 OR (s21_login IS NOT NULL AND LOWER(s21_login) = LOWER($2))
+);
+
+-- name: UpsertLegacyMemberTagMapping :exec
+INSERT INTO legacy_member_tag_mappings (
+    telegram_user_id, s21_login, active_snapshot, snapshot_observed_at, source_digest
+) VALUES (sqlc.arg(telegram_user_id), LOWER(sqlc.arg(s21_login)), sqlc.arg(active_snapshot), sqlc.arg(snapshot_observed_at), sqlc.arg(source_digest))
+ON CONFLICT (telegram_user_id) DO UPDATE SET
+    s21_login = EXCLUDED.s21_login,
+    active_snapshot = EXCLUDED.active_snapshot,
+    snapshot_observed_at = EXCLUDED.snapshot_observed_at,
+    source_digest = EXCLUDED.source_digest,
+    imported_at = CURRENT_TIMESTAMP,
+    updated_at = CURRENT_TIMESTAMP;
+
+-- name: DeleteLegacyMemberTagMappingByLoginExceptTelegram :exec
+DELETE FROM legacy_member_tag_mappings
+WHERE LOWER(s21_login) = LOWER(sqlc.arg(s21_login)) AND telegram_user_id <> sqlc.arg(telegram_user_id);
+
+-- name: SuppressLegacyMemberTagByTelegram :exec
+INSERT INTO legacy_member_tag_suppressions (telegram_user_id, reason)
+VALUES ($1, $2)
+ON CONFLICT (telegram_user_id) WHERE telegram_user_id IS NOT NULL
+DO UPDATE SET reason = EXCLUDED.reason;
+
+-- name: SuppressLegacyMemberTagByLogin :exec
+INSERT INTO legacy_member_tag_suppressions (s21_login, reason)
+VALUES (LOWER($1), $2)
+ON CONFLICT (LOWER(s21_login)) WHERE s21_login IS NOT NULL
+DO UPDATE SET reason = EXCLUDED.reason;
+
+-- name: EnqueueSuppressedLegacyMemberTagsByTelegram :execrows
+UPDATE legacy_member_tag_queue
+SET desired_action = 'clear', state = 'pending', next_attempt_at = CURRENT_TIMESTAMP,
+    attempt_count = 0, last_error_code = '', updated_at = CURRENT_TIMESTAMP
+WHERE telegram_user_id = $1;
+
+-- name: EnqueueSuppressedLegacyMemberTagsByLogin :execrows
+UPDATE legacy_member_tag_queue q
+SET desired_action = 'clear', state = 'pending', next_attempt_at = CURRENT_TIMESTAMP,
+    attempt_count = 0, last_error_code = '', updated_at = CURRENT_TIMESTAMP
+WHERE EXISTS (
+    SELECT 1 FROM legacy_member_tag_mappings m
+    WHERE m.telegram_user_id = q.telegram_user_id AND LOWER(m.s21_login) = LOWER($1)
+) OR EXISTS (
+    SELECT 1 FROM user_accounts ua
+    WHERE ua.platform = 'telegram' AND ua.external_id = q.telegram_user_id::text
+      AND LOWER(ua.s21_login) = LOWER($1)
+);
+
+-- name: EnqueueKnownLegacyMemberTags :execrows
+INSERT INTO legacy_member_tag_queue (chat_id, telegram_user_id, desired_action, state, next_attempt_at, updated_at)
+SELECT gm.chat_id, gm.telegram_user_id, 'apply', 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+FROM telegram_group_members gm
+JOIN telegram_groups g ON g.chat_id = gm.chat_id
+JOIN legacy_member_tag_mappings m ON m.telegram_user_id = gm.telegram_user_id
+WHERE gm.is_member = true AND gm.is_bot = false AND g.is_active = true AND g.is_initialized = true
+  AND NOT EXISTS (
+      SELECT 1 FROM legacy_member_tag_suppressions s
+      WHERE s.telegram_user_id = m.telegram_user_id OR LOWER(s.s21_login) = LOWER(m.s21_login)
+  )
+ON CONFLICT (chat_id, telegram_user_id) DO UPDATE SET
+    desired_action = 'apply', state = 'pending', next_attempt_at = CURRENT_TIMESTAMP,
+    attempt_count = 0, last_error_code = '', updated_at = CURRENT_TIMESTAMP;
+
+-- name: EnqueueLegacyMemberTag :exec
+INSERT INTO legacy_member_tag_queue (chat_id, telegram_user_id, desired_action, state, next_attempt_at, updated_at)
+VALUES ($1, $2, 'apply', 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+ON CONFLICT (chat_id, telegram_user_id) DO UPDATE SET
+    desired_action = 'apply', state = 'pending', next_attempt_at = CURRENT_TIMESTAMP,
+    attempt_count = 0, last_error_code = '', updated_at = CURRENT_TIMESTAMP;
+
+-- name: ListDueLegacyMemberTags :many
+SELECT * FROM legacy_member_tag_queue
+WHERE state = 'pending' AND next_attempt_at <= CURRENT_TIMESTAMP
+ORDER BY next_attempt_at, chat_id, telegram_user_id
+LIMIT $1;
+
+-- name: MarkLegacyMemberTagApplied :exec
+UPDATE legacy_member_tag_queue
+SET state = 'applied', last_applied_tag = $3, attempt_count = 0,
+    last_error_code = '', updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1 AND telegram_user_id = $2;
+
+-- name: MarkLegacyMemberTagSuppressed :exec
+UPDATE legacy_member_tag_queue
+SET state = 'suppressed', last_applied_tag = '', attempt_count = 0,
+    last_error_code = '', updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1 AND telegram_user_id = $2;
+
+-- name: MarkLegacyMemberTagSkipped :exec
+UPDATE legacy_member_tag_queue
+SET state = 'applied', attempt_count = 0, last_error_code = '', updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1 AND telegram_user_id = $2;
+
+-- name: RetryLegacyMemberTag :exec
+UPDATE legacy_member_tag_queue
+SET state = CASE WHEN attempt_count + 1 >= 12 THEN 'failed' ELSE 'pending' END,
+    attempt_count = attempt_count + 1,
+    next_attempt_at = CURRENT_TIMESTAMP + (LEAST(attempt_count + 1, 12) * INTERVAL '5 minutes'),
+    last_error_code = $3, updated_at = CURRENT_TIMESTAMP
+WHERE chat_id = $1 AND telegram_user_id = $2;
+
 -- name: GetRegisteredUserByS21Login :one
 SELECT * FROM registered_users WHERE s21_login = $1;
 

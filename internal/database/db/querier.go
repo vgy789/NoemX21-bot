@@ -47,6 +47,7 @@ type Querier interface {
 	DeleteAllAuthVerificationCodes(ctx context.Context, s21Login pgtype.Text) error
 	DeleteAuthVerificationCode(ctx context.Context, arg DeleteAuthVerificationCodeParams) error
 	DeleteExpiredAuthVerificationCodes(ctx context.Context) error
+	DeleteLegacyMemberTagMappingByLoginExceptTelegram(ctx context.Context, arg DeleteLegacyMemberTagMappingByLoginExceptTelegramParams) error
 	DeleteStaleCoursesCatalog(ctx context.Context, syncBatchID int64) error
 	DeleteStaleNodesCatalog(ctx context.Context, syncBatchID int64) error
 	DeleteStaleProjectNodesCatalog(ctx context.Context, syncBatchID int64) error
@@ -66,6 +67,10 @@ type Querier interface {
 	DeleteTelegramGroupWhitelistByChatAndUser(ctx context.Context, arg DeleteTelegramGroupWhitelistByChatAndUserParams) (int64, error)
 	DeleteTelegramGroupWhitelistByOwner(ctx context.Context, arg DeleteTelegramGroupWhitelistByOwnerParams) (int64, error)
 	DeleteUserAccountByExternalId(ctx context.Context, arg DeleteUserAccountByExternalIdParams) error
+	EnqueueKnownLegacyMemberTags(ctx context.Context) (int64, error)
+	EnqueueLegacyMemberTag(ctx context.Context, arg EnqueueLegacyMemberTagParams) error
+	EnqueueSuppressedLegacyMemberTagsByLogin(ctx context.Context, lower string) (int64, error)
+	EnqueueSuppressedLegacyMemberTagsByTelegram(ctx context.Context, telegramUserID int64) (int64, error)
 	ExistsCoalitionByID(ctx context.Context, arg ExistsCoalitionByIDParams) (bool, error)
 	ExistsOpenReviewRequestByUserAndProject(ctx context.Context, arg ExistsOpenReviewRequestByUserAndProjectParams) (bool, error)
 	ExistsOpenTeamSearchRequestByUserAndProject(ctx context.Context, arg ExistsOpenTeamSearchRequestByUserAndProjectParams) (bool, error)
@@ -95,6 +100,8 @@ type Querier interface {
 	GetGlobalTeamProjectGroups(ctx context.Context) ([]GetGlobalTeamProjectGroupsRow, error)
 	GetLastAuthVerificationCode(ctx context.Context, s21Login pgtype.Text) (AuthVerificationCode, error)
 	GetLatestSapphireGiveawaySyncJob(ctx context.Context) (SapphireGiveawaySyncJob, error)
+	// queries.sql
+	GetLegacyMemberTagMapping(ctx context.Context, telegramUserID int64) (LegacyMemberTagMapping, error)
 	GetLocalClubs(ctx context.Context, campusID pgtype.UUID) ([]GetLocalClubsRow, error)
 	GetMyOpenReviewRequests(ctx context.Context, requesterUserID int64) ([]GetMyOpenReviewRequestsRow, error)
 	GetMyOpenTeamSearchRequests(ctx context.Context, requesterUserID int64) ([]GetMyOpenTeamSearchRequestsRow, error)
@@ -110,7 +117,6 @@ type Querier interface {
 	GetPeerProfile(ctx context.Context, s21Login string) (GetPeerProfileRow, error)
 	GetPlatformCredentials(ctx context.Context, s21Login string) (PlatformCredential, error)
 	GetRegisteredUserByRocketChatId(ctx context.Context, rocketchatID string) (RegisteredUser, error)
-	// queries.sql
 	GetRegisteredUserByS21Login(ctx context.Context, s21Login string) (RegisteredUser, error)
 	GetReviewRequestByID(ctx context.Context, id int64) (GetReviewRequestByIDRow, error)
 	GetReviewRequestsForCleanup(ctx context.Context, arg GetReviewRequestsForCleanupParams) ([]GetReviewRequestsForCleanupRow, error)
@@ -137,7 +143,9 @@ type Querier interface {
 	IncrementReviewRequestViewCount(ctx context.Context, id int64) (int32, error)
 	IncrementTeamSearchRequestViewCount(ctx context.Context, id int64) (int32, error)
 	InsertTelegramGroupLog(ctx context.Context, arg InsertTelegramGroupLogParams) error
+	IsLegacyMemberTagSuppressed(ctx context.Context, arg IsLegacyMemberTagSuppressedParams) (bool, error)
 	ListCoalitionsByCampus(ctx context.Context, campusID pgtype.UUID) ([]Coalition, error)
+	ListDueLegacyMemberTags(ctx context.Context, limit int32) ([]LegacyMemberTagQueue, error)
 	ListDueTelegramGroupWelcomeMessages(ctx context.Context, limit int32) ([]ListDueTelegramGroupWelcomeMessagesRow, error)
 	ListMemberTagGroupsByTelegramUser(ctx context.Context, telegramUserID int64) ([]TelegramGroup, error)
 	ListSapphireGiveawayParticipantLogins(ctx context.Context) ([]string, error)
@@ -156,9 +164,13 @@ type Querier interface {
 	ListTelegramGroupsByOwner(ctx context.Context, ownerTelegramUserID int64) ([]TelegramGroup, error)
 	ListTelegramGroupsWithPRRNotifications(ctx context.Context) ([]TelegramGroup, error)
 	ListTelegramGroupsWithTeamNotifications(ctx context.Context) ([]TelegramGroup, error)
+	MarkLegacyMemberTagApplied(ctx context.Context, arg MarkLegacyMemberTagAppliedParams) error
+	MarkLegacyMemberTagSkipped(ctx context.Context, arg MarkLegacyMemberTagSkippedParams) error
+	MarkLegacyMemberTagSuppressed(ctx context.Context, arg MarkLegacyMemberTagSuppressedParams) error
 	MarkReviewRequestNegotiatingAndIncrementResponses(ctx context.Context, arg MarkReviewRequestNegotiatingAndIncrementResponsesParams) (MarkReviewRequestNegotiatingAndIncrementResponsesRow, error)
 	MarkTeamSearchRequestNegotiatingAndIncrementResponses(ctx context.Context, arg MarkTeamSearchRequestNegotiatingAndIncrementResponsesParams) (MarkTeamSearchRequestNegotiatingAndIncrementResponsesRow, error)
 	MarkTelegramGroupMemberLeft(ctx context.Context, arg MarkTelegramGroupMemberLeftParams) error
+	RetryLegacyMemberTag(ctx context.Context, arg RetryLegacyMemberTagParams) error
 	RetryTelegramGroupWelcomeMessageDeletion(ctx context.Context, arg RetryTelegramGroupWelcomeMessageDeletionParams) error
 	ReturnBookLoan(ctx context.Context, arg ReturnBookLoanParams) error
 	RevokeOldApiKeys(ctx context.Context, userAccountID int64) error
@@ -171,6 +183,8 @@ type Querier interface {
 	SetSapphireGiveawayParticipantFinalSyncJob(ctx context.Context, arg SetSapphireGiveawayParticipantFinalSyncJobParams) error
 	SetSapphireGiveawayStateFinalSyncJob(ctx context.Context, arg SetSapphireGiveawayStateFinalSyncJobParams) error
 	SetTeamSearchRequestStatus(ctx context.Context, arg SetTeamSearchRequestStatusParams) (SetTeamSearchRequestStatusRow, error)
+	SuppressLegacyMemberTagByLogin(ctx context.Context, arg SuppressLegacyMemberTagByLoginParams) error
+	SuppressLegacyMemberTagByTelegram(ctx context.Context, arg SuppressLegacyMemberTagByTelegramParams) error
 	UnlinkTelegramGroupOwner(ctx context.Context, chatID int64) error
 	UnlinkTelegramGroupOwnerIfOwner(ctx context.Context, arg UnlinkTelegramGroupOwnerIfOwnerParams) (int64, error)
 	UpdateRoomBookingDuration(ctx context.Context, arg UpdateRoomBookingDurationParams) error
@@ -204,6 +218,7 @@ type Querier interface {
 	UpsertCoalition(ctx context.Context, arg UpsertCoalitionParams) error
 	UpsertCourseCatalog(ctx context.Context, arg UpsertCourseCatalogParams) error
 	UpsertFSMState(ctx context.Context, arg UpsertFSMStateParams) error
+	UpsertLegacyMemberTagMapping(ctx context.Context, arg UpsertLegacyMemberTagMappingParams) error
 	UpsertNodeCatalog(ctx context.Context, arg UpsertNodeCatalogParams) (int64, error)
 	UpsertParticipantSkill(ctx context.Context, arg UpsertParticipantSkillParams) error
 	UpsertParticipantStatsCache(ctx context.Context, arg UpsertParticipantStatsCacheParams) error

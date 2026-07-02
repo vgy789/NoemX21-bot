@@ -617,6 +617,12 @@ func (s *telegramService) handleTextMessage(b *gotgbot.Bot, ctx *ext.Context) er
 		}
 		return nil
 	}
+	if ctx.Message != nil && ctx.Message.Document != nil {
+		handled, err := s.handleMemberTagImportDocument(context.Background(), b, ctx)
+		if handled || err != nil {
+			return err
+		}
+	}
 
 	userID := ctx.EffectiveUser.Id
 	text := ctx.Message.Text

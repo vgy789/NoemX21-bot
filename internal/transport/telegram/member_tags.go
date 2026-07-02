@@ -115,9 +115,7 @@ func (s *telegramService) tryAutoModerationConsistencyForSender(ctx context.Cont
 	if group.DefenderEnabled && group.DefenderRecheckKnownMembers {
 		s.tryAutoDefenderForKnownGroup(ctx, b, group, telegramUserID)
 	}
-	if group.MemberTagsEnabled {
-		s.tryAutoAssignMemberTagForKnownGroup(ctx, b, group, telegramUserID)
-	}
+	s.tryAutoAssignMemberTagForKnownGroup(ctx, b, group, telegramUserID)
 }
 
 func (s *telegramService) upsertKnownGroupMember(ctx context.Context, chatID, userID int64, isBot bool, status string, isMember bool) {
@@ -133,7 +131,7 @@ func (s *telegramService) upsertKnownGroupMember(ctx context.Context, chatID, us
 		LastSeenAt:     nowTimestamptz(),
 	})
 	if err != nil {
-		s.log.Debug("failed to upsert known telegram group member", "chat_id", chatID, "user_id", userID, "status", status, "error", err)
+		s.log.Debug("failed to upsert known telegram group member", "error_type", safeTelegramErrorType(err))
 	}
 }
 
@@ -147,7 +145,7 @@ func (s *telegramService) markKnownGroupMemberLeft(ctx context.Context, chatID, 
 		LastStatus:     strings.TrimSpace(status),
 		LastSeenAt:     nowTimestamptz(),
 	}); err != nil {
-		s.log.Debug("failed to mark known telegram group member left", "chat_id", chatID, "user_id", userID, "status", status, "error", err)
+		s.log.Debug("failed to mark known telegram group member left", "error_type", safeTelegramErrorType(err))
 	}
 
 	// Ensure the member is recorded even if there was no prior row for mark-left update.
@@ -230,8 +228,8 @@ func (s *telegramService) runGroupMemberTagsWithRollback(ctx context.Context, b 
 			currentTag = ""
 		}
 
-		profile, err := s.userSvc.GetProfileByTelegramID(ctx, known.TelegramUserID)
-		if err != nil {
+		profile, _, suppressed := s.resolveMemberTagProfile(ctx, known.TelegramUserID)
+		if profile == nil || suppressed {
 			result.SkippedUnregistered++
 			continue
 		}
@@ -250,6 +248,7 @@ func (s *telegramService) runGroupMemberTagsWithRollback(ctx context.Context, b 
 			result.Errors++
 			continue
 		}
+		s.recordManagedMemberTag(ctx, chatID, known.TelegramUserID, tag)
 
 		recordRollback(known.TelegramUserID, previousTag)
 		result.Updated++
@@ -328,6 +327,10 @@ func (s *telegramService) syncMemberTagsForRegisteredUser(ctx context.Context, b
 	if err != nil {
 		return nil
 	}
+	suppressed := s.isMemberTagSuppressed(ctx, telegramUserID, profile.Login)
+	if suppressed {
+		return nil
+	}
 
 	groups, err := s.queries.ListMemberTagGroupsByTelegramUser(ctx, telegramUserID)
 	if err != nil {
@@ -365,6 +368,7 @@ func (s *telegramService) syncMemberTagsForRegisteredUser(ctx context.Context, b
 		if err := s.setChatMemberTag(ctx, b, group.ChatID, telegramUserID, tag); err != nil {
 			continue
 		}
+		s.recordManagedMemberTag(ctx, group.ChatID, telegramUserID, tag)
 	}
 
 	return nil
@@ -386,10 +390,9 @@ func (s *telegramService) tryAutoAssignMemberTagForKnownGroup(ctx context.Contex
 	if s == nil || s.queries == nil || s.userSvc == nil || b == nil || group.ChatID == 0 || telegramUserID == 0 {
 		return
 	}
-	if !group.IsActive || !group.IsInitialized || !group.MemberTagsEnabled {
+	if !group.IsActive || !group.IsInitialized {
 		return
 	}
-
 	botMember, err := s.getRawChatMember(ctx, b, group.ChatID, b.Id)
 	if err != nil || !canEditMemberTags(botMember) {
 		return
@@ -409,9 +412,15 @@ func (s *telegramService) tryAutoAssignMemberTagForKnownGroup(ctx context.Contex
 	if strings.TrimSpace(targetMember.Tag) != "" {
 		return
 	}
-
-	profile, err := s.userSvc.GetProfileByTelegramID(ctx, telegramUserID)
-	if err != nil {
+	var profile *service.UserProfile
+	var imported, suppressed bool
+	if group.MemberTagsEnabled {
+		profile, imported, suppressed = s.resolveMemberTagProfile(ctx, telegramUserID)
+	} else {
+		profile, suppressed = s.resolveImportedMemberTagProfile(ctx, telegramUserID)
+		imported = profile != nil
+	}
+	if profile == nil || suppressed || (!group.MemberTagsEnabled && !imported) {
 		return
 	}
 
@@ -421,8 +430,64 @@ func (s *telegramService) tryAutoAssignMemberTagForKnownGroup(ctx context.Contex
 	}
 
 	if err := s.setChatMemberTag(ctx, b, group.ChatID, telegramUserID, tag); err != nil {
-		s.log.Debug("failed to auto-assign member tag", "chat_id", group.ChatID, "user_id", telegramUserID, "error", err)
+		s.log.Debug("failed to auto-assign member tag", "error_type", safeTelegramErrorType(err))
+		return
 	}
+	s.recordManagedMemberTag(ctx, group.ChatID, telegramUserID, tag)
+}
+
+func (s *telegramService) recordManagedMemberTag(ctx context.Context, chatID, telegramUserID int64, tag string) {
+	if s == nil || s.queries == nil || chatID == 0 || telegramUserID == 0 || tag == "" {
+		return
+	}
+	queries, ok := s.queries.(*db.Queries)
+	if !ok {
+		return
+	}
+	_ = queries.EnqueueLegacyMemberTag(ctx, db.EnqueueLegacyMemberTagParams{ChatID: chatID, TelegramUserID: telegramUserID})
+	_ = queries.MarkLegacyMemberTagApplied(ctx, db.MarkLegacyMemberTagAppliedParams{
+		ChatID: chatID, TelegramUserID: telegramUserID, LastAppliedTag: tag,
+	})
+}
+
+func (s *telegramService) resolveMemberTagProfile(ctx context.Context, telegramUserID int64) (*service.UserProfile, bool, bool) {
+	if s == nil || s.queries == nil || telegramUserID <= 0 {
+		return nil, false, false
+	}
+	if s.userSvc != nil {
+		if profile, err := s.userSvc.GetProfileByTelegramID(ctx, telegramUserID); err == nil && profile != nil {
+			return profile, false, s.isMemberTagSuppressed(ctx, telegramUserID, profile.Login)
+		}
+	}
+	profile, suppressed := s.resolveImportedMemberTagProfile(ctx, telegramUserID)
+	return profile, profile != nil, suppressed
+}
+
+func (s *telegramService) resolveImportedMemberTagProfile(ctx context.Context, telegramUserID int64) (*service.UserProfile, bool) {
+	queries, ok := s.queries.(*db.Queries)
+	if !ok {
+		return nil, false
+	}
+	mapping, err := queries.GetLegacyMemberTagMapping(ctx, telegramUserID)
+	if err != nil {
+		return nil, false
+	}
+	status := db.EnumStudentStatusEXPELLED
+	if mapping.ActiveSnapshot {
+		status = db.EnumStudentStatusACTIVE
+	}
+	return &service.UserProfile{Login: mapping.S21Login, Status: status}, s.isMemberTagSuppressed(ctx, telegramUserID, mapping.S21Login)
+}
+
+func (s *telegramService) isMemberTagSuppressed(ctx context.Context, telegramUserID int64, login string) bool {
+	queries, ok := s.queries.(*db.Queries)
+	if !ok {
+		return false
+	}
+	suppressed, _ := queries.IsLegacyMemberTagSuppressed(ctx, db.IsLegacyMemberTagSuppressedParams{
+		TelegramUserID: pgtype.Int8{Int64: telegramUserID, Valid: true}, Lower: strings.ToLower(login),
+	})
+	return suppressed
 }
 
 func (s *telegramService) getRawChatMember(ctx context.Context, b *gotgbot.Bot, chatID, userID int64) (rawChatMember, error) {

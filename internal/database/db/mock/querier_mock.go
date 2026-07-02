@@ -569,6 +569,20 @@ func (mr *MockQuerierMockRecorder) DeleteExpiredAuthVerificationCodes(ctx any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredAuthVerificationCodes", reflect.TypeOf((*MockQuerier)(nil).DeleteExpiredAuthVerificationCodes), ctx)
 }
 
+// DeleteLegacyMemberTagMappingByLoginExceptTelegram mocks base method.
+func (m *MockQuerier) DeleteLegacyMemberTagMappingByLoginExceptTelegram(ctx context.Context, arg db.DeleteLegacyMemberTagMappingByLoginExceptTelegramParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteLegacyMemberTagMappingByLoginExceptTelegram", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DeleteLegacyMemberTagMappingByLoginExceptTelegram indicates an expected call of DeleteLegacyMemberTagMappingByLoginExceptTelegram.
+func (mr *MockQuerierMockRecorder) DeleteLegacyMemberTagMappingByLoginExceptTelegram(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteLegacyMemberTagMappingByLoginExceptTelegram", reflect.TypeOf((*MockQuerier)(nil).DeleteLegacyMemberTagMappingByLoginExceptTelegram), ctx, arg)
+}
+
 // DeleteStaleCoursesCatalog mocks base method.
 func (m *MockQuerier) DeleteStaleCoursesCatalog(ctx context.Context, syncBatchID int64) error {
 	m.ctrl.T.Helper()
@@ -843,6 +857,65 @@ func (m *MockQuerier) DeleteUserAccountByExternalId(ctx context.Context, arg db.
 func (mr *MockQuerierMockRecorder) DeleteUserAccountByExternalId(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserAccountByExternalId", reflect.TypeOf((*MockQuerier)(nil).DeleteUserAccountByExternalId), ctx, arg)
+}
+
+// EnqueueKnownLegacyMemberTags mocks base method.
+func (m *MockQuerier) EnqueueKnownLegacyMemberTags(ctx context.Context) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnqueueKnownLegacyMemberTags", ctx)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EnqueueKnownLegacyMemberTags indicates an expected call of EnqueueKnownLegacyMemberTags.
+func (mr *MockQuerierMockRecorder) EnqueueKnownLegacyMemberTags(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueKnownLegacyMemberTags", reflect.TypeOf((*MockQuerier)(nil).EnqueueKnownLegacyMemberTags), ctx)
+}
+
+// EnqueueLegacyMemberTag mocks base method.
+func (m *MockQuerier) EnqueueLegacyMemberTag(ctx context.Context, arg db.EnqueueLegacyMemberTagParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnqueueLegacyMemberTag", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// EnqueueLegacyMemberTag indicates an expected call of EnqueueLegacyMemberTag.
+func (mr *MockQuerierMockRecorder) EnqueueLegacyMemberTag(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueLegacyMemberTag", reflect.TypeOf((*MockQuerier)(nil).EnqueueLegacyMemberTag), ctx, arg)
+}
+
+// EnqueueSuppressedLegacyMemberTagsByLogin mocks base method.
+func (m *MockQuerier) EnqueueSuppressedLegacyMemberTagsByLogin(ctx context.Context, lower string) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnqueueSuppressedLegacyMemberTagsByLogin", ctx, lower)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EnqueueSuppressedLegacyMemberTagsByLogin indicates an expected call of EnqueueSuppressedLegacyMemberTagsByLogin.
+func (mr *MockQuerierMockRecorder) EnqueueSuppressedLegacyMemberTagsByLogin(ctx, lower any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueSuppressedLegacyMemberTagsByLogin", reflect.TypeOf((*MockQuerier)(nil).EnqueueSuppressedLegacyMemberTagsByLogin), ctx, lower)
+}
+
+// EnqueueSuppressedLegacyMemberTagsByTelegram mocks base method.
+func (m *MockQuerier) EnqueueSuppressedLegacyMemberTagsByTelegram(ctx context.Context, telegramUserID int64) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnqueueSuppressedLegacyMemberTagsByTelegram", ctx, telegramUserID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EnqueueSuppressedLegacyMemberTagsByTelegram indicates an expected call of EnqueueSuppressedLegacyMemberTagsByTelegram.
+func (mr *MockQuerierMockRecorder) EnqueueSuppressedLegacyMemberTagsByTelegram(ctx, telegramUserID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueSuppressedLegacyMemberTagsByTelegram", reflect.TypeOf((*MockQuerier)(nil).EnqueueSuppressedLegacyMemberTagsByTelegram), ctx, telegramUserID)
 }
 
 // ExistsCoalitionByID mocks base method.
@@ -1277,6 +1350,21 @@ func (m *MockQuerier) GetLatestSapphireGiveawaySyncJob(ctx context.Context) (db.
 func (mr *MockQuerierMockRecorder) GetLatestSapphireGiveawaySyncJob(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestSapphireGiveawaySyncJob", reflect.TypeOf((*MockQuerier)(nil).GetLatestSapphireGiveawaySyncJob), ctx)
+}
+
+// GetLegacyMemberTagMapping mocks base method.
+func (m *MockQuerier) GetLegacyMemberTagMapping(ctx context.Context, telegramUserID int64) (db.LegacyMemberTagMapping, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLegacyMemberTagMapping", ctx, telegramUserID)
+	ret0, _ := ret[0].(db.LegacyMemberTagMapping)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLegacyMemberTagMapping indicates an expected call of GetLegacyMemberTagMapping.
+func (mr *MockQuerierMockRecorder) GetLegacyMemberTagMapping(ctx, telegramUserID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLegacyMemberTagMapping", reflect.TypeOf((*MockQuerier)(nil).GetLegacyMemberTagMapping), ctx, telegramUserID)
 }
 
 // GetLocalClubs mocks base method.
@@ -1863,6 +1951,21 @@ func (mr *MockQuerierMockRecorder) InsertTelegramGroupLog(ctx, arg any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTelegramGroupLog", reflect.TypeOf((*MockQuerier)(nil).InsertTelegramGroupLog), ctx, arg)
 }
 
+// IsLegacyMemberTagSuppressed mocks base method.
+func (m *MockQuerier) IsLegacyMemberTagSuppressed(ctx context.Context, arg db.IsLegacyMemberTagSuppressedParams) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsLegacyMemberTagSuppressed", ctx, arg)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IsLegacyMemberTagSuppressed indicates an expected call of IsLegacyMemberTagSuppressed.
+func (mr *MockQuerierMockRecorder) IsLegacyMemberTagSuppressed(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsLegacyMemberTagSuppressed", reflect.TypeOf((*MockQuerier)(nil).IsLegacyMemberTagSuppressed), ctx, arg)
+}
+
 // ListCoalitionsByCampus mocks base method.
 func (m *MockQuerier) ListCoalitionsByCampus(ctx context.Context, campusID pgtype.UUID) ([]db.Coalition, error) {
 	m.ctrl.T.Helper()
@@ -1876,6 +1979,21 @@ func (m *MockQuerier) ListCoalitionsByCampus(ctx context.Context, campusID pgtyp
 func (mr *MockQuerierMockRecorder) ListCoalitionsByCampus(ctx, campusID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCoalitionsByCampus", reflect.TypeOf((*MockQuerier)(nil).ListCoalitionsByCampus), ctx, campusID)
+}
+
+// ListDueLegacyMemberTags mocks base method.
+func (m *MockQuerier) ListDueLegacyMemberTags(ctx context.Context, limit int32) ([]db.LegacyMemberTagQueue, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListDueLegacyMemberTags", ctx, limit)
+	ret0, _ := ret[0].([]db.LegacyMemberTagQueue)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListDueLegacyMemberTags indicates an expected call of ListDueLegacyMemberTags.
+func (mr *MockQuerierMockRecorder) ListDueLegacyMemberTags(ctx, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListDueLegacyMemberTags", reflect.TypeOf((*MockQuerier)(nil).ListDueLegacyMemberTags), ctx, limit)
 }
 
 // ListDueTelegramGroupWelcomeMessages mocks base method.
@@ -2148,6 +2266,48 @@ func (mr *MockQuerierMockRecorder) ListTelegramGroupsWithTeamNotifications(ctx a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListTelegramGroupsWithTeamNotifications", reflect.TypeOf((*MockQuerier)(nil).ListTelegramGroupsWithTeamNotifications), ctx)
 }
 
+// MarkLegacyMemberTagApplied mocks base method.
+func (m *MockQuerier) MarkLegacyMemberTagApplied(ctx context.Context, arg db.MarkLegacyMemberTagAppliedParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkLegacyMemberTagApplied", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// MarkLegacyMemberTagApplied indicates an expected call of MarkLegacyMemberTagApplied.
+func (mr *MockQuerierMockRecorder) MarkLegacyMemberTagApplied(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkLegacyMemberTagApplied", reflect.TypeOf((*MockQuerier)(nil).MarkLegacyMemberTagApplied), ctx, arg)
+}
+
+// MarkLegacyMemberTagSkipped mocks base method.
+func (m *MockQuerier) MarkLegacyMemberTagSkipped(ctx context.Context, arg db.MarkLegacyMemberTagSkippedParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkLegacyMemberTagSkipped", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// MarkLegacyMemberTagSkipped indicates an expected call of MarkLegacyMemberTagSkipped.
+func (mr *MockQuerierMockRecorder) MarkLegacyMemberTagSkipped(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkLegacyMemberTagSkipped", reflect.TypeOf((*MockQuerier)(nil).MarkLegacyMemberTagSkipped), ctx, arg)
+}
+
+// MarkLegacyMemberTagSuppressed mocks base method.
+func (m *MockQuerier) MarkLegacyMemberTagSuppressed(ctx context.Context, arg db.MarkLegacyMemberTagSuppressedParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "MarkLegacyMemberTagSuppressed", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// MarkLegacyMemberTagSuppressed indicates an expected call of MarkLegacyMemberTagSuppressed.
+func (mr *MockQuerierMockRecorder) MarkLegacyMemberTagSuppressed(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkLegacyMemberTagSuppressed", reflect.TypeOf((*MockQuerier)(nil).MarkLegacyMemberTagSuppressed), ctx, arg)
+}
+
 // MarkReviewRequestNegotiatingAndIncrementResponses mocks base method.
 func (m *MockQuerier) MarkReviewRequestNegotiatingAndIncrementResponses(ctx context.Context, arg db.MarkReviewRequestNegotiatingAndIncrementResponsesParams) (db.MarkReviewRequestNegotiatingAndIncrementResponsesRow, error) {
 	m.ctrl.T.Helper()
@@ -2190,6 +2350,20 @@ func (m *MockQuerier) MarkTelegramGroupMemberLeft(ctx context.Context, arg db.Ma
 func (mr *MockQuerierMockRecorder) MarkTelegramGroupMemberLeft(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkTelegramGroupMemberLeft", reflect.TypeOf((*MockQuerier)(nil).MarkTelegramGroupMemberLeft), ctx, arg)
+}
+
+// RetryLegacyMemberTag mocks base method.
+func (m *MockQuerier) RetryLegacyMemberTag(ctx context.Context, arg db.RetryLegacyMemberTagParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RetryLegacyMemberTag", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RetryLegacyMemberTag indicates an expected call of RetryLegacyMemberTag.
+func (mr *MockQuerierMockRecorder) RetryLegacyMemberTag(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryLegacyMemberTag", reflect.TypeOf((*MockQuerier)(nil).RetryLegacyMemberTag), ctx, arg)
 }
 
 // RetryTelegramGroupWelcomeMessageDeletion mocks base method.
@@ -2365,6 +2539,34 @@ func (m *MockQuerier) SetTeamSearchRequestStatus(ctx context.Context, arg db.Set
 func (mr *MockQuerierMockRecorder) SetTeamSearchRequestStatus(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTeamSearchRequestStatus", reflect.TypeOf((*MockQuerier)(nil).SetTeamSearchRequestStatus), ctx, arg)
+}
+
+// SuppressLegacyMemberTagByLogin mocks base method.
+func (m *MockQuerier) SuppressLegacyMemberTagByLogin(ctx context.Context, arg db.SuppressLegacyMemberTagByLoginParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SuppressLegacyMemberTagByLogin", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SuppressLegacyMemberTagByLogin indicates an expected call of SuppressLegacyMemberTagByLogin.
+func (mr *MockQuerierMockRecorder) SuppressLegacyMemberTagByLogin(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SuppressLegacyMemberTagByLogin", reflect.TypeOf((*MockQuerier)(nil).SuppressLegacyMemberTagByLogin), ctx, arg)
+}
+
+// SuppressLegacyMemberTagByTelegram mocks base method.
+func (m *MockQuerier) SuppressLegacyMemberTagByTelegram(ctx context.Context, arg db.SuppressLegacyMemberTagByTelegramParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SuppressLegacyMemberTagByTelegram", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SuppressLegacyMemberTagByTelegram indicates an expected call of SuppressLegacyMemberTagByTelegram.
+func (mr *MockQuerierMockRecorder) SuppressLegacyMemberTagByTelegram(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SuppressLegacyMemberTagByTelegram", reflect.TypeOf((*MockQuerier)(nil).SuppressLegacyMemberTagByTelegram), ctx, arg)
 }
 
 // UnlinkTelegramGroupOwner mocks base method.
@@ -2849,6 +3051,20 @@ func (m *MockQuerier) UpsertFSMState(ctx context.Context, arg db.UpsertFSMStateP
 func (mr *MockQuerierMockRecorder) UpsertFSMState(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertFSMState", reflect.TypeOf((*MockQuerier)(nil).UpsertFSMState), ctx, arg)
+}
+
+// UpsertLegacyMemberTagMapping mocks base method.
+func (m *MockQuerier) UpsertLegacyMemberTagMapping(ctx context.Context, arg db.UpsertLegacyMemberTagMappingParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertLegacyMemberTagMapping", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertLegacyMemberTagMapping indicates an expected call of UpsertLegacyMemberTagMapping.
+func (mr *MockQuerierMockRecorder) UpsertLegacyMemberTagMapping(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertLegacyMemberTagMapping", reflect.TypeOf((*MockQuerier)(nil).UpsertLegacyMemberTagMapping), ctx, arg)
 }
 
 // UpsertNodeCatalog mocks base method.

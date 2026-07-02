@@ -246,6 +246,17 @@ func (e *Engine) GetCurrentRender(ctx context.Context, userID int64) (*RenderObj
 	return e.renderState(ctx, state, &flowState), nil
 }
 
+func (e *Engine) CurrentState(ctx context.Context, userID int64) (string, string, error) {
+	state, err := e.repo.GetState(ctx, userID)
+	if err != nil {
+		return "", "", err
+	}
+	if state == nil {
+		return "", "", fmt.Errorf("user state not found")
+	}
+	return state.CurrentFlow, state.CurrentState, nil
+}
+
 // Process handles an input (callback) and transitions the state.
 func (e *Engine) Process(ctx context.Context, userID int64, input string) (*RenderObject, error) {
 	// Сохраняем оригинальный регистр входа (важно для динамических callback-данных,
