@@ -561,11 +561,12 @@ func buildMemberTagSettingsUpdates(group db.TelegramGroup) map[string]any {
 	}
 
 	formatLabel := "login"
-	if format == memberTagFormatLoginLevel {
+	switch format {
+	case memberTagFormatLoginLevel:
 		formatLabel = "login [lvl]"
-	} else if format == memberTagFormatLoginCampusEn {
+	case memberTagFormatLoginCampusEn:
 		formatLabel = "login short_name EN"
-	} else if format == memberTagFormatLoginCampusRu {
+	case memberTagFormatLoginCampusRu:
 		formatLabel = "login short_name RU"
 	}
 
@@ -586,16 +587,17 @@ func buildMemberTagSettingsUpdates(group db.TelegramGroup) map[string]any {
 	loginLvlOptionEN := "⬜ login [lvl]"
 	loginCampusEnOption := "⬜ login NSK"
 	loginCampusRuOption := "⬜ login НСК"
-	if format == memberTagFormatLoginLevel {
+	switch format {
+	case memberTagFormatLoginLevel:
 		loginOptionRU = "⬜ login"
 		loginOptionEN = "⬜ login"
 		loginLvlOptionRU = "✅ login [lvl]"
 		loginLvlOptionEN = "✅ login [lvl]"
-	} else if format == memberTagFormatLoginCampusEn {
+	case memberTagFormatLoginCampusEn:
 		loginOptionRU = "⬜ login"
 		loginOptionEN = "⬜ login"
 		loginCampusEnOption = "✅ login NSK"
-	} else if format == memberTagFormatLoginCampusRu {
+	case memberTagFormatLoginCampusRu:
 		loginOptionRU = "⬜ login"
 		loginOptionEN = "⬜ login"
 		loginCampusRuOption = "✅ login НСК"

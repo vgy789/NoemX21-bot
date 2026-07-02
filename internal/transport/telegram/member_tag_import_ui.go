@@ -65,7 +65,6 @@ func (s *telegramService) handleMemberTagImportDocument(ctx context.Context, b *
 		return true, nil
 	}
 	report, err := membertagimport.Parse(bytes.NewReader(data))
-	data = nil
 	if err != nil {
 		if s.log != nil {
 			s.log.Warn("legacy member-tag upload parse failed", "error_type", safeTelegramErrorType(err))

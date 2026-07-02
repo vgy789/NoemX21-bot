@@ -135,7 +135,7 @@ func readMemberTagImport(path string) (membertagimport.Report, time.Time, error)
 	if err != nil {
 		return membertagimport.Report{}, time.Time{}, fmt.Errorf("open import: %w", err)
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	info, err := file.Stat()
 	if err != nil {
 		return membertagimport.Report{}, time.Time{}, fmt.Errorf("stat import: %w", err)
