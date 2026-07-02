@@ -46,6 +46,56 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 		log = slog.Default()
 	}
 
+	registry.Register("preview_global_member_tags", func(ctx context.Context, userID int64, _ map[string]any) (string, map[string]any, error) {
+		updates := globalMemberTagStatusUpdates(fsm.GlobalMemberTagRunStatus{State: "unavailable"})
+		runner, ok := fsm.MemberTagRunnerFromContext(ctx)
+		global, supported := runner.(fsm.GlobalMemberTagRunner)
+		if !ok || !supported {
+			return "", updates, nil
+		}
+		status, err := global.PreviewGlobalMemberTags(ctx, userID)
+		if err != nil {
+			updates["global_member_tags_summary"] = "Не удалось рассчитать объём запуска."
+			return "", updates, nil
+		}
+		return "", globalMemberTagStatusUpdates(status), nil
+	})
+
+	registry.Register("start_global_member_tags", func(ctx context.Context, userID int64, _ map[string]any) (string, map[string]any, error) {
+		runner, ok := fsm.MemberTagRunnerFromContext(ctx)
+		global, supported := runner.(fsm.GlobalMemberTagRunner)
+		if !ok || !supported {
+			return "", globalMemberTagStatusUpdates(fsm.GlobalMemberTagRunStatus{State: "unavailable"}), nil
+		}
+		status, err := global.StartGlobalMemberTags(ctx, userID)
+		if err != nil {
+			return "", map[string]any{"global_member_tags_summary": "Не удалось запустить обработку.", "global_member_tags_running": false}, nil
+		}
+		return "", globalMemberTagStatusUpdates(status), nil
+	})
+
+	registry.Register("load_global_member_tags_status", func(ctx context.Context, userID int64, _ map[string]any) (string, map[string]any, error) {
+		runner, ok := fsm.MemberTagRunnerFromContext(ctx)
+		global, supported := runner.(fsm.GlobalMemberTagRunner)
+		if !ok || !supported {
+			return "", globalMemberTagStatusUpdates(fsm.GlobalMemberTagRunStatus{State: "unavailable"}), nil
+		}
+		status, err := global.GlobalMemberTagStatus(ctx, userID)
+		if err != nil {
+			return "", map[string]any{"global_member_tags_summary": "Статус недоступен.", "global_member_tags_running": false}, nil
+		}
+		return "", globalMemberTagStatusUpdates(status), nil
+	})
+
+	registry.Register("cancel_global_member_tags", func(ctx context.Context, userID int64, _ map[string]any) (string, map[string]any, error) {
+		if runner, ok := fsm.MemberTagRunnerFromContext(ctx); ok {
+			if global, supported := runner.(fsm.GlobalMemberTagRunner); supported {
+				_ = global.CancelGlobalMemberTags(ctx, userID)
+			}
+		}
+		return "", map[string]any{"global_member_tags_summary": "Запрошена отмена.", "global_member_tags_running": false}, nil
+	})
+
 	registry.Register("load_admin_context", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		updates := map[string]any{
 			"is_group_owner": false,
@@ -344,6 +394,15 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 	registerPRRActions(registry, log, queries)
 	registerTeamActions(registry, log, queries)
 	registerWelcomeActions(registry, log, queries)
+}
+
+func globalMemberTagStatusUpdates(status fsm.GlobalMemberTagRunStatus) map[string]any {
+	running := status.State == "running" || status.State == "cancelling"
+	summary := fmt.Sprintf("state=%s, groups=%d, profiles=%d, processed=%d/%d, discovered=%d, verified=%d, updated=%d, preserved=%d, not_member=%d, no_rights=%d, errors=%d",
+		status.State, status.EligibleGroups, status.CandidateProfiles, status.ProcessedItems, status.TotalItems,
+		status.DiscoveredMembers, status.VerifiedMembers, status.UpdatedTags, status.PreservedTags,
+		status.NotMembers, status.SkippedNoRights, status.Errors)
+	return map[string]any{"global_member_tags_summary": summary, "global_member_tags_running": running}
 }
 
 func resetGroupSlots(updates map[string]any) {

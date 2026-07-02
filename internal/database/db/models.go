@@ -290,6 +290,36 @@ type FsmUserState struct {
 	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
 }
 
+type GlobalMemberTagRun struct {
+	ID                  int64              `json:"id"`
+	OwnerTelegramUserID int64              `json:"owner_telegram_user_id"`
+	State               string             `json:"state"`
+	EligibleGroups      int32              `json:"eligible_groups"`
+	CandidateProfiles   int32              `json:"candidate_profiles"`
+	TotalItems          int64              `json:"total_items"`
+	ProcessedItems      int64              `json:"processed_items"`
+	DiscoveredMembers   int64              `json:"discovered_members"`
+	VerifiedMembers     int64              `json:"verified_members"`
+	UpdatedTags         int64              `json:"updated_tags"`
+	PreservedTags       int64              `json:"preserved_tags"`
+	NotMembers          int64              `json:"not_members"`
+	SkippedNoRights     int64              `json:"skipped_no_rights"`
+	ErrorCount          int64              `json:"error_count"`
+	CreatedAt           pgtype.Timestamptz `json:"created_at"`
+	UpdatedAt           pgtype.Timestamptz `json:"updated_at"`
+	FinishedAt          pgtype.Timestamptz `json:"finished_at"`
+}
+
+type GlobalMemberTagRunItem struct {
+	RunID          int64              `json:"run_id"`
+	ChatID         int64              `json:"chat_id"`
+	TelegramUserID int64              `json:"telegram_user_id"`
+	State          string             `json:"state"`
+	AttemptCount   int32              `json:"attempt_count"`
+	NextAttemptAt  pgtype.Timestamptz `json:"next_attempt_at"`
+	CreatedAt      pgtype.Timestamptz `json:"created_at"`
+}
+
 type LegacyMemberTagMapping struct {
 	TelegramUserID     int64              `json:"telegram_user_id"`
 	S21Login           string             `json:"s21_login"`

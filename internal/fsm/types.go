@@ -148,6 +148,21 @@ type MemberTagRunner interface {
 	SyncMemberTagsForRegisteredUser(ctx context.Context, telegramUserID int64) error
 }
 
+type GlobalMemberTagRunStatus struct {
+	ID, TotalItems, ProcessedItems, DiscoveredMembers, VerifiedMembers int64
+	UpdatedTags, PreservedTags, NotMembers, SkippedNoRights, Errors    int64
+	EligibleGroups, CandidateProfiles                                  int32
+	State                                                              string
+}
+
+// GlobalMemberTagRunner controls the configured bot owner's cross-group scan.
+type GlobalMemberTagRunner interface {
+	PreviewGlobalMemberTags(ctx context.Context, ownerTelegramUserID int64) (GlobalMemberTagRunStatus, error)
+	StartGlobalMemberTags(ctx context.Context, ownerTelegramUserID int64) (GlobalMemberTagRunStatus, error)
+	GlobalMemberTagStatus(ctx context.Context, ownerTelegramUserID int64) (GlobalMemberTagRunStatus, error)
+	CancelGlobalMemberTags(ctx context.Context, ownerTelegramUserID int64) error
+}
+
 // MemberTagRollbackEntry stores previous member tag state for a single user.
 type MemberTagRollbackEntry struct {
 	TelegramUserID int64  `json:"telegram_user_id"`

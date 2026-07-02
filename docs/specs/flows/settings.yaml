@@ -45,6 +45,13 @@ states:
           condition: "is_bot_owner == true"
           next_state: MEMBER_TAG_IMPORT
           row: 3
+        - id: global_member_tags
+          label:
+            ru: 🌐 Проставить теги во всех группах
+            en: 🌐 Tag all groups
+          condition: "is_bot_owner == true"
+          next_state: GLOBAL_MEMBER_TAGS_PREVIEW
+          row: 4
         - id: back
           label:
             ru: 🏠 На главную
@@ -73,6 +80,77 @@ states:
             ru: ⚙️ Назад
             en: ⚙️ Back
           next_state: SETTINGS_MENU
+
+  GLOBAL_MEMBER_TAGS_PREVIEW:
+    type: interactive
+    description: Owner confirmation for a cross-group member-tag scan
+    on_enter:
+      - action: preview_global_member_tags
+    interface:
+      text:
+        ru: |
+          🌐 *Глобальная проставка тегов*
+
+          Бот проверит через Telegram все зарегистрированные и импортированные ID во всех группах с включёнными тегами и численностью больше 10.
+
+          `{global_member_tags_summary}`
+        en: |
+          🌐 *Global member tags*
+
+          The bot will check every registered and imported ID in every eligible group.
+
+          `{global_member_tags_summary}`
+      buttons:
+        - id: start_global_tags
+          label:
+            ru: 🚀 Запустить
+            en: 🚀 Start
+          action: start_global_member_tags
+          next_state: GLOBAL_MEMBER_TAGS_STATUS
+          row: 1
+        - id: back
+          label:
+            ru: ⚙️ Назад
+            en: ⚙️ Back
+          next_state: SETTINGS_MENU
+          row: 2
+
+  GLOBAL_MEMBER_TAGS_STATUS:
+    type: interactive
+    description: Owner status for the cross-group member-tag scan
+    on_enter:
+      - action: load_global_member_tags_status
+    interface:
+      text:
+        ru: |
+          🌐 *Статус глобальной проставки*
+
+          `{global_member_tags_summary}`
+        en: |
+          🌐 *Global member-tag status*
+
+          `{global_member_tags_summary}`
+      buttons:
+        - id: refresh_global_tags
+          label:
+            ru: 🔄 Обновить
+            en: 🔄 Refresh
+          next_state: GLOBAL_MEMBER_TAGS_STATUS
+          row: 1
+        - id: cancel_global_tags
+          label:
+            ru: ⛔ Отменить
+            en: ⛔ Cancel
+          action: cancel_global_member_tags
+          condition: "global_member_tags_running == true"
+          next_state: GLOBAL_MEMBER_TAGS_STATUS
+          row: 2
+        - id: back
+          label:
+            ru: ⚙️ Назад
+            en: ⚙️ Back
+          next_state: SETTINGS_MENU
+          row: 3
 
   PROFILE_SETTINGS:
     type: interactive

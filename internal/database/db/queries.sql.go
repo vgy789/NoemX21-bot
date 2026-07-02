@@ -180,6 +180,54 @@ func (q *Queries) CloseTeamSearchRequestByID(ctx context.Context, id int64) erro
 	return err
 }
 
+const completeGlobalMemberTagRunItem = `-- name: CompleteGlobalMemberTagRunItem :exec
+WITH removed AS (
+    DELETE FROM global_member_tag_run_items
+    WHERE run_id = $1 AND chat_id = $2 AND telegram_user_id = $3
+    RETURNING run_id
+)
+UPDATE global_member_tag_runs SET
+    processed_items = processed_items + 1,
+    discovered_members = discovered_members + CASE WHEN $4::BOOLEAN THEN 1 ELSE 0 END,
+    verified_members = verified_members + CASE WHEN $5::BOOLEAN THEN 1 ELSE 0 END,
+    updated_tags = updated_tags + CASE WHEN $6::BOOLEAN THEN 1 ELSE 0 END,
+    preserved_tags = preserved_tags + CASE WHEN $7::BOOLEAN THEN 1 ELSE 0 END,
+    not_members = not_members + CASE WHEN $8::BOOLEAN THEN 1 ELSE 0 END,
+    skipped_no_rights = skipped_no_rights + CASE WHEN $9::BOOLEAN THEN 1 ELSE 0 END,
+    error_count = error_count + CASE WHEN $10::BOOLEAN THEN 1 ELSE 0 END,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id IN (SELECT run_id FROM removed)
+`
+
+type CompleteGlobalMemberTagRunItemParams struct {
+	RunID          int64 `json:"run_id"`
+	ChatID         int64 `json:"chat_id"`
+	TelegramUserID int64 `json:"telegram_user_id"`
+	Column4        bool  `json:"column_4"`
+	Column5        bool  `json:"column_5"`
+	Column6        bool  `json:"column_6"`
+	Column7        bool  `json:"column_7"`
+	Column8        bool  `json:"column_8"`
+	Column9        bool  `json:"column_9"`
+	Column10       bool  `json:"column_10"`
+}
+
+func (q *Queries) CompleteGlobalMemberTagRunItem(ctx context.Context, arg CompleteGlobalMemberTagRunItemParams) error {
+	_, err := q.db.Exec(ctx, completeGlobalMemberTagRunItem,
+		arg.RunID,
+		arg.ChatID,
+		arg.TelegramUserID,
+		arg.Column4,
+		arg.Column5,
+		arg.Column6,
+		arg.Column7,
+		arg.Column8,
+		arg.Column9,
+		arg.Column10,
+	)
+	return err
+}
+
 const countBooksByCampus = `-- name: CountBooksByCampus :one
 SELECT 
     count(*)::int as total_books,
@@ -216,6 +264,17 @@ func (q *Queries) CountBooksByCategory(ctx context.Context, arg CountBooksByCate
 	var column_1 int32
 	err := row.Scan(&column_1)
 	return column_1, err
+}
+
+const countGlobalMemberTagRunItems = `-- name: CountGlobalMemberTagRunItems :one
+SELECT COUNT(*) FROM global_member_tag_run_items WHERE run_id = $1
+`
+
+func (q *Queries) CountGlobalMemberTagRunItems(ctx context.Context, runID int64) (int64, error) {
+	row := q.db.QueryRow(ctx, countGlobalMemberTagRunItems, runID)
+	var count int64
+	err := row.Scan(&count)
+	return count, err
 }
 
 const countOpenReviewRequestsByUser = `-- name: CountOpenReviewRequestsByUser :one
@@ -414,6 +473,44 @@ func (q *Queries) CreateBookLoan(ctx context.Context, arg CreateBookLoanParams) 
 		&i.BorrowedAt,
 		&i.DueAt,
 		&i.ReturnedAt,
+	)
+	return i, err
+}
+
+const createGlobalMemberTagRun = `-- name: CreateGlobalMemberTagRun :one
+INSERT INTO global_member_tag_runs (
+    owner_telegram_user_id, state, eligible_groups, candidate_profiles
+) VALUES ($1, 'running', $2, $3)
+RETURNING id, owner_telegram_user_id, state, eligible_groups, candidate_profiles, total_items, processed_items, discovered_members, verified_members, updated_tags, preserved_tags, not_members, skipped_no_rights, error_count, created_at, updated_at, finished_at
+`
+
+type CreateGlobalMemberTagRunParams struct {
+	OwnerTelegramUserID int64 `json:"owner_telegram_user_id"`
+	EligibleGroups      int32 `json:"eligible_groups"`
+	CandidateProfiles   int32 `json:"candidate_profiles"`
+}
+
+func (q *Queries) CreateGlobalMemberTagRun(ctx context.Context, arg CreateGlobalMemberTagRunParams) (GlobalMemberTagRun, error) {
+	row := q.db.QueryRow(ctx, createGlobalMemberTagRun, arg.OwnerTelegramUserID, arg.EligibleGroups, arg.CandidateProfiles)
+	var i GlobalMemberTagRun
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerTelegramUserID,
+		&i.State,
+		&i.EligibleGroups,
+		&i.CandidateProfiles,
+		&i.TotalItems,
+		&i.ProcessedItems,
+		&i.DiscoveredMembers,
+		&i.VerifiedMembers,
+		&i.UpdatedTags,
+		&i.PreservedTags,
+		&i.NotMembers,
+		&i.SkippedNoRights,
+		&i.ErrorCount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.FinishedAt,
 	)
 	return i, err
 }
@@ -867,6 +964,19 @@ func (q *Queries) DeleteExpiredAuthVerificationCodes(ctx context.Context) error 
 	return err
 }
 
+const deleteExpiredGlobalMemberTagRuns = `-- name: DeleteExpiredGlobalMemberTagRuns :execrows
+DELETE FROM global_member_tag_runs
+WHERE state IN ('completed', 'cancelled') AND finished_at < CURRENT_TIMESTAMP - INTERVAL '30 days'
+`
+
+func (q *Queries) DeleteExpiredGlobalMemberTagRuns(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredGlobalMemberTagRuns)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteLegacyMemberTagMappingByLoginExceptTelegram = `-- name: DeleteLegacyMemberTagMappingByLoginExceptTelegram :exec
 DELETE FROM legacy_member_tag_mappings
 WHERE LOWER(s21_login) = LOWER($1) AND telegram_user_id <> $2
@@ -1208,6 +1318,40 @@ func (q *Queries) DeleteUserAccountByExternalId(ctx context.Context, arg DeleteU
 	return err
 }
 
+const enqueueGlobalMemberTagRunGroup = `-- name: EnqueueGlobalMemberTagRunGroup :execrows
+INSERT INTO global_member_tag_run_items (run_id, chat_id, telegram_user_id)
+SELECT $1, $2, candidate.telegram_user_id
+FROM (
+    SELECT m.telegram_user_id FROM legacy_member_tag_mappings m
+    WHERE NOT EXISTS (
+        SELECT 1 FROM legacy_member_tag_suppressions s
+        WHERE s.telegram_user_id = m.telegram_user_id OR LOWER(s.s21_login) = LOWER(m.s21_login)
+    )
+    UNION
+    SELECT ua.external_id::BIGINT AS telegram_user_id
+    FROM user_accounts ua
+    WHERE ua.platform = 'telegram' AND ua.external_id ~ '^[1-9][0-9]*$'
+      AND NOT EXISTS (
+          SELECT 1 FROM legacy_member_tag_suppressions s
+          WHERE s.telegram_user_id = ua.external_id::BIGINT OR LOWER(s.s21_login) = LOWER(ua.s21_login)
+      )
+) candidate
+ON CONFLICT DO NOTHING
+`
+
+type EnqueueGlobalMemberTagRunGroupParams struct {
+	RunID  int64 `json:"run_id"`
+	ChatID int64 `json:"chat_id"`
+}
+
+func (q *Queries) EnqueueGlobalMemberTagRunGroup(ctx context.Context, arg EnqueueGlobalMemberTagRunGroupParams) (int64, error) {
+	result, err := q.db.Exec(ctx, enqueueGlobalMemberTagRunGroup, arg.RunID, arg.ChatID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const enqueueKnownLegacyMemberTags = `-- name: EnqueueKnownLegacyMemberTags :execrows
 INSERT INTO legacy_member_tag_queue (chat_id, telegram_user_id, desired_action, state, next_attempt_at, updated_at)
 SELECT gm.chat_id, gm.telegram_user_id, 'apply', 'pending', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
@@ -1372,6 +1516,24 @@ func (q *Queries) ExistsTelegramGroupWhitelist(ctx context.Context, arg ExistsTe
 	return exists, err
 }
 
+const finishGlobalMemberTagRun = `-- name: FinishGlobalMemberTagRun :exec
+WITH cleared AS (
+    DELETE FROM global_member_tag_run_items WHERE run_id = $1
+)
+UPDATE global_member_tag_runs SET state = $2, finished_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1
+`
+
+type FinishGlobalMemberTagRunParams struct {
+	ID    int64  `json:"id"`
+	State string `json:"state"`
+}
+
+func (q *Queries) FinishGlobalMemberTagRun(ctx context.Context, arg FinishGlobalMemberTagRunParams) error {
+	_, err := q.db.Exec(ctx, finishGlobalMemberTagRun, arg.ID, arg.State)
+	return err
+}
+
 const finishSapphireGiveawaySyncJob = `-- name: FinishSapphireGiveawaySyncJob :exec
 UPDATE sapphire_giveaway_sync_jobs
 SET status = $2,
@@ -1420,6 +1582,37 @@ func (q *Queries) GetActiveApiKey(ctx context.Context, userAccountID int64) (Api
 		&i.CreatedAt,
 		&i.RevokedAt,
 		&i.ExpiresAt,
+	)
+	return i, err
+}
+
+const getActiveGlobalMemberTagRun = `-- name: GetActiveGlobalMemberTagRun :one
+SELECT id, owner_telegram_user_id, state, eligible_groups, candidate_profiles, total_items, processed_items, discovered_members, verified_members, updated_tags, preserved_tags, not_members, skipped_no_rights, error_count, created_at, updated_at, finished_at FROM global_member_tag_runs
+WHERE state IN ('running', 'cancelling')
+ORDER BY id DESC LIMIT 1
+`
+
+func (q *Queries) GetActiveGlobalMemberTagRun(ctx context.Context) (GlobalMemberTagRun, error) {
+	row := q.db.QueryRow(ctx, getActiveGlobalMemberTagRun)
+	var i GlobalMemberTagRun
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerTelegramUserID,
+		&i.State,
+		&i.EligibleGroups,
+		&i.CandidateProfiles,
+		&i.TotalItems,
+		&i.ProcessedItems,
+		&i.DiscoveredMembers,
+		&i.VerifiedMembers,
+		&i.UpdatedTags,
+		&i.PreservedTags,
+		&i.NotMembers,
+		&i.SkippedNoRights,
+		&i.ErrorCount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.FinishedAt,
 	)
 	return i, err
 }
@@ -2289,6 +2482,35 @@ func (q *Queries) GetLastAuthVerificationCode(ctx context.Context, s21Login pgty
 	return i, err
 }
 
+const getLatestGlobalMemberTagRun = `-- name: GetLatestGlobalMemberTagRun :one
+SELECT id, owner_telegram_user_id, state, eligible_groups, candidate_profiles, total_items, processed_items, discovered_members, verified_members, updated_tags, preserved_tags, not_members, skipped_no_rights, error_count, created_at, updated_at, finished_at FROM global_member_tag_runs ORDER BY id DESC LIMIT 1
+`
+
+func (q *Queries) GetLatestGlobalMemberTagRun(ctx context.Context) (GlobalMemberTagRun, error) {
+	row := q.db.QueryRow(ctx, getLatestGlobalMemberTagRun)
+	var i GlobalMemberTagRun
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerTelegramUserID,
+		&i.State,
+		&i.EligibleGroups,
+		&i.CandidateProfiles,
+		&i.TotalItems,
+		&i.ProcessedItems,
+		&i.DiscoveredMembers,
+		&i.VerifiedMembers,
+		&i.UpdatedTags,
+		&i.PreservedTags,
+		&i.NotMembers,
+		&i.SkippedNoRights,
+		&i.ErrorCount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
 const getLatestSapphireGiveawaySyncJob = `-- name: GetLatestSapphireGiveawaySyncJob :one
 SELECT id, status, total_count, processed_count, failed_count, export_text, requested_by_telegram_user_id, started_at, finished_at, updated_at
 FROM sapphire_giveaway_sync_jobs
@@ -2330,6 +2552,33 @@ func (q *Queries) GetLegacyMemberTagMapping(ctx context.Context, telegramUserID 
 		&i.SnapshotObservedAt,
 		&i.SourceDigest,
 		&i.ImportedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getLegacyMemberTagQueueItem = `-- name: GetLegacyMemberTagQueueItem :one
+SELECT chat_id, telegram_user_id, desired_action, state, last_applied_tag, attempt_count, next_attempt_at, last_error_code, created_at, updated_at FROM legacy_member_tag_queue WHERE chat_id = $1 AND telegram_user_id = $2
+`
+
+type GetLegacyMemberTagQueueItemParams struct {
+	ChatID         int64 `json:"chat_id"`
+	TelegramUserID int64 `json:"telegram_user_id"`
+}
+
+func (q *Queries) GetLegacyMemberTagQueueItem(ctx context.Context, arg GetLegacyMemberTagQueueItemParams) (LegacyMemberTagQueue, error) {
+	row := q.db.QueryRow(ctx, getLegacyMemberTagQueueItem, arg.ChatID, arg.TelegramUserID)
+	var i LegacyMemberTagQueue
+	err := row.Scan(
+		&i.ChatID,
+		&i.TelegramUserID,
+		&i.DesiredAction,
+		&i.State,
+		&i.LastAppliedTag,
+		&i.AttemptCount,
+		&i.NextAttemptAt,
+		&i.LastErrorCode,
+		&i.CreatedAt,
 		&i.UpdatedAt,
 	)
 	return i, err
@@ -4165,6 +4414,24 @@ func (q *Queries) IsLegacyMemberTagSuppressed(ctx context.Context, arg IsLegacyM
 	return exists, err
 }
 
+const isTelegramGroupMemberKnown = `-- name: IsTelegramGroupMemberKnown :one
+SELECT EXISTS (
+    SELECT 1 FROM telegram_group_members WHERE chat_id = $1 AND telegram_user_id = $2
+)
+`
+
+type IsTelegramGroupMemberKnownParams struct {
+	ChatID         int64 `json:"chat_id"`
+	TelegramUserID int64 `json:"telegram_user_id"`
+}
+
+func (q *Queries) IsTelegramGroupMemberKnown(ctx context.Context, arg IsTelegramGroupMemberKnownParams) (bool, error) {
+	row := q.db.QueryRow(ctx, isTelegramGroupMemberKnown, arg.ChatID, arg.TelegramUserID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
 const listCoalitionsByCampus = `-- name: ListCoalitionsByCampus :many
 SELECT campus_id, id, name, created_at FROM coalitions
 WHERE campus_id = $1
@@ -4184,6 +4451,40 @@ func (q *Queries) ListCoalitionsByCampus(ctx context.Context, campusID pgtype.UU
 			&i.CampusID,
 			&i.ID,
 			&i.Name,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listDueGlobalMemberTagRunItems = `-- name: ListDueGlobalMemberTagRunItems :many
+SELECT run_id, chat_id, telegram_user_id, state, attempt_count, next_attempt_at, created_at FROM global_member_tag_run_items
+WHERE state IN ('pending', 'retry') AND next_attempt_at <= CURRENT_TIMESTAMP
+ORDER BY next_attempt_at, chat_id, telegram_user_id LIMIT $1
+`
+
+func (q *Queries) ListDueGlobalMemberTagRunItems(ctx context.Context, limit int32) ([]GlobalMemberTagRunItem, error) {
+	rows, err := q.db.Query(ctx, listDueGlobalMemberTagRunItems, limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GlobalMemberTagRunItem
+	for rows.Next() {
+		var i GlobalMemberTagRunItem
+		if err := rows.Scan(
+			&i.RunID,
+			&i.ChatID,
+			&i.TelegramUserID,
+			&i.State,
+			&i.AttemptCount,
+			&i.NextAttemptAt,
 			&i.CreatedAt,
 		); err != nil {
 			return nil, err
@@ -4273,6 +4574,45 @@ func (q *Queries) ListDueTelegramGroupWelcomeMessages(ctx context.Context, limit
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listGlobalMemberTagCandidateIDs = `-- name: ListGlobalMemberTagCandidateIDs :many
+SELECT telegram_user_id FROM (
+    SELECT m.telegram_user_id FROM legacy_member_tag_mappings m
+    WHERE NOT EXISTS (
+        SELECT 1 FROM legacy_member_tag_suppressions s
+        WHERE s.telegram_user_id = m.telegram_user_id OR LOWER(s.s21_login) = LOWER(m.s21_login)
+    )
+    UNION
+    SELECT ua.external_id::BIGINT AS telegram_user_id
+    FROM user_accounts ua
+    WHERE ua.platform = 'telegram' AND ua.external_id ~ '^[1-9][0-9]*$'
+      AND NOT EXISTS (
+          SELECT 1 FROM legacy_member_tag_suppressions s
+          WHERE s.telegram_user_id = ua.external_id::BIGINT OR LOWER(s.s21_login) = LOWER(ua.s21_login)
+      )
+) candidates
+ORDER BY telegram_user_id
+`
+
+func (q *Queries) ListGlobalMemberTagCandidateIDs(ctx context.Context) ([]int64, error) {
+	rows, err := q.db.Query(ctx, listGlobalMemberTagCandidateIDs)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []int64
+	for rows.Next() {
+		var telegram_user_id int64
+		if err := rows.Scan(&telegram_user_id); err != nil {
+			return nil, err
+		}
+		items = append(items, telegram_user_id)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
@@ -5113,6 +5453,48 @@ func (q *Queries) MarkTelegramGroupMemberLeft(ctx context.Context, arg MarkTeleg
 	return err
 }
 
+const requestCancelGlobalMemberTagRun = `-- name: RequestCancelGlobalMemberTagRun :execrows
+UPDATE global_member_tag_runs SET state = 'cancelling', updated_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND owner_telegram_user_id = $2 AND state = 'running'
+`
+
+type RequestCancelGlobalMemberTagRunParams struct {
+	ID                  int64 `json:"id"`
+	OwnerTelegramUserID int64 `json:"owner_telegram_user_id"`
+}
+
+func (q *Queries) RequestCancelGlobalMemberTagRun(ctx context.Context, arg RequestCancelGlobalMemberTagRunParams) (int64, error) {
+	result, err := q.db.Exec(ctx, requestCancelGlobalMemberTagRun, arg.ID, arg.OwnerTelegramUserID)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
+const retryGlobalMemberTagRunItem = `-- name: RetryGlobalMemberTagRunItem :exec
+UPDATE global_member_tag_run_items
+SET state = 'retry', attempt_count = attempt_count + 1,
+    next_attempt_at = CURRENT_TIMESTAMP + ($4::BIGINT * INTERVAL '1 second')
+WHERE run_id = $1 AND chat_id = $2 AND telegram_user_id = $3
+`
+
+type RetryGlobalMemberTagRunItemParams struct {
+	RunID          int64 `json:"run_id"`
+	ChatID         int64 `json:"chat_id"`
+	TelegramUserID int64 `json:"telegram_user_id"`
+	Column4        int64 `json:"column_4"`
+}
+
+func (q *Queries) RetryGlobalMemberTagRunItem(ctx context.Context, arg RetryGlobalMemberTagRunItemParams) error {
+	_, err := q.db.Exec(ctx, retryGlobalMemberTagRunItem,
+		arg.RunID,
+		arg.ChatID,
+		arg.TelegramUserID,
+		arg.Column4,
+	)
+	return err
+}
+
 const retryLegacyMemberTag = `-- name: RetryLegacyMemberTag :exec
 UPDATE legacy_member_tag_queue
 SET state = CASE WHEN attempt_count + 1 >= 12 THEN 'failed' ELSE 'pending' END,
@@ -5521,6 +5903,20 @@ func (q *Queries) SearchCatalogProjectsAll(ctx context.Context, dollar_1 interfa
 		return nil, err
 	}
 	return items, nil
+}
+
+const setGlobalMemberTagRunTotal = `-- name: SetGlobalMemberTagRunTotal :exec
+UPDATE global_member_tag_runs SET total_items = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1
+`
+
+type SetGlobalMemberTagRunTotalParams struct {
+	ID         int64 `json:"id"`
+	TotalItems int64 `json:"total_items"`
+}
+
+func (q *Queries) SetGlobalMemberTagRunTotal(ctx context.Context, arg SetGlobalMemberTagRunTotalParams) error {
+	_, err := q.db.Exec(ctx, setGlobalMemberTagRunTotal, arg.ID, arg.TotalItems)
+	return err
 }
 
 const setReviewRequestStatus = `-- name: SetReviewRequestStatus :one

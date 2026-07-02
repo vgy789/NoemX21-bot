@@ -174,6 +174,20 @@ func (mr *MockQuerierMockRecorder) CloseTeamSearchRequestByID(ctx, id any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloseTeamSearchRequestByID", reflect.TypeOf((*MockQuerier)(nil).CloseTeamSearchRequestByID), ctx, id)
 }
 
+// CompleteGlobalMemberTagRunItem mocks base method.
+func (m *MockQuerier) CompleteGlobalMemberTagRunItem(ctx context.Context, arg db.CompleteGlobalMemberTagRunItemParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CompleteGlobalMemberTagRunItem", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// CompleteGlobalMemberTagRunItem indicates an expected call of CompleteGlobalMemberTagRunItem.
+func (mr *MockQuerierMockRecorder) CompleteGlobalMemberTagRunItem(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CompleteGlobalMemberTagRunItem", reflect.TypeOf((*MockQuerier)(nil).CompleteGlobalMemberTagRunItem), ctx, arg)
+}
+
 // CountBooksByCampus mocks base method.
 func (m *MockQuerier) CountBooksByCampus(ctx context.Context, campusID pgtype.UUID) (db.CountBooksByCampusRow, error) {
 	m.ctrl.T.Helper()
@@ -202,6 +216,21 @@ func (m *MockQuerier) CountBooksByCategory(ctx context.Context, arg db.CountBook
 func (mr *MockQuerierMockRecorder) CountBooksByCategory(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountBooksByCategory", reflect.TypeOf((*MockQuerier)(nil).CountBooksByCategory), ctx, arg)
+}
+
+// CountGlobalMemberTagRunItems mocks base method.
+func (m *MockQuerier) CountGlobalMemberTagRunItems(ctx context.Context, runID int64) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountGlobalMemberTagRunItems", ctx, runID)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountGlobalMemberTagRunItems indicates an expected call of CountGlobalMemberTagRunItems.
+func (mr *MockQuerierMockRecorder) CountGlobalMemberTagRunItems(ctx, runID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountGlobalMemberTagRunItems", reflect.TypeOf((*MockQuerier)(nil).CountGlobalMemberTagRunItems), ctx, runID)
 }
 
 // CountOpenReviewRequestsByUser mocks base method.
@@ -337,6 +366,21 @@ func (m *MockQuerier) CreateBookLoan(ctx context.Context, arg db.CreateBookLoanP
 func (mr *MockQuerierMockRecorder) CreateBookLoan(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateBookLoan", reflect.TypeOf((*MockQuerier)(nil).CreateBookLoan), ctx, arg)
+}
+
+// CreateGlobalMemberTagRun mocks base method.
+func (m *MockQuerier) CreateGlobalMemberTagRun(ctx context.Context, arg db.CreateGlobalMemberTagRunParams) (db.GlobalMemberTagRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CreateGlobalMemberTagRun", ctx, arg)
+	ret0, _ := ret[0].(db.GlobalMemberTagRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CreateGlobalMemberTagRun indicates an expected call of CreateGlobalMemberTagRun.
+func (mr *MockQuerierMockRecorder) CreateGlobalMemberTagRun(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateGlobalMemberTagRun", reflect.TypeOf((*MockQuerier)(nil).CreateGlobalMemberTagRun), ctx, arg)
 }
 
 // CreateReviewRequest mocks base method.
@@ -567,6 +611,21 @@ func (m *MockQuerier) DeleteExpiredAuthVerificationCodes(ctx context.Context) er
 func (mr *MockQuerierMockRecorder) DeleteExpiredAuthVerificationCodes(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredAuthVerificationCodes", reflect.TypeOf((*MockQuerier)(nil).DeleteExpiredAuthVerificationCodes), ctx)
+}
+
+// DeleteExpiredGlobalMemberTagRuns mocks base method.
+func (m *MockQuerier) DeleteExpiredGlobalMemberTagRuns(ctx context.Context) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteExpiredGlobalMemberTagRuns", ctx)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteExpiredGlobalMemberTagRuns indicates an expected call of DeleteExpiredGlobalMemberTagRuns.
+func (mr *MockQuerierMockRecorder) DeleteExpiredGlobalMemberTagRuns(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredGlobalMemberTagRuns", reflect.TypeOf((*MockQuerier)(nil).DeleteExpiredGlobalMemberTagRuns), ctx)
 }
 
 // DeleteLegacyMemberTagMappingByLoginExceptTelegram mocks base method.
@@ -859,6 +918,21 @@ func (mr *MockQuerierMockRecorder) DeleteUserAccountByExternalId(ctx, arg any) *
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteUserAccountByExternalId", reflect.TypeOf((*MockQuerier)(nil).DeleteUserAccountByExternalId), ctx, arg)
 }
 
+// EnqueueGlobalMemberTagRunGroup mocks base method.
+func (m *MockQuerier) EnqueueGlobalMemberTagRunGroup(ctx context.Context, arg db.EnqueueGlobalMemberTagRunGroupParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "EnqueueGlobalMemberTagRunGroup", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// EnqueueGlobalMemberTagRunGroup indicates an expected call of EnqueueGlobalMemberTagRunGroup.
+func (mr *MockQuerierMockRecorder) EnqueueGlobalMemberTagRunGroup(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "EnqueueGlobalMemberTagRunGroup", reflect.TypeOf((*MockQuerier)(nil).EnqueueGlobalMemberTagRunGroup), ctx, arg)
+}
+
 // EnqueueKnownLegacyMemberTags mocks base method.
 func (m *MockQuerier) EnqueueKnownLegacyMemberTags(ctx context.Context) (int64, error) {
 	m.ctrl.T.Helper()
@@ -978,6 +1052,20 @@ func (mr *MockQuerierMockRecorder) ExistsTelegramGroupWhitelist(ctx, arg any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExistsTelegramGroupWhitelist", reflect.TypeOf((*MockQuerier)(nil).ExistsTelegramGroupWhitelist), ctx, arg)
 }
 
+// FinishGlobalMemberTagRun mocks base method.
+func (m *MockQuerier) FinishGlobalMemberTagRun(ctx context.Context, arg db.FinishGlobalMemberTagRunParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FinishGlobalMemberTagRun", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// FinishGlobalMemberTagRun indicates an expected call of FinishGlobalMemberTagRun.
+func (mr *MockQuerierMockRecorder) FinishGlobalMemberTagRun(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FinishGlobalMemberTagRun", reflect.TypeOf((*MockQuerier)(nil).FinishGlobalMemberTagRun), ctx, arg)
+}
+
 // FinishSapphireGiveawaySyncJob mocks base method.
 func (m *MockQuerier) FinishSapphireGiveawaySyncJob(ctx context.Context, arg db.FinishSapphireGiveawaySyncJobParams) error {
 	m.ctrl.T.Helper()
@@ -1005,6 +1093,21 @@ func (m *MockQuerier) GetActiveApiKey(ctx context.Context, userAccountID int64) 
 func (mr *MockQuerierMockRecorder) GetActiveApiKey(ctx, userAccountID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveApiKey", reflect.TypeOf((*MockQuerier)(nil).GetActiveApiKey), ctx, userAccountID)
+}
+
+// GetActiveGlobalMemberTagRun mocks base method.
+func (m *MockQuerier) GetActiveGlobalMemberTagRun(ctx context.Context) (db.GlobalMemberTagRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetActiveGlobalMemberTagRun", ctx)
+	ret0, _ := ret[0].(db.GlobalMemberTagRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetActiveGlobalMemberTagRun indicates an expected call of GetActiveGlobalMemberTagRun.
+func (mr *MockQuerierMockRecorder) GetActiveGlobalMemberTagRun(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetActiveGlobalMemberTagRun", reflect.TypeOf((*MockQuerier)(nil).GetActiveGlobalMemberTagRun), ctx)
 }
 
 // GetActiveRoomsByCampus mocks base method.
@@ -1337,6 +1440,21 @@ func (mr *MockQuerierMockRecorder) GetLastAuthVerificationCode(ctx, s21Login any
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLastAuthVerificationCode", reflect.TypeOf((*MockQuerier)(nil).GetLastAuthVerificationCode), ctx, s21Login)
 }
 
+// GetLatestGlobalMemberTagRun mocks base method.
+func (m *MockQuerier) GetLatestGlobalMemberTagRun(ctx context.Context) (db.GlobalMemberTagRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLatestGlobalMemberTagRun", ctx)
+	ret0, _ := ret[0].(db.GlobalMemberTagRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLatestGlobalMemberTagRun indicates an expected call of GetLatestGlobalMemberTagRun.
+func (mr *MockQuerierMockRecorder) GetLatestGlobalMemberTagRun(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestGlobalMemberTagRun", reflect.TypeOf((*MockQuerier)(nil).GetLatestGlobalMemberTagRun), ctx)
+}
+
 // GetLatestSapphireGiveawaySyncJob mocks base method.
 func (m *MockQuerier) GetLatestSapphireGiveawaySyncJob(ctx context.Context) (db.SapphireGiveawaySyncJob, error) {
 	m.ctrl.T.Helper()
@@ -1365,6 +1483,21 @@ func (m *MockQuerier) GetLegacyMemberTagMapping(ctx context.Context, telegramUse
 func (mr *MockQuerierMockRecorder) GetLegacyMemberTagMapping(ctx, telegramUserID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLegacyMemberTagMapping", reflect.TypeOf((*MockQuerier)(nil).GetLegacyMemberTagMapping), ctx, telegramUserID)
+}
+
+// GetLegacyMemberTagQueueItem mocks base method.
+func (m *MockQuerier) GetLegacyMemberTagQueueItem(ctx context.Context, arg db.GetLegacyMemberTagQueueItemParams) (db.LegacyMemberTagQueue, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLegacyMemberTagQueueItem", ctx, arg)
+	ret0, _ := ret[0].(db.LegacyMemberTagQueue)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLegacyMemberTagQueueItem indicates an expected call of GetLegacyMemberTagQueueItem.
+func (mr *MockQuerierMockRecorder) GetLegacyMemberTagQueueItem(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLegacyMemberTagQueueItem", reflect.TypeOf((*MockQuerier)(nil).GetLegacyMemberTagQueueItem), ctx, arg)
 }
 
 // GetLocalClubs mocks base method.
@@ -1966,6 +2099,21 @@ func (mr *MockQuerierMockRecorder) IsLegacyMemberTagSuppressed(ctx, arg any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsLegacyMemberTagSuppressed", reflect.TypeOf((*MockQuerier)(nil).IsLegacyMemberTagSuppressed), ctx, arg)
 }
 
+// IsTelegramGroupMemberKnown mocks base method.
+func (m *MockQuerier) IsTelegramGroupMemberKnown(ctx context.Context, arg db.IsTelegramGroupMemberKnownParams) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsTelegramGroupMemberKnown", ctx, arg)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IsTelegramGroupMemberKnown indicates an expected call of IsTelegramGroupMemberKnown.
+func (mr *MockQuerierMockRecorder) IsTelegramGroupMemberKnown(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsTelegramGroupMemberKnown", reflect.TypeOf((*MockQuerier)(nil).IsTelegramGroupMemberKnown), ctx, arg)
+}
+
 // ListCoalitionsByCampus mocks base method.
 func (m *MockQuerier) ListCoalitionsByCampus(ctx context.Context, campusID pgtype.UUID) ([]db.Coalition, error) {
 	m.ctrl.T.Helper()
@@ -1979,6 +2127,21 @@ func (m *MockQuerier) ListCoalitionsByCampus(ctx context.Context, campusID pgtyp
 func (mr *MockQuerierMockRecorder) ListCoalitionsByCampus(ctx, campusID any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListCoalitionsByCampus", reflect.TypeOf((*MockQuerier)(nil).ListCoalitionsByCampus), ctx, campusID)
+}
+
+// ListDueGlobalMemberTagRunItems mocks base method.
+func (m *MockQuerier) ListDueGlobalMemberTagRunItems(ctx context.Context, limit int32) ([]db.GlobalMemberTagRunItem, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListDueGlobalMemberTagRunItems", ctx, limit)
+	ret0, _ := ret[0].([]db.GlobalMemberTagRunItem)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListDueGlobalMemberTagRunItems indicates an expected call of ListDueGlobalMemberTagRunItems.
+func (mr *MockQuerierMockRecorder) ListDueGlobalMemberTagRunItems(ctx, limit any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListDueGlobalMemberTagRunItems", reflect.TypeOf((*MockQuerier)(nil).ListDueGlobalMemberTagRunItems), ctx, limit)
 }
 
 // ListDueLegacyMemberTags mocks base method.
@@ -2009,6 +2172,21 @@ func (m *MockQuerier) ListDueTelegramGroupWelcomeMessages(ctx context.Context, l
 func (mr *MockQuerierMockRecorder) ListDueTelegramGroupWelcomeMessages(ctx, limit any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListDueTelegramGroupWelcomeMessages", reflect.TypeOf((*MockQuerier)(nil).ListDueTelegramGroupWelcomeMessages), ctx, limit)
+}
+
+// ListGlobalMemberTagCandidateIDs mocks base method.
+func (m *MockQuerier) ListGlobalMemberTagCandidateIDs(ctx context.Context) ([]int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListGlobalMemberTagCandidateIDs", ctx)
+	ret0, _ := ret[0].([]int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListGlobalMemberTagCandidateIDs indicates an expected call of ListGlobalMemberTagCandidateIDs.
+func (mr *MockQuerierMockRecorder) ListGlobalMemberTagCandidateIDs(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListGlobalMemberTagCandidateIDs", reflect.TypeOf((*MockQuerier)(nil).ListGlobalMemberTagCandidateIDs), ctx)
 }
 
 // ListMemberTagGroupsByTelegramUser mocks base method.
@@ -2352,6 +2530,35 @@ func (mr *MockQuerierMockRecorder) MarkTelegramGroupMemberLeft(ctx, arg any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkTelegramGroupMemberLeft", reflect.TypeOf((*MockQuerier)(nil).MarkTelegramGroupMemberLeft), ctx, arg)
 }
 
+// RequestCancelGlobalMemberTagRun mocks base method.
+func (m *MockQuerier) RequestCancelGlobalMemberTagRun(ctx context.Context, arg db.RequestCancelGlobalMemberTagRunParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RequestCancelGlobalMemberTagRun", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// RequestCancelGlobalMemberTagRun indicates an expected call of RequestCancelGlobalMemberTagRun.
+func (mr *MockQuerierMockRecorder) RequestCancelGlobalMemberTagRun(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RequestCancelGlobalMemberTagRun", reflect.TypeOf((*MockQuerier)(nil).RequestCancelGlobalMemberTagRun), ctx, arg)
+}
+
+// RetryGlobalMemberTagRunItem mocks base method.
+func (m *MockQuerier) RetryGlobalMemberTagRunItem(ctx context.Context, arg db.RetryGlobalMemberTagRunItemParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RetryGlobalMemberTagRunItem", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RetryGlobalMemberTagRunItem indicates an expected call of RetryGlobalMemberTagRunItem.
+func (mr *MockQuerierMockRecorder) RetryGlobalMemberTagRunItem(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RetryGlobalMemberTagRunItem", reflect.TypeOf((*MockQuerier)(nil).RetryGlobalMemberTagRunItem), ctx, arg)
+}
+
 // RetryLegacyMemberTag mocks base method.
 func (m *MockQuerier) RetryLegacyMemberTag(ctx context.Context, arg db.RetryLegacyMemberTagParams) error {
 	m.ctrl.T.Helper()
@@ -2481,6 +2688,20 @@ func (m *MockQuerier) SearchCatalogProjectsAll(ctx context.Context, dollar_1 any
 func (mr *MockQuerierMockRecorder) SearchCatalogProjectsAll(ctx, dollar_1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SearchCatalogProjectsAll", reflect.TypeOf((*MockQuerier)(nil).SearchCatalogProjectsAll), ctx, dollar_1)
+}
+
+// SetGlobalMemberTagRunTotal mocks base method.
+func (m *MockQuerier) SetGlobalMemberTagRunTotal(ctx context.Context, arg db.SetGlobalMemberTagRunTotalParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetGlobalMemberTagRunTotal", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetGlobalMemberTagRunTotal indicates an expected call of SetGlobalMemberTagRunTotal.
+func (mr *MockQuerierMockRecorder) SetGlobalMemberTagRunTotal(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetGlobalMemberTagRunTotal", reflect.TypeOf((*MockQuerier)(nil).SetGlobalMemberTagRunTotal), ctx, arg)
 }
 
 // SetReviewRequestStatus mocks base method.

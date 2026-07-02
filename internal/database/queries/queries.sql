@@ -642,6 +642,116 @@ WHERE chat_id = $1
   AND is_member = true
 ORDER BY telegram_user_id;
 
+-- name: IsTelegramGroupMemberKnown :one
+SELECT EXISTS (
+    SELECT 1 FROM telegram_group_members WHERE chat_id = $1 AND telegram_user_id = $2
+);
+
+-- name: CreateGlobalMemberTagRun :one
+INSERT INTO global_member_tag_runs (
+    owner_telegram_user_id, state, eligible_groups, candidate_profiles
+) VALUES ($1, 'running', $2, $3)
+RETURNING *;
+
+-- name: GetActiveGlobalMemberTagRun :one
+SELECT * FROM global_member_tag_runs
+WHERE state IN ('running', 'cancelling')
+ORDER BY id DESC LIMIT 1;
+
+-- name: GetLatestGlobalMemberTagRun :one
+SELECT * FROM global_member_tag_runs ORDER BY id DESC LIMIT 1;
+
+-- name: ListGlobalMemberTagCandidateIDs :many
+SELECT telegram_user_id FROM (
+    SELECT m.telegram_user_id FROM legacy_member_tag_mappings m
+    WHERE NOT EXISTS (
+        SELECT 1 FROM legacy_member_tag_suppressions s
+        WHERE s.telegram_user_id = m.telegram_user_id OR LOWER(s.s21_login) = LOWER(m.s21_login)
+    )
+    UNION
+    SELECT ua.external_id::BIGINT AS telegram_user_id
+    FROM user_accounts ua
+    WHERE ua.platform = 'telegram' AND ua.external_id ~ '^[1-9][0-9]*$'
+      AND NOT EXISTS (
+          SELECT 1 FROM legacy_member_tag_suppressions s
+          WHERE s.telegram_user_id = ua.external_id::BIGINT OR LOWER(s.s21_login) = LOWER(ua.s21_login)
+      )
+) candidates
+ORDER BY telegram_user_id;
+
+-- name: EnqueueGlobalMemberTagRunGroup :execrows
+INSERT INTO global_member_tag_run_items (run_id, chat_id, telegram_user_id)
+SELECT $1, $2, candidate.telegram_user_id
+FROM (
+    SELECT m.telegram_user_id FROM legacy_member_tag_mappings m
+    WHERE NOT EXISTS (
+        SELECT 1 FROM legacy_member_tag_suppressions s
+        WHERE s.telegram_user_id = m.telegram_user_id OR LOWER(s.s21_login) = LOWER(m.s21_login)
+    )
+    UNION
+    SELECT ua.external_id::BIGINT AS telegram_user_id
+    FROM user_accounts ua
+    WHERE ua.platform = 'telegram' AND ua.external_id ~ '^[1-9][0-9]*$'
+      AND NOT EXISTS (
+          SELECT 1 FROM legacy_member_tag_suppressions s
+          WHERE s.telegram_user_id = ua.external_id::BIGINT OR LOWER(s.s21_login) = LOWER(ua.s21_login)
+      )
+) candidate
+ON CONFLICT DO NOTHING;
+
+-- name: SetGlobalMemberTagRunTotal :exec
+UPDATE global_member_tag_runs SET total_items = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1;
+
+-- name: ListDueGlobalMemberTagRunItems :many
+SELECT * FROM global_member_tag_run_items
+WHERE state IN ('pending', 'retry') AND next_attempt_at <= CURRENT_TIMESTAMP
+ORDER BY next_attempt_at, chat_id, telegram_user_id LIMIT $1;
+
+-- name: CountGlobalMemberTagRunItems :one
+SELECT COUNT(*) FROM global_member_tag_run_items WHERE run_id = $1;
+
+-- name: RetryGlobalMemberTagRunItem :exec
+UPDATE global_member_tag_run_items
+SET state = 'retry', attempt_count = attempt_count + 1,
+    next_attempt_at = CURRENT_TIMESTAMP + ($4::BIGINT * INTERVAL '1 second')
+WHERE run_id = $1 AND chat_id = $2 AND telegram_user_id = $3;
+
+-- name: CompleteGlobalMemberTagRunItem :exec
+WITH removed AS (
+    DELETE FROM global_member_tag_run_items
+    WHERE run_id = $1 AND chat_id = $2 AND telegram_user_id = $3
+    RETURNING run_id
+)
+UPDATE global_member_tag_runs SET
+    processed_items = processed_items + 1,
+    discovered_members = discovered_members + CASE WHEN $4::BOOLEAN THEN 1 ELSE 0 END,
+    verified_members = verified_members + CASE WHEN $5::BOOLEAN THEN 1 ELSE 0 END,
+    updated_tags = updated_tags + CASE WHEN $6::BOOLEAN THEN 1 ELSE 0 END,
+    preserved_tags = preserved_tags + CASE WHEN $7::BOOLEAN THEN 1 ELSE 0 END,
+    not_members = not_members + CASE WHEN $8::BOOLEAN THEN 1 ELSE 0 END,
+    skipped_no_rights = skipped_no_rights + CASE WHEN $9::BOOLEAN THEN 1 ELSE 0 END,
+    error_count = error_count + CASE WHEN $10::BOOLEAN THEN 1 ELSE 0 END,
+    updated_at = CURRENT_TIMESTAMP
+WHERE id IN (SELECT run_id FROM removed);
+
+-- name: GetLegacyMemberTagQueueItem :one
+SELECT * FROM legacy_member_tag_queue WHERE chat_id = $1 AND telegram_user_id = $2;
+
+-- name: RequestCancelGlobalMemberTagRun :execrows
+UPDATE global_member_tag_runs SET state = 'cancelling', updated_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND owner_telegram_user_id = $2 AND state = 'running';
+
+-- name: FinishGlobalMemberTagRun :exec
+WITH cleared AS (
+    DELETE FROM global_member_tag_run_items WHERE run_id = $1
+)
+UPDATE global_member_tag_runs SET state = $2, finished_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
+WHERE id = $1;
+
+-- name: DeleteExpiredGlobalMemberTagRuns :execrows
+DELETE FROM global_member_tag_runs
+WHERE state IN ('completed', 'cancelled') AND finished_at < CURRENT_TIMESTAMP - INTERVAL '30 days';
+
 -- name: UpsertTelegramGroupWhitelist :one
 INSERT INTO telegram_group_whitelists (
     chat_id, telegram_user_id, added_by_account_id
