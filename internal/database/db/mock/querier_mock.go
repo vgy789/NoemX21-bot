@@ -42,6 +42,20 @@ func (m *MockQuerier) EXPECT() *MockQuerierMockRecorder {
 	return m.recorder
 }
 
+// ActivateGlobalMemberTagRun mocks base method.
+func (m *MockQuerier) ActivateGlobalMemberTagRun(ctx context.Context, id int64) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ActivateGlobalMemberTagRun", ctx, id)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// ActivateGlobalMemberTagRun indicates an expected call of ActivateGlobalMemberTagRun.
+func (mr *MockQuerierMockRecorder) ActivateGlobalMemberTagRun(ctx, id any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ActivateGlobalMemberTagRun", reflect.TypeOf((*MockQuerier)(nil).ActivateGlobalMemberTagRun), ctx, id)
+}
+
 // CancelRoomBooking mocks base method.
 func (m *MockQuerier) CancelRoomBooking(ctx context.Context, arg db.CancelRoomBookingParams) error {
 	m.ctrl.T.Helper()
@@ -1453,6 +1467,21 @@ func (m *MockQuerier) GetLatestGlobalMemberTagRun(ctx context.Context) (db.Globa
 func (mr *MockQuerierMockRecorder) GetLatestGlobalMemberTagRun(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestGlobalMemberTagRun", reflect.TypeOf((*MockQuerier)(nil).GetLatestGlobalMemberTagRun), ctx)
+}
+
+// GetLatestGlobalMemberTagRunByOwner mocks base method.
+func (m *MockQuerier) GetLatestGlobalMemberTagRunByOwner(ctx context.Context, ownerTelegramUserID int64) (db.GlobalMemberTagRun, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetLatestGlobalMemberTagRunByOwner", ctx, ownerTelegramUserID)
+	ret0, _ := ret[0].(db.GlobalMemberTagRun)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetLatestGlobalMemberTagRunByOwner indicates an expected call of GetLatestGlobalMemberTagRunByOwner.
+func (mr *MockQuerierMockRecorder) GetLatestGlobalMemberTagRunByOwner(ctx, ownerTelegramUserID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLatestGlobalMemberTagRunByOwner", reflect.TypeOf((*MockQuerier)(nil).GetLatestGlobalMemberTagRunByOwner), ctx, ownerTelegramUserID)
 }
 
 // GetLatestSapphireGiveawaySyncJob mocks base method.

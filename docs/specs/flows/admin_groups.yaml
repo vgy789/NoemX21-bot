@@ -2599,12 +2599,89 @@ states:
           condition: "can_manage_selected_group == true"
           next_state: GROUP_MEMBER_TAGS_RUN
           row: 2
+        - id: tags_run_discover_all
+          label:
+            ru: 🔎 Проверить все ID
+            en: 🔎 Check all IDs
+          condition: "is_selected_group_owner == true"
+          next_state: GROUP_MEMBER_TAGS_DISCOVERY_CONFIRM
+          row: 3
         - id: tags_back_menu
           label:
             ru: 🔙 Назад
             en: 🔙 Back
           row: 99
           next_state: GROUP_MEMBER_TAGS_MENU
+
+  GROUP_MEMBER_TAGS_DISCOVERY_CONFIRM:
+    type: interactive
+    description: Owner confirmation for exhaustive group member-tag discovery
+    interface:
+      text:
+        ru: |
+          🔎 *Полная проверка участников* / {selected_group_title}
+
+          Бот проверит в этой группе все зарегистрированные и импортированные Telegram ID, включая ранее неизвестных ему участников.
+          Формат тегов: `{member_tag_format_label_ru}`.
+          Чужие теги не перезаписываются.
+        en: |
+          🔎 *Full member check* / {selected_group_title}
+
+          The bot will check every registered and imported Telegram ID in this group.
+          Tag format: `{member_tag_format_label_en}`.
+          Foreign tags are preserved.
+      buttons:
+        - id: start_group_tag_discovery
+          label:
+            ru: 🚀 Запустить
+            en: 🚀 Start
+          action: start_group_member_tag_discovery
+          condition: "is_selected_group_owner == true"
+          next_state: GROUP_MEMBER_TAGS_DISCOVERY_STATUS
+          row: 1
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: GROUP_MEMBER_TAGS_RUN
+          row: 2
+
+  GROUP_MEMBER_TAGS_DISCOVERY_STATUS:
+    type: interactive
+    description: Group owner status for exhaustive member-tag discovery
+    on_enter:
+      - action: load_group_member_tag_discovery
+    interface:
+      text:
+        ru: |
+          🔎 *Прогресс проверки* / {selected_group_title}
+
+          `{group_member_tag_discovery_summary}`
+        en: |
+          🔎 *Discovery progress* / {selected_group_title}
+
+          `{group_member_tag_discovery_summary}`
+      buttons:
+        - id: refresh_group_tag_discovery
+          label:
+            ru: 🔄 Обновить
+            en: 🔄 Refresh
+          next_state: GROUP_MEMBER_TAGS_DISCOVERY_STATUS
+          row: 1
+        - id: cancel_group_tag_discovery
+          label:
+            ru: ⛔ Отменить
+            en: ⛔ Cancel
+          action: cancel_group_member_tag_discovery
+          condition: "group_member_tag_discovery_running == true"
+          next_state: GROUP_MEMBER_TAGS_DISCOVERY_STATUS
+          row: 2
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: GROUP_MEMBER_TAGS_RUN
+          row: 3
 
   GROUP_MEMBER_TAGS_FORMAT:
     type: interactive

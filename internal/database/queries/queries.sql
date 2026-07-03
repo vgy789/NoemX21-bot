@@ -650,16 +650,21 @@ SELECT EXISTS (
 -- name: CreateGlobalMemberTagRun :one
 INSERT INTO global_member_tag_runs (
     owner_telegram_user_id, state, eligible_groups, candidate_profiles
-) VALUES ($1, 'running', $2, $3)
+) VALUES ($1, 'preparing', $2, $3)
 RETURNING *;
 
 -- name: GetActiveGlobalMemberTagRun :one
 SELECT * FROM global_member_tag_runs
-WHERE state IN ('running', 'cancelling')
+WHERE state IN ('preparing', 'running', 'cancelling')
 ORDER BY id DESC LIMIT 1;
 
 -- name: GetLatestGlobalMemberTagRun :one
 SELECT * FROM global_member_tag_runs ORDER BY id DESC LIMIT 1;
+
+-- name: GetLatestGlobalMemberTagRunByOwner :one
+SELECT * FROM global_member_tag_runs
+WHERE owner_telegram_user_id = $1
+ORDER BY id DESC LIMIT 1;
 
 -- name: ListGlobalMemberTagCandidateIDs :many
 SELECT telegram_user_id FROM (
@@ -702,6 +707,10 @@ ON CONFLICT DO NOTHING;
 -- name: SetGlobalMemberTagRunTotal :exec
 UPDATE global_member_tag_runs SET total_items = $2, updated_at = CURRENT_TIMESTAMP WHERE id = $1;
 
+-- name: ActivateGlobalMemberTagRun :exec
+UPDATE global_member_tag_runs SET state = 'running', updated_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND state = 'preparing';
+
 -- name: ListDueGlobalMemberTagRunItems :many
 SELECT * FROM global_member_tag_run_items
 WHERE state IN ('pending', 'retry') AND next_attempt_at <= CURRENT_TIMESTAMP
@@ -739,7 +748,7 @@ SELECT * FROM legacy_member_tag_queue WHERE chat_id = $1 AND telegram_user_id = 
 
 -- name: RequestCancelGlobalMemberTagRun :execrows
 UPDATE global_member_tag_runs SET state = 'cancelling', updated_at = CURRENT_TIMESTAMP
-WHERE id = $1 AND owner_telegram_user_id = $2 AND state = 'running';
+WHERE id = $1 AND owner_telegram_user_id = $2 AND state IN ('preparing', 'running');
 
 -- name: FinishGlobalMemberTagRun :exec
 WITH cleared AS (

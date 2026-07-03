@@ -161,6 +161,9 @@ type GlobalMemberTagRunner interface {
 	StartGlobalMemberTags(ctx context.Context, ownerTelegramUserID int64) (GlobalMemberTagRunStatus, error)
 	GlobalMemberTagStatus(ctx context.Context, ownerTelegramUserID int64) (GlobalMemberTagRunStatus, error)
 	CancelGlobalMemberTags(ctx context.Context, ownerTelegramUserID int64) error
+	StartGroupMemberTagDiscovery(ctx context.Context, ownerTelegramUserID, chatID int64) (GlobalMemberTagRunStatus, error)
+	GroupMemberTagDiscoveryStatus(ctx context.Context, ownerTelegramUserID int64) (GlobalMemberTagRunStatus, error)
+	CancelGroupMemberTagDiscovery(ctx context.Context, ownerTelegramUserID int64) error
 }
 
 // MemberTagRollbackEntry stores previous member tag state for a single user.

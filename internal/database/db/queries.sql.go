@@ -11,6 +11,16 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 )
 
+const activateGlobalMemberTagRun = `-- name: ActivateGlobalMemberTagRun :exec
+UPDATE global_member_tag_runs SET state = 'running', updated_at = CURRENT_TIMESTAMP
+WHERE id = $1 AND state = 'preparing'
+`
+
+func (q *Queries) ActivateGlobalMemberTagRun(ctx context.Context, id int64) error {
+	_, err := q.db.Exec(ctx, activateGlobalMemberTagRun, id)
+	return err
+}
+
 const cancelRoomBooking = `-- name: CancelRoomBooking :exec
 DELETE FROM room_bookings
 WHERE id = $1 AND user_id = $2
@@ -480,7 +490,7 @@ func (q *Queries) CreateBookLoan(ctx context.Context, arg CreateBookLoanParams) 
 const createGlobalMemberTagRun = `-- name: CreateGlobalMemberTagRun :one
 INSERT INTO global_member_tag_runs (
     owner_telegram_user_id, state, eligible_groups, candidate_profiles
-) VALUES ($1, 'running', $2, $3)
+) VALUES ($1, 'preparing', $2, $3)
 RETURNING id, owner_telegram_user_id, state, eligible_groups, candidate_profiles, total_items, processed_items, discovered_members, verified_members, updated_tags, preserved_tags, not_members, skipped_no_rights, error_count, created_at, updated_at, finished_at
 `
 
@@ -1588,7 +1598,7 @@ func (q *Queries) GetActiveApiKey(ctx context.Context, userAccountID int64) (Api
 
 const getActiveGlobalMemberTagRun = `-- name: GetActiveGlobalMemberTagRun :one
 SELECT id, owner_telegram_user_id, state, eligible_groups, candidate_profiles, total_items, processed_items, discovered_members, verified_members, updated_tags, preserved_tags, not_members, skipped_no_rights, error_count, created_at, updated_at, finished_at FROM global_member_tag_runs
-WHERE state IN ('running', 'cancelling')
+WHERE state IN ('preparing', 'running', 'cancelling')
 ORDER BY id DESC LIMIT 1
 `
 
@@ -2488,6 +2498,37 @@ SELECT id, owner_telegram_user_id, state, eligible_groups, candidate_profiles, t
 
 func (q *Queries) GetLatestGlobalMemberTagRun(ctx context.Context) (GlobalMemberTagRun, error) {
 	row := q.db.QueryRow(ctx, getLatestGlobalMemberTagRun)
+	var i GlobalMemberTagRun
+	err := row.Scan(
+		&i.ID,
+		&i.OwnerTelegramUserID,
+		&i.State,
+		&i.EligibleGroups,
+		&i.CandidateProfiles,
+		&i.TotalItems,
+		&i.ProcessedItems,
+		&i.DiscoveredMembers,
+		&i.VerifiedMembers,
+		&i.UpdatedTags,
+		&i.PreservedTags,
+		&i.NotMembers,
+		&i.SkippedNoRights,
+		&i.ErrorCount,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.FinishedAt,
+	)
+	return i, err
+}
+
+const getLatestGlobalMemberTagRunByOwner = `-- name: GetLatestGlobalMemberTagRunByOwner :one
+SELECT id, owner_telegram_user_id, state, eligible_groups, candidate_profiles, total_items, processed_items, discovered_members, verified_members, updated_tags, preserved_tags, not_members, skipped_no_rights, error_count, created_at, updated_at, finished_at FROM global_member_tag_runs
+WHERE owner_telegram_user_id = $1
+ORDER BY id DESC LIMIT 1
+`
+
+func (q *Queries) GetLatestGlobalMemberTagRunByOwner(ctx context.Context, ownerTelegramUserID int64) (GlobalMemberTagRun, error) {
+	row := q.db.QueryRow(ctx, getLatestGlobalMemberTagRunByOwner, ownerTelegramUserID)
 	var i GlobalMemberTagRun
 	err := row.Scan(
 		&i.ID,
@@ -5455,7 +5496,7 @@ func (q *Queries) MarkTelegramGroupMemberLeft(ctx context.Context, arg MarkTeleg
 
 const requestCancelGlobalMemberTagRun = `-- name: RequestCancelGlobalMemberTagRun :execrows
 UPDATE global_member_tag_runs SET state = 'cancelling', updated_at = CURRENT_TIMESTAMP
-WHERE id = $1 AND owner_telegram_user_id = $2 AND state = 'running'
+WHERE id = $1 AND owner_telegram_user_id = $2 AND state IN ('preparing', 'running')
 `
 
 type RequestCancelGlobalMemberTagRunParams struct {

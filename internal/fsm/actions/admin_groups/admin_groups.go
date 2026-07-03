@@ -96,6 +96,49 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 		return "", map[string]any{"global_member_tags_summary": "Запрошена отмена.", "global_member_tags_running": false}, nil
 	})
 
+	registry.Register("start_group_member_tag_discovery", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
+		chatID, err := parseSelectedGroupChatID(payload)
+		if err != nil {
+			return "", groupMemberTagDiscoveryUpdates(fsm.GlobalMemberTagRunStatus{State: "invalid_group"}), nil
+		}
+		group, err := queries.GetTelegramGroupByChatID(ctx, chatID)
+		if err != nil || group.OwnerTelegramUserID != userID || !group.IsActive || !group.IsInitialized {
+			return "", groupMemberTagDiscoveryUpdates(fsm.GlobalMemberTagRunStatus{State: "access_denied"}), nil
+		}
+		runner, ok := fsm.MemberTagRunnerFromContext(ctx)
+		global, supported := runner.(fsm.GlobalMemberTagRunner)
+		if !ok || !supported {
+			return "", groupMemberTagDiscoveryUpdates(fsm.GlobalMemberTagRunStatus{State: "unavailable"}), nil
+		}
+		status, err := global.StartGroupMemberTagDiscovery(ctx, userID, chatID)
+		if err != nil {
+			return "", groupMemberTagDiscoveryUpdates(fsm.GlobalMemberTagRunStatus{State: "failed"}), nil
+		}
+		return "", groupMemberTagDiscoveryUpdates(status), nil
+	})
+
+	registry.Register("load_group_member_tag_discovery", func(ctx context.Context, userID int64, _ map[string]any) (string, map[string]any, error) {
+		runner, ok := fsm.MemberTagRunnerFromContext(ctx)
+		global, supported := runner.(fsm.GlobalMemberTagRunner)
+		if !ok || !supported {
+			return "", groupMemberTagDiscoveryUpdates(fsm.GlobalMemberTagRunStatus{State: "unavailable"}), nil
+		}
+		status, err := global.GroupMemberTagDiscoveryStatus(ctx, userID)
+		if err != nil {
+			return "", groupMemberTagDiscoveryUpdates(fsm.GlobalMemberTagRunStatus{State: "failed"}), nil
+		}
+		return "", groupMemberTagDiscoveryUpdates(status), nil
+	})
+
+	registry.Register("cancel_group_member_tag_discovery", func(ctx context.Context, userID int64, _ map[string]any) (string, map[string]any, error) {
+		if runner, ok := fsm.MemberTagRunnerFromContext(ctx); ok {
+			if global, supported := runner.(fsm.GlobalMemberTagRunner); supported {
+				_ = global.CancelGroupMemberTagDiscovery(ctx, userID)
+			}
+		}
+		return "", groupMemberTagDiscoveryUpdates(fsm.GlobalMemberTagRunStatus{State: "cancelling"}), nil
+	})
+
 	registry.Register("load_admin_context", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		updates := map[string]any{
 			"is_group_owner": false,
@@ -176,6 +219,7 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 	registry.Register("load_group_member_tags_context", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		updates := map[string]any{
 			"can_manage_selected_group": false,
+			"is_selected_group_owner":   false,
 		}
 		mergeMemberTagSettingsDefaults(updates)
 		mergeRunSummaryDefaults(updates, payload)
@@ -194,6 +238,7 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 		}
 
 		updates["can_manage_selected_group"] = true
+		updates["is_selected_group_owner"] = group.OwnerTelegramUserID == userID
 		if strings.TrimSpace(fmt.Sprintf("%v", payload["selected_group_title"])) == "" {
 			updates["selected_group_title"] = group.ChatTitle
 		}
@@ -397,12 +442,21 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 }
 
 func globalMemberTagStatusUpdates(status fsm.GlobalMemberTagRunStatus) map[string]any {
-	running := status.State == "running" || status.State == "cancelling"
+	running := status.State == "preparing" || status.State == "running" || status.State == "cancelling"
 	summary := fmt.Sprintf("state=%s, groups=%d, profiles=%d, processed=%d/%d, discovered=%d, verified=%d, updated=%d, preserved=%d, not_member=%d, no_rights=%d, errors=%d",
 		status.State, status.EligibleGroups, status.CandidateProfiles, status.ProcessedItems, status.TotalItems,
 		status.DiscoveredMembers, status.VerifiedMembers, status.UpdatedTags, status.PreservedTags,
 		status.NotMembers, status.SkippedNoRights, status.Errors)
 	return map[string]any{"global_member_tags_summary": summary, "global_member_tags_running": running}
+}
+
+func groupMemberTagDiscoveryUpdates(status fsm.GlobalMemberTagRunStatus) map[string]any {
+	running := status.State == "preparing" || status.State == "running" || status.State == "cancelling"
+	summary := fmt.Sprintf("state=%s, profiles=%d, processed=%d/%d, discovered=%d, verified=%d, updated=%d, preserved=%d, not_member=%d, errors=%d",
+		status.State, status.CandidateProfiles, status.ProcessedItems, status.TotalItems,
+		status.DiscoveredMembers, status.VerifiedMembers, status.UpdatedTags, status.PreservedTags,
+		status.NotMembers, status.Errors)
+	return map[string]any{"group_member_tag_discovery_summary": summary, "group_member_tag_discovery_running": running}
 }
 
 func resetGroupSlots(updates map[string]any) {

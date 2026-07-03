@@ -11,6 +11,7 @@ import (
 )
 
 type Querier interface {
+	ActivateGlobalMemberTagRun(ctx context.Context, id int64) error
 	CancelRoomBooking(ctx context.Context, arg CancelRoomBookingParams) error
 	ClearTelegramGroupDefenderCampusFiltersByOwner(ctx context.Context, arg ClearTelegramGroupDefenderCampusFiltersByOwnerParams) (int64, error)
 	ClearTelegramGroupDefenderTribeFiltersByOwner(ctx context.Context, arg ClearTelegramGroupDefenderTribeFiltersByOwnerParams) (int64, error)
@@ -107,6 +108,7 @@ type Querier interface {
 	GetGlobalTeamProjectGroups(ctx context.Context) ([]GetGlobalTeamProjectGroupsRow, error)
 	GetLastAuthVerificationCode(ctx context.Context, s21Login pgtype.Text) (AuthVerificationCode, error)
 	GetLatestGlobalMemberTagRun(ctx context.Context) (GlobalMemberTagRun, error)
+	GetLatestGlobalMemberTagRunByOwner(ctx context.Context, ownerTelegramUserID int64) (GlobalMemberTagRun, error)
 	GetLatestSapphireGiveawaySyncJob(ctx context.Context) (SapphireGiveawaySyncJob, error)
 	// queries.sql
 	GetLegacyMemberTagMapping(ctx context.Context, telegramUserID int64) (LegacyMemberTagMapping, error)
