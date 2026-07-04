@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -16,6 +17,7 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 	"github.com/vgy789/noemx21-bot/internal/service"
+	"github.com/vgy789/noemx21-bot/internal/service/telegramvisibility"
 )
 
 const teamRequestNoteMaxLen = 400
@@ -548,7 +550,7 @@ func registerTeamActions(
 		}
 
 		reviewerTelegramUsername := ""
-		if !acc.IsSearchable.Valid || acc.IsSearchable.Bool {
+		if telegramvisibility.Effective(acc.IsSearchable, acc.TelegramVisibilityEndsAt, time.Now()) {
 			reviewerTelegramUsername = sanitizeTelegramUsername(acc.Username.String)
 		}
 		reviewerRocketchatID := ""

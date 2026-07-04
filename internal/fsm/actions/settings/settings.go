@@ -13,6 +13,7 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 	"github.com/vgy789/noemx21-bot/internal/service"
+	"github.com/vgy789/noemx21-bot/internal/service/telegramvisibility"
 )
 
 const unlinkedExternalIDPrefix = "unlinked:"
@@ -102,11 +103,17 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 			return "", vars, nil
 		}
 
-		if ua.IsSearchable.Valid && ua.IsSearchable.Bool {
+		if telegramvisibility.Effective(ua.IsSearchable, ua.TelegramVisibilityEndsAt, time.Now()) {
 			vars["my_searchable_status_ru"] = "✅ Виден"
 			vars["my_searchable_status_en"] = "✅ Visible"
 			vars["is_searchable_label_ru"] = "✅ Виден"
 			vars["is_searchable_label_en"] = "✅ Visible"
+		}
+		if telegramvisibility.PendingHide(ua.IsSearchable, ua.TelegramVisibilityEndsAt, time.Now()) {
+			vars["my_searchable_status_ru"] = "⏳ Будет скрыт через 24 часа"
+			vars["my_searchable_status_en"] = "⏳ Will be hidden within 24 hours"
+			vars["is_searchable_label_ru"] = "⏳ Ожидает скрытия"
+			vars["is_searchable_label_en"] = "⏳ Pending hide"
 		}
 
 		profile, err := queries.GetMyProfile(ctx, ua.S21Login)
@@ -179,10 +186,10 @@ func Register(registry *fsm.LogicRegistry, log *slog.Logger, queries db.Querier,
 		}
 
 		return "", map[string]any{
-			"my_searchable_status_ru": "❌ Не виден",
-			"my_searchable_status_en": "❌ Not visible",
-			"is_searchable_label_ru":  "❌ Не виден",
-			"is_searchable_label_en":  "❌ Not visible",
+			"my_searchable_status_ru": "⏳ Будет скрыт через 24 часа",
+			"my_searchable_status_en": "⏳ Will be hidden within 24 hours",
+			"is_searchable_label_ru":  "⏳ Ожидает скрытия",
+			"is_searchable_label_en":  "⏳ Pending hide",
 			"is_searchable":           false,
 		}, nil
 	})

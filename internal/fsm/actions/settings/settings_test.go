@@ -5,6 +5,7 @@ import (
 	"io"
 	"log/slog"
 	"testing"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
@@ -72,8 +73,30 @@ func TestToggleSearchable(t *testing.T) {
 
 	_, updates, err := action(context.Background(), 42, nil)
 	require.NoError(t, err)
-	require.Equal(t, "❌ Не виден", updates["my_searchable_status_ru"])
-	require.Equal(t, "❌ Not visible", updates["is_searchable_label_en"])
+	require.Equal(t, "⏳ Будет скрыт через 24 часа", updates["my_searchable_status_ru"])
+	require.Equal(t, "⏳ Pending hide", updates["is_searchable_label_en"])
+}
+
+func TestLoadProfileSettingsShowsPendingHide(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	reg := fsm.NewLogicRegistry()
+	Register(reg, slog.New(slog.NewTextHandler(io.Discard, nil)), q, nil)
+	action, ok := reg.Get("load_profile_settings")
+	require.True(t, ok)
+
+	q.EXPECT().GetUserAccountByExternalId(gomock.Any(), gomock.Any()).Return(db.UserAccount{
+		S21Login: "student", IsSearchable: pgtype.Bool{Bool: false, Valid: true},
+		TelegramVisibilityEndsAt: pgtype.Timestamptz{Time: time.Now().Add(time.Hour), Valid: true},
+	}, nil)
+	q.EXPECT().GetMyProfile(gomock.Any(), "student").Return(db.GetMyProfileRow{}, nil)
+
+	_, updates, err := action(context.Background(), 42, nil)
+	require.NoError(t, err)
+	require.Equal(t, "⏳ Будет скрыт через 24 часа", updates["my_searchable_status_ru"])
+	require.Equal(t, "⏳ Pending hide", updates["is_searchable_label_en"])
 }
 
 func TestSetAlternativeContact(t *testing.T) {

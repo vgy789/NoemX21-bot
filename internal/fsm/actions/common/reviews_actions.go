@@ -18,6 +18,7 @@ import (
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 	"github.com/vgy789/noemx21-bot/internal/fsm"
 	"github.com/vgy789/noemx21-bot/internal/service"
+	"github.com/vgy789/noemx21-bot/internal/service/telegramvisibility"
 )
 
 const (
@@ -641,7 +642,7 @@ func registerReviewActions(
 			reviewerLevel = "0"
 		}
 		reviewerTelegramUsername := ""
-		if !acc.IsSearchable.Valid || acc.IsSearchable.Bool {
+		if telegramvisibility.Effective(acc.IsSearchable, acc.TelegramVisibilityEndsAt, time.Now()) {
 			reviewerTelegramUsername = sanitizeTelegramUsername(acc.Username.String)
 		}
 		reviewerUsername = reviewerTelegramUsername
@@ -1449,7 +1450,7 @@ func attachRequesterContacts(ctx context.Context, queries db.Querier, requesterU
 	}
 	if requesterUserID > 0 {
 		if account, accErr := queries.GetUserAccountByID(ctx, requesterUserID); accErr == nil {
-			isSearchable := !account.IsSearchable.Valid || account.IsSearchable.Bool
+			isSearchable := telegramvisibility.Effective(account.IsSearchable, account.TelegramVisibilityEndsAt, time.Now())
 			if account.Platform == db.EnumPlatformTelegram && isSearchable {
 				updates["requester_username"] = sanitizeTelegramUsername(account.Username.String)
 			}

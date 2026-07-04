@@ -75,7 +75,7 @@ func TestQueries_CreateUserAccount(t *testing.T) {
 
 	mockRow := new(MockRow)
 	mockDB.On("QueryRow", ctx, createUserAccount, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(mockRow)
-	mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	_, err := q.CreateUserAccount(ctx, CreateUserAccountParams{})
 	assert.NoError(t, err)
@@ -88,8 +88,8 @@ func TestQueries_GetMyProfile(t *testing.T) {
 
 	mockRow := new(MockRow)
 	mockDB.On("QueryRow", ctx, getMyProfile, mock.Anything).Return(mockRow)
-	// GetMyProfileRow has 22 fields.
-	scans := make([]any, 22)
+	// GetMyProfileRow has 23 fields.
+	scans := make([]any, 23)
 	for i := range scans {
 		scans[i] = mock.Anything
 	}
@@ -101,6 +101,19 @@ func TestQueries_GetMyProfile(t *testing.T) {
 
 func TestPeerSearchDoesNotReadLegacyMemberTagMappings(t *testing.T) {
 	assert.NotContains(t, strings.ToLower(getPeerProfile), "legacy_member_tag")
+	assert.NotContains(t, strings.ToLower(getPeerProfile), "external_id")
+	assert.Contains(t, strings.ToLower(getPeerProfile), "else ''")
+}
+
+func TestTelegramVisibilityQueriesUseSameEffectivePredicate(t *testing.T) {
+	assert.Contains(t, strings.ToLower(updateUserAccountSearchableByExternalId), "interval '24 hours'")
+	assert.Contains(t, strings.ToLower(updateUserAccountSearchableByExternalId), "when $3 then null")
+	assert.Contains(t, strings.ToLower(isTelegramAccountEffectivelySearchable), "telegram_visibility_ends_at > current_timestamp")
+	assert.Contains(t, strings.ToLower(getPeerProfile), "telegram_visibility_ends_at > current_timestamp")
+}
+
+func TestImportedProfileUpsertRejectsOlderSnapshots(t *testing.T) {
+	assert.Contains(t, strings.ToLower(upsertImportedParticipantStatsCache), "participant_stats_cache.updated_at <= excluded.updated_at")
 }
 
 func TestQueries_UpsertPlatformCredentials(t *testing.T) {
@@ -194,15 +207,15 @@ func TestQueries_Remaining(t *testing.T) {
 	t.Run("GetUserAccountByExternalId", func(t *testing.T) {
 		mockRow := new(MockRow)
 		mockDB.On("QueryRow", ctx, getUserAccountByExternalId, mock.Anything, mock.Anything).Return(mockRow)
-		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		_, _ = q.GetUserAccountByExternalId(ctx, GetUserAccountByExternalIdParams{})
 	})
 
 	t.Run("GetPeerProfile", func(t *testing.T) {
 		mockRow := new(MockRow)
 		mockDB.On("QueryRow", ctx, getPeerProfile, mock.Anything).Return(mockRow)
-		// GetPeerProfileRow has 18 fields
-		scans := make([]any, 18)
+		// GetPeerProfileRow has 19 fields.
+		scans := make([]any, 19)
 		for i := range scans {
 			scans[i] = mock.Anything
 		}
@@ -232,7 +245,7 @@ func TestQueries_Remaining(t *testing.T) {
 	t.Run("GetUserAccountByS21Login", func(t *testing.T) {
 		mockRow := new(MockRow)
 		mockDB.On("QueryRow", ctx, getUserAccountByS21Login, mock.Anything).Return(mockRow)
-		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		mockRow.On("Scan", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 		_, _ = q.GetUserAccountByS21Login(ctx, "student1")
 	})
 

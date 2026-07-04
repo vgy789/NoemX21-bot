@@ -3,7 +3,7 @@ initial_state: AUTO_SYNC_STATS
 states:
   AUTO_SYNC_STATS:
     type: system
-    description: "Automatically refresh user stats on entry"
+    description: "Load the latest imported user profile snapshot"
     logic:
       action: get_user_stats
     transitions:
@@ -24,6 +24,7 @@ states:
           ⭐️ *Опыт:* `{my_exp} XP`
           💰 *Коины:* `{my_coins} ₡`
           🤝 PRP: `{my_prps}` | CRP: `{my_crps}`
+          🗓 Снимок профиля: `{profile_updated_at}`
 
           *Social:*
           🧐 ИНТ: `{my_interest}` | 🙂 ДОБ: `{my_friendliness}`
@@ -38,6 +39,7 @@ states:
           ⭐️ *XP:* `{my_exp} XP`
           💰 *Coins:* `{my_coins} ₡`
           🤝 PRP: `{my_prps}` | CRP: `{my_crps}`
+          🗓 Profile snapshot: `{profile_updated_at}`
 
           *Social:*
           🧐 INT: `{my_interest}` | 🙂 FRD: `{my_friendliness}`
@@ -56,12 +58,6 @@ states:
             en: 🕸 My Skills
           row: 1
           next_state: TRY_SHOW_SKILLS
-        - id: update
-          label:
-            ru: 🔄 Обновить данные
-            en: 🔄 Refresh data
-          row: 2
-          next_state: FETCH_MY_STATS
         - id: back
           label:
             ru: 🏠 На главную
@@ -69,45 +65,11 @@ states:
           row: 2
           next_state: MAIN_MENU
 
-  FETCH_MY_STATS:
-    type: system
-    description: Загрузка статистики текущего пользователя
-    logic:
-      action: get_user_stats
-      payload:
-        user_id: $context.user_id
-        request_type: full_update
-    transitions:
-      - next_state: STATS_SEARCH_MENU
-
   TRY_SHOW_SKILLS:
     type: system
-    description: Проверка состояния обновления навыков
+    description: Загрузка импортированных навыков
     transitions:
-      - condition: is_generating_chart == true
-        next_state: SKILLS_UPDATING_INFO
       - next_state: FETCH_MY_SKILLS
-
-  SKILLS_UPDATING_INFO:
-    type: interactive
-    interface:
-      text:
-        ru: |
-          ⏳ *Ваши навыки обновляются...*
-
-          Мы запросили свежие данные в Школе 21 и перерисовываем график.
-          Попробуйте нажать кнопку ещё раз через пару секунд.
-        en: |
-          ⏳ *Your skills are being updated...*
-
-          We requested fresh data from School 21 and are redrawing the chart.
-          Please try again in a few seconds.
-      buttons:
-        - id: back
-          label:
-            ru: 🔙 Назад
-            en: 🔙 Back
-          next_state: STATS_SEARCH_MENU
 
   FETCH_MY_SKILLS:
     type: system
@@ -191,12 +153,28 @@ states:
         login: $context.last_input
         requester_id: $context.user_id
     transitions:
+      - condition: search_allowed == false
+        next_state: ERROR_SEARCH_VISIBILITY_REQUIRED
       - condition: peer_found == true && peer_status == 'EXPELLED'
         next_state: DISPLAY_EXPELLED_PEER_STATS
       - condition: peer_found == true
         next_state: DISPLAY_PEER_STATS
       - condition: peer_found == false
         next_state: ERROR_PEER_NOT_FOUND
+
+  ERROR_SEARCH_VISIBILITY_REQUIRED:
+    type: interactive
+    description: Поиск недоступен при скрытом Telegram-профиле
+    interface:
+      text:
+        ru: Включите видимость Telegram-профиля в настройках, чтобы пользоваться поиском. После отключения доступ сохраняется 24 часа.
+        en: Enable Telegram profile visibility in settings to use search. Access remains available for 24 hours after disabling it.
+      buttons:
+        - id: back
+          label:
+            ru: 🔙 Назад
+            en: 🔙 Back
+          next_state: STATS_SEARCH_MENU
 
   DISPLAY_PEER_STATS:
     type: interactive
@@ -214,10 +192,11 @@ states:
           ⭐️ *Опыт*: `{peer_exp} XP`
           💰 *Коины*: `{peer_coins} ₡`
           🤝 PRP: `{peer_prps}` | CRP: `{peer_crps}`
-
           *Social:*
           🧐 ИНТ: `{peer_interest}` | 🙂 ДОБ: `{peer_friendliness}`
           🕑 ПНК: `{peer_punctuality}` | ⚖️ СТР: `{peer_thoroughness}`
+
+          🗓 Снимок профиля: `{profile_updated_at}`
 
           {peer_contact_line}
           {alternative_contact_line}
@@ -231,11 +210,13 @@ states:
           🏆 *Level*: `{peer_level}`
           ⭐️ *XP*: `{peer_exp} XP`
           💰 *Coins*: `{peer_coins} ₡`
-          🤝 PRP: `{peer_prps}` | CRP: `{peer_crps}
+          🤝 PRP: `{peer_prps}` | CRP: `{peer_crps}`
 
           *Social:*
           🧐 INT: `{peer_interest}` | 🙂 FRD: `{peer_friendliness}`
           🕑 PNC: `{peer_punctuality}` | ⚖️ THO: `{peer_thoroughness}`
+
+          🗓 Profile snapshot: `{profile_updated_at}`
       buttons:
         - id: compare_skills
           label:
@@ -269,15 +250,17 @@ states:
           ⭐️ *Опыт*: `{peer_exp} XP`
           💰 *Коины*: `{peer_coins} ₡`
           🤝 PRP: `{peer_prps}` | CRP: `{peer_crps}`
+          🗓 Снимок профиля: `{profile_updated_at}`
         en: |
-          🎓 *User {peer_login} отчислен*
+          🎓 *User {peer_login} is expelled*
 
           📍 {peer_campus} | {peer_class}
 
-          🏆 *Уровень*: `{peer_level}`
-          ⭐️ *Опыт*: `{peer_exp} XP`
-          💰 *Коины*: `{peer_coins} ₡`
+          🏆 *Level*: `{peer_level}`
+          ⭐️ *XP*: `{peer_exp} XP`
+          💰 *Coins*: `{peer_coins} ₡`
           🤝 PRP: `{peer_prps}` | CRP: `{peer_crps}`
+          🗓 Profile snapshot: `{profile_updated_at}`
       buttons:
         - id: compare_skills
           label:

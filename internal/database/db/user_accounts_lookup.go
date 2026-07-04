@@ -6,7 +6,7 @@ import (
 )
 
 const getTelegramUserAccountByUsername = `
-SELECT id, s21_login, platform, external_id, username, is_searchable, role, linked_at
+SELECT id, s21_login, platform, external_id, username, is_searchable, role, linked_at, telegram_visibility_ends_at
 FROM user_accounts
 WHERE platform = $1
   AND lower(trim(both '@' from username)) = lower(trim(both '@' from $2))
@@ -15,7 +15,7 @@ LIMIT 1
 `
 
 const getTelegramUserAccountByS21Login = `
-SELECT id, s21_login, platform, external_id, username, is_searchable, role, linked_at
+SELECT id, s21_login, platform, external_id, username, is_searchable, role, linked_at, telegram_visibility_ends_at
 FROM user_accounts
 WHERE platform = $1
   AND lower(s21_login) = lower($2)
@@ -36,6 +36,7 @@ func (q *Queries) GetTelegramUserAccountByUsername(ctx context.Context, username
 		&i.IsSearchable,
 		&i.Role,
 		&i.LinkedAt,
+		&i.TelegramVisibilityEndsAt,
 	)
 	return i, err
 }
@@ -53,6 +54,7 @@ func (q *Queries) GetTelegramUserAccountByS21Login(ctx context.Context, s21Login
 		&i.IsSearchable,
 		&i.Role,
 		&i.LinkedAt,
+		&i.TelegramVisibilityEndsAt,
 	)
 	return i, err
 }

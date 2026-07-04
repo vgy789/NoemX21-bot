@@ -55,3 +55,31 @@ func TestParseRejectsNonArrayJSON(t *testing.T) {
 	_, err := Parse(strings.NewReader(`{"from_id":"user1"}`))
 	require.Error(t, err)
 }
+
+func TestParseAcceptsCompleteProfileStats(t *testing.T) {
+	input := `[{
+  "from_id":"user301","text":"Alpha","isActive":true,
+  "campus_id":"46e7d965-21e9-4936-bea9-f5ea0d1fddf2","coalition_id":4,
+  "status":"ACTIVE","level":12,"exp_value":15000,"prp":7,"crp":8,"coins":9,
+  "parallel_name":"24_11_MSK","class_name":"A-1","integrity":4.0,
+  "friendliness":3.9,"punctuality":4.1,"thoroughness":4.2,
+  "profile_updated_at":"2026-07-04T04:00:00Z"
+}]`
+	report, err := Parse(strings.NewReader(input))
+	require.NoError(t, err)
+	assert.Equal(t, 1, report.AcceptedStatsRows)
+	assert.Zero(t, report.SkippedInvalidStatsRows)
+	require.NotNil(t, report.Mappings[0].Stats)
+	assert.Equal(t, int32(15000), report.Mappings[0].Stats.ExpValue)
+	assert.Equal(t, "2026-07-04T04:00:00Z", report.Mappings[0].Stats.ProfileUpdatedAt.Format("2006-01-02T15:04:05Z07:00"))
+}
+
+func TestParseKeepsMappingButRejectsPartialProfileStats(t *testing.T) {
+	input := `[{"from_id":"user302","text":"beta","isActive":true,"status":"ACTIVE","profile_updated_at":"2026-07-04T04:00:00Z"}]`
+	report, err := Parse(strings.NewReader(input))
+	require.NoError(t, err)
+	assert.Equal(t, 1, report.AcceptedRows)
+	assert.Zero(t, report.AcceptedStatsRows)
+	assert.Equal(t, 1, report.SkippedInvalidStatsRows)
+	assert.Nil(t, report.Mappings[0].Stats)
+}

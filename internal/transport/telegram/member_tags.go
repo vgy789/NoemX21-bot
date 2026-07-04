@@ -476,7 +476,28 @@ func (s *telegramService) resolveImportedMemberTagProfile(ctx context.Context, t
 	if mapping.ActiveSnapshot {
 		status = db.EnumStudentStatusACTIVE
 	}
-	return &service.UserProfile{Login: mapping.S21Login, Status: status}, s.isMemberTagSuppressed(ctx, telegramUserID, mapping.S21Login)
+	profile := &service.UserProfile{Login: mapping.S21Login, Status: status}
+	if stats, statsErr := queries.GetParticipantStatsCache(ctx, mapping.S21Login); statsErr == nil {
+		profile.Status = stats.Status
+		profile.Level = stats.Level
+		profile.Exp = stats.ExpValue
+		profile.PRP = stats.Prp
+		profile.CRP = stats.Crp
+		profile.Coins = stats.Coins
+		if shortName, ok := stats.CampusShortNameEn.(string); ok {
+			profile.CampusShortNameEn = shortName
+		}
+		if shortName, ok := stats.CampusShortNameRu.(string); ok {
+			profile.CampusShortNameRu = shortName
+		}
+		if campusName, ok := stats.CampusName.(string); ok {
+			profile.CampusName = campusName
+		}
+		if stats.CoalitionName.Valid {
+			profile.CoalitionName = stats.CoalitionName.String
+		}
+	}
+	return profile, s.isMemberTagSuppressed(ctx, telegramUserID, mapping.S21Login)
 }
 
 func (s *telegramService) isMemberTagSuppressed(ctx context.Context, telegramUserID int64, login string) bool {

@@ -131,8 +131,8 @@ func downloadTelegramDocument(ctx context.Context, b *gotgbot.Bot, fileID string
 }
 
 func formatMemberTagImportReport(report membertagimport.Report, queued int64) string {
-	return fmt.Sprintf("Импорт завершён.\nСтрок: %d\nПринято: %d\nПропущено некорректных: %d\nСтрок с конфликтами: %d\nКонфликтующих ID: %d\nБез статуса: %d\nПоставлено в очередь: %d",
-		report.TotalRows, report.AcceptedRows, report.SkippedInvalidRows, report.SkippedConflictRows,
+	return fmt.Sprintf("Импорт завершён.\nСтрок: %d\nПринято: %d\nПринято profiles: %d\nНекорректных profiles: %d\nПропущено некорректных: %d\nСтрок с конфликтами: %d\nКонфликтующих ID: %d\nБез статуса: %d\nПоставлено в очередь: %d",
+		report.TotalRows, report.AcceptedRows, report.AcceptedStatsRows, report.SkippedInvalidStatsRows, report.SkippedInvalidRows, report.SkippedConflictRows,
 		report.SkippedConflictIDs, report.SkippedNullStatusRows, queued)
 }
 

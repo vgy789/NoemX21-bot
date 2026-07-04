@@ -55,6 +55,7 @@ package "Identity_Auth" {
         * external_id : string
         username : string
         is_searchable : boolean
+        telegram_visibility_ends_at : timestamptz
         role : enum_user_role
         linked_at : timestamptz
     }

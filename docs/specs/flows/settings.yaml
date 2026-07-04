@@ -165,7 +165,7 @@ states:
 
           Что видят пиры в разделе статистики и поиска.
 
-          👁️ *Видят ли твой Telegram @username и id:* `{my_searchable_status_ru}`
+          👁️ *Видят ли твой Telegram @username:* `{my_searchable_status_ru}`
 
           📞 *Запасной канал связи:* `{my_alt_contact_display_ru}`
 
@@ -261,12 +261,12 @@ states:
         ru: |
           👁️ *Видимость изменена*
 
-          Теперь твой Telegram @username и id будет виден другим пирам.
+          Теперь твой Telegram @username будет виден другим пирам, и тебе доступен поиск профилей.
           *Статус:* `✅ Виден`
         en: |
           👁️ *Visibility Update*
 
-          Your Telegram @username and id is now visible to other peers.
+          Your Telegram @username is now visible to other peers, and profile search is available to you.
           *Status:* `✅ Visible`
       buttons:
         - id: back
@@ -283,13 +283,13 @@ states:
         ru: |
           👁️ *Видимость изменена*
 
-          Теперь твой Telegram @username и id не будет отображаться другим пирам.
-          *Статус:* `❌ Не виден`
+          Telegram @username и доступ к поиску сохранятся ещё 24 часа, затем отключатся автоматически. Повторное включение отменит скрытие.
+          *Статус:* `⏳ Ожидает скрытия`
         en: |
           👁️ *Visibility Update*
 
-          Your Telegram @username and id is now hidden from other peers.
-          *Status:* `❌ Not visible`
+          Telegram @username and search access remain available for 24 hours, then turn off automatically. Re-enabling cancels the pending hide.
+          *Status:* `⏳ Pending hide`
       buttons:
         - id: back
           label:

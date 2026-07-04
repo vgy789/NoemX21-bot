@@ -26,9 +26,25 @@ var (
 )
 
 type inputRow struct {
-	FromID   string `json:"from_id"`
-	Login    string `json:"text"`
-	IsActive *bool  `json:"isActive"`
+	FromID           string   `json:"from_id"`
+	Login            string   `json:"text"`
+	IsActive         *bool    `json:"isActive"`
+	CampusID         *string  `json:"campus_id"`
+	CoalitionID      *int16   `json:"coalition_id"`
+	CoalitionName    *string  `json:"coalition_name"`
+	Status           *string  `json:"status"`
+	Level            *int32   `json:"level"`
+	ExpValue         *int32   `json:"exp_value"`
+	Prp              *int32   `json:"prp"`
+	Crp              *int32   `json:"crp"`
+	Coins            *int32   `json:"coins"`
+	ParallelName     *string  `json:"parallel_name"`
+	ClassName        *string  `json:"class_name"`
+	Integrity        *float32 `json:"integrity"`
+	Friendliness     *float32 `json:"friendliness"`
+	Punctuality      *float32 `json:"punctuality"`
+	Thoroughness     *float32 `json:"thoroughness"`
+	ProfileUpdatedAt *string  `json:"profile_updated_at"`
 }
 
 type Mapping struct {
@@ -36,6 +52,26 @@ type Mapping struct {
 	Login          string
 	Active         bool
 	Line           int
+	Stats          *ProfileStats
+}
+
+type ProfileStats struct {
+	CampusID         pgtype.UUID
+	CoalitionID      pgtype.Int2
+	CoalitionName    string
+	Status           db.EnumStudentStatus
+	Level            int32
+	ExpValue         int32
+	Prp              int32
+	Crp              int32
+	Coins            int32
+	ParallelName     pgtype.Text
+	ClassName        pgtype.Text
+	Integrity        pgtype.Float4
+	Friendliness     pgtype.Float4
+	Punctuality      pgtype.Float4
+	Thoroughness     pgtype.Float4
+	ProfileUpdatedAt time.Time
 }
 
 type Issue struct {
@@ -45,15 +81,17 @@ type Issue struct {
 }
 
 type Report struct {
-	TotalRows             int
-	AcceptedRows          int
-	SkippedInvalidRows    int
-	SkippedConflictRows   int
-	SkippedConflictIDs    int
-	SkippedNullStatusRows int
-	Issues                []Issue
-	Mappings              []Mapping
-	SourceDigest          string
+	TotalRows               int
+	AcceptedRows            int
+	SkippedInvalidRows      int
+	SkippedConflictRows     int
+	SkippedConflictIDs      int
+	SkippedNullStatusRows   int
+	AcceptedStatsRows       int
+	SkippedInvalidStatsRows int
+	Issues                  []Issue
+	Mappings                []Mapping
+	SourceDigest            string
 }
 
 func Parse(r io.Reader) (Report, error) {
@@ -75,6 +113,7 @@ func Parse(r io.Reader) (Report, error) {
 		login          string
 		active         *bool
 		line           int
+		stats          *ProfileStats
 	}
 	candidates := make([]candidate, 0, len(rawRows))
 	byTelegram := make(map[int64][]candidate)
@@ -108,6 +147,12 @@ func Parse(r io.Reader) (Report, error) {
 			active:         row.IsActive,
 			line:           line,
 		}
+		stats, statsErr := parseProfileStats(row)
+		if statsErr != nil {
+			report.SkippedInvalidStatsRows++
+			report.Issues = append(report.Issues, issue(line, "invalid_profile_stats", row.Login))
+		}
+		candidate.stats = stats
 		candidates = append(candidates, candidate)
 		byTelegram[telegramID] = append(byTelegram[telegramID], candidate)
 	}
@@ -138,8 +183,11 @@ func Parse(r io.Reader) (Report, error) {
 			continue
 		}
 		seen[candidate.telegramUserID] = true
+		if candidate.stats != nil {
+			report.AcceptedStatsRows++
+		}
 		report.Mappings = append(report.Mappings, Mapping{
-			TelegramUserID: candidate.telegramUserID, Login: candidate.login, Active: *candidate.active, Line: candidate.line,
+			TelegramUserID: candidate.telegramUserID, Login: candidate.login, Active: *candidate.active, Line: candidate.line, Stats: candidate.stats,
 		})
 	}
 	sort.Slice(report.Mappings, func(i, j int) bool { return report.Mappings[i].TelegramUserID < report.Mappings[j].TelegramUserID })
@@ -176,6 +224,34 @@ func Apply(ctx context.Context, pool *pgxpool.Pool, report Report, observedAt ti
 		}); err != nil {
 			return 0, fmt.Errorf("upsert legacy mapping: %w", err)
 		}
+		if mapping.Stats != nil {
+			stats := *mapping.Stats
+			if stats.CampusID.Valid {
+				if _, err := queries.GetCampusByID(ctx, stats.CampusID); err != nil {
+					stats.CampusID = pgtype.UUID{}
+					stats.CoalitionID = pgtype.Int2{}
+				} else if stats.CoalitionID.Valid {
+					exists, err := queries.ExistsCoalitionByID(ctx, db.ExistsCoalitionByIDParams{CampusID: stats.CampusID, ID: stats.CoalitionID.Int16})
+					if err != nil || !exists {
+						stats.CoalitionID = pgtype.Int2{}
+					}
+				} else if stats.CoalitionName != "" {
+					coalition, err := queries.GetCoalitionByCampusAndName(ctx, db.GetCoalitionByCampusAndNameParams{CampusID: stats.CampusID, Lower: stats.CoalitionName})
+					if err == nil {
+						stats.CoalitionID = pgtype.Int2{Int16: coalition.ID, Valid: true}
+					}
+				}
+			}
+			if err := queries.UpsertImportedParticipantStatsCache(ctx, db.UpsertImportedParticipantStatsCacheParams{
+				S21Login: mapping.Login, CampusID: stats.CampusID, CoalitionID: stats.CoalitionID,
+				Status: stats.Status, Level: stats.Level, ExpValue: stats.ExpValue, Prp: stats.Prp, Crp: stats.Crp, Coins: stats.Coins,
+				ParallelName: stats.ParallelName, ClassName: stats.ClassName, Integrity: stats.Integrity,
+				Friendliness: stats.Friendliness, Punctuality: stats.Punctuality, Thoroughness: stats.Thoroughness,
+				UpdatedAt: dbTimestamp(stats.ProfileUpdatedAt),
+			}); err != nil {
+				return 0, fmt.Errorf("upsert imported profile stats: %w", err)
+			}
+		}
 	}
 	queued, err := queries.EnqueueKnownLegacyMemberTags(ctx)
 	if err != nil {
@@ -185,6 +261,71 @@ func Apply(ctx context.Context, pool *pgxpool.Pool, report Report, observedAt ti
 		return 0, fmt.Errorf("commit member-tag import: %w", err)
 	}
 	return queued, nil
+}
+
+func parseProfileStats(row inputRow) (*ProfileStats, error) {
+	if row.ProfileUpdatedAt == nil || strings.TrimSpace(*row.ProfileUpdatedAt) == "" {
+		return nil, nil
+	}
+	if row.Status == nil || row.Level == nil || row.ExpValue == nil || row.Prp == nil || row.Crp == nil || row.Coins == nil {
+		return nil, errors.New("incomplete required profile stats")
+	}
+	updatedAt, err := time.Parse(time.RFC3339, strings.TrimSpace(*row.ProfileUpdatedAt))
+	if err != nil {
+		return nil, fmt.Errorf("parse profile_updated_at: %w", err)
+	}
+	status := db.EnumStudentStatus(strings.ToUpper(strings.TrimSpace(*row.Status)))
+	if !validStudentStatus(status) {
+		return nil, errors.New("invalid student status")
+	}
+	stats := &ProfileStats{
+		Status: status, Level: *row.Level, ExpValue: *row.ExpValue, Prp: *row.Prp, Crp: *row.Crp, Coins: *row.Coins,
+		ParallelName: nullableText(row.ParallelName), ClassName: nullableText(row.ClassName),
+		Integrity: nullableFloat4(row.Integrity), Friendliness: nullableFloat4(row.Friendliness),
+		Punctuality: nullableFloat4(row.Punctuality), Thoroughness: nullableFloat4(row.Thoroughness),
+		ProfileUpdatedAt: updatedAt.UTC(),
+		CoalitionName:    strings.TrimSpace(valueOrEmpty(row.CoalitionName)),
+	}
+	if row.CampusID != nil && strings.TrimSpace(*row.CampusID) != "" {
+		if err := stats.CampusID.Scan(strings.TrimSpace(*row.CampusID)); err != nil {
+			return nil, errors.New("invalid campus id")
+		}
+	}
+	if row.CoalitionID != nil {
+		stats.CoalitionID = pgtype.Int2{Int16: *row.CoalitionID, Valid: true}
+	}
+	return stats, nil
+}
+
+func valueOrEmpty(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func validStudentStatus(status db.EnumStudentStatus) bool {
+	switch status {
+	case db.EnumStudentStatusACTIVE, db.EnumStudentStatusTEMPORARYBLOCKING, db.EnumStudentStatusEXPELLED,
+		db.EnumStudentStatusBLOCKED, db.EnumStudentStatusFROZEN, db.EnumStudentStatusSTUDYCOMPLETED:
+		return true
+	default:
+		return false
+	}
+}
+
+func nullableText(value *string) pgtype.Text {
+	if value == nil {
+		return pgtype.Text{}
+	}
+	return pgtype.Text{String: strings.TrimSpace(*value), Valid: true}
+}
+
+func nullableFloat4(value *float32) pgtype.Float4 {
+	if value == nil {
+		return pgtype.Float4{}
+	}
+	return pgtype.Float4{Float32: *value, Valid: true}
 }
 
 func issue(line int, code, value string) Issue {

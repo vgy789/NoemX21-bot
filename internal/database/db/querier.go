@@ -101,6 +101,7 @@ type Querier interface {
 	GetCatalogProjectIDsByCourse(ctx context.Context, courseID pgtype.Int8) ([]int64, error)
 	GetCatalogProjectIDsByNodeRecursive(ctx context.Context, id int64) ([]int64, error)
 	GetCatalogProjectTitlesByIDs(ctx context.Context, dollar_1 []int64) ([]GetCatalogProjectTitlesByIDsRow, error)
+	GetCoalitionByCampusAndName(ctx context.Context, arg GetCoalitionByCampusAndNameParams) (Coalition, error)
 	GetDistinctUserTimezones(ctx context.Context) ([]string, error)
 	GetFSMState(ctx context.Context, userID int64) (FsmUserState, error)
 	GetGlobalClubs(ctx context.Context) ([]GetGlobalClubsRow, error)
@@ -155,6 +156,7 @@ type Querier interface {
 	IncrementTeamSearchRequestViewCount(ctx context.Context, id int64) (int32, error)
 	InsertTelegramGroupLog(ctx context.Context, arg InsertTelegramGroupLogParams) error
 	IsLegacyMemberTagSuppressed(ctx context.Context, arg IsLegacyMemberTagSuppressedParams) (bool, error)
+	IsTelegramAccountEffectivelySearchable(ctx context.Context, externalID string) (bool, error)
 	IsTelegramGroupMemberKnown(ctx context.Context, arg IsTelegramGroupMemberKnownParams) (bool, error)
 	ListCoalitionsByCampus(ctx context.Context, campusID pgtype.UUID) ([]Coalition, error)
 	ListDueGlobalMemberTagRunItems(ctx context.Context, limit int32) ([]GlobalMemberTagRunItem, error)
@@ -184,6 +186,7 @@ type Querier interface {
 	MarkReviewRequestNegotiatingAndIncrementResponses(ctx context.Context, arg MarkReviewRequestNegotiatingAndIncrementResponsesParams) (MarkReviewRequestNegotiatingAndIncrementResponsesRow, error)
 	MarkTeamSearchRequestNegotiatingAndIncrementResponses(ctx context.Context, arg MarkTeamSearchRequestNegotiatingAndIncrementResponsesParams) (MarkTeamSearchRequestNegotiatingAndIncrementResponsesRow, error)
 	MarkTelegramGroupMemberLeft(ctx context.Context, arg MarkTelegramGroupMemberLeftParams) error
+	PurgeParticipantStatsCache(ctx context.Context) (int64, error)
 	RequestCancelGlobalMemberTagRun(ctx context.Context, arg RequestCancelGlobalMemberTagRunParams) (int64, error)
 	RetryGlobalMemberTagRunItem(ctx context.Context, arg RetryGlobalMemberTagRunItemParams) error
 	RetryLegacyMemberTag(ctx context.Context, arg RetryLegacyMemberTagParams) error
@@ -235,6 +238,7 @@ type Querier interface {
 	UpsertCoalition(ctx context.Context, arg UpsertCoalitionParams) error
 	UpsertCourseCatalog(ctx context.Context, arg UpsertCourseCatalogParams) error
 	UpsertFSMState(ctx context.Context, arg UpsertFSMStateParams) error
+	UpsertImportedParticipantStatsCache(ctx context.Context, arg UpsertImportedParticipantStatsCacheParams) error
 	UpsertLegacyMemberTagMapping(ctx context.Context, arg UpsertLegacyMemberTagMappingParams) error
 	UpsertNodeCatalog(ctx context.Context, arg UpsertNodeCatalogParams) (int64, error)
 	UpsertParticipantSkill(ctx context.Context, arg UpsertParticipantSkillParams) error

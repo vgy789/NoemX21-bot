@@ -838,7 +838,7 @@ INSERT INTO user_accounts (
 ) VALUES (
     $1, $2, $3, $4, $5, $6
 )
-RETURNING id, s21_login, platform, external_id, username, is_searchable, role, linked_at
+RETURNING id, s21_login, platform, external_id, username, is_searchable, role, linked_at, telegram_visibility_ends_at
 `
 
 type CreateUserAccountParams struct {
@@ -869,6 +869,7 @@ func (q *Queries) CreateUserAccount(ctx context.Context, arg CreateUserAccountPa
 		&i.IsSearchable,
 		&i.Role,
 		&i.LinkedAt,
+		&i.TelegramVisibilityEndsAt,
 	)
 	return i, err
 }
@@ -2279,6 +2280,29 @@ func (q *Queries) GetCatalogProjectTitlesByIDs(ctx context.Context, dollar_1 []i
 	return items, nil
 }
 
+const getCoalitionByCampusAndName = `-- name: GetCoalitionByCampusAndName :one
+SELECT campus_id, id, name, created_at FROM coalitions
+WHERE campus_id = $1 AND lower(name) = lower($2)
+LIMIT 1
+`
+
+type GetCoalitionByCampusAndNameParams struct {
+	CampusID pgtype.UUID `json:"campus_id"`
+	Lower    string      `json:"lower"`
+}
+
+func (q *Queries) GetCoalitionByCampusAndName(ctx context.Context, arg GetCoalitionByCampusAndNameParams) (Coalition, error) {
+	row := q.db.QueryRow(ctx, getCoalitionByCampusAndName, arg.CampusID, arg.Lower)
+	var i Coalition
+	err := row.Scan(
+		&i.CampusID,
+		&i.ID,
+		&i.Name,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getDistinctUserTimezones = `-- name: GetDistinctUserTimezones :many
 SELECT DISTINCT timezone 
 FROM registered_users 
@@ -2708,7 +2732,7 @@ SELECT
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
-            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            WHEN (ua.is_searchable = true OR ua.telegram_visibility_ends_at > CURRENT_TIMESTAMP) AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
             ELSE ''::text
         END,
         ''
@@ -2809,7 +2833,7 @@ SELECT
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
-            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            WHEN (ua.is_searchable = true OR ua.telegram_visibility_ends_at > CURRENT_TIMESTAMP) AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
             ELSE ''::text
         END,
         ''
@@ -2910,7 +2934,8 @@ SELECT
     c.integrity,
     c.friendliness,
     c.punctuality,
-    c.thoroughness
+    c.thoroughness,
+    c.updated_at AS profile_updated_at
 FROM registered_users r
 LEFT JOIN participant_stats_cache c ON r.s21_login = c.s21_login
 LEFT JOIN campuses camp ON c.campus_id = camp.id
@@ -2941,6 +2966,7 @@ type GetMyProfileRow struct {
 	Friendliness       pgtype.Float4         `json:"friendliness"`
 	Punctuality        pgtype.Float4         `json:"punctuality"`
 	Thoroughness       pgtype.Float4         `json:"thoroughness"`
+	ProfileUpdatedAt   pgtype.Timestamptz    `json:"profile_updated_at"`
 }
 
 // Профиль зарегистрированного пользователя: регистрационные данные + статистика из кеша.
@@ -2970,6 +2996,7 @@ func (q *Queries) GetMyProfile(ctx context.Context, s21Login string) (GetMyProfi
 		&i.Friendliness,
 		&i.Punctuality,
 		&i.Thoroughness,
+		&i.ProfileUpdatedAt,
 	)
 	return i, err
 }
@@ -3003,7 +3030,7 @@ SELECT
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
-            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            WHEN (ua.is_searchable = true OR ua.telegram_visibility_ends_at > CURRENT_TIMESTAMP) AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
             ELSE ''::text
         END,
         ''
@@ -3113,7 +3140,7 @@ SELECT
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
-            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            WHEN (ua.is_searchable = true OR ua.telegram_visibility_ends_at > CURRENT_TIMESTAMP) AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
             ELSE ''::text
         END,
         ''
@@ -3217,7 +3244,7 @@ SELECT
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
-            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            WHEN (ua.is_searchable = true OR ua.telegram_visibility_ends_at > CURRENT_TIMESTAMP) AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
             ELSE ''::text
         END,
         ''
@@ -3318,7 +3345,7 @@ SELECT
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
-            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            WHEN (ua.is_searchable = true OR ua.telegram_visibility_ends_at > CURRENT_TIMESTAMP) AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
             ELSE ''::text
         END,
         ''
@@ -3508,9 +3535,12 @@ func (q *Queries) GetParticipantStatsCache(ctx context.Context, s21Login string)
 const getPeerProfile = `-- name: GetPeerProfile :one
 SELECT
     c.s21_login,
-    COALESCE(ua.username, '') AS telegram_username,
-    COALESCE(ua.external_id, '') AS external_id,
-    ua.is_searchable,
+    CASE
+        WHEN ua.is_searchable = TRUE OR ua.telegram_visibility_ends_at > CURRENT_TIMESTAMP
+        THEN COALESCE(ua.username, '')
+        ELSE ''
+    END AS telegram_username,
+    (ua.is_searchable = TRUE OR ua.telegram_visibility_ends_at > CURRENT_TIMESTAMP)::boolean AS is_searchable,
     COALESCE(NULLIF(BTRIM(camp.name_ru), ''), NULLIF(BTRIM(camp.name_en), ''), NULLIF(BTRIM(camp.short_name), ''), '') AS campus_name,
     co.name AS coalition_name,
     c.status,
@@ -3525,6 +3555,7 @@ SELECT
     c.friendliness,
     c.punctuality,
     c.thoroughness
+    , c.updated_at AS profile_updated_at
 FROM participant_stats_cache c
 LEFT JOIN campuses camp ON c.campus_id = camp.id
 LEFT JOIN coalitions co ON c.campus_id = co.campus_id AND c.coalition_id = co.id
@@ -3533,24 +3564,24 @@ WHERE c.s21_login = $1
 `
 
 type GetPeerProfileRow struct {
-	S21Login         string            `json:"s21_login"`
-	TelegramUsername string            `json:"telegram_username"`
-	ExternalID       string            `json:"external_id"`
-	IsSearchable     pgtype.Bool       `json:"is_searchable"`
-	CampusName       interface{}       `json:"campus_name"`
-	CoalitionName    pgtype.Text       `json:"coalition_name"`
-	Status           EnumStudentStatus `json:"status"`
-	Level            int32             `json:"level"`
-	ExpValue         int32             `json:"exp_value"`
-	Prp              int32             `json:"prp"`
-	Crp              int32             `json:"crp"`
-	Coins            int32             `json:"coins"`
-	ParallelName     pgtype.Text       `json:"parallel_name"`
-	ClassName        pgtype.Text       `json:"class_name"`
-	Integrity        pgtype.Float4     `json:"integrity"`
-	Friendliness     pgtype.Float4     `json:"friendliness"`
-	Punctuality      pgtype.Float4     `json:"punctuality"`
-	Thoroughness     pgtype.Float4     `json:"thoroughness"`
+	S21Login         string             `json:"s21_login"`
+	TelegramUsername string             `json:"telegram_username"`
+	IsSearchable     bool               `json:"is_searchable"`
+	CampusName       interface{}        `json:"campus_name"`
+	CoalitionName    pgtype.Text        `json:"coalition_name"`
+	Status           EnumStudentStatus  `json:"status"`
+	Level            int32              `json:"level"`
+	ExpValue         int32              `json:"exp_value"`
+	Prp              int32              `json:"prp"`
+	Crp              int32              `json:"crp"`
+	Coins            int32              `json:"coins"`
+	ParallelName     pgtype.Text        `json:"parallel_name"`
+	ClassName        pgtype.Text        `json:"class_name"`
+	Integrity        pgtype.Float4      `json:"integrity"`
+	Friendliness     pgtype.Float4      `json:"friendliness"`
+	Punctuality      pgtype.Float4      `json:"punctuality"`
+	Thoroughness     pgtype.Float4      `json:"thoroughness"`
+	ProfileUpdatedAt pgtype.Timestamptz `json:"profile_updated_at"`
 }
 
 // Профиль пира: из кеша статистики + telegram username если зарегистрирован.
@@ -3560,7 +3591,6 @@ func (q *Queries) GetPeerProfile(ctx context.Context, s21Login string) (GetPeerP
 	err := row.Scan(
 		&i.S21Login,
 		&i.TelegramUsername,
-		&i.ExternalID,
 		&i.IsSearchable,
 		&i.CampusName,
 		&i.CoalitionName,
@@ -3576,6 +3606,7 @@ func (q *Queries) GetPeerProfile(ctx context.Context, s21Login string) (GetPeerP
 		&i.Friendliness,
 		&i.Punctuality,
 		&i.Thoroughness,
+		&i.ProfileUpdatedAt,
 	)
 	return i, err
 }
@@ -3664,7 +3695,7 @@ SELECT
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
-            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            WHEN (ua.is_searchable = true OR ua.telegram_visibility_ends_at > CURRENT_TIMESTAMP) AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
             ELSE ''::text
         END,
         ''
@@ -3960,7 +3991,7 @@ SELECT
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
-            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            WHEN (ua.is_searchable = true OR ua.telegram_visibility_ends_at > CURRENT_TIMESTAMP) AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
             ELSE ''::text
         END,
         ''
@@ -4108,7 +4139,7 @@ func (q *Queries) GetTelegramGroupByChatID(ctx context.Context, chatID int64) (T
 }
 
 const getUserAccountByExternalId = `-- name: GetUserAccountByExternalId :one
-SELECT id, s21_login, platform, external_id, username, is_searchable, role, linked_at FROM user_accounts 
+SELECT id, s21_login, platform, external_id, username, is_searchable, role, linked_at, telegram_visibility_ends_at FROM user_accounts
 WHERE platform = $1 AND external_id = $2
 `
 
@@ -4129,12 +4160,13 @@ func (q *Queries) GetUserAccountByExternalId(ctx context.Context, arg GetUserAcc
 		&i.IsSearchable,
 		&i.Role,
 		&i.LinkedAt,
+		&i.TelegramVisibilityEndsAt,
 	)
 	return i, err
 }
 
 const getUserAccountByID = `-- name: GetUserAccountByID :one
-SELECT id, s21_login, platform, external_id, username, is_searchable, role, linked_at FROM user_accounts
+SELECT id, s21_login, platform, external_id, username, is_searchable, role, linked_at, telegram_visibility_ends_at FROM user_accounts
 WHERE id = $1
 `
 
@@ -4150,12 +4182,13 @@ func (q *Queries) GetUserAccountByID(ctx context.Context, id int64) (UserAccount
 		&i.IsSearchable,
 		&i.Role,
 		&i.LinkedAt,
+		&i.TelegramVisibilityEndsAt,
 	)
 	return i, err
 }
 
 const getUserAccountByS21Login = `-- name: GetUserAccountByS21Login :one
-SELECT id, s21_login, platform, external_id, username, is_searchable, role, linked_at FROM user_accounts
+SELECT id, s21_login, platform, external_id, username, is_searchable, role, linked_at, telegram_visibility_ends_at FROM user_accounts
 WHERE s21_login = $1
 `
 
@@ -4171,6 +4204,7 @@ func (q *Queries) GetUserAccountByS21Login(ctx context.Context, s21Login string)
 		&i.IsSearchable,
 		&i.Role,
 		&i.LinkedAt,
+		&i.TelegramVisibilityEndsAt,
 	)
 	return i, err
 }
@@ -4453,6 +4487,23 @@ func (q *Queries) IsLegacyMemberTagSuppressed(ctx context.Context, arg IsLegacyM
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
+}
+
+const isTelegramAccountEffectivelySearchable = `-- name: IsTelegramAccountEffectivelySearchable :one
+SELECT EXISTS (
+    SELECT 1
+    FROM user_accounts
+    WHERE platform = 'telegram'
+      AND external_id = $1
+      AND (is_searchable = TRUE OR telegram_visibility_ends_at > CURRENT_TIMESTAMP)
+)::boolean
+`
+
+func (q *Queries) IsTelegramAccountEffectivelySearchable(ctx context.Context, externalID string) (bool, error) {
+	row := q.db.QueryRow(ctx, isTelegramAccountEffectivelySearchable, externalID)
+	var column_1 bool
+	err := row.Scan(&column_1)
+	return column_1, err
 }
 
 const isTelegramGroupMemberKnown = `-- name: IsTelegramGroupMemberKnown :one
@@ -5492,6 +5543,18 @@ func (q *Queries) MarkTelegramGroupMemberLeft(ctx context.Context, arg MarkTeleg
 		arg.LastSeenAt,
 	)
 	return err
+}
+
+const purgeParticipantStatsCache = `-- name: PurgeParticipantStatsCache :execrows
+DELETE FROM participant_stats_cache
+`
+
+func (q *Queries) PurgeParticipantStatsCache(ctx context.Context) (int64, error) {
+	result, err := q.db.Exec(ctx, purgeParticipantStatsCache)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
 }
 
 const requestCancelGlobalMemberTagRun = `-- name: RequestCancelGlobalMemberTagRun :execrows
@@ -6639,9 +6702,13 @@ func (q *Queries) UpdateTelegramGroupWelcomeEnabledByOwner(ctx context.Context, 
 
 const updateUserAccountSearchableByExternalId = `-- name: UpdateUserAccountSearchableByExternalId :one
 UPDATE user_accounts
-SET is_searchable = $3
+SET is_searchable = $3,
+    telegram_visibility_ends_at = CASE
+        WHEN $3 THEN NULL
+        ELSE CURRENT_TIMESTAMP + INTERVAL '24 hours'
+    END
 WHERE platform = $1 AND external_id = $2
-RETURNING id, s21_login, platform, external_id, username, is_searchable, role, linked_at
+RETURNING id, s21_login, platform, external_id, username, is_searchable, role, linked_at, telegram_visibility_ends_at
 `
 
 type UpdateUserAccountSearchableByExternalIdParams struct {
@@ -6662,6 +6729,7 @@ func (q *Queries) UpdateUserAccountSearchableByExternalId(ctx context.Context, a
 		&i.IsSearchable,
 		&i.Role,
 		&i.LinkedAt,
+		&i.TelegramVisibilityEndsAt,
 	)
 	return i, err
 }
@@ -6941,6 +7009,77 @@ func (q *Queries) UpsertFSMState(ctx context.Context, arg UpsertFSMStateParams) 
 		arg.CurrentState,
 		arg.Context,
 		arg.Language,
+	)
+	return err
+}
+
+const upsertImportedParticipantStatsCache = `-- name: UpsertImportedParticipantStatsCache :exec
+INSERT INTO participant_stats_cache (
+    s21_login, campus_id, coalition_id, status, level, exp_value,
+    prp, crp, coins, parallel_name, class_name,
+    integrity, friendliness, punctuality, thoroughness,
+    updated_at, lat_synced_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+    $16, $16
+)
+ON CONFLICT (s21_login) DO UPDATE SET
+    campus_id = EXCLUDED.campus_id,
+    coalition_id = EXCLUDED.coalition_id,
+    status = EXCLUDED.status,
+    level = EXCLUDED.level,
+    exp_value = EXCLUDED.exp_value,
+    prp = EXCLUDED.prp,
+    crp = EXCLUDED.crp,
+    coins = EXCLUDED.coins,
+    parallel_name = EXCLUDED.parallel_name,
+    class_name = EXCLUDED.class_name,
+    integrity = EXCLUDED.integrity,
+    friendliness = EXCLUDED.friendliness,
+    punctuality = EXCLUDED.punctuality,
+    thoroughness = EXCLUDED.thoroughness,
+    updated_at = EXCLUDED.updated_at,
+    lat_synced_at = EXCLUDED.lat_synced_at
+WHERE participant_stats_cache.updated_at <= EXCLUDED.updated_at
+`
+
+type UpsertImportedParticipantStatsCacheParams struct {
+	S21Login     string             `json:"s21_login"`
+	CampusID     pgtype.UUID        `json:"campus_id"`
+	CoalitionID  pgtype.Int2        `json:"coalition_id"`
+	Status       EnumStudentStatus  `json:"status"`
+	Level        int32              `json:"level"`
+	ExpValue     int32              `json:"exp_value"`
+	Prp          int32              `json:"prp"`
+	Crp          int32              `json:"crp"`
+	Coins        int32              `json:"coins"`
+	ParallelName pgtype.Text        `json:"parallel_name"`
+	ClassName    pgtype.Text        `json:"class_name"`
+	Integrity    pgtype.Float4      `json:"integrity"`
+	Friendliness pgtype.Float4      `json:"friendliness"`
+	Punctuality  pgtype.Float4      `json:"punctuality"`
+	Thoroughness pgtype.Float4      `json:"thoroughness"`
+	UpdatedAt    pgtype.Timestamptz `json:"updated_at"`
+}
+
+func (q *Queries) UpsertImportedParticipantStatsCache(ctx context.Context, arg UpsertImportedParticipantStatsCacheParams) error {
+	_, err := q.db.Exec(ctx, upsertImportedParticipantStatsCache,
+		arg.S21Login,
+		arg.CampusID,
+		arg.CoalitionID,
+		arg.Status,
+		arg.Level,
+		arg.ExpValue,
+		arg.Prp,
+		arg.Crp,
+		arg.Coins,
+		arg.ParallelName,
+		arg.ClassName,
+		arg.Integrity,
+		arg.Friendliness,
+		arg.Punctuality,
+		arg.Thoroughness,
+		arg.UpdatedAt,
 	)
 	return err
 }

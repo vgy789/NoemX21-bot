@@ -131,14 +131,27 @@ ON CONFLICT (s21_login) DO UPDATE SET
 RETURNING *;
 
 -- name: GetUserAccountByExternalId :one
-SELECT * FROM user_accounts 
+SELECT * FROM user_accounts
 WHERE platform = $1 AND external_id = $2;
 
 -- name: UpdateUserAccountSearchableByExternalId :one
 UPDATE user_accounts
-SET is_searchable = $3
+SET is_searchable = $3,
+    telegram_visibility_ends_at = CASE
+        WHEN $3 THEN NULL
+        ELSE CURRENT_TIMESTAMP + INTERVAL '24 hours'
+    END
 WHERE platform = $1 AND external_id = $2
 RETURNING *;
+
+-- name: IsTelegramAccountEffectivelySearchable :one
+SELECT EXISTS (
+    SELECT 1
+    FROM user_accounts
+    WHERE platform = 'telegram'
+      AND external_id = $1
+      AND (is_searchable = TRUE OR telegram_visibility_ends_at > CURRENT_TIMESTAMP)
+)::boolean;
 
 -- name: DeleteUserAccountByExternalId :exec
 DELETE FROM user_accounts
@@ -981,6 +994,11 @@ SELECT * FROM coalitions
 WHERE campus_id = $1
 ORDER BY name;
 
+-- name: GetCoalitionByCampusAndName :one
+SELECT * FROM coalitions
+WHERE campus_id = $1 AND lower(name) = lower($2)
+LIMIT 1;
+
 -- name: UpsertClub :one
 INSERT INTO clubs (
     id, campus_id, leader_login, name, description, category_id,
@@ -1097,6 +1115,38 @@ ON CONFLICT (s21_login) DO UPDATE SET
     updated_at = CURRENT_TIMESTAMP,
     lat_synced_at = CURRENT_TIMESTAMP;
 
+-- name: UpsertImportedParticipantStatsCache :exec
+INSERT INTO participant_stats_cache (
+    s21_login, campus_id, coalition_id, status, level, exp_value,
+    prp, crp, coins, parallel_name, class_name,
+    integrity, friendliness, punctuality, thoroughness,
+    updated_at, lat_synced_at
+) VALUES (
+    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+    $16, $16
+)
+ON CONFLICT (s21_login) DO UPDATE SET
+    campus_id = EXCLUDED.campus_id,
+    coalition_id = EXCLUDED.coalition_id,
+    status = EXCLUDED.status,
+    level = EXCLUDED.level,
+    exp_value = EXCLUDED.exp_value,
+    prp = EXCLUDED.prp,
+    crp = EXCLUDED.crp,
+    coins = EXCLUDED.coins,
+    parallel_name = EXCLUDED.parallel_name,
+    class_name = EXCLUDED.class_name,
+    integrity = EXCLUDED.integrity,
+    friendliness = EXCLUDED.friendliness,
+    punctuality = EXCLUDED.punctuality,
+    thoroughness = EXCLUDED.thoroughness,
+    updated_at = EXCLUDED.updated_at,
+    lat_synced_at = EXCLUDED.lat_synced_at
+WHERE participant_stats_cache.updated_at <= EXCLUDED.updated_at;
+
+-- name: PurgeParticipantStatsCache :execrows
+DELETE FROM participant_stats_cache;
+
 -- name: GetMyProfile :one
 -- Профиль зарегистрированного пользователя: регистрационные данные + статистика из кеша.
 SELECT
@@ -1121,7 +1171,8 @@ SELECT
     c.integrity,
     c.friendliness,
     c.punctuality,
-    c.thoroughness
+    c.thoroughness,
+    c.updated_at AS profile_updated_at
 FROM registered_users r
 LEFT JOIN participant_stats_cache c ON r.s21_login = c.s21_login
 LEFT JOIN campuses camp ON c.campus_id = camp.id
@@ -1132,9 +1183,12 @@ WHERE r.s21_login = $1;
 -- Профиль пира: из кеша статистики + telegram username если зарегистрирован.
 SELECT
     c.s21_login,
-    COALESCE(ua.username, '') AS telegram_username,
-    COALESCE(ua.external_id, '') AS external_id,
-    ua.is_searchable,
+    CASE
+        WHEN ua.is_searchable = TRUE OR ua.telegram_visibility_ends_at > CURRENT_TIMESTAMP
+        THEN COALESCE(ua.username, '')
+        ELSE ''
+    END AS telegram_username,
+    (ua.is_searchable = TRUE OR ua.telegram_visibility_ends_at > CURRENT_TIMESTAMP)::boolean AS is_searchable,
     COALESCE(NULLIF(BTRIM(camp.name_ru), ''), NULLIF(BTRIM(camp.name_en), ''), NULLIF(BTRIM(camp.short_name), ''), '') AS campus_name,
     co.name AS coalition_name,
     c.status,
@@ -1149,6 +1203,7 @@ SELECT
     c.friendliness,
     c.punctuality,
     c.thoroughness
+    , c.updated_at AS profile_updated_at
 FROM participant_stats_cache c
 LEFT JOIN campuses camp ON c.campus_id = camp.id
 LEFT JOIN coalitions co ON c.campus_id = co.campus_id AND c.coalition_id = co.id
@@ -1494,7 +1549,7 @@ SELECT
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
-            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            WHEN (ua.is_searchable = true OR ua.telegram_visibility_ends_at > CURRENT_TIMESTAMP) AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
             ELSE ''::text
         END,
         ''
@@ -1541,7 +1596,7 @@ SELECT
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
-            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            WHEN (ua.is_searchable = true OR ua.telegram_visibility_ends_at > CURRENT_TIMESTAMP) AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
             ELSE ''::text
         END,
         ''
@@ -1583,7 +1638,7 @@ SELECT
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
-            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            WHEN (ua.is_searchable = true OR ua.telegram_visibility_ends_at > CURRENT_TIMESTAMP) AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
             ELSE ''::text
         END,
         ''
@@ -1618,7 +1673,7 @@ SELECT
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
-            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            WHEN (ua.is_searchable = true OR ua.telegram_visibility_ends_at > CURRENT_TIMESTAMP) AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
             ELSE ''::text
         END,
         ''
@@ -1749,7 +1804,7 @@ SELECT
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
-            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            WHEN (ua.is_searchable = true OR ua.telegram_visibility_ends_at > CURRENT_TIMESTAMP) AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
             ELSE ''::text
         END,
         ''
@@ -1796,7 +1851,7 @@ SELECT
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
-            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            WHEN (ua.is_searchable = true OR ua.telegram_visibility_ends_at > CURRENT_TIMESTAMP) AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
             ELSE ''::text
         END,
         ''
@@ -1838,7 +1893,7 @@ SELECT
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
-            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            WHEN (ua.is_searchable = true OR ua.telegram_visibility_ends_at > CURRENT_TIMESTAMP) AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
             ELSE ''::text
         END,
         ''
@@ -1873,7 +1928,7 @@ SELECT
     COALESCE(psc.level::text, '0') AS requester_level,
     COALESCE(
         CASE
-            WHEN ua.is_searchable = true AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
+            WHEN (ua.is_searchable = true OR ua.telegram_visibility_ends_at > CURRENT_TIMESTAMP) AND COALESCE(trim(ua.username), '') <> '' THEN ua.username
             ELSE ''::text
         END,
         ''

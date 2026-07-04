@@ -1364,6 +1364,21 @@ func (mr *MockQuerierMockRecorder) GetCatalogProjectTitlesByIDs(ctx, dollar_1 an
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCatalogProjectTitlesByIDs", reflect.TypeOf((*MockQuerier)(nil).GetCatalogProjectTitlesByIDs), ctx, dollar_1)
 }
 
+// GetCoalitionByCampusAndName mocks base method.
+func (m *MockQuerier) GetCoalitionByCampusAndName(ctx context.Context, arg db.GetCoalitionByCampusAndNameParams) (db.Coalition, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetCoalitionByCampusAndName", ctx, arg)
+	ret0, _ := ret[0].(db.Coalition)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetCoalitionByCampusAndName indicates an expected call of GetCoalitionByCampusAndName.
+func (mr *MockQuerierMockRecorder) GetCoalitionByCampusAndName(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetCoalitionByCampusAndName", reflect.TypeOf((*MockQuerier)(nil).GetCoalitionByCampusAndName), ctx, arg)
+}
+
 // GetDistinctUserTimezones mocks base method.
 func (m *MockQuerier) GetDistinctUserTimezones(ctx context.Context) ([]string, error) {
 	m.ctrl.T.Helper()
@@ -2128,6 +2143,21 @@ func (mr *MockQuerierMockRecorder) IsLegacyMemberTagSuppressed(ctx, arg any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsLegacyMemberTagSuppressed", reflect.TypeOf((*MockQuerier)(nil).IsLegacyMemberTagSuppressed), ctx, arg)
 }
 
+// IsTelegramAccountEffectivelySearchable mocks base method.
+func (m *MockQuerier) IsTelegramAccountEffectivelySearchable(ctx context.Context, externalID string) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "IsTelegramAccountEffectivelySearchable", ctx, externalID)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// IsTelegramAccountEffectivelySearchable indicates an expected call of IsTelegramAccountEffectivelySearchable.
+func (mr *MockQuerierMockRecorder) IsTelegramAccountEffectivelySearchable(ctx, externalID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IsTelegramAccountEffectivelySearchable", reflect.TypeOf((*MockQuerier)(nil).IsTelegramAccountEffectivelySearchable), ctx, externalID)
+}
+
 // IsTelegramGroupMemberKnown mocks base method.
 func (m *MockQuerier) IsTelegramGroupMemberKnown(ctx context.Context, arg db.IsTelegramGroupMemberKnownParams) (bool, error) {
 	m.ctrl.T.Helper()
@@ -2557,6 +2587,21 @@ func (m *MockQuerier) MarkTelegramGroupMemberLeft(ctx context.Context, arg db.Ma
 func (mr *MockQuerierMockRecorder) MarkTelegramGroupMemberLeft(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "MarkTelegramGroupMemberLeft", reflect.TypeOf((*MockQuerier)(nil).MarkTelegramGroupMemberLeft), ctx, arg)
+}
+
+// PurgeParticipantStatsCache mocks base method.
+func (m *MockQuerier) PurgeParticipantStatsCache(ctx context.Context) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PurgeParticipantStatsCache", ctx)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PurgeParticipantStatsCache indicates an expected call of PurgeParticipantStatsCache.
+func (mr *MockQuerierMockRecorder) PurgeParticipantStatsCache(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PurgeParticipantStatsCache", reflect.TypeOf((*MockQuerier)(nil).PurgeParticipantStatsCache), ctx)
 }
 
 // RequestCancelGlobalMemberTagRun mocks base method.
@@ -3301,6 +3346,20 @@ func (m *MockQuerier) UpsertFSMState(ctx context.Context, arg db.UpsertFSMStateP
 func (mr *MockQuerierMockRecorder) UpsertFSMState(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertFSMState", reflect.TypeOf((*MockQuerier)(nil).UpsertFSMState), ctx, arg)
+}
+
+// UpsertImportedParticipantStatsCache mocks base method.
+func (m *MockQuerier) UpsertImportedParticipantStatsCache(ctx context.Context, arg db.UpsertImportedParticipantStatsCacheParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertImportedParticipantStatsCache", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertImportedParticipantStatsCache indicates an expected call of UpsertImportedParticipantStatsCache.
+func (mr *MockQuerierMockRecorder) UpsertImportedParticipantStatsCache(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertImportedParticipantStatsCache", reflect.TypeOf((*MockQuerier)(nil).UpsertImportedParticipantStatsCache), ctx, arg)
 }
 
 // UpsertLegacyMemberTagMapping mocks base method.
