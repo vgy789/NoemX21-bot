@@ -18,11 +18,19 @@ const globalMemberTagBatch = int32(1)
 const globalMemberTagItemTimeout = 5 * time.Second
 
 func (r *telegramMemberTagRunner) PreviewGlobalMemberTags(ctx context.Context, ownerID int64) (fsm.GlobalMemberTagRunStatus, error) {
+	return fsm.GlobalMemberTagRunStatus{State: "retired"}, nil
+}
+
+func (r *telegramMemberTagRunner) previewGlobalMemberTagsRetiredCode(ctx context.Context, ownerID int64) (fsm.GlobalMemberTagRunStatus, error) {
 	groups, candidates, err := r.svc.globalMemberTagScope(ctx, r.bot, ownerID)
 	return fsm.GlobalMemberTagRunStatus{EligibleGroups: int32(len(groups)), CandidateProfiles: int32(len(candidates)), TotalItems: int64(len(groups) * len(candidates)), State: "preview"}, err
 }
 
 func (r *telegramMemberTagRunner) StartGlobalMemberTags(ctx context.Context, ownerID int64) (fsm.GlobalMemberTagRunStatus, error) {
+	return fsm.GlobalMemberTagRunStatus{State: "retired"}, nil
+}
+
+func (r *telegramMemberTagRunner) startGlobalMemberTagsRetiredCode(ctx context.Context, ownerID int64) (fsm.GlobalMemberTagRunStatus, error) {
 	if !r.svc.isConfiguredBotOwner(ctx, ownerID) {
 		return fsm.GlobalMemberTagRunStatus{}, errors.New("global member-tag access denied")
 	}
@@ -61,6 +69,10 @@ func (r *telegramMemberTagRunner) StartGlobalMemberTags(ctx context.Context, own
 }
 
 func (r *telegramMemberTagRunner) GlobalMemberTagStatus(ctx context.Context, ownerID int64) (fsm.GlobalMemberTagRunStatus, error) {
+	return fsm.GlobalMemberTagRunStatus{State: "retired"}, nil
+}
+
+func (r *telegramMemberTagRunner) globalMemberTagStatusRetiredCode(ctx context.Context, ownerID int64) (fsm.GlobalMemberTagRunStatus, error) {
 	if !r.svc.isConfiguredBotOwner(ctx, ownerID) {
 		return fsm.GlobalMemberTagRunStatus{}, errors.New("global member-tag access denied")
 	}
@@ -72,6 +84,10 @@ func (r *telegramMemberTagRunner) GlobalMemberTagStatus(ctx context.Context, own
 }
 
 func (r *telegramMemberTagRunner) CancelGlobalMemberTags(ctx context.Context, ownerID int64) error {
+	return nil
+}
+
+func (r *telegramMemberTagRunner) cancelGlobalMemberTagsRetiredCode(ctx context.Context, ownerID int64) error {
 	if !r.svc.isConfiguredBotOwner(ctx, ownerID) {
 		return errors.New("global member-tag access denied")
 	}
@@ -87,6 +103,10 @@ func (r *telegramMemberTagRunner) CancelGlobalMemberTags(ctx context.Context, ow
 }
 
 func (r *telegramMemberTagRunner) StartGroupMemberTagDiscovery(ctx context.Context, ownerID, chatID int64) (fsm.GlobalMemberTagRunStatus, error) {
+	return fsm.GlobalMemberTagRunStatus{State: "retired"}, nil
+}
+
+func (r *telegramMemberTagRunner) startGroupMemberTagDiscoveryRetiredCode(ctx context.Context, ownerID, chatID int64) (fsm.GlobalMemberTagRunStatus, error) {
 	if r == nil || r.svc == nil || r.bot == nil || ownerID <= 0 || chatID == 0 {
 		return fsm.GlobalMemberTagRunStatus{}, errors.New("group member-tag dependencies are not ready")
 	}
@@ -137,6 +157,10 @@ func (r *telegramMemberTagRunner) StartGroupMemberTagDiscovery(ctx context.Conte
 }
 
 func (r *telegramMemberTagRunner) GroupMemberTagDiscoveryStatus(ctx context.Context, ownerID int64) (fsm.GlobalMemberTagRunStatus, error) {
+	return fsm.GlobalMemberTagRunStatus{State: "retired"}, nil
+}
+
+func (r *telegramMemberTagRunner) groupMemberTagDiscoveryStatusRetiredCode(ctx context.Context, ownerID int64) (fsm.GlobalMemberTagRunStatus, error) {
 	run, err := r.svc.queries.GetLatestGlobalMemberTagRunByOwner(ctx, ownerID)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return fsm.GlobalMemberTagRunStatus{State: "idle"}, nil
@@ -145,6 +169,10 @@ func (r *telegramMemberTagRunner) GroupMemberTagDiscoveryStatus(ctx context.Cont
 }
 
 func (r *telegramMemberTagRunner) CancelGroupMemberTagDiscovery(ctx context.Context, ownerID int64) error {
+	return nil
+}
+
+func (r *telegramMemberTagRunner) cancelGroupMemberTagDiscoveryRetiredCode(ctx context.Context, ownerID int64) error {
 	run, err := r.svc.queries.GetActiveGlobalMemberTagRun(ctx)
 	if errors.Is(err, pgx.ErrNoRows) {
 		return nil
@@ -191,6 +219,10 @@ func (s *telegramService) globalMemberTagScope(ctx context.Context, bot *gotgbot
 }
 
 func (s *telegramService) startGlobalMemberTagWorker(ctx context.Context, bot *gotgbot.Bot) {
+	return
+}
+
+func (s *telegramService) startGlobalMemberTagWorkerRetiredCode(ctx context.Context, bot *gotgbot.Bot) {
 	if s == nil || s.queries == nil || bot == nil {
 		return
 	}

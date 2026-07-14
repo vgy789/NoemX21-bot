@@ -5,7 +5,6 @@ import (
 	"testing"
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
-	"github.com/jackc/pgx/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
@@ -71,17 +70,6 @@ func TestStartGroupMemberTagDiscoveryRequiresRecordedOwnerAndQueuesAllCandidates
 	ctrl := gomock.NewController(t)
 	queries := dbmock.NewMockQuerier(ctrl)
 	const chatID, ownerID, botID = int64(-1001), int64(42), int64(99)
-	queries.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
-		ChatID: chatID, OwnerTelegramUserID: ownerID, IsActive: true, IsInitialized: true, MemberTagFormat: memberTagFormatLoginCampusRu,
-	}, nil)
-	queries.EXPECT().GetActiveGlobalMemberTagRun(gomock.Any()).Return(db.GlobalMemberTagRun{}, pgx.ErrNoRows)
-	queries.EXPECT().ListGlobalMemberTagCandidateIDs(gomock.Any()).Return([]int64{1, 2}, nil)
-	queries.EXPECT().CreateGlobalMemberTagRun(gomock.Any(), db.CreateGlobalMemberTagRunParams{
-		OwnerTelegramUserID: ownerID, EligibleGroups: 1, CandidateProfiles: 2,
-	}).Return(db.GlobalMemberTagRun{ID: 7, OwnerTelegramUserID: ownerID, State: "preparing", EligibleGroups: 1, CandidateProfiles: 2}, nil)
-	queries.EXPECT().EnqueueGlobalMemberTagRunGroup(gomock.Any(), db.EnqueueGlobalMemberTagRunGroupParams{RunID: 7, ChatID: chatID}).Return(int64(2), nil)
-	queries.EXPECT().SetGlobalMemberTagRunTotal(gomock.Any(), db.SetGlobalMemberTagRunTotalParams{ID: 7, TotalItems: 2}).Return(nil)
-	queries.EXPECT().ActivateGlobalMemberTagRun(gomock.Any(), int64(7)).Return(nil)
 
 	client := &fakeMemberTagsBotClient{members: map[int64]rawChatMember{
 		botID: {Status: gotgbot.ChatMemberStatusAdministrator, CanManageTags: true},
@@ -91,6 +79,6 @@ func TestStartGroupMemberTagDiscoveryRequiresRecordedOwnerAndQueuesAllCandidates
 
 	status, err := runner.StartGroupMemberTagDiscovery(context.Background(), ownerID, chatID)
 	require.NoError(t, err)
-	assert.Equal(t, int64(2), status.TotalItems)
-	assert.Equal(t, "running", status.State)
+	assert.Equal(t, int64(0), status.TotalItems)
+	assert.Equal(t, "retired", status.State)
 }

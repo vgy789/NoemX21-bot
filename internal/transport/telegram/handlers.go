@@ -252,7 +252,7 @@ func (s *telegramService) handleGroupStart(b *gotgbot.Bot, ctx *ext.Context) err
 	}
 
 	_, err = s.getSender(b).SendMessage(ctx.EffectiveChat.Id,
-		"Бот добавлен в группу.\n\nВладелец группы должен выполнить команду /init, чтобы завершить инициализацию.",
+		"Бот добавлен в группу.\n\nВладелец группы должен выполнить /init. Новые группы получают только PRR-радар и радар групповых проектов.",
 		nil,
 	)
 	return err
@@ -277,7 +277,7 @@ func (s *telegramService) handleGroupInit(b *gotgbot.Bot, ctx *ext.Context) erro
 	ownerMember, err := b.GetChatMember(chatID, userID, nil)
 	if err != nil {
 		s.log.Warn("failed to verify group owner", "chat_id", chatID, "user_id", userID, "error", err)
-		_, _ = s.getSender(b).SendMessage(chatID, "Не удалось проверить права. Убедитесь, что бот администратор группы.", nil)
+		_, _ = s.getSender(b).SendMessage(chatID, "Не удалось проверить владельца группы. Проверьте, что бот остаётся в группе, и повторите /init.", nil)
 		return nil
 	}
 	if ownerMember.GetStatus() != gotgbot.ChatMemberStatusOwner {
@@ -291,18 +291,6 @@ func (s *telegramService) handleGroupInit(b *gotgbot.Bot, ctx *ext.Context) erro
 		if rows > 0 {
 			return nil
 		}
-		return nil
-	}
-
-	botMember, err := b.GetChatMember(chatID, b.Id, nil)
-	if err != nil {
-		s.log.Warn("failed to verify bot status in group", "chat_id", chatID, "error", err)
-		_, _ = s.getSender(b).SendMessage(chatID, "Не удалось проверить права бота. Назначьте бота администратором и повторите /init.", nil)
-		return nil
-	}
-	botStatus := botMember.GetStatus()
-	if botStatus != gotgbot.ChatMemberStatusAdministrator && botStatus != gotgbot.ChatMemberStatusOwner {
-		_, _ = s.getSender(b).SendMessage(chatID, "Для инициализации назначьте бота администратором группы, затем повторите /init.", nil)
 		return nil
 	}
 
@@ -340,7 +328,7 @@ func (s *telegramService) handleGroupInit(b *gotgbot.Bot, ctx *ext.Context) erro
 	}
 
 	_, err = s.getSender(b).SendMessage(chatID,
-		"Группа успешно инициализирована.\nПрава управления закреплены за текущим владельцем группы.\n\nОткрой личный чат с ботом → Настройки → Настройка групп. Там появилась кнопка для настройки возможностей бота.",
+		"Группа успешно инициализирована в radar-only режиме.\n\nДоступно: /prr_here для PRR-радара и /team_here для радара групповых проектов. Для этих функций боту достаточно права писать в выбранный чат или топик.",
 		nil,
 	)
 	return err
@@ -594,7 +582,7 @@ func (s *telegramService) handleMyChatMember(b *gotgbot.Bot, ctx *ext.Context) e
 
 	if added {
 		_, _ = s.getSender(b).SendMessage(chatID,
-			"Спасибо за добавление.\n\nВладелец группы должен выполнить /init для инициализации.\nНо перед этим, выдай мне права администратора.",
+			"Спасибо за добавление.\n\nВладелец группы должен выполнить /init. Новые группы получают только PRR-радар и радар групповых проектов; для них мне достаточно права писать в выбранный чат или топик.",
 			nil,
 		)
 		return nil

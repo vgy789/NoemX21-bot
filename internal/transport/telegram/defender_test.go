@@ -119,7 +119,40 @@ func (f *fakeDefenderBotClient) FileURL(_, _ string, _ *gotgbot.RequestOpts) str
 	return ""
 }
 
+func TestDefenderRunnerRetiredNoOps(t *testing.T) {
+	runner := (&telegramService{}).newDefenderRunner(&gotgbot.Bot{User: gotgbot.User{Id: 99, IsBot: true}})
+	require.NotNil(t, runner)
+
+	result, err := runner.RunGroupDefender(context.Background(), 42, -1001)
+	require.NoError(t, err)
+	assert.Zero(t, result.Removed)
+
+	preview, err := runner.PreviewGroupDefenderCandidates(context.Background(), 42, -1001)
+	require.NoError(t, err)
+	assert.Empty(t, preview)
+}
+
+func TestAutoDefenderRetiredDoesNotCallTelegram(t *testing.T) {
+	client := &fakeDefenderBotClient{members: map[int64]rawChatMember{}}
+	bot := &gotgbot.Bot{Token: "test", User: gotgbot.User{Id: 99, IsBot: true}, BotClient: client}
+	svc := &telegramService{}
+	group := db.TelegramGroup{
+		ChatID:          -1001,
+		IsActive:        true,
+		IsInitialized:   true,
+		DefenderEnabled: true,
+	}
+
+	svc.tryAutoDefenderForKnownGroup(context.Background(), bot, group, 1001)
+	svc.tryAutoDefenderForJoinRequest(context.Background(), bot, group, 1001, 1001)
+
+	assert.Empty(t, client.methodCalls)
+	assert.Empty(t, client.banCalls)
+	assert.Empty(t, client.declineCalls)
+}
+
 func TestHandleChatMember_AutoDefenderRemovesUnregistered(t *testing.T) {
+	t.Skip("Defender retired: auto join must no-op")
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -197,6 +230,7 @@ func TestHandleChatMember_AutoDefenderRemovesUnregistered(t *testing.T) {
 }
 
 func TestHandleChatMember_AutoDefenderSkipsWhitelisted(t *testing.T) {
+	t.Skip("Defender retired: auto join must no-op")
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -240,6 +274,7 @@ func TestHandleChatMember_AutoDefenderSkipsWhitelisted(t *testing.T) {
 }
 
 func TestHandleChatJoinRequest_AutoDefenderDeclinesUnregistered(t *testing.T) {
+	t.Skip("Defender retired: join request defender must no-op")
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -317,6 +352,7 @@ func methodCallIndex(calls []string, method string) int {
 }
 
 func TestHandleChatJoinRequest_AutoDefenderApprovesWhitelisted(t *testing.T) {
+	t.Skip("Defender retired: join request defender must no-op")
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -375,6 +411,7 @@ func TestHandleChatJoinRequest_AutoDefenderApprovesWhitelisted(t *testing.T) {
 }
 
 func TestHandleChatJoinRequest_AutoDefenderSkipsWithoutInviteRights(t *testing.T) {
+	t.Skip("Defender retired: join request defender must no-op")
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -427,6 +464,7 @@ func TestHandleChatJoinRequest_AutoDefenderSkipsWithoutInviteRights(t *testing.T
 }
 
 func TestAutoModerationConsistency_SkipsKnownMemberWhenRecheckDisabled(t *testing.T) {
+	t.Skip("Defender retired: known-member recheck must no-op")
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -454,6 +492,7 @@ func TestAutoModerationConsistency_SkipsKnownMemberWhenRecheckDisabled(t *testin
 }
 
 func TestAutoModerationConsistency_RemovesKnownMemberWhenRecheckEnabled(t *testing.T) {
+	t.Skip("Defender retired: known-member recheck must no-op")
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 
@@ -505,6 +544,7 @@ func TestAutoModerationConsistency_RemovesKnownMemberWhenRecheckEnabled(t *testi
 }
 
 func TestDefenderRunner_ManualRunBlockedUser(t *testing.T) {
+	t.Skip("Defender retired: manual run must no-op")
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
 

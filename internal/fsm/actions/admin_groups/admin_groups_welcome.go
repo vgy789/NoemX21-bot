@@ -28,9 +28,13 @@ func registerWelcomeActions(registry *fsm.LogicRegistry, log *slog.Logger, queri
 			return "", nil, nil
 		}
 		enable := strings.TrimSpace(fmt.Sprintf("%v", payload["id"])) == "welcome_enable_on"
+		group, err := requireLegacyGroupManagerAccess(ctx, queries, userID, chatID)
+		if err != nil {
+			return "", loadGroupWelcomeContext(ctx, queries, userID, payload), nil
+		}
 		if _, err := queries.UpdateTelegramGroupWelcomeEnabledByOwner(ctx, db.UpdateTelegramGroupWelcomeEnabledByOwnerParams{
 			ChatID:              chatID,
-			OwnerTelegramUserID: userID,
+			OwnerTelegramUserID: group.OwnerTelegramUserID,
 			WelcomeEnabled:      enable,
 		}); err != nil {
 			log.Warn("admin groups: failed to update welcome_enabled", "chat_id", chatID, "user_id", userID, "error", err)
@@ -44,9 +48,13 @@ func registerWelcomeActions(registry *fsm.LogicRegistry, log *slog.Logger, queri
 			return "", nil, nil
 		}
 		enable := strings.TrimSpace(fmt.Sprintf("%v", payload["id"])) == "welcome_delete_service_on"
+		group, err := requireLegacyGroupManagerAccess(ctx, queries, userID, chatID)
+		if err != nil {
+			return "", loadGroupWelcomeContext(ctx, queries, userID, payload), nil
+		}
 		if _, err := queries.UpdateTelegramGroupWelcomeDeleteServiceMessagesByOwner(ctx, db.UpdateTelegramGroupWelcomeDeleteServiceMessagesByOwnerParams{
 			ChatID:                       chatID,
-			OwnerTelegramUserID:          userID,
+			OwnerTelegramUserID:          group.OwnerTelegramUserID,
 			WelcomeDeleteServiceMessages: enable,
 		}); err != nil {
 			log.Warn("admin groups: failed to update welcome_delete_service_messages", "chat_id", chatID, "user_id", userID, "error", err)
@@ -59,9 +67,13 @@ func registerWelcomeActions(registry *fsm.LogicRegistry, log *slog.Logger, queri
 		if err != nil {
 			return "", nil, nil
 		}
+		group, err := requireLegacyGroupManagerAccess(ctx, queries, userID, chatID)
+		if err != nil {
+			return "", loadGroupWelcomeContext(ctx, queries, userID, payload), nil
+		}
 		if _, err := queries.UpdateTelegramGroupWelcomeDestinationByOwner(ctx, db.UpdateTelegramGroupWelcomeDestinationByOwnerParams{
 			ChatID:              chatID,
-			OwnerTelegramUserID: userID,
+			OwnerTelegramUserID: group.OwnerTelegramUserID,
 			WelcomeThreadID:     0,
 			WelcomeThreadLabel:  "Общий чат",
 		}); err != nil {
@@ -89,7 +101,7 @@ func loadGroupWelcomeContext(ctx context.Context, queries db.Querier, userID int
 		return updates
 	}
 
-	group, err := requireOwnedGroup(ctx, queries, userID, chatID)
+	group, err := requireLegacyGroupManagerAccess(ctx, queries, userID, chatID)
 	if err != nil {
 		return updates
 	}

@@ -8,11 +8,11 @@ states:
         ru: |
           ⚙️ *Настройки*
 
-          Здесь можно кастомизировать профиль и управлять своей ТГ-группой.
+          Здесь можно кастомизировать профиль и настроить радары Telegram-группы.
         en: |
           ⚙️ *Settings*
 
-          Here you can customize your profile and manage your TG-group.
+          Here you can customize your profile and configure Telegram group radars.
       buttons:
         - id: profile
           label:
@@ -28,8 +28,8 @@ states:
           #          row: 1
         - id: admin_groups_settings
           label:
-            ru: 🛠️ Админка групп
-            en: 🛠️ Admin Groups
+            ru: 📡 Радары групп
+            en: 📡 Group Radars
           next_state: ADMIN_GROUPS_MENU
           row: 1
         - id: language
@@ -38,20 +38,6 @@ states:
             en: "🌐 Lang: {my_lang_emoji}"
           next_state: SET_LANGUAGE
           row: 2
-        - id: member_tag_import
-          label:
-            ru: 📥 Импорт тегов
-            en: 📥 Import member tags
-          condition: "is_bot_owner == true"
-          next_state: MEMBER_TAG_IMPORT
-          row: 3
-        - id: global_member_tags
-          label:
-            ru: 🌐 Проставить теги во всех группах
-            en: 🌐 Tag all groups
-          condition: "is_bot_owner == true"
-          next_state: GLOBAL_MEMBER_TAGS_PREVIEW
-          row: 4
         - id: back
           label:
             ru: 🏠 На главную

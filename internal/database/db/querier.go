@@ -27,6 +27,7 @@ type Querier interface {
 	CountGlobalMemberTagRunItems(ctx context.Context, runID int64) (int64, error)
 	CountOpenReviewRequestsByUser(ctx context.Context, requesterUserID int64) (int32, error)
 	CountOpenTeamSearchRequestsByUser(ctx context.Context, requesterUserID int64) (int32, error)
+	CountRecentLegacyDestructiveModerationActions(ctx context.Context, arg CountRecentLegacyDestructiveModerationActionsParams) (int64, error)
 	CountSearchBooks(ctx context.Context, arg CountSearchBooksParams) (int32, error)
 	CountSearchCatalogProjects(ctx context.Context, dollar_1 interface{}) (int32, error)
 	CountSearchingReviewRequests(ctx context.Context) (int32, error)
@@ -52,6 +53,7 @@ type Querier interface {
 	DeleteAuthVerificationCode(ctx context.Context, arg DeleteAuthVerificationCodeParams) error
 	DeleteExpiredAuthVerificationCodes(ctx context.Context) error
 	DeleteExpiredGlobalMemberTagRuns(ctx context.Context) (int64, error)
+	DeleteExpiredTelegramGroupLegacyModerationActions(ctx context.Context, dollar_1 pgtype.Interval) (int64, error)
 	DeleteLegacyMemberTagMappingByLoginExceptTelegram(ctx context.Context, arg DeleteLegacyMemberTagMappingByLoginExceptTelegramParams) error
 	DeleteStaleCoursesCatalog(ctx context.Context, syncBatchID int64) error
 	DeleteStaleNodesCatalog(ctx context.Context, syncBatchID int64) error
@@ -80,6 +82,7 @@ type Querier interface {
 	ExistsCoalitionByID(ctx context.Context, arg ExistsCoalitionByIDParams) (bool, error)
 	ExistsOpenReviewRequestByUserAndProject(ctx context.Context, arg ExistsOpenReviewRequestByUserAndProjectParams) (bool, error)
 	ExistsOpenTeamSearchRequestByUserAndProject(ctx context.Context, arg ExistsOpenTeamSearchRequestByUserAndProjectParams) (bool, error)
+	ExistsTelegramGroupLegacyAccess(ctx context.Context, arg ExistsTelegramGroupLegacyAccessParams) (bool, error)
 	ExistsTelegramGroupWhitelist(ctx context.Context, arg ExistsTelegramGroupWhitelistParams) (bool, error)
 	FinishGlobalMemberTagRun(ctx context.Context, arg FinishGlobalMemberTagRunParams) error
 	FinishSapphireGiveawaySyncJob(ctx context.Context, arg FinishSapphireGiveawaySyncJobParams) error
@@ -141,6 +144,7 @@ type Querier interface {
 	GetTeamSearchRequestByID(ctx context.Context, id int64) (GetTeamSearchRequestByIDRow, error)
 	GetTeamSearchRequestsForCleanup(ctx context.Context, arg GetTeamSearchRequestsForCleanupParams) ([]GetTeamSearchRequestsForCleanupRow, error)
 	GetTelegramGroupByChatID(ctx context.Context, chatID int64) (TelegramGroup, error)
+	GetTelegramGroupLegacyAccess(ctx context.Context, arg GetTelegramGroupLegacyAccessParams) (TelegramGroupLegacyAccess, error)
 	GetUserAccountByExternalId(ctx context.Context, arg GetUserAccountByExternalIdParams) (UserAccount, error)
 	GetUserAccountByID(ctx context.Context, id int64) (UserAccount, error)
 	GetUserAccountByS21Login(ctx context.Context, s21Login string) (UserAccount, error)
@@ -154,6 +158,7 @@ type Querier interface {
 	HasActiveRooms(ctx context.Context, campusID pgtype.UUID) (bool, error)
 	IncrementReviewRequestViewCount(ctx context.Context, id int64) (int32, error)
 	IncrementTeamSearchRequestViewCount(ctx context.Context, id int64) (int32, error)
+	InsertTelegramGroupLegacyModerationAction(ctx context.Context, arg InsertTelegramGroupLegacyModerationActionParams) error
 	InsertTelegramGroupLog(ctx context.Context, arg InsertTelegramGroupLogParams) error
 	IsLegacyMemberTagSuppressed(ctx context.Context, arg IsLegacyMemberTagSuppressedParams) (bool, error)
 	IsTelegramAccountEffectivelySearchable(ctx context.Context, externalID string) (bool, error)

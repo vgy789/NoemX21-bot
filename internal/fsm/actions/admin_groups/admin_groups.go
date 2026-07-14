@@ -46,104 +46,41 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 		log = slog.Default()
 	}
 
-	registry.Register("preview_global_member_tags", func(ctx context.Context, userID int64, _ map[string]any) (string, map[string]any, error) {
-		updates := globalMemberTagStatusUpdates(fsm.GlobalMemberTagRunStatus{State: "unavailable"})
-		runner, ok := fsm.MemberTagRunnerFromContext(ctx)
-		global, supported := runner.(fsm.GlobalMemberTagRunner)
-		if !ok || !supported {
-			return "", updates, nil
-		}
-		status, err := global.PreviewGlobalMemberTags(ctx, userID)
-		if err != nil {
-			updates["global_member_tags_summary"] = "Не удалось рассчитать объём запуска."
-			return "", updates, nil
-		}
-		return "", globalMemberTagStatusUpdates(status), nil
+	registry.Register("preview_global_member_tags", func(context.Context, int64, map[string]any) (string, map[string]any, error) {
+		return "", globalMemberTagStatusUpdates(fsm.GlobalMemberTagRunStatus{State: "retired"}), nil
 	})
 
-	registry.Register("start_global_member_tags", func(ctx context.Context, userID int64, _ map[string]any) (string, map[string]any, error) {
-		runner, ok := fsm.MemberTagRunnerFromContext(ctx)
-		global, supported := runner.(fsm.GlobalMemberTagRunner)
-		if !ok || !supported {
-			return "", globalMemberTagStatusUpdates(fsm.GlobalMemberTagRunStatus{State: "unavailable"}), nil
-		}
-		status, err := global.StartGlobalMemberTags(ctx, userID)
-		if err != nil {
-			return "", map[string]any{"global_member_tags_summary": "Не удалось запустить обработку.", "global_member_tags_running": false}, nil
-		}
-		return "", globalMemberTagStatusUpdates(status), nil
+	registry.Register("start_global_member_tags", func(context.Context, int64, map[string]any) (string, map[string]any, error) {
+		return "", globalMemberTagStatusUpdates(fsm.GlobalMemberTagRunStatus{State: "retired"}), nil
 	})
 
-	registry.Register("load_global_member_tags_status", func(ctx context.Context, userID int64, _ map[string]any) (string, map[string]any, error) {
-		runner, ok := fsm.MemberTagRunnerFromContext(ctx)
-		global, supported := runner.(fsm.GlobalMemberTagRunner)
-		if !ok || !supported {
-			return "", globalMemberTagStatusUpdates(fsm.GlobalMemberTagRunStatus{State: "unavailable"}), nil
-		}
-		status, err := global.GlobalMemberTagStatus(ctx, userID)
-		if err != nil {
-			return "", map[string]any{"global_member_tags_summary": "Статус недоступен.", "global_member_tags_running": false}, nil
-		}
-		return "", globalMemberTagStatusUpdates(status), nil
+	registry.Register("load_global_member_tags_status", func(context.Context, int64, map[string]any) (string, map[string]any, error) {
+		return "", globalMemberTagStatusUpdates(fsm.GlobalMemberTagRunStatus{State: "retired"}), nil
 	})
 
-	registry.Register("cancel_global_member_tags", func(ctx context.Context, userID int64, _ map[string]any) (string, map[string]any, error) {
-		if runner, ok := fsm.MemberTagRunnerFromContext(ctx); ok {
-			if global, supported := runner.(fsm.GlobalMemberTagRunner); supported {
-				_ = global.CancelGlobalMemberTags(ctx, userID)
-			}
-		}
-		return "", map[string]any{"global_member_tags_summary": "Запрошена отмена.", "global_member_tags_running": false}, nil
+	registry.Register("cancel_global_member_tags", func(context.Context, int64, map[string]any) (string, map[string]any, error) {
+		return "", globalMemberTagStatusUpdates(fsm.GlobalMemberTagRunStatus{State: "retired"}), nil
 	})
 
-	registry.Register("start_group_member_tag_discovery", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		chatID, err := parseSelectedGroupChatID(payload)
-		if err != nil {
-			return "", groupMemberTagDiscoveryUpdates(fsm.GlobalMemberTagRunStatus{State: "invalid_group"}), nil
-		}
-		group, err := queries.GetTelegramGroupByChatID(ctx, chatID)
-		if err != nil || group.OwnerTelegramUserID != userID || !group.IsActive || !group.IsInitialized {
-			return "", groupMemberTagDiscoveryUpdates(fsm.GlobalMemberTagRunStatus{State: "access_denied"}), nil
-		}
-		runner, ok := fsm.MemberTagRunnerFromContext(ctx)
-		global, supported := runner.(fsm.GlobalMemberTagRunner)
-		if !ok || !supported {
-			return "", groupMemberTagDiscoveryUpdates(fsm.GlobalMemberTagRunStatus{State: "unavailable"}), nil
-		}
-		status, err := global.StartGroupMemberTagDiscovery(ctx, userID, chatID)
-		if err != nil {
-			return "", groupMemberTagDiscoveryUpdates(fsm.GlobalMemberTagRunStatus{State: "failed"}), nil
-		}
-		return "", groupMemberTagDiscoveryUpdates(status), nil
+	registry.Register("start_group_member_tag_discovery", func(context.Context, int64, map[string]any) (string, map[string]any, error) {
+		return "", groupMemberTagDiscoveryUpdates(fsm.GlobalMemberTagRunStatus{State: "retired"}), nil
 	})
 
-	registry.Register("load_group_member_tag_discovery", func(ctx context.Context, userID int64, _ map[string]any) (string, map[string]any, error) {
-		runner, ok := fsm.MemberTagRunnerFromContext(ctx)
-		global, supported := runner.(fsm.GlobalMemberTagRunner)
-		if !ok || !supported {
-			return "", groupMemberTagDiscoveryUpdates(fsm.GlobalMemberTagRunStatus{State: "unavailable"}), nil
-		}
-		status, err := global.GroupMemberTagDiscoveryStatus(ctx, userID)
-		if err != nil {
-			return "", groupMemberTagDiscoveryUpdates(fsm.GlobalMemberTagRunStatus{State: "failed"}), nil
-		}
-		return "", groupMemberTagDiscoveryUpdates(status), nil
+	registry.Register("load_group_member_tag_discovery", func(context.Context, int64, map[string]any) (string, map[string]any, error) {
+		return "", groupMemberTagDiscoveryUpdates(fsm.GlobalMemberTagRunStatus{State: "retired"}), nil
 	})
 
-	registry.Register("cancel_group_member_tag_discovery", func(ctx context.Context, userID int64, _ map[string]any) (string, map[string]any, error) {
-		if runner, ok := fsm.MemberTagRunnerFromContext(ctx); ok {
-			if global, supported := runner.(fsm.GlobalMemberTagRunner); supported {
-				_ = global.CancelGroupMemberTagDiscovery(ctx, userID)
-			}
-		}
-		return "", groupMemberTagDiscoveryUpdates(fsm.GlobalMemberTagRunStatus{State: "cancelling"}), nil
+	registry.Register("cancel_group_member_tag_discovery", func(context.Context, int64, map[string]any) (string, map[string]any, error) {
+		return "", groupMemberTagDiscoveryUpdates(fsm.GlobalMemberTagRunStatus{State: "retired"}), nil
 	})
 
 	registry.Register("load_admin_context", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		updates := map[string]any{
-			"is_group_owner": false,
-			"is_bot_owner":   false,
-			"groups_count":   0,
+			"is_group_owner":                 false,
+			"is_bot_owner":                   false,
+			"can_use_legacy_group_manager":   false,
+			"has_legacy_group_manager_group": false,
+			"groups_count":                   0,
 		}
 		resetGroupSlots(updates)
 
@@ -178,15 +115,15 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 			}
 			updates[fmt.Sprintf("group_title_%d", slot)] = title
 		}
-
 		return "", updates, nil
 	})
 
-	registry.Register("select_admin_group", func(_ context.Context, _ int64, payload map[string]any) (string, map[string]any, error) {
+	registry.Register("select_admin_group", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
 		inputID := strings.TrimSpace(fmt.Sprintf("%v", payload["id"]))
 		updates := map[string]any{
-			"selected_group_chat_id": "",
-			"selected_group_title":   "",
+			"selected_group_chat_id":       "",
+			"selected_group_title":         "",
+			"can_use_legacy_group_manager": false,
 		}
 
 		for i := 1; i <= maxManagedGroups; i++ {
@@ -199,6 +136,9 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 			if btnID == inputID {
 				updates["selected_group_chat_id"] = chatID
 				updates["selected_group_title"] = title
+				if parsedChatID, err := strconv.ParseInt(chatID, 10, 64); err == nil {
+					updates["can_use_legacy_group_manager"] = userHasLegacyGroupManagerAccess(ctx, queries, userID, parsedChatID)
+				}
 				mergeRunSummaryDefaults(updates, nil)
 				return "", updates, nil
 			}
@@ -209,6 +149,9 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 			if chatID != "" {
 				updates["selected_group_chat_id"] = chatID
 				updates["selected_group_title"] = chatID
+				if parsedChatID, err := strconv.ParseInt(chatID, 10, 64); err == nil {
+					updates["can_use_legacy_group_manager"] = userHasLegacyGroupManagerAccess(ctx, queries, userID, parsedChatID)
+				}
 			}
 		}
 		mergeRunSummaryDefaults(updates, nil)
@@ -229,7 +172,7 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 			return "", updates, nil
 		}
 
-		group, err := requireOwnedGroup(ctx, queries, userID, chatID)
+		group, err := requireLegacyGroupManagerAccess(ctx, queries, userID, chatID)
 		if err != nil {
 			if !errors.Is(err, errGroupAccessDenied) {
 				log.Warn("admin groups: failed to load selected group", "chat_id", chatID, "user_id", userID, "error", err)
@@ -258,9 +201,13 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 		}
 
 		enable := strings.TrimSpace(fmt.Sprintf("%v", payload["id"])) == "tags_enable_on"
+		legacyGroup, err := requireLegacyGroupManagerAccess(ctx, queries, userID, chatID)
+		if err != nil {
+			return "", updates, nil
+		}
 		updatedRows, err := queries.UpdateTelegramGroupMemberTagsEnabledByOwner(ctx, db.UpdateTelegramGroupMemberTagsEnabledByOwnerParams{
 			ChatID:              chatID,
-			OwnerTelegramUserID: userID,
+			OwnerTelegramUserID: legacyGroup.OwnerTelegramUserID,
 			MemberTagsEnabled:   enable,
 		})
 		if err != nil {
@@ -271,7 +218,7 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 			return "", updates, nil
 		}
 
-		group, err := requireOwnedGroup(ctx, queries, userID, chatID)
+		group, err := requireLegacyGroupManagerAccess(ctx, queries, userID, chatID)
 		if err != nil {
 			return "", updates, nil
 		}
@@ -299,9 +246,13 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 			format = memberTagFormatLoginCampusRu
 		}
 
+		legacyGroup, err := requireLegacyGroupManagerAccess(ctx, queries, userID, chatID)
+		if err != nil {
+			return "", updates, nil
+		}
 		updatedRows, err := queries.UpdateTelegramGroupMemberTagFormatByOwner(ctx, db.UpdateTelegramGroupMemberTagFormatByOwnerParams{
 			ChatID:              chatID,
-			OwnerTelegramUserID: userID,
+			OwnerTelegramUserID: legacyGroup.OwnerTelegramUserID,
 			MemberTagFormat:     format,
 		})
 		if err != nil {
@@ -312,7 +263,7 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 			return "", updates, nil
 		}
 
-		group, err := requireOwnedGroup(ctx, queries, userID, chatID)
+		group, err := requireLegacyGroupManagerAccess(ctx, queries, userID, chatID)
 		if err != nil {
 			return "", updates, nil
 		}
@@ -330,7 +281,7 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 			return "", updates, nil
 		}
 
-		if _, err := requireOwnedGroup(ctx, queries, userID, chatID); err != nil {
+		if _, err := requireLegacyGroupManagerAccess(ctx, queries, userID, chatID); err != nil {
 			mergeRunSummaryDefaults(updates, payload)
 			return "", updates, nil
 		}
@@ -390,7 +341,7 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 		if err != nil {
 			return "", updates, nil
 		}
-		if _, err := requireOwnedGroup(ctx, queries, userID, chatID); err != nil {
+		if _, err := requireLegacyGroupManagerAccess(ctx, queries, userID, chatID); err != nil {
 			return "", updates, nil
 		}
 
@@ -435,7 +386,7 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 	})
 
 	registerModeratorActions(registry, log, queries)
-	registerDefenderActions(registry, log, queries)
+	registerRetiredDefenderActions(registry)
 	registerPRRActions(registry, log, queries)
 	registerTeamActions(registry, log, queries)
 	registerWelcomeActions(registry, log, queries)
@@ -497,6 +448,28 @@ func requireOwnedGroup(ctx context.Context, queries db.Querier, userID, chatID i
 		}
 	}
 	return db.TelegramGroup{}, errGroupAccessDenied
+}
+
+func requireLegacyGroupManagerAccess(ctx context.Context, queries db.Querier, userID, chatID int64) (db.TelegramGroup, error) {
+	group, err := requireOwnedGroup(ctx, queries, userID, chatID)
+	if err != nil {
+		return db.TelegramGroup{}, err
+	}
+	if !userHasLegacyGroupManagerAccess(ctx, queries, userID, chatID) {
+		return db.TelegramGroup{}, errGroupAccessDenied
+	}
+	return group, nil
+}
+
+func userHasLegacyGroupManagerAccess(ctx context.Context, queries db.Querier, userID, chatID int64) bool {
+	access, err := queries.GetTelegramGroupLegacyAccess(ctx, db.GetTelegramGroupLegacyAccessParams{
+		ChatID:         chatID,
+		TelegramUserID: userID,
+	})
+	if err != nil {
+		return false
+	}
+	return access.FullAccess || access.CanBan || access.CanMute || access.Source == "owner" || access.Source == "moderator"
 }
 
 type managedGroupsLister interface {

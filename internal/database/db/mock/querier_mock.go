@@ -277,6 +277,21 @@ func (mr *MockQuerierMockRecorder) CountOpenTeamSearchRequestsByUser(ctx, reques
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountOpenTeamSearchRequestsByUser", reflect.TypeOf((*MockQuerier)(nil).CountOpenTeamSearchRequestsByUser), ctx, requesterUserID)
 }
 
+// CountRecentLegacyDestructiveModerationActions mocks base method.
+func (m *MockQuerier) CountRecentLegacyDestructiveModerationActions(ctx context.Context, arg db.CountRecentLegacyDestructiveModerationActionsParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "CountRecentLegacyDestructiveModerationActions", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// CountRecentLegacyDestructiveModerationActions indicates an expected call of CountRecentLegacyDestructiveModerationActions.
+func (mr *MockQuerierMockRecorder) CountRecentLegacyDestructiveModerationActions(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CountRecentLegacyDestructiveModerationActions", reflect.TypeOf((*MockQuerier)(nil).CountRecentLegacyDestructiveModerationActions), ctx, arg)
+}
+
 // CountSearchBooks mocks base method.
 func (m *MockQuerier) CountSearchBooks(ctx context.Context, arg db.CountSearchBooksParams) (int32, error) {
 	m.ctrl.T.Helper()
@@ -640,6 +655,21 @@ func (m *MockQuerier) DeleteExpiredGlobalMemberTagRuns(ctx context.Context) (int
 func (mr *MockQuerierMockRecorder) DeleteExpiredGlobalMemberTagRuns(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredGlobalMemberTagRuns", reflect.TypeOf((*MockQuerier)(nil).DeleteExpiredGlobalMemberTagRuns), ctx)
+}
+
+// DeleteExpiredTelegramGroupLegacyModerationActions mocks base method.
+func (m *MockQuerier) DeleteExpiredTelegramGroupLegacyModerationActions(ctx context.Context, dollar_1 pgtype.Interval) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DeleteExpiredTelegramGroupLegacyModerationActions", ctx, dollar_1)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DeleteExpiredTelegramGroupLegacyModerationActions indicates an expected call of DeleteExpiredTelegramGroupLegacyModerationActions.
+func (mr *MockQuerierMockRecorder) DeleteExpiredTelegramGroupLegacyModerationActions(ctx, dollar_1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteExpiredTelegramGroupLegacyModerationActions", reflect.TypeOf((*MockQuerier)(nil).DeleteExpiredTelegramGroupLegacyModerationActions), ctx, dollar_1)
 }
 
 // DeleteLegacyMemberTagMappingByLoginExceptTelegram mocks base method.
@@ -1049,6 +1079,21 @@ func (m *MockQuerier) ExistsOpenTeamSearchRequestByUserAndProject(ctx context.Co
 func (mr *MockQuerierMockRecorder) ExistsOpenTeamSearchRequestByUserAndProject(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExistsOpenTeamSearchRequestByUserAndProject", reflect.TypeOf((*MockQuerier)(nil).ExistsOpenTeamSearchRequestByUserAndProject), ctx, arg)
+}
+
+// ExistsTelegramGroupLegacyAccess mocks base method.
+func (m *MockQuerier) ExistsTelegramGroupLegacyAccess(ctx context.Context, arg db.ExistsTelegramGroupLegacyAccessParams) (bool, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ExistsTelegramGroupLegacyAccess", ctx, arg)
+	ret0, _ := ret[0].(bool)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ExistsTelegramGroupLegacyAccess indicates an expected call of ExistsTelegramGroupLegacyAccess.
+func (mr *MockQuerierMockRecorder) ExistsTelegramGroupLegacyAccess(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ExistsTelegramGroupLegacyAccess", reflect.TypeOf((*MockQuerier)(nil).ExistsTelegramGroupLegacyAccess), ctx, arg)
 }
 
 // ExistsTelegramGroupWhitelist mocks base method.
@@ -1919,6 +1964,21 @@ func (mr *MockQuerierMockRecorder) GetTelegramGroupByChatID(ctx, chatID any) *go
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelegramGroupByChatID", reflect.TypeOf((*MockQuerier)(nil).GetTelegramGroupByChatID), ctx, chatID)
 }
 
+// GetTelegramGroupLegacyAccess mocks base method.
+func (m *MockQuerier) GetTelegramGroupLegacyAccess(ctx context.Context, arg db.GetTelegramGroupLegacyAccessParams) (db.TelegramGroupLegacyAccess, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTelegramGroupLegacyAccess", ctx, arg)
+	ret0, _ := ret[0].(db.TelegramGroupLegacyAccess)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTelegramGroupLegacyAccess indicates an expected call of GetTelegramGroupLegacyAccess.
+func (mr *MockQuerierMockRecorder) GetTelegramGroupLegacyAccess(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelegramGroupLegacyAccess", reflect.TypeOf((*MockQuerier)(nil).GetTelegramGroupLegacyAccess), ctx, arg)
+}
+
 // GetUserAccountByExternalId mocks base method.
 func (m *MockQuerier) GetUserAccountByExternalId(ctx context.Context, arg db.GetUserAccountByExternalIdParams) (db.UserAccount, error) {
 	m.ctrl.T.Helper()
@@ -2112,6 +2172,20 @@ func (m *MockQuerier) IncrementTeamSearchRequestViewCount(ctx context.Context, i
 func (mr *MockQuerierMockRecorder) IncrementTeamSearchRequestViewCount(ctx, id any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "IncrementTeamSearchRequestViewCount", reflect.TypeOf((*MockQuerier)(nil).IncrementTeamSearchRequestViewCount), ctx, id)
+}
+
+// InsertTelegramGroupLegacyModerationAction mocks base method.
+func (m *MockQuerier) InsertTelegramGroupLegacyModerationAction(ctx context.Context, arg db.InsertTelegramGroupLegacyModerationActionParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertTelegramGroupLegacyModerationAction", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertTelegramGroupLegacyModerationAction indicates an expected call of InsertTelegramGroupLegacyModerationAction.
+func (mr *MockQuerierMockRecorder) InsertTelegramGroupLegacyModerationAction(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTelegramGroupLegacyModerationAction", reflect.TypeOf((*MockQuerier)(nil).InsertTelegramGroupLegacyModerationAction), ctx, arg)
 }
 
 // InsertTelegramGroupLog mocks base method.

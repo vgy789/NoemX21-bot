@@ -315,6 +315,34 @@ func (q *Queries) CountOpenTeamSearchRequestsByUser(ctx context.Context, request
 	return column_1, err
 }
 
+const countRecentLegacyDestructiveModerationActions = `-- name: CountRecentLegacyDestructiveModerationActions :one
+SELECT COUNT(*)::BIGINT
+FROM telegram_group_legacy_moderation_actions
+WHERE chat_id = $1
+  AND admin_telegram_user_id = $2
+  AND action = ANY($3::text[])
+  AND created_at >= CURRENT_TIMESTAMP - $4::interval
+`
+
+type CountRecentLegacyDestructiveModerationActionsParams struct {
+	ChatID              int64           `json:"chat_id"`
+	AdminTelegramUserID int64           `json:"admin_telegram_user_id"`
+	Column3             []string        `json:"column_3"`
+	Column4             pgtype.Interval `json:"column_4"`
+}
+
+func (q *Queries) CountRecentLegacyDestructiveModerationActions(ctx context.Context, arg CountRecentLegacyDestructiveModerationActionsParams) (int64, error) {
+	row := q.db.QueryRow(ctx, countRecentLegacyDestructiveModerationActions,
+		arg.ChatID,
+		arg.AdminTelegramUserID,
+		arg.Column3,
+		arg.Column4,
+	)
+	var column_1 int64
+	err := row.Scan(&column_1)
+	return column_1, err
+}
+
 const countSearchBooks = `-- name: CountSearchBooks :one
 SELECT count(*)::int
 FROM books
@@ -988,6 +1016,19 @@ func (q *Queries) DeleteExpiredGlobalMemberTagRuns(ctx context.Context) (int64, 
 	return result.RowsAffected(), nil
 }
 
+const deleteExpiredTelegramGroupLegacyModerationActions = `-- name: DeleteExpiredTelegramGroupLegacyModerationActions :execrows
+DELETE FROM telegram_group_legacy_moderation_actions
+WHERE created_at < CURRENT_TIMESTAMP - $1::interval
+`
+
+func (q *Queries) DeleteExpiredTelegramGroupLegacyModerationActions(ctx context.Context, dollar_1 pgtype.Interval) (int64, error) {
+	result, err := q.db.Exec(ctx, deleteExpiredTelegramGroupLegacyModerationActions, dollar_1)
+	if err != nil {
+		return 0, err
+	}
+	return result.RowsAffected(), nil
+}
+
 const deleteLegacyMemberTagMappingByLoginExceptTelegram = `-- name: DeleteLegacyMemberTagMappingByLoginExceptTelegram :exec
 DELETE FROM legacy_member_tag_mappings
 WHERE LOWER(s21_login) = LOWER($1) AND telegram_user_id <> $2
@@ -1501,6 +1542,27 @@ type ExistsOpenTeamSearchRequestByUserAndProjectParams struct {
 
 func (q *Queries) ExistsOpenTeamSearchRequestByUserAndProject(ctx context.Context, arg ExistsOpenTeamSearchRequestByUserAndProjectParams) (bool, error) {
 	row := q.db.QueryRow(ctx, existsOpenTeamSearchRequestByUserAndProject, arg.RequesterUserID, arg.ProjectID)
+	var exists bool
+	err := row.Scan(&exists)
+	return exists, err
+}
+
+const existsTelegramGroupLegacyAccess = `-- name: ExistsTelegramGroupLegacyAccess :one
+SELECT EXISTS (
+    SELECT 1
+    FROM telegram_group_legacy_access
+    WHERE chat_id = $1
+      AND telegram_user_id = $2
+)
+`
+
+type ExistsTelegramGroupLegacyAccessParams struct {
+	ChatID         int64 `json:"chat_id"`
+	TelegramUserID int64 `json:"telegram_user_id"`
+}
+
+func (q *Queries) ExistsTelegramGroupLegacyAccess(ctx context.Context, arg ExistsTelegramGroupLegacyAccessParams) (bool, error) {
+	row := q.db.QueryRow(ctx, existsTelegramGroupLegacyAccess, arg.ChatID, arg.TelegramUserID)
 	var exists bool
 	err := row.Scan(&exists)
 	return exists, err
@@ -4138,6 +4200,32 @@ func (q *Queries) GetTelegramGroupByChatID(ctx context.Context, chatID int64) (T
 	return i, err
 }
 
+const getTelegramGroupLegacyAccess = `-- name: GetTelegramGroupLegacyAccess :one
+SELECT chat_id, telegram_user_id, source, can_ban, can_mute, full_access, snapshot_at FROM telegram_group_legacy_access
+WHERE chat_id = $1
+  AND telegram_user_id = $2
+`
+
+type GetTelegramGroupLegacyAccessParams struct {
+	ChatID         int64 `json:"chat_id"`
+	TelegramUserID int64 `json:"telegram_user_id"`
+}
+
+func (q *Queries) GetTelegramGroupLegacyAccess(ctx context.Context, arg GetTelegramGroupLegacyAccessParams) (TelegramGroupLegacyAccess, error) {
+	row := q.db.QueryRow(ctx, getTelegramGroupLegacyAccess, arg.ChatID, arg.TelegramUserID)
+	var i TelegramGroupLegacyAccess
+	err := row.Scan(
+		&i.ChatID,
+		&i.TelegramUserID,
+		&i.Source,
+		&i.CanBan,
+		&i.CanMute,
+		&i.FullAccess,
+		&i.SnapshotAt,
+	)
+	return i, err
+}
+
 const getUserAccountByExternalId = `-- name: GetUserAccountByExternalId :one
 SELECT id, s21_login, platform, external_id, username, is_searchable, role, linked_at, telegram_visibility_ends_at FROM user_accounts
 WHERE platform = $1 AND external_id = $2
@@ -4439,6 +4527,31 @@ func (q *Queries) IncrementTeamSearchRequestViewCount(ctx context.Context, id in
 	var view_count int32
 	err := row.Scan(&view_count)
 	return view_count, err
+}
+
+const insertTelegramGroupLegacyModerationAction = `-- name: InsertTelegramGroupLegacyModerationAction :exec
+INSERT INTO telegram_group_legacy_moderation_actions (
+    chat_id, admin_telegram_user_id, target_telegram_user_id, action
+) VALUES (
+    $1, $2, $3, $4
+)
+`
+
+type InsertTelegramGroupLegacyModerationActionParams struct {
+	ChatID               int64  `json:"chat_id"`
+	AdminTelegramUserID  int64  `json:"admin_telegram_user_id"`
+	TargetTelegramUserID int64  `json:"target_telegram_user_id"`
+	Action               string `json:"action"`
+}
+
+func (q *Queries) InsertTelegramGroupLegacyModerationAction(ctx context.Context, arg InsertTelegramGroupLegacyModerationActionParams) error {
+	_, err := q.db.Exec(ctx, insertTelegramGroupLegacyModerationAction,
+		arg.ChatID,
+		arg.AdminTelegramUserID,
+		arg.TargetTelegramUserID,
+		arg.Action,
+	)
+	return err
 }
 
 const insertTelegramGroupLog = `-- name: InsertTelegramGroupLog :exec

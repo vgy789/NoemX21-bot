@@ -169,7 +169,9 @@ func TestHandleGroupInit_SuccessTransfersOwnership(t *testing.T) {
 
 	err := s.handleGroupInit(bot, ctx)
 	require.NoError(t, err)
-	assert.Contains(t, msgText, "Права управления закреплены за текущим владельцем")
+	assert.Contains(t, msgText, "radar-only")
+	assert.Contains(t, msgText, "/prr_here")
+	assert.Contains(t, msgText, "/team_here")
 }
 
 func TestHandleMyChatMember_DeactivateOnRemoved(t *testing.T) {

@@ -49,10 +49,12 @@
 
 - Используется через `gotgbot/v2`
 - Режимы запуска: polling или webhook
-- Для режима Telegram join requests объект `ChatJoinRequest` содержит `user_chat_id`. Если автоматический фейс-контроль отклоняет заявку из-за отсутствия регистрации, статуса или фильтров кампуса/трайба, бот сначала отправляет пользователю личное сообщение на `user_chat_id`, затем вызывает `declineChatJoinRequest`.
-- `user_chat_id` доступен ограниченно: Telegram разрешает писать по нему примерно 5 минут и только до обработки заявки, если другой администратор уже не связался с пользователем. Для пользователей, которые уже вошли в группу без заявки и потом были удалены/забанены, бот не сможет первым написать в личку, если пользователь ранее не запускал бота.
-- Автоматическая повторная проверка уже вошедших участников управляется отдельным флагом `telegram_groups.defender_recheck_known_members` и выключена по умолчанию.
-- Если фейс-контроль или ручная уборка удаляет уже вошедшего участника, бот выполняет `banChatMember` с фиксированным сроком 5 минут. Это защищает группы без join requests от мгновенного повторного входа по ссылке.
+- Group Manager retired. Новые группы получают только PRR-радар и радар групповых проектов.
+- Defender, cleanup, JSON import UI, global member-tag scan и group member tag discovery отключены.
+- На startup, join, join request, message, import и saved callback запрещены автоматические `banChatMember`, kick, decline и массовые member actions, даже если старые DB-флаги Defender включены.
+- Миграция retirement-среза выставляет `defender_enabled=false`, `defender_remove_blocked=false` и `defender_recheck_known_members=false` для всех групп.
+- Legacy-доступ хранится в `telegram_group_legacy_access` как snapshot текущих owners/moderators на момент миграции; новые owners/moderators не получают privileged Group Manager автоматически.
+- Ручные `/ban` и `/kick` доступны только frozen legacy users с `can_ban/full_access` и ограничены 3 действиями на группу за 1 час на одного legacy admin.
 - Автоприветствие выключено по умолчанию. При включении оно публикует Telegram-имя, username и учебный ник, но не уровень или кампус, и планируется к удалению через 30 дней.
 - Очередь удаления хранит только `chat_id`, `message_id`, срок и retry state. Rendered text, Telegram-имя, username и учебный ник не сохраняются и не логируются этой очередью.
 

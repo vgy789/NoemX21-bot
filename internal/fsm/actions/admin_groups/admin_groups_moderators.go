@@ -52,7 +52,7 @@ func registerModeratorActions(registry *fsm.LogicRegistry, log *slog.Logger, que
 		if err != nil {
 			return "", updates, nil
 		}
-		group, err := requireOwnedGroup(ctx, queries, userID, chatID)
+		group, err := requireLegacyGroupManagerAccess(ctx, queries, userID, chatID)
 		if err != nil {
 			return "", updates, nil
 		}
@@ -93,7 +93,7 @@ func registerModeratorActions(registry *fsm.LogicRegistry, log *slog.Logger, que
 		if err != nil {
 			return "", map[string]any{}, nil
 		}
-		if _, err := requireOwnedGroup(ctx, queries, userID, chatID); err != nil {
+		if _, err := requireLegacyGroupManagerAccess(ctx, queries, userID, chatID); err != nil {
 			return "", map[string]any{}, nil
 		}
 
@@ -133,58 +133,12 @@ func registerModeratorActions(registry *fsm.LogicRegistry, log *slog.Logger, que
 		if err != nil {
 			return "", map[string]any{}, nil
 		}
-		if _, err := requireOwnedGroup(ctx, queries, userID, chatID); err != nil {
+		if _, err := requireLegacyGroupManagerAccess(ctx, queries, userID, chatID); err != nil {
 			return "", map[string]any{}, nil
 		}
 
-		store, ok := queries.(groupModeratorsStore)
-		if !ok {
-			return "GROUP_MODERATORS_ADD_INPUT", map[string]any{
-				"_alert": "Недоступно: хранилище модераторов не подключено",
-			}, nil
-		}
-
-		input := strings.TrimSpace(fmt.Sprintf("%v", payload["id"]))
-		account, tgID, errRU, _ := resolveModeratorTargetAccount(ctx, queries, input)
-		if errRU != "" {
-			return "GROUP_MODERATORS_ADD_INPUT", map[string]any{
-				"_alert": errRU,
-			}, nil
-		}
-
-		addedByAccountID, err := queries.GetUserAccountIDByExternalId(ctx, db.GetUserAccountIDByExternalIdParams{
-			Platform:   db.EnumPlatformTelegram,
-			ExternalID: fmt.Sprintf("%d", userID),
-		})
-		if err != nil || addedByAccountID <= 0 {
-			return "GROUP_MODERATORS_ADD_INPUT", map[string]any{
-				"_alert": "Не удалось определить аккаунт администратора для добавления модератора",
-			}, nil
-		}
-
-		_, err = store.UpsertTelegramGroupModerator(ctx, db.UpsertTelegramGroupModeratorParams{
-			ChatID:           chatID,
-			TelegramUserID:   tgID,
-			CanBan:           false,
-			CanMute:          false,
-			FullAccess:       false,
-			AddedByAccountID: addedByAccountID,
-		})
-		if err != nil {
-			log.Warn("admin groups: failed to upsert moderator", "chat_id", chatID, "target_tg_id", tgID, "error", err)
-			return "GROUP_MODERATORS_ADD_INPUT", map[string]any{
-				"_alert": "Не удалось добавить модератора",
-			}, nil
-		}
-
-		display := strings.TrimSpace(account.S21Login)
-		if display == "" {
-			display = fmt.Sprintf("%d", tgID)
-		}
-
 		return "", map[string]any{
-			targetModeratorStateKey: fmt.Sprintf("%d", tgID),
-			"_alert":                fmt.Sprintf("Модератор %s добавлен", display),
+			"_alert": "Добавление модераторов заморожено: legacy-доступ зафиксирован миграцией.",
 		}, nil
 	})
 
@@ -209,7 +163,7 @@ func registerModeratorActions(registry *fsm.LogicRegistry, log *slog.Logger, que
 		if err != nil {
 			return "", updates, nil
 		}
-		group, err := requireOwnedGroup(ctx, queries, userID, chatID)
+		group, err := requireLegacyGroupManagerAccess(ctx, queries, userID, chatID)
 		if err != nil {
 			return "", updates, nil
 		}
@@ -246,61 +200,12 @@ func registerModeratorActions(registry *fsm.LogicRegistry, log *slog.Logger, que
 		if err != nil {
 			return "", map[string]any{}, nil
 		}
-		if _, err := requireOwnedGroup(ctx, queries, userID, chatID); err != nil {
+		if _, err := requireLegacyGroupManagerAccess(ctx, queries, userID, chatID); err != nil {
 			return "", map[string]any{}, nil
 		}
-
-		store, ok := queries.(groupModeratorsStore)
-		if !ok {
-			return "", map[string]any{
-				"_alert": "Недоступно: хранилище модераторов не подключено",
-			}, nil
-		}
-
-		targetID, ok := parseTargetModeratorID(payload)
-		if !ok {
-			return "GROUP_MODERATORS_MENU", map[string]any{
-				"_alert": "Сначала выбери модератора из списка",
-			}, nil
-		}
-
-		modRow, err := store.GetTelegramGroupModeratorByChatAndUser(ctx, chatID, targetID)
-		if err != nil {
-			return "GROUP_MODERATORS_MENU", map[string]any{
-				"_alert": "Модератор не найден",
-			}, nil
-		}
-
-		switch strings.TrimSpace(fmt.Sprintf("%v", payload["id"])) {
-		case "toggle_perm_ban":
-			modRow.CanBan = !modRow.CanBan
-		case "toggle_perm_mute":
-			modRow.CanMute = !modRow.CanMute
-		case "toggle_perm_full":
-			modRow.FullAccess = !modRow.FullAccess
-		default:
-			return "", map[string]any{}, nil
-		}
-
-		modRow, err = store.UpdateTelegramGroupModeratorPermissions(ctx, db.UpdateTelegramGroupModeratorPermissionsParams{
-			ChatID:         chatID,
-			TelegramUserID: targetID,
-			CanBan:         modRow.CanBan,
-			CanMute:        modRow.CanMute,
-			FullAccess:     modRow.FullAccess,
-		})
-		if err != nil {
-			return "", map[string]any{
-				"_alert": "Не удалось обновить права модератора",
-			}, nil
-		}
-
-		updates := map[string]any{
-			targetModeratorStateKey: fmt.Sprintf("%d", targetID),
-		}
-		display, username := resolveModeratorDisplay(ctx, queries, modRow.TelegramUserID)
-		applyTargetModerator(updates, modRow, display, username)
-		return "", updates, nil
+		return "", map[string]any{
+			"_alert": "Права модераторов заморожены: legacy-доступ зафиксирован миграцией.",
+		}, nil
 	})
 
 	registry.Register("remove_group_moderator", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
@@ -308,7 +213,7 @@ func registerModeratorActions(registry *fsm.LogicRegistry, log *slog.Logger, que
 		if err != nil {
 			return "", map[string]any{}, nil
 		}
-		if _, err := requireOwnedGroup(ctx, queries, userID, chatID); err != nil {
+		if _, err := requireLegacyGroupManagerAccess(ctx, queries, userID, chatID); err != nil {
 			return "", map[string]any{}, nil
 		}
 

@@ -16,39 +16,27 @@ states:
     interface:
       text:
         ru: |
-          🦆 *Утиная админка / Клубы*
+          📡 *Радары групп*
 
-          Чтобы я могла наводить порядок в твоем комьюнити, меня нужно пригласить в чат.
+          Новые группы получают только PRR-радар и радар групповых проектов.
 
           *Твой план действий:*
           1. Добавь меня в свою группу Telegram.
-          2. Выдай права администратора.
-          3. Возвращайся сюда – и мы всё настроим!
+          2. Владелец группы выполняет `/init`.
+          3. Выполни `/prr_here` и `/team_here` в нужном чате или топике.
 
-          *Что я возьму на себя:*
-          😛 *Фейс-контоль:* выгоняю «левых» и отчисленных, не пускаю незнакомцев.
-          📨 *PRR-радар:* транслирую свежие запросы на ревью прямо в тред.
-          👥 *Радар команды:* публикую запросы на поиск команды для групповых проектов.
-          👋 *Автоприветствие:* пишу в чат, когда присоединяется новый участник.
-          🏷 *Авто-теги:* ставлю логин и уровень рядом с именем участников.
-          👮‍♂️ *Модерация:* поддерживаю /mute и выдаю права модераторам группы.
+          Админ-права бота не требуются, если ему разрешено писать в выбранный чат или топик.
         en: |
-          🦆 *Duck Admin / Clubs*
+          📡 *Group Radars*
 
-          To let me manage your community, I need an invite to your Telegram group.
+          New groups get PRR Radar and Team Radar only.
 
           *Your plan:*
           1. Add me to your Telegram group.
-          2. Grant me administrator rights.
-          3. Come back here, and we'll set everything up!
+          2. The group owner runs `/init`.
+          3. Run `/prr_here` and `/team_here` in the target chat or topic.
 
-          *What I'll handle:*
-          😛 *Face Control:* kick out the “leftists” and those who have been expelled, and don't let strangers in.
-          📨 *PRR-Radar:* posting the latest review requests directly in this thread.
-          👥 *Team Radar:* posting team-finder requests for group projects into a dedicated thread.
-          👋 *Auto Welcome:* posting a message when a new member joins the group.
-          🏷 *Member Tags:* I automatically display the username and level next to the participants' names.
-          👮‍♂️ *Moderation:* I support the /mute command and grant moderator privileges to group moderators.
+          Bot admin permissions are not required if the bot can write to the target chat or topic.
       buttons:
         - id: back
           label:
@@ -64,17 +52,19 @@ states:
     interface:
       text:
         ru: |
-          🦆 *Твои группы*
+          📡 *Твои группы*
 
-          Выбери группу, в которой мне предстоит поработать. Настроим безопасность, уведомления и теги.
+          Выбери группу. Новые группы настраивают только PRR-радар и радар групповых проектов.
+          Legacy-разделы видны только владельцам и админам, зафиксированным миграцией.
 
-          Где наводим порядок? 👇
+          Что настраиваем? 👇
         en: |
-          🦆 *Your Groups*
+          📡 *Your Groups*
 
-          Select a group where I’ll be working. We'll set up security, notifications, and tags.
+          Select a group. New groups configure PRR Radar and Team Radar only.
+          Legacy sections are visible only to owners and admins snapshotted by migration.
 
-          Which one are we configuring? 👇
+          What are we configuring? 👇
       buttons:
         - id: "{group_button_id_1}"
           label: "{group_title_1}"
@@ -144,14 +134,16 @@ states:
           📌 Группа: `{selected_group_title}`
           🆔 Chat ID: `{selected_group_chat_id}`
 
-          Выбери нужный раздел для настройки:
+          Основные поддерживаемые функции: PRR-радар и радар групповых проектов.
+          Legacy-разделы доступны только frozen allowlist.
         en: |
           🛠 *Management*
 
           📌 Group: `{selected_group_title}`
           🆔 Chat ID: `{selected_group_chat_id}`
 
-          Pick a section to configure:
+          Supported functions: PRR Radar and Team Radar.
+          Legacy sections are available only to the frozen allowlist.
       buttons:
         - id: open_prr_notifications_settings
           label:
@@ -167,21 +159,19 @@ states:
           label:
             ru: 👋 Автоприветствие
             en: 👋 Auto Welcome
+          condition: "can_use_legacy_group_manager == true"
           next_state: GROUP_WELCOME_MENU
-        - id: open_defender_settings
-          label:
-            ru: 😛 Фейс-контроль
-            en: 😛 Face control
-          next_state: GROUP_DEFENDER_MENU
         - id: open_member_tags_settings
           label:
             ru: 🏷 Теги пользователей
             en: 🏷 Member Tags
+          condition: "can_use_legacy_group_manager == true"
           next_state: GROUP_MEMBER_TAGS_MENU
         - id: open_moderators_settings
           label:
             ru: 👮‍♂️ Команда модераторов
             en: 👮‍♂️ Moderation Team
+          condition: "can_use_legacy_group_manager == true"
           next_state: GROUP_MODERATORS_MENU
         - id: back_to_groups
           label:
@@ -2599,13 +2589,6 @@ states:
           condition: "can_manage_selected_group == true"
           next_state: GROUP_MEMBER_TAGS_RUN
           row: 2
-        - id: tags_run_discover_all
-          label:
-            ru: 🔎 Проверить все ID
-            en: 🔎 Check all IDs
-          condition: "is_selected_group_owner == true"
-          next_state: GROUP_MEMBER_TAGS_DISCOVERY_CONFIRM
-          row: 3
         - id: tags_back_menu
           label:
             ru: 🔙 Назад

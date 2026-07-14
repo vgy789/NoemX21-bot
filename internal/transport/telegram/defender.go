@@ -68,11 +68,11 @@ func (s *telegramService) newDefenderRunner(bot *gotgbot.Bot) fsm.DefenderRunner
 }
 
 func (r *telegramDefenderRunner) RunGroupDefender(ctx context.Context, ownerTelegramUserID, chatID int64) (fsm.DefenderRunResult, error) {
-	return r.svc.runGroupDefender(ctx, r.bot, ownerTelegramUserID, chatID)
+	return fsm.DefenderRunResult{}, nil
 }
 
 func (r *telegramDefenderRunner) PreviewGroupDefenderCandidates(ctx context.Context, ownerTelegramUserID, chatID int64) ([]fsm.DefenderPreviewItem, error) {
-	return r.svc.previewGroupDefenderCandidates(ctx, r.bot, ownerTelegramUserID, chatID)
+	return nil, nil
 }
 
 func (r *telegramDefenderRunner) ResolveGroupMemberIdentity(ctx context.Context, ownerTelegramUserID, chatID, telegramUserID int64) (string, string, error) {
@@ -104,6 +104,11 @@ func (r *telegramDefenderRunner) UnbanGroupMember(ctx context.Context, ownerTele
 }
 
 func (s *telegramService) runGroupDefender(ctx context.Context, b *gotgbot.Bot, ownerTelegramUserID, chatID int64) (fsm.DefenderRunResult, error) {
+	result := fsm.DefenderRunResult{}
+	return result, nil
+}
+
+func (s *telegramService) runGroupDefenderRetiredCode(ctx context.Context, b *gotgbot.Bot, ownerTelegramUserID, chatID int64) (fsm.DefenderRunResult, error) {
 	result := fsm.DefenderRunResult{}
 	if s == nil || s.queries == nil || s.userSvc == nil || b == nil {
 		return result, errors.New("defender dependencies are not ready")
@@ -211,6 +216,10 @@ func (s *telegramService) runGroupDefender(ctx context.Context, b *gotgbot.Bot, 
 }
 
 func (s *telegramService) previewGroupDefenderCandidates(ctx context.Context, b *gotgbot.Bot, ownerTelegramUserID, chatID int64) ([]fsm.DefenderPreviewItem, error) {
+	return nil, nil
+}
+
+func (s *telegramService) previewGroupDefenderCandidatesRetiredCode(ctx context.Context, b *gotgbot.Bot, ownerTelegramUserID, chatID int64) ([]fsm.DefenderPreviewItem, error) {
 	if s == nil || s.queries == nil || s.userSvc == nil || b == nil {
 		return nil, errors.New("defender dependencies are not ready")
 	}
@@ -306,6 +315,10 @@ func (s *telegramService) getChatMemberIdentity(ctx context.Context, b *gotgbot.
 }
 
 func (s *telegramService) tryAutoDefenderForKnownGroup(ctx context.Context, b *gotgbot.Bot, group db.TelegramGroup, telegramUserID int64) {
+	return
+}
+
+func (s *telegramService) tryAutoDefenderForKnownGroupRetiredCode(ctx context.Context, b *gotgbot.Bot, group db.TelegramGroup, telegramUserID int64) {
 	if s == nil || s.queries == nil || s.userSvc == nil || b == nil || telegramUserID == 0 {
 		return
 	}
@@ -376,6 +389,10 @@ func (s *telegramService) tryAutoDefenderForKnownGroup(ctx context.Context, b *g
 }
 
 func (s *telegramService) tryAutoDefenderForJoinRequest(ctx context.Context, b *gotgbot.Bot, group db.TelegramGroup, telegramUserID, userChatID int64) {
+	return
+}
+
+func (s *telegramService) tryAutoDefenderForJoinRequestRetiredCode(ctx context.Context, b *gotgbot.Bot, group db.TelegramGroup, telegramUserID, userChatID int64) {
 	if s == nil || s.queries == nil || s.userSvc == nil || b == nil || telegramUserID == 0 {
 		return
 	}

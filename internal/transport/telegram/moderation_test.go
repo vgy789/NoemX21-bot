@@ -12,6 +12,7 @@ import (
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
@@ -170,6 +171,41 @@ func (q *queriesWithModerationCommandsConfig) GetTelegramGroupModeratorByChatAnd
 	return moderator, nil
 }
 
+func (q *queriesWithModerationCommandsConfig) GetTelegramGroupLegacyAccess(_ context.Context, arg db.GetTelegramGroupLegacyAccessParams) (db.TelegramGroupLegacyAccess, error) {
+	moderator, ok := q.moderators[arg.TelegramUserID]
+	if ok {
+		return db.TelegramGroupLegacyAccess{
+			ChatID:         arg.ChatID,
+			TelegramUserID: arg.TelegramUserID,
+			Source:         "moderator",
+			CanBan:         moderator.CanBan,
+			CanMute:        moderator.CanMute,
+			FullAccess:     moderator.FullAccess,
+		}, nil
+	}
+	return q.Querier.GetTelegramGroupLegacyAccess(context.Background(), arg)
+}
+
+func expectLegacyModerationAccess(q *dbmock.MockQuerier, chatID, userID int64, canBan, canMute bool) {
+	q.EXPECT().GetTelegramGroupLegacyAccess(gomock.Any(), db.GetTelegramGroupLegacyAccessParams{
+		ChatID:         chatID,
+		TelegramUserID: userID,
+	}).Return(db.TelegramGroupLegacyAccess{
+		ChatID:         chatID,
+		TelegramUserID: userID,
+		Source:         "owner",
+		CanBan:         canBan,
+		CanMute:        canMute,
+		FullAccess:     canBan && canMute,
+	}, nil)
+}
+
+func expectLegacyDestructiveRateLimit(q *dbmock.MockQuerier, chatID, adminUserID int64) {
+	q.EXPECT().DeleteExpiredTelegramGroupLegacyModerationActions(gomock.Any(), gomock.AssignableToTypeOf(pgtype.Interval{})).Return(int64(0), nil)
+	q.EXPECT().CountRecentLegacyDestructiveModerationActions(gomock.Any(), gomock.Any()).Return(int64(0), nil)
+	q.EXPECT().InsertTelegramGroupLegacyModerationAction(gomock.Any(), gomock.Any()).Return(nil)
+}
+
 func TestHandleMuteCommand_ReplyDuration(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -207,6 +243,7 @@ func TestHandleMuteCommand_ReplyDuration(t *testing.T) {
 		IsInitialized:       true,
 		IsActive:            true,
 	}, nil)
+	expectLegacyModerationAccess(queries, chatID, ownerID, true, true)
 
 	ctx := makeGroupCommandContext(bot, chatID, ownerID, "/mute 10m", replyID, "reply_user")
 	before := time.Now().UTC().Unix()
@@ -379,6 +416,7 @@ func TestHandleMuteCommand_ExplicitTargetOverridesReply(t *testing.T) {
 		IsInitialized:       true,
 		IsActive:            true,
 	}, nil)
+	expectLegacyModerationAccess(queries, chatID, ownerID, true, true)
 	queries.EXPECT().GetUserAccountByS21Login(gomock.Any(), s21Login).Return(db.UserAccount{
 		S21Login:   s21Login,
 		ExternalID: strconv.FormatInt(resolvedID, 10),
@@ -441,6 +479,8 @@ func TestHandleBanCommand_ByUsernameFallbackToKnownMembers(t *testing.T) {
 		IsInitialized:       true,
 		IsActive:            true,
 	}, nil)
+	expectLegacyModerationAccess(queries, chatID, ownerID, true, true)
+	expectLegacyDestructiveRateLimit(queries, chatID, ownerID)
 	queries.EXPECT().ListTelegramGroupKnownMembers(gomock.Any(), chatID).Return([]db.TelegramGroupMember{
 		{ChatID: chatID, TelegramUserID: targetID, IsMember: true},
 	}, nil)
@@ -496,6 +536,7 @@ func TestHandleMuteCommand_RejectsZeroDuration(t *testing.T) {
 		IsInitialized:       true,
 		IsActive:            true,
 	}, nil)
+	expectLegacyModerationAccess(queries, chatID, ownerID, true, true)
 
 	ctx := makeGroupCommandContext(bot, chatID, ownerID, "/mute 0m", replyID, "reply_user")
 	err := s.handleMuteCommand(bot, ctx)
@@ -543,6 +584,8 @@ func TestHandleKickCommand_BanThenUnban(t *testing.T) {
 		IsInitialized:       true,
 		IsActive:            true,
 	}, nil)
+	expectLegacyModerationAccess(queries, chatID, ownerID, true, true)
+	expectLegacyDestructiveRateLimit(queries, chatID, ownerID)
 	queries.EXPECT().MarkTelegramGroupMemberLeft(gomock.Any(), gomock.Any()).Return(nil)
 	queries.EXPECT().UpsertTelegramGroupMember(gomock.Any(), gomock.Any()).Return(db.TelegramGroupMember{}, nil)
 
@@ -595,6 +638,7 @@ func TestHandleWhiteCommand_AddsWhitelistAndUnbans(t *testing.T) {
 		IsInitialized:       true,
 		IsActive:            true,
 	}, nil)
+	expectLegacyModerationAccess(queries, chatID, ownerID, true, true)
 	queries.EXPECT().GetUserAccountIDByExternalId(gomock.Any(), db.GetUserAccountIDByExternalIdParams{
 		Platform:   db.EnumPlatformTelegram,
 		ExternalID: strconv.FormatInt(ownerID, 10),
@@ -657,6 +701,7 @@ func TestHandleUnmuteCommand_ByReply(t *testing.T) {
 		IsInitialized:       true,
 		IsActive:            true,
 	}, nil)
+	expectLegacyModerationAccess(queries, chatID, ownerID, true, true)
 
 	ctx := makeGroupCommandContext(bot, chatID, ownerID, "/unmute", targetID, "target_reply")
 	err := s.handleUnmuteCommand(bot, ctx)

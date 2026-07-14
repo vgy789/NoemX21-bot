@@ -165,6 +165,38 @@ WHERE s21_login = $1;
 SELECT * FROM user_accounts
 WHERE id = $1;
 
+-- name: GetTelegramGroupLegacyAccess :one
+SELECT * FROM telegram_group_legacy_access
+WHERE chat_id = $1
+  AND telegram_user_id = $2;
+
+-- name: ExistsTelegramGroupLegacyAccess :one
+SELECT EXISTS (
+    SELECT 1
+    FROM telegram_group_legacy_access
+    WHERE chat_id = $1
+      AND telegram_user_id = $2
+);
+
+-- name: CountRecentLegacyDestructiveModerationActions :one
+SELECT COUNT(*)::BIGINT
+FROM telegram_group_legacy_moderation_actions
+WHERE chat_id = $1
+  AND admin_telegram_user_id = $2
+  AND action = ANY($3::text[])
+  AND created_at >= CURRENT_TIMESTAMP - $4::interval;
+
+-- name: InsertTelegramGroupLegacyModerationAction :exec
+INSERT INTO telegram_group_legacy_moderation_actions (
+    chat_id, admin_telegram_user_id, target_telegram_user_id, action
+) VALUES (
+    $1, $2, $3, $4
+);
+
+-- name: DeleteExpiredTelegramGroupLegacyModerationActions :execrows
+DELETE FROM telegram_group_legacy_moderation_actions
+WHERE created_at < CURRENT_TIMESTAMP - $1::interval;
+
 -- name: CreateUserAccount :one
 INSERT INTO user_accounts (
     s21_login, platform, external_id, username, is_searchable, role

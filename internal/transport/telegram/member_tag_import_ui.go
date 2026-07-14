@@ -34,10 +34,13 @@ func (s *telegramService) handleMemberTagImportDocument(ctx context.Context, b *
 		return false, nil
 	}
 
-	document := tgctx.Message.Document
 	chatID := tgctx.EffectiveChat.Id
 	messageID := int64(tgctx.Message.MessageId)
 	defer s.deleteMemberTagImportMessage(b, chatID, messageID)
+	s.sendMemberTagImportNotice(b, chatID, "Импорт JSON отключён: Group Manager переведён в legacy-режим без массовых операций.")
+	return true, nil
+
+	document := tgctx.Message.Document
 
 	if !s.isConfiguredBotOwner(ctx, tgctx.EffectiveUser.Id) {
 		s.sendMemberTagImportNotice(b, chatID, "Недостаточно прав для импорта.")

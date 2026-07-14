@@ -13,6 +13,7 @@ import (
 
 	"github.com/PaulSonOfLars/gotgbot/v2"
 	"github.com/PaulSonOfLars/gotgbot/v2/ext"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/vgy789/noemx21-bot/internal/database/db"
 )
 
@@ -120,6 +121,9 @@ func (s *telegramService) handleBanCommand(b *gotgbot.Bot, ctx *ext.Context) err
 		_, _ = s.getSender(b).SendMessage(group.ChatID, "Нужно право на ban users. Назначьте боту право бана участников и повторите команду.", nil)
 		return nil
 	}
+	if !s.legacyDestructiveModerationAllowed(context.Background(), b, group.ChatID, ctx.EffectiveUser.Id) {
+		return nil
+	}
 
 	if err := s.banChatMember(context.Background(), b, group.ChatID, target.TelegramUserID); err != nil {
 		s.log.Warn("failed to ban chat member", "chat_id", group.ChatID, "target_user_id", target.TelegramUserID, "error", err)
@@ -133,6 +137,7 @@ func (s *telegramService) handleBanCommand(b *gotgbot.Bot, ctx *ext.Context) err
 	}); err != nil {
 		s.log.Warn("failed to remove banned member from group whitelist", "chat_id", group.ChatID, "target_user_id", target.TelegramUserID, "error", err)
 	}
+	s.recordLegacyDestructiveModerationAction(context.Background(), group.ChatID, ctx.EffectiveUser.Id, target.TelegramUserID, "ban")
 
 	_, _ = s.getSender(b).SendMessage(group.ChatID, fmt.Sprintf("Участник заблокирован: %s.", describeModerationTarget(target)), nil)
 	return nil
@@ -181,6 +186,9 @@ func (s *telegramService) handleKickCommand(b *gotgbot.Bot, ctx *ext.Context) er
 		_, _ = s.getSender(b).SendMessage(group.ChatID, "Нужно право на ban users. Назначьте боту право бана участников и повторите команду.", nil)
 		return nil
 	}
+	if !s.legacyDestructiveModerationAllowed(context.Background(), b, group.ChatID, ctx.EffectiveUser.Id) {
+		return nil
+	}
 
 	if err := s.banChatMember(context.Background(), b, group.ChatID, target.TelegramUserID); err != nil {
 		s.log.Warn("failed to kick chat member (ban stage)", "chat_id", group.ChatID, "target_user_id", target.TelegramUserID, "error", err)
@@ -193,6 +201,7 @@ func (s *telegramService) handleKickCommand(b *gotgbot.Bot, ctx *ext.Context) er
 		return nil
 	}
 	s.markKnownGroupMemberLeft(context.Background(), group.ChatID, target.TelegramUserID, gotgbot.ChatMemberStatusLeft)
+	s.recordLegacyDestructiveModerationAction(context.Background(), group.ChatID, ctx.EffectiveUser.Id, target.TelegramUserID, "kick")
 
 	_, _ = s.getSender(b).SendMessage(group.ChatID, fmt.Sprintf("🦆 %s покидает наш уютный пруд и улетает в тёплые края.", moderationTargetDisplayName(target)), nil)
 	return nil
@@ -277,28 +286,68 @@ func (s *telegramService) requireGroupModerationAccess(b *gotgbot.Bot, ctx *ext.
 }
 
 func (s *telegramService) hasGroupModerationPermission(ctx context.Context, group db.TelegramGroup, userID int64, permission moderationPermission) bool {
-	if group.OwnerTelegramUserID == userID {
-		return true
-	}
-
-	reader, ok := s.queries.(groupModeratorReader)
-	if !ok {
-		return false
-	}
-	moderator, err := reader.GetTelegramGroupModeratorByChatAndUser(ctx, group.ChatID, userID)
+	legacy, err := s.queries.GetTelegramGroupLegacyAccess(ctx, db.GetTelegramGroupLegacyAccessParams{
+		ChatID:         group.ChatID,
+		TelegramUserID: userID,
+	})
 	if err != nil {
 		return false
 	}
-	if moderator.FullAccess {
+	if legacy.FullAccess || legacy.Source == "owner" {
 		return true
 	}
 	switch permission {
 	case moderationPermissionBan:
-		return moderator.CanBan
+		return legacy.CanBan
 	case moderationPermissionMute:
-		return moderator.CanMute
+		return legacy.CanMute
 	default:
 		return false
+	}
+}
+
+func (s *telegramService) legacyDestructiveModerationAllowed(ctx context.Context, b *gotgbot.Bot, chatID, adminTelegramUserID int64) bool {
+	if s == nil || s.queries == nil {
+		return false
+	}
+	_, _ = s.queries.DeleteExpiredTelegramGroupLegacyModerationActions(ctx, pgtype.Interval{
+		Microseconds: int64((24 * time.Hour) / time.Microsecond),
+		Valid:        true,
+	})
+	count, err := s.queries.CountRecentLegacyDestructiveModerationActions(ctx, db.CountRecentLegacyDestructiveModerationActionsParams{
+		ChatID:              chatID,
+		AdminTelegramUserID: adminTelegramUserID,
+		Column3:             []string{"ban", "kick"},
+		Column4: pgtype.Interval{
+			Microseconds: int64(time.Hour / time.Microsecond),
+			Valid:        true,
+		},
+	})
+	if err != nil {
+		if s.log != nil {
+			s.log.Warn("failed to check legacy destructive moderation rate limit", "chat_id", chatID, "admin_user_id", adminTelegramUserID, "error_type", safeTelegramErrorType(err))
+		}
+		_, _ = s.getSender(b).SendMessage(chatID, "Команда временно недоступна: не удалось проверить лимит модерации.", nil)
+		return false
+	}
+	if count >= 3 {
+		_, _ = s.getSender(b).SendMessage(chatID, "Лимит legacy-модерации исчерпан: максимум 3 ban/kick на группу за 1 час.", nil)
+		return false
+	}
+	return true
+}
+
+func (s *telegramService) recordLegacyDestructiveModerationAction(ctx context.Context, chatID, adminTelegramUserID, targetTelegramUserID int64, action string) {
+	if s == nil || s.queries == nil {
+		return
+	}
+	if err := s.queries.InsertTelegramGroupLegacyModerationAction(ctx, db.InsertTelegramGroupLegacyModerationActionParams{
+		ChatID:               chatID,
+		AdminTelegramUserID:  adminTelegramUserID,
+		TargetTelegramUserID: targetTelegramUserID,
+		Action:               action,
+	}); err != nil && s.log != nil {
+		s.log.Warn("failed to record legacy destructive moderation action", "chat_id", chatID, "admin_user_id", adminTelegramUserID, "action", action, "error_type", safeTelegramErrorType(err))
 	}
 }
 

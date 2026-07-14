@@ -47,6 +47,17 @@ func (q *querierWithModerators) ExistsTelegramGroupModeratorFullAccess(_ context
 	return row.FullAccess, nil
 }
 
+func (q *querierWithModerators) GetTelegramGroupLegacyAccess(_ context.Context, arg db.GetTelegramGroupLegacyAccessParams) (db.TelegramGroupLegacyAccess, error) {
+	return db.TelegramGroupLegacyAccess{
+		ChatID:         arg.ChatID,
+		TelegramUserID: arg.TelegramUserID,
+		Source:         "owner",
+		CanBan:         true,
+		CanMute:        true,
+		FullAccess:     true,
+	}, nil
+}
+
 func (q *querierWithModerators) ListTelegramGroupModerators(_ context.Context, chatID int64) ([]db.TelegramGroupModerator, error) {
 	chatMods, ok := q.moderatorsByChat[chatID]
 	if !ok {
@@ -224,24 +235,16 @@ func TestAddGroupModeratorFromInput_ByLogin(t *testing.T) {
 		IsInitialized:       true,
 		IsActive:            true,
 	}, nil)
-	base.EXPECT().GetUserAccountIDByExternalId(gomock.Any(), db.GetUserAccountIDByExternalIdParams{
-		Platform:   db.EnumPlatformTelegram,
-		ExternalID: "42",
-	}).Return(int64(777), nil)
-
 	_, updates, err := action(context.Background(), 42, map[string]any{
 		"selected_group_chat_id": "-1002",
 		"id":                     "newmod",
 	})
 	require.NoError(t, err)
-	require.Equal(t, "2002", updates[targetModeratorStateKey])
-	require.Contains(t, updates["_alert"].(string), "добавлен")
+	require.Contains(t, updates["_alert"].(string), "заморожено")
 
 	row, err := q.GetTelegramGroupModeratorByChatAndUser(context.Background(), -1002, tgID)
-	require.NoError(t, err)
+	require.Error(t, err)
 	require.False(t, row.CanBan)
-	require.False(t, row.CanMute)
-	require.False(t, row.FullAccess)
 }
 
 func TestToggleModeratorPermission_TogglesBan(t *testing.T) {
@@ -272,11 +275,6 @@ func TestToggleModeratorPermission_TogglesBan(t *testing.T) {
 		IsInitialized:       true,
 		IsActive:            true,
 	}, nil)
-	base.EXPECT().GetUserAccountByExternalId(gomock.Any(), db.GetUserAccountByExternalIdParams{
-		Platform:   db.EnumPlatformTelegram,
-		ExternalID: "3003",
-	}).Return(db.UserAccount{}, errors.New("no rows"))
-
 	_, updates, err := action(context.Background(), 42, map[string]any{
 		"selected_group_chat_id":    "-1003",
 		targetModeratorStateKey:     "3003",
@@ -285,11 +283,11 @@ func TestToggleModeratorPermission_TogglesBan(t *testing.T) {
 		"can_manage_selected_group": true,
 	})
 	require.NoError(t, err)
-	require.Equal(t, "✅", updates["mod_can_ban_status_ru"])
+	require.Contains(t, updates["_alert"].(string), "заморожены")
 
 	row, err := q.GetTelegramGroupModeratorByChatAndUser(context.Background(), -1003, 3003)
 	require.NoError(t, err)
-	require.True(t, row.CanBan)
+	require.False(t, row.CanBan)
 }
 
 func TestSetGroupModerationCommandsEnabled_TogglesOff(t *testing.T) {

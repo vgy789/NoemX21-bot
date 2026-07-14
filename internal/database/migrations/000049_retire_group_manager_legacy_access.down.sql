@@ -1,0 +1,5 @@
+DROP INDEX IF EXISTS idx_telegram_group_legacy_moderation_actions_recent;
+DROP TABLE IF EXISTS telegram_group_legacy_moderation_actions;
+
+DROP INDEX IF EXISTS idx_telegram_group_legacy_access_user;
+DROP TABLE IF EXISTS telegram_group_legacy_access;

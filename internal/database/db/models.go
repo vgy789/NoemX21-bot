@@ -605,6 +605,25 @@ type TelegramGroupDefenderTribeFilter struct {
 	CreatedAt   pgtype.Timestamptz `json:"created_at"`
 }
 
+type TelegramGroupLegacyAccess struct {
+	ChatID         int64              `json:"chat_id"`
+	TelegramUserID int64              `json:"telegram_user_id"`
+	Source         string             `json:"source"`
+	CanBan         bool               `json:"can_ban"`
+	CanMute        bool               `json:"can_mute"`
+	FullAccess     bool               `json:"full_access"`
+	SnapshotAt     pgtype.Timestamptz `json:"snapshot_at"`
+}
+
+type TelegramGroupLegacyModerationAction struct {
+	ID                   int64              `json:"id"`
+	ChatID               int64              `json:"chat_id"`
+	AdminTelegramUserID  int64              `json:"admin_telegram_user_id"`
+	TargetTelegramUserID int64              `json:"target_telegram_user_id"`
+	Action               string             `json:"action"`
+	CreatedAt            pgtype.Timestamptz `json:"created_at"`
+}
+
 type TelegramGroupLog struct {
 	ID             int64              `json:"id"`
 	ChatID         int64              `json:"chat_id"`
