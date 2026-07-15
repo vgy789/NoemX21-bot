@@ -51,6 +51,8 @@
 - Режимы запуска: polling или webhook
 - Group Manager retired. Новые группы получают только PRR-радар и радар групповых проектов.
 - Defender, cleanup, JSON import UI, global member-tag scan и group member tag discovery отключены.
+- Существующие legacy owners могут только выключить старые DB-флаги Defender; включение фейс-контроля и запуск проверок остаются no-op.
+- `/reset` доступен только фактическому Telegram-владельцу текущей группы. Команда сбрасывает настройки бота к radar-only режиму и не удаляет участников, сообщения или `telegram_group_legacy_access`.
 - На startup, join, join request, message, import и saved callback запрещены автоматические `banChatMember`, kick, decline и массовые member actions, даже если старые DB-флаги Defender включены.
 - Миграция retirement-среза выставляет `defender_enabled=false`, `defender_remove_blocked=false` и `defender_recheck_known_members=false` для всех групп.
 - Legacy-доступ хранится в `telegram_group_legacy_access` как snapshot текущих owners/moderators на момент миграции; новые owners/moderators не получают privileged Group Manager автоматически.

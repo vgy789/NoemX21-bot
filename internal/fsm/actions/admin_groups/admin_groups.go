@@ -386,7 +386,7 @@ func Register(registry *fsm.LogicRegistry, cfg *config.Config, log *slog.Logger,
 	})
 
 	registerModeratorActions(registry, log, queries)
-	registerRetiredDefenderActions(registry)
+	registerSafeDefenderActions(registry, log, queries)
 	registerPRRActions(registry, log, queries)
 	registerTeamActions(registry, log, queries)
 	registerWelcomeActions(registry, log, queries)

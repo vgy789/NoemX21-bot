@@ -167,6 +167,12 @@ states:
             en: 🏷 Member Tags
           condition: "can_use_legacy_group_manager == true"
           next_state: GROUP_MEMBER_TAGS_MENU
+        - id: open_defender_settings
+          label:
+            ru: 🛑 Выключить фейс-контроль
+            en: 🛑 Disable Face Control
+          condition: "can_use_legacy_group_manager == true"
+          next_state: GROUP_DEFENDER_MENU
         - id: open_moderators_settings
           label:
             ru: 👮‍♂️ Команда модераторов
@@ -1248,7 +1254,8 @@ states:
           🛡 *Фейс-контроль* / {selected_group_title}
           🆔 Chat ID: `{selected_group_chat_id}`
 
-          Я слежу за тем, чтобы в чат не просочились «левые» люди. Могу проверять каждого на входе или устроить генеральную уборку.
+          Defender retired: автоматическая проверка и удаление участников отключены.
+          Этот раздел оставлен только для существующих чатов, чтобы выключить старые флаги.
 
           - Автоматический фейс-контроль: `{defender_enabled_label_ru}`
           - Удалять ЗАБЛОКИРОВАН/ОТЧИСЛЕН: `{defender_remove_blocked_label_ru}`
@@ -1260,7 +1267,8 @@ states:
           🛡 *Face control* / {selected_group_title}
           🆔 Chat ID: `{selected_group_chat_id}`
 
-          I make sure no outsiders sneak into the flock. I can check everyone at the gate or perform a full pond cleanup.
+          Defender is retired: automatic checks and member removals are disabled.
+          This section remains only for existing chats to turn old flags off.
 
           - **Automatic gatekeeper:** `{defender_enabled_label_en}`
           - **Expelled filter:** `{defender_remove_blocked_label_en}`
@@ -1271,33 +1279,11 @@ states:
       buttons:
         - id: def_open_toggle
           label:
-            ru: ⚙️ Автоматический фейс-контроль
-            en: ⚙️ Automatic gatekeeper
+            ru: 🛑 Выключить старые флаги
+            en: 🛑 Disable old flags
           condition: "can_manage_selected_group == true"
           next_state: GROUP_DEFENDER_AUTOMODE
           row: 1
-        - id: def_open_run
-          label:
-            ru: 🚀 Генеральная уборка
-            en: 🚀 Full Cleanup
-          condition: "can_manage_selected_group == true"
-          next_state: GROUP_DEFENDER_RUN
-          row: 2
-        - id: def_open_whitelist
-          label:
-            ru: ✅ Белый список
-            en: ✅ Whitelist
-          condition: "can_manage_selected_group == true"
-          next_state: GROUP_DEFENDER_WHITELIST
-          row: 3
-        - id: def_open_logs
-          label:
-            ru: 📜 История действий
-            en: 📜 Action Log
-          condition: "can_manage_selected_group == true"
-          action: load_group_defender_logs
-          next_state: GROUP_DEFENDER_LOGS
-          row: 4
         - id: def_back_menu
           label:
             ru: 🔙 Назад
@@ -1563,118 +1549,74 @@ states:
     interface:
       text:
         ru: |
-          ⚙️ *Настройки автоматического фейс-контроля*
+          🛑 *Отключение старого фейс-контроля*
 
-          *По умолчанию* я проверяю только новые входы и заявки на вступление и не трогаю тех, кто уже есть в группе.
-          Когда группа использует *заявки на вступление*, перед отклонением заявки я напишу пользователю в личку, почему его не пустили и что нужно исправить (подробнее в «📌 Рекомендация»).
+          Defender retired. Автоматические удаления участников не выполняются,
+          но у старых групп в БД могли остаться включённые флаги. Здесь их можно выключить.
 
           🛡 *Мои фильтры:*
 
           *1. Регистрация в боте:*
-          `{defender_enabled_label_ru}` _(Если вкл: не пускаю тех, кто не залогинился в боте)_
+          `{defender_enabled_label_ru}` _(старый флаг; если включён, его нужно выключить)_
 
           *2. Статус (Заблокирован/Отчислен):*
-          `{defender_remove_blocked_label_ru}` _(Если вкл: не пускаю отчисленных и заблокированных студентов)_
+          `{defender_remove_blocked_label_ru}` _(старый флаг; если включён, его нужно выключить)_
 
           *3. Фильтр по кампусам:*
-          Разрешить `{defender_filter_campus_label_ru}` _(Можно выбрать несколько. Если выбран: пускаю только из этих кампусов)_
+          `{defender_filter_campus_label_ru}` _(только для чтения; фейс-контроль больше не применяет фильтр)_
 
           *4. Фильтр по трайбам:*
-          Разрешить `{defender_filter_tribe_label_ru}` _(Можно выбрать несколько, но только из твоего кампуса. При выборе трайбов фильтр №3 фиксируется *на твоём* кампусе)_
+          `{defender_filter_tribe_label_ru}` _(только для чтения; фейс-контроль больше не применяет фильтр)_
 
           *5. Проверять уже вошедших:*
-          `{defender_recheck_known_members_label_ru}` _(Если вкл: буду удалять участников, которые написали в чат или попали в фоновую проверку и больше не проходят включенные фильтры)_
+          `{defender_recheck_known_members_label_ru}` _(старый флаг; если включён, его нужно выключить)_
         en: |
-          ⚙️ *Auto Face-Control Settings*
+          🛑 *Disable old face-control flags*
 
-          *By default*, I only check new joins and join requests and do not touch those who are already in the group.
-          When the group uses *join requests*, before declining a request, I will message the user privately to explain why they were not let in and what needs to be fixed (more details in "📌 Recommendation").
+          Defender is retired. Automatic member removals do not run,
+          but old groups may still have enabled DB flags. You can turn them off here.
 
           🛡 *My filters:*
 
           *1. Registration in the bot:*
-          `{defender_enabled_label_en}` _(If enabled: I do not let in those who have not logged into the bot)_
+          `{defender_enabled_label_en}` _(old flag; turn it off if enabled)_
 
           *2. Status (Banned/Expelled):*
-          `{defender_remove_blocked_label_en}` _(If enabled: I do not let in expelled and banned students)_
+          `{defender_remove_blocked_label_en}` _(old flag; turn it off if enabled)_
 
           *3. Campus filter:*
-          Allow `{defender_filter_campus_label_en}` _(You can select multiple. If selected: I only let in people from these campuses)_
+          `{defender_filter_campus_label_en}` _(read-only; face control no longer applies this filter)_
 
           *4. Tribe filter:*
-          Allow `{defender_filter_tribe_label_en}` _(You can select multiple, but only from your campus. When selecting tribes, filter #3 is locked to *your* campus)_
+          `{defender_filter_tribe_label_en}` _(read-only; face control no longer applies this filter)_
 
           *5. Check already joined members:*
-          `{defender_recheck_known_members_label_en}` _(If enabled: I will remove members who write in the chat or undergo a background check and no longer pass the enabled filters)_
+          `{defender_recheck_known_members_label_en}` _(old flag; turn it off if enabled)_
       buttons:
-        - id: def_enable_on
-          label:
-            ru: 1. Не пускать незарегистрированных в боте
-            en: 1. Don‘t allow unregistered users in the bot
-          action: set_group_defender_enabled
-          condition: "can_manage_selected_group == true && defender_enabled == false"
-          next_state: GROUP_DEFENDER_AUTOMODE
-          row: 1
         - id: def_enable_off
           label:
-            ru: 1. Пускать незарегистрироанных в боте
-            en: 1. Allow unregistered users in the bot
+            ru: 1. Выключить автоматический фейс-контроль
+            en: 1. Disable automatic gatekeeper
           action: set_group_defender_enabled
           condition: "can_manage_selected_group == true && defender_enabled == true"
           next_state: GROUP_DEFENDER_AUTOMODE
           row: 1
-        - id: def_blocked_on
-          label:
-            ru: 2. Не пускать отчисленных
-            en: 2. Don‘t allow blocked users
-          action: set_group_defender_remove_blocked
-          condition: "can_manage_selected_group == true && defender_remove_blocked == false"
-          next_state: GROUP_DEFENDER_AUTOMODE
-          row: 2
         - id: def_blocked_off
           label:
-            ru: 2. Пускать отчисленных
-            en: 2. Allow blocked users
+            ru: 2. Выключить фильтр статуса
+            en: 2. Disable status filter
           action: set_group_defender_remove_blocked
           condition: "can_manage_selected_group == true && defender_remove_blocked == true"
           next_state: GROUP_DEFENDER_AUTOMODE
           row: 2
-        - id: def_open_filter_campus
-          label:
-            ru: 3. Настроить фильтр по кампусу
-            en: 3. Configure campus filter
-          condition: "can_manage_selected_group == true"
-          next_state: GROUP_DEFENDER_FILTER_CAMPUS
-          row: 3
-        - id: def_open_filter_tribe
-          label:
-            ru: 4. Настроить фильтр по трайбу
-            en: 4. Configure tribe filter
-          condition: "can_manage_selected_group == true"
-          next_state: GROUP_DEFENDER_FILTER_TRIBE
-          row: 4
-        - id: def_recheck_known_on
-          label:
-            ru: 5. Проверять уже вошедших
-            en: 5. Recheck existing members
-          action: set_group_defender_recheck_known_members
-          condition: "can_manage_selected_group == true && defender_recheck_known_members == false"
-          next_state: GROUP_DEFENDER_AUTOMODE
-          row: 5
         - id: def_recheck_known_off
           label:
-            ru: 5. Не трогать уже вошедших
-            en: 5. Do not recheck existing members
+            ru: 3. Выключить проверку уже вошедших
+            en: 3. Disable existing member recheck
           action: set_group_defender_recheck_known_members
           condition: "can_manage_selected_group == true && defender_recheck_known_members == true"
           next_state: GROUP_DEFENDER_AUTOMODE
-          row: 5
-        - id: show_recommendation
-          label:
-            ru: 📌 Рекомендация по настройке
-            en: 📌 See the setup guide
-          next_state: GROUP_DEFENDER_RECOMMENDATION
-          row: 6
+          row: 3
         - id: def_back_menu
           label:
             ru: 🔙 Назад

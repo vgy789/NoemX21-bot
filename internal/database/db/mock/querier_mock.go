@@ -2693,6 +2693,21 @@ func (mr *MockQuerierMockRecorder) RequestCancelGlobalMemberTagRun(ctx, arg any)
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RequestCancelGlobalMemberTagRun", reflect.TypeOf((*MockQuerier)(nil).RequestCancelGlobalMemberTagRun), ctx, arg)
 }
 
+// ResetTelegramGroupSettingsByChatID mocks base method.
+func (m *MockQuerier) ResetTelegramGroupSettingsByChatID(ctx context.Context, arg db.ResetTelegramGroupSettingsByChatIDParams) (int64, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ResetTelegramGroupSettingsByChatID", ctx, arg)
+	ret0, _ := ret[0].(int64)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ResetTelegramGroupSettingsByChatID indicates an expected call of ResetTelegramGroupSettingsByChatID.
+func (mr *MockQuerierMockRecorder) ResetTelegramGroupSettingsByChatID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ResetTelegramGroupSettingsByChatID", reflect.TypeOf((*MockQuerier)(nil).ResetTelegramGroupSettingsByChatID), ctx, arg)
+}
+
 // RetryGlobalMemberTagRunItem mocks base method.
 func (m *MockQuerier) RetryGlobalMemberTagRunItem(ctx context.Context, arg db.RetryGlobalMemberTagRunItemParams) error {
 	m.ctrl.T.Helper()

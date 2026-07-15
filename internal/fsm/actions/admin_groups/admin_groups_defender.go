@@ -888,7 +888,7 @@ func buildDefenderContextUpdates(ctx context.Context, userID int64, payload map[
 	if err != nil {
 		return updates
 	}
-	group, err := requireOwnedGroup(ctx, queries, userID, chatID)
+	group, err := requireLegacyGroupManagerAccess(ctx, queries, userID, chatID)
 	if err != nil {
 		return updates
 	}

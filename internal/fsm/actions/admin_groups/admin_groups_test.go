@@ -494,8 +494,6 @@ func TestDefenderActionsAreRetired(t *testing.T) {
 	Register(reg, &config.Config{}, logger, q, nil)
 
 	for _, actionName := range []string{
-		"load_group_defender_context",
-		"set_group_defender_enabled",
 		"run_group_defender",
 		"preview_group_defender_violations",
 		"add_group_defender_whitelist_from_input",
@@ -509,6 +507,109 @@ func TestDefenderActionsAreRetired(t *testing.T) {
 		require.Equal(t, false, updates["can_manage_selected_group"])
 		require.Contains(t, updates["_alert"], "Defender отключён")
 	}
+}
+
+func TestSafeDefenderDisableAllFlags(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	reg := fsm.NewLogicRegistry()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	Register(reg, &config.Config{}, logger, q, nil)
+
+	action, ok := reg.Get("set_group_defender_enabled")
+	require.True(t, ok)
+
+	chatID := int64(-100810)
+	enabledGroup := db.TelegramGroup{
+		ChatID:                       chatID,
+		OwnerTelegramUserID:          42,
+		IsInitialized:                true,
+		IsActive:                     true,
+		DefenderEnabled:              true,
+		DefenderRemoveBlocked:        true,
+		DefenderRecheckKnownMembers:  true,
+		DefenderBanDurationSec:       86400,
+		ModerationCommandsEnabled:    true,
+		MemberTagsEnabled:            true,
+		WelcomeEnabled:               true,
+		WelcomeDeleteServiceMessages: true,
+		PrrNotificationsEnabled:      true,
+		TeamNotificationsEnabled:     true,
+		PrrWithdrawnBehavior:         "stub",
+		TeamWithdrawnBehavior:        "stub",
+		MemberTagFormat:              "login",
+	}
+	disabledGroup := enabledGroup
+	disabledGroup.DefenderEnabled = false
+	disabledGroup.DefenderRemoveBlocked = false
+	disabledGroup.DefenderRecheckKnownMembers = false
+
+	gomock.InOrder(
+		q.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(enabledGroup, nil),
+		q.EXPECT().UpdateTelegramGroupDefenderEnabledByOwner(gomock.Any(), db.UpdateTelegramGroupDefenderEnabledByOwnerParams{
+			ChatID:              chatID,
+			OwnerTelegramUserID: 42,
+			DefenderEnabled:     false,
+		}).Return(int64(1), nil),
+		q.EXPECT().UpdateTelegramGroupDefenderRemoveBlockedByOwner(gomock.Any(), db.UpdateTelegramGroupDefenderRemoveBlockedByOwnerParams{
+			ChatID:                chatID,
+			OwnerTelegramUserID:   42,
+			DefenderRemoveBlocked: false,
+		}).Return(int64(1), nil),
+		q.EXPECT().UpdateTelegramGroupDefenderRecheckKnownMembersByOwner(gomock.Any(), db.UpdateTelegramGroupDefenderRecheckKnownMembersByOwnerParams{
+			ChatID:                      chatID,
+			OwnerTelegramUserID:         42,
+			DefenderRecheckKnownMembers: false,
+		}).Return(int64(1), nil),
+		q.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(disabledGroup, nil),
+	)
+	expectFrozenLegacyAccess(q, chatID, 42)
+	expectEmptyDefenderContextLists(q, chatID)
+
+	_, updates, err := action(context.Background(), 42, map[string]any{
+		"id":                     "def_enable_off",
+		"selected_group_chat_id": "-100810",
+	})
+	require.NoError(t, err)
+	require.Equal(t, true, updates["can_manage_selected_group"])
+	require.Equal(t, false, updates["defender_enabled"])
+	require.Equal(t, false, updates["defender_remove_blocked"])
+	require.Equal(t, false, updates["defender_recheck_known_members"])
+	require.Contains(t, updates["_alert"], "Фейс-контроль выключен")
+}
+
+func TestSafeDefenderCannotBeEnabledAgain(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	q := mock.NewMockQuerier(ctrl)
+	reg := fsm.NewLogicRegistry()
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	Register(reg, &config.Config{}, logger, q, nil)
+
+	action, ok := reg.Get("set_group_defender_enabled")
+	require.True(t, ok)
+
+	chatID := int64(-100811)
+	q.EXPECT().GetTelegramGroupByChatID(gomock.Any(), chatID).Return(db.TelegramGroup{
+		ChatID:              chatID,
+		OwnerTelegramUserID: 42,
+		IsInitialized:       true,
+		IsActive:            true,
+		DefenderEnabled:     false,
+	}, nil)
+	expectFrozenLegacyAccess(q, chatID, 42)
+	expectEmptyDefenderContextLists(q, chatID)
+
+	_, updates, err := action(context.Background(), 42, map[string]any{
+		"id":                     "def_enable_on",
+		"selected_group_chat_id": "-100811",
+	})
+	require.NoError(t, err)
+	require.Equal(t, true, updates["can_manage_selected_group"])
+	require.Contains(t, updates["_alert"], "включение фейс-контроля отключено")
 }
 
 func TestRunGroupDefender_UsesRunner(t *testing.T) {
@@ -560,4 +661,16 @@ func timeNowUTC() time.Time {
 func expectEmptyDefenderFilterLists(q *mock.MockQuerier, chatID int64) {
 	q.EXPECT().ListTelegramGroupDefenderCampusFilters(gomock.Any(), chatID).Return([]db.TelegramGroupDefenderCampusFilter{}, nil).AnyTimes()
 	q.EXPECT().ListTelegramGroupDefenderTribeFilters(gomock.Any(), chatID).Return([]db.TelegramGroupDefenderTribeFilter{}, nil).AnyTimes()
+}
+
+func expectEmptyDefenderContextLists(q *mock.MockQuerier, chatID int64) {
+	expectEmptyDefenderFilterLists(q, chatID)
+	q.EXPECT().ListTelegramGroupWhitelists(gomock.Any(), db.ListTelegramGroupWhitelistsParams{
+		ChatID:   chatID,
+		RowLimit: defenderWhitelistLoadLimit,
+	}).Return([]db.TelegramGroupWhitelist{}, nil).AnyTimes()
+	q.EXPECT().ListTelegramGroupLogs(gomock.Any(), db.ListTelegramGroupLogsParams{
+		ChatID:   chatID,
+		RowLimit: defenderLogsLoadLimit,
+	}).Return([]db.TelegramGroupLog{}, nil).AnyTimes()
 }

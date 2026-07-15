@@ -84,6 +84,7 @@ func (s *telegramService) registerHandlers(d *ext.Dispatcher) {
 	d.AddHandler(handlers.NewCommand("start", s.handleStart))
 	d.AddHandler(handlers.NewCommand("init", s.handleGroupInit))
 	d.AddHandler(handlers.NewCommand("group_init", s.handleGroupInit))
+	d.AddHandler(handlers.NewCommand("reset", s.handleGroupReset))
 	d.AddHandler(handlers.NewCommand("prr_here", s.handlePRRHere))
 	d.AddHandler(handlers.NewCommand("team_here", s.handleTeamHere))
 	d.AddHandler(handlers.NewCommand("welcome_here", s.handleWelcomeHere))
@@ -329,6 +330,55 @@ func (s *telegramService) handleGroupInit(b *gotgbot.Bot, ctx *ext.Context) erro
 
 	_, err = s.getSender(b).SendMessage(chatID,
 		"Группа успешно инициализирована в radar-only режиме.\n\nДоступно: /prr_here для PRR-радара и /team_here для радара групповых проектов. Для этих функций боту достаточно права писать в выбранный чат или топик.",
+		nil,
+	)
+	return err
+}
+
+func (s *telegramService) handleGroupReset(b *gotgbot.Bot, ctx *ext.Context) error {
+	if !isGroupChat(ctx.EffectiveChat) {
+		return nil
+	}
+	if b == nil || ctx.EffectiveUser == nil || ctx.EffectiveChat == nil {
+		return nil
+	}
+	if s.queries == nil {
+		s.log.Error("telegram queries is nil, cannot reset group settings", "chat_id", ctx.EffectiveChat.Id)
+		_, _ = s.getSender(b).SendMessage(ctx.EffectiveChat.Id, "Не удалось сбросить настройки группы. Попробуйте позже.", nil)
+		return nil
+	}
+
+	chatID := ctx.EffectiveChat.Id
+	userID := ctx.EffectiveUser.Id
+
+	ownerMember, err := b.GetChatMember(chatID, userID, nil)
+	if err != nil {
+		s.log.Warn("failed to verify group owner for reset", "chat_id", chatID, "user_id", userID, "error", err)
+		_, _ = s.getSender(b).SendMessage(chatID, "Не удалось проверить владельца группы. Проверьте, что бот остаётся в группе, и повторите /reset.", nil)
+		return nil
+	}
+	if ownerMember.GetStatus() != gotgbot.ChatMemberStatusOwner {
+		_, _ = s.getSender(b).SendMessage(chatID, "Команда /reset доступна только владельцу группы.", nil)
+		return nil
+	}
+
+	rows, err := s.queries.ResetTelegramGroupSettingsByChatID(context.Background(), db.ResetTelegramGroupSettingsByChatIDParams{
+		ChatID:                chatID,
+		OwnerTelegramUserID:   userID,
+		OwnerTelegramUsername: ctx.EffectiveUser.Username,
+	})
+	if err != nil {
+		s.log.Error("failed to reset telegram group settings", "chat_id", chatID, "user_id", userID, "error", err)
+		_, _ = s.getSender(b).SendMessage(chatID, "Не удалось сбросить настройки группы. Попробуйте позже.", nil)
+		return nil
+	}
+	if rows == 0 {
+		_, _ = s.getSender(b).SendMessage(chatID, "Группа ещё не инициализирована в боте. Выполните /init.", nil)
+		return nil
+	}
+
+	_, err = s.getSender(b).SendMessage(chatID,
+		"Настройки бота для этой группы сброшены.\n\nАвтоматический фейс-контроль, модерация, welcome, теги и фильтры отключены. Доступны только PRR-радар и радар групповых проектов; цели можно заново выбрать через /prr_here и /team_here.",
 		nil,
 	)
 	return err

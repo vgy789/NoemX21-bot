@@ -193,6 +193,7 @@ type Querier interface {
 	MarkTelegramGroupMemberLeft(ctx context.Context, arg MarkTelegramGroupMemberLeftParams) error
 	PurgeParticipantStatsCache(ctx context.Context) (int64, error)
 	RequestCancelGlobalMemberTagRun(ctx context.Context, arg RequestCancelGlobalMemberTagRunParams) (int64, error)
+	ResetTelegramGroupSettingsByChatID(ctx context.Context, arg ResetTelegramGroupSettingsByChatIDParams) (int64, error)
 	RetryGlobalMemberTagRunItem(ctx context.Context, arg RetryGlobalMemberTagRunItemParams) error
 	RetryLegacyMemberTag(ctx context.Context, arg RetryLegacyMemberTagParams) error
 	RetryTelegramGroupWelcomeMessageDeletion(ctx context.Context, arg RetryTelegramGroupWelcomeMessageDeletionParams) error

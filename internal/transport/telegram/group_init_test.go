@@ -174,6 +174,89 @@ func TestHandleGroupInit_SuccessTransfersOwnership(t *testing.T) {
 	assert.Contains(t, msgText, "/team_here")
 }
 
+func TestHandleGroupReset_SuccessForTelegramOwner(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	queries := dbmock.NewMockQuerier(ctrl)
+	sender := mock.NewMockSender(ctrl)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	s := &telegramService{log: log, sender: sender, queries: queries}
+
+	bot := &gotgbot.Bot{
+		Token: "test-token",
+		User:  gotgbot.User{Id: 9000, IsBot: true, Username: "testgroupbot"},
+		BotClient: &fakeBotClient{statuses: map[int64]string{
+			4004: gotgbot.ChatMemberStatusOwner,
+		}},
+	}
+
+	chatID := int64(-100888)
+	update := &gotgbot.Update{Message: &gotgbot.Message{
+		Chat: gotgbot.Chat{Id: chatID, Type: "supergroup", Title: "Group Reset"},
+		From: &gotgbot.User{Id: 4004, Username: "reset_owner"},
+		Text: "/reset",
+	}}
+	ctx := ext.NewContext(bot, update, nil)
+
+	queries.EXPECT().ResetTelegramGroupSettingsByChatID(gomock.Any(), db.ResetTelegramGroupSettingsByChatIDParams{
+		ChatID:                chatID,
+		OwnerTelegramUserID:   int64(4004),
+		OwnerTelegramUsername: "reset_owner",
+	}).Return(int64(1), nil)
+
+	var msgText string
+	sender.EXPECT().SendMessage(chatID, gomock.Any(), gomock.Nil()).DoAndReturn(func(_ int64, text string, _ *gotgbot.SendMessageOpts) (*gotgbot.Message, error) {
+		msgText = text
+		return nil, nil
+	})
+
+	err := s.handleGroupReset(bot, ctx)
+	require.NoError(t, err)
+	assert.Contains(t, msgText, "сброшены")
+	assert.Contains(t, msgText, "Автоматический фейс-контроль")
+	assert.Contains(t, msgText, "/prr_here")
+	assert.Contains(t, msgText, "/team_here")
+}
+
+func TestHandleGroupReset_DeniesNonOwner(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	queries := dbmock.NewMockQuerier(ctrl)
+	sender := mock.NewMockSender(ctrl)
+	log := slog.New(slog.NewTextHandler(io.Discard, nil))
+
+	s := &telegramService{log: log, sender: sender, queries: queries}
+
+	bot := &gotgbot.Bot{
+		Token: "test-token",
+		User:  gotgbot.User{Id: 9000, IsBot: true, Username: "testgroupbot"},
+		BotClient: &fakeBotClient{statuses: map[int64]string{
+			5005: gotgbot.ChatMemberStatusAdministrator,
+		}},
+	}
+
+	chatID := int64(-100889)
+	update := &gotgbot.Update{Message: &gotgbot.Message{
+		Chat: gotgbot.Chat{Id: chatID, Type: "supergroup", Title: "Group Reset"},
+		From: &gotgbot.User{Id: 5005, Username: "not_owner"},
+		Text: "/reset",
+	}}
+	ctx := ext.NewContext(bot, update, nil)
+
+	var msgText string
+	sender.EXPECT().SendMessage(chatID, gomock.Any(), gomock.Nil()).DoAndReturn(func(_ int64, text string, _ *gotgbot.SendMessageOpts) (*gotgbot.Message, error) {
+		msgText = text
+		return nil, nil
+	})
+
+	err := s.handleGroupReset(bot, ctx)
+	require.NoError(t, err)
+	assert.Contains(t, msgText, "только владельцу")
+}
+
 func TestHandleMyChatMember_DeactivateOnRemoved(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()

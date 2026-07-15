@@ -259,6 +259,78 @@ SET owner_telegram_user_id = 0,
 WHERE chat_id = $1
   AND owner_telegram_user_id = $2;
 
+-- name: ResetTelegramGroupSettingsByChatID :one
+WITH reset_group AS (
+    UPDATE telegram_groups
+    SET owner_telegram_user_id = $2,
+        owner_telegram_username = $3,
+        is_initialized = true,
+        is_active = true,
+        member_tags_enabled = false,
+        member_tag_format = 'login',
+        defender_enabled = false,
+        defender_remove_blocked = false,
+        defender_recheck_known_members = false,
+        defender_ban_duration_sec = 86400,
+        moderation_commands_enabled = false,
+        prr_notifications_enabled = false,
+        prr_notifications_thread_id = 0,
+        prr_notifications_thread_label = '',
+        prr_withdrawn_behavior = 'stub',
+        team_notifications_enabled = false,
+        team_notifications_thread_id = 0,
+        team_notifications_thread_label = '',
+        team_withdrawn_behavior = 'stub',
+        welcome_enabled = false,
+        welcome_thread_id = 0,
+        welcome_thread_label = '',
+        welcome_delete_service_messages = true,
+        updated_at = CURRENT_TIMESTAMP
+    WHERE telegram_groups.chat_id = $1
+    RETURNING chat_id
+),
+delete_prr_project_filters AS (
+    DELETE FROM telegram_group_prr_project_filters
+    WHERE telegram_group_prr_project_filters.chat_id = $1
+    RETURNING 1
+),
+delete_prr_campus_filters AS (
+    DELETE FROM telegram_group_prr_campus_filters
+    WHERE telegram_group_prr_campus_filters.chat_id = $1
+    RETURNING 1
+),
+delete_team_project_filters AS (
+    DELETE FROM telegram_group_team_project_filters
+    WHERE telegram_group_team_project_filters.chat_id = $1
+    RETURNING 1
+),
+delete_team_campus_filters AS (
+    DELETE FROM telegram_group_team_campus_filters
+    WHERE telegram_group_team_campus_filters.chat_id = $1
+    RETURNING 1
+),
+delete_defender_campus_filters AS (
+    DELETE FROM telegram_group_defender_campus_filters
+    WHERE telegram_group_defender_campus_filters.chat_id = $1
+    RETURNING 1
+),
+delete_defender_tribe_filters AS (
+    DELETE FROM telegram_group_defender_tribe_filters
+    WHERE telegram_group_defender_tribe_filters.chat_id = $1
+    RETURNING 1
+),
+delete_whitelists AS (
+    DELETE FROM telegram_group_whitelists
+    WHERE telegram_group_whitelists.chat_id = $1
+    RETURNING 1
+),
+delete_moderators AS (
+    DELETE FROM telegram_group_moderators
+    WHERE telegram_group_moderators.chat_id = $1
+    RETURNING 1
+)
+SELECT COUNT(*)::bigint FROM reset_group;
+
 -- name: UpdateTelegramGroupMemberTagsEnabledByOwner :execrows
 UPDATE telegram_groups
 SET member_tags_enabled = $3,
