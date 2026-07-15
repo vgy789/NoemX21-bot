@@ -1,3 +1,4 @@
+//nolint:unused // Retired Defender implementation is intentionally kept as disabled legacy reference.
 package telegram
 
 import (
@@ -315,7 +316,6 @@ func (s *telegramService) getChatMemberIdentity(ctx context.Context, b *gotgbot.
 }
 
 func (s *telegramService) tryAutoDefenderForKnownGroup(ctx context.Context, b *gotgbot.Bot, group db.TelegramGroup, telegramUserID int64) {
-	return
 }
 
 func (s *telegramService) tryAutoDefenderForKnownGroupRetiredCode(ctx context.Context, b *gotgbot.Bot, group db.TelegramGroup, telegramUserID int64) {
@@ -389,7 +389,6 @@ func (s *telegramService) tryAutoDefenderForKnownGroupRetiredCode(ctx context.Co
 }
 
 func (s *telegramService) tryAutoDefenderForJoinRequest(ctx context.Context, b *gotgbot.Bot, group db.TelegramGroup, telegramUserID, userChatID int64) {
-	return
 }
 
 func (s *telegramService) tryAutoDefenderForJoinRequestRetiredCode(ctx context.Context, b *gotgbot.Bot, group db.TelegramGroup, telegramUserID, userChatID int64) {

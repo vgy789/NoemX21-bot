@@ -30,7 +30,7 @@ type groupModerationCommandsStore interface {
 	UpdateTelegramGroupModerationCommandsEnabled(ctx context.Context, arg db.UpdateTelegramGroupModerationCommandsEnabledParams) (int64, error)
 }
 
-type telegramUserAccountByS21LoginResolver interface {
+type telegramUserAccountByS21LoginResolver interface { //nolint:unused // Kept for disabled legacy moderator target resolution.
 	GetTelegramUserAccountByS21Login(ctx context.Context, s21Login string) (db.UserAccount, error)
 }
 
@@ -354,7 +354,7 @@ func resolveModeratorDisplay(ctx context.Context, queries db.Querier, telegramUs
 	return display, username
 }
 
-func resolveModeratorTargetAccount(ctx context.Context, queries db.Querier, raw string) (db.UserAccount, int64, string, string) {
+func resolveModeratorTargetAccount(ctx context.Context, queries db.Querier, raw string) (db.UserAccount, int64, string, string) { //nolint:unused // Kept for disabled legacy moderator target resolution.
 	input := strings.TrimSpace(raw)
 	if input == "" {
 		return db.UserAccount{}, 0, "Укажи Telegram ID, школьный логин или @username", "Provide Telegram ID, school login or @username"

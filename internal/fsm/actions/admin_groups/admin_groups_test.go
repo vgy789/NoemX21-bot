@@ -40,7 +40,7 @@ type fakeDefenderRunner struct {
 	unbanCalls      []int64
 }
 
-type querierWithUsernameResolver struct {
+type querierWithUsernameResolver struct { //nolint:unused // Kept for skipped retired Defender whitelist tests.
 	*mock.MockQuerier
 	usernameAccount db.UserAccount
 	usernameErr     error
@@ -66,7 +66,7 @@ func (f *fakeDefenderRunner) UnbanGroupMember(_ context.Context, _ int64, _ int6
 	return nil
 }
 
-func (q *querierWithUsernameResolver) GetTelegramUserAccountByUsername(_ context.Context, username string) (db.UserAccount, error) {
+func (q *querierWithUsernameResolver) GetTelegramUserAccountByUsername(_ context.Context, username string) (db.UserAccount, error) { //nolint:unused // Kept for skipped retired Defender whitelist tests.
 	q.lastUsername = username
 	return q.usernameAccount, q.usernameErr
 }
@@ -654,7 +654,7 @@ func TestRunGroupDefender_UsesRunner(t *testing.T) {
 	require.Equal(t, "⚠️ Нужно право на ban users. Назначьте боту право бана участников и запустите снова.", updates["defender_last_run_notice_ru"])
 }
 
-func timeNowUTC() time.Time {
+func timeNowUTC() time.Time { //nolint:unused // Kept for skipped retired Defender tests.
 	return time.Now().UTC()
 }
 

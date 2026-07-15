@@ -1,3 +1,4 @@
+//nolint:unused // Retired Defender actions are intentionally kept as disabled legacy reference.
 package admin_groups
 
 import (

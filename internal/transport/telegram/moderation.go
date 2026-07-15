@@ -34,7 +34,7 @@ type groupModerationCommandsConfigReader interface {
 	GetTelegramGroupModerationCommandsEnabledByChatID(ctx context.Context, chatID int64) (bool, error)
 }
 
-type groupModeratorReader interface {
+type groupModeratorReader interface { //nolint:unused // Kept for disabled legacy moderator lookup path.
 	GetTelegramGroupModeratorByChatAndUser(ctx context.Context, chatID, telegramUserID int64) (db.TelegramGroupModerator, error)
 }
 

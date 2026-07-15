@@ -1,3 +1,4 @@
+//nolint:unused // Retired global member-tag implementation is intentionally kept as disabled legacy reference.
 package telegram
 
 import (
@@ -219,7 +220,6 @@ func (s *telegramService) globalMemberTagScope(ctx context.Context, bot *gotgbot
 }
 
 func (s *telegramService) startGlobalMemberTagWorker(ctx context.Context, bot *gotgbot.Bot) {
-	return
 }
 
 func (s *telegramService) startGlobalMemberTagWorkerRetiredCode(ctx context.Context, bot *gotgbot.Bot) {

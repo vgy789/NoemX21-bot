@@ -48,13 +48,12 @@ func registerSafeDefenderActions(registry *fsm.LogicRegistry, log logger, querie
 	})
 
 	registry.Register("set_group_defender_enabled", func(ctx context.Context, userID int64, payload map[string]any) (string, map[string]any, error) {
-		updates := map[string]any{}
 		chatID, err := parseSelectedGroupChatID(payload)
 		if err != nil {
 			return "", buildDefenderContextUpdates(ctx, userID, payload, log, queries), nil
 		}
 		if strings.TrimSpace(fmt.Sprintf("%v", payload["id"])) != "def_enable_off" {
-			updates = buildDefenderContextUpdates(ctx, userID, payload, log, queries)
+			updates := buildDefenderContextUpdates(ctx, userID, payload, log, queries)
 			updates["_alert"] = "Defender retired: включение фейс-контроля отключено. Можно только выключить старые флаги."
 			return "", updates, nil
 		}
@@ -83,7 +82,7 @@ func registerSafeDefenderActions(registry *fsm.LogicRegistry, log logger, querie
 		}); err != nil && log != nil {
 			log.Warn("admin groups: failed to disable retired defender_recheck_known_members", "chat_id", chatID, "user_id", userID, "error", err)
 		}
-		updates = buildDefenderContextUpdates(ctx, userID, payload, log, queries)
+		updates := buildDefenderContextUpdates(ctx, userID, payload, log, queries)
 		updates["_alert"] = "Фейс-контроль выключен. Автоматические удаления участников не выполняются."
 		return "", updates, nil
 	})

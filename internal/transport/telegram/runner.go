@@ -102,7 +102,7 @@ type telegramService struct {
 	fileIDsMu           sync.RWMutex
 	welcomeCleanupOnce  sync.Once
 	memberTagQueueOnce  sync.Once
-	globalMemberTagOnce sync.Once
+	globalMemberTagOnce sync.Once //nolint:unused // Kept for disabled legacy global member-tag worker.
 }
 
 type activeInitializedTelegramGroupsLister interface {
